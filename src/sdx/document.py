@@ -8,6 +8,34 @@ from typing import Any
 from .embeddings import cosine_similarity, deserialize_vector, get_embedder
 from .schema import REQUIRED_METADATA_KEYS
 
+_CAPTION_MAX_GAP = 60.0
+
+
+def _nearest_caption(
+    bbox: list[float] | None,
+    captions: list[tuple[list[float] | None, str]],
+) -> str | None:
+    """Pick the caption vertically closest to a figure bbox, within the gap limit."""
+    if not captions:
+        return None
+    if bbox is None:
+        return captions[0][1]
+    best_text = None
+    best_gap = _CAPTION_MAX_GAP
+    for cap_bbox, text in captions:
+        if cap_bbox is None:
+            continue
+        if cap_bbox[3] < bbox[1]:
+            gap = bbox[1] - cap_bbox[3]
+        elif bbox[3] < cap_bbox[1]:
+            gap = cap_bbox[1] - bbox[3]
+        else:
+            gap = 0.0
+        if gap <= best_gap:
+            best_gap = gap
+            best_text = text
+    return best_text
+
 
 @dataclass
 class SearchResult:
@@ -164,8 +192,10 @@ class SDXDocument:
     ) -> list[dict[str, Any]]:
         """Return extracted figures (image blocks + stored image assets).
 
-        Optionally filter to a page range, e.g. the pages of a search result.
-        Set include_data=True to also return the image bytes.
+        Each figure includes its caption text when a caption block sits
+        vertically adjacent on the same page. Optionally filter to a page
+        range, e.g. the pages of a search result. Set include_data=True to
+        also return the image bytes.
         """
         sql = """
             SELECT b.block_id, b.page_number, b.bbox_json,
@@ -182,15 +212,29 @@ class SDXDocument:
             sql += " AND b.page_number <= ?"
             params.append(page_end)
         sql += " ORDER BY b.page_number, b.sort_order"
+        rows = self.conn.execute(sql, params).fetchall()
+        captions_by_page: dict[int, list[tuple[list[float] | None, str]]] = {}
+        if rows:
+            pages = sorted({row["page_number"] for row in rows})
+            placeholders = ",".join("?" * len(pages))
+            for cap in self.conn.execute(
+                f"SELECT page_number, bbox_json, text FROM blocks "
+                f"WHERE block_type = 'caption' AND page_number IN ({placeholders})",
+                pages,
+            ):
+                bbox = json.loads(cap["bbox_json"]) if cap["bbox_json"] else None
+                captions_by_page.setdefault(cap["page_number"], []).append((bbox, cap["text"]))
         figures = []
-        for row in self.conn.execute(sql, params):
+        for row in rows:
+            bbox = json.loads(row["bbox_json"]) if row["bbox_json"] else None
             figure = {
                 "block_id": row["block_id"],
                 "page_number": row["page_number"],
-                "bbox": json.loads(row["bbox_json"]) if row["bbox_json"] else None,
+                "bbox": bbox,
                 "asset_id": row["asset_id"],
                 "mime_type": row["mime_type"],
                 "filename": row["filename"],
+                "caption": _nearest_caption(bbox, captions_by_page.get(row["page_number"], [])),
             }
             if include_data:
                 figure["data"] = self.conn.execute(

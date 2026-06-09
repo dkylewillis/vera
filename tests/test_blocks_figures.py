@@ -212,3 +212,75 @@ class TestFiguresAPI:
         result = sdx_doc.search("detention impervious", mode="keyword", top_k=1)[0]
         assert result.page_start == 2
         assert sdx_doc.figures_for(result) == []
+
+
+def make_captioned_pdf(path):
+    """PDF with an image followed by a caption, plus a decoy 'Table 1' sentence far away."""
+    import fitz
+
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Chapter 5 Stormwater Design", fontsize=20)
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40))
+    pix.clear_with(90)
+    page.insert_image(fitz.Rect(72, 120, 272, 270), pixmap=pix)
+    page.insert_text((72, 295), "Figure 3: Detention pond sizing diagram", fontsize=10)
+    page.insert_text(
+        (72, 600),
+        "Table 1 lists requirements but this paragraph is far from any image and long enough to read like prose.",
+        fontsize=11,
+    )
+    doc.save(path)
+    doc.close()
+
+
+class TestCaptions:
+    @pytest.fixture
+    def captioned_pdf(self, tmp_path):
+        pdf = tmp_path / "captioned.pdf"
+        make_captioned_pdf(pdf)
+        return pdf
+
+    def test_caption_block_detected(self, captioned_pdf):
+        _, blocks = parse_pdf_structured(str(captioned_pdf))
+        captions = [b for b in blocks if b.block_type == "caption"]
+        assert len(captions) == 1
+        assert "Detention pond sizing" in captions[0].text
+
+    def test_distant_table_sentence_not_marked_caption(self, captioned_pdf):
+        _, blocks = parse_pdf_structured(str(captioned_pdf))
+        captions = [b.text for b in blocks if b.block_type == "caption"]
+        assert not any("Table 1 lists" in c for c in captions)
+
+    def test_caption_text_searchable_in_chunks(self, tmp_path, captioned_pdf):
+        out = tmp_path / "out.sdx"
+        convert(str(captioned_pdf), str(out), model="hashing")
+        doc = SDXDocument.open(str(out))
+        try:
+            results = doc.search("detention pond sizing diagram", mode="keyword", top_k=1)
+            assert results
+            assert "detention pond sizing" in results[0].text.lower()
+        finally:
+            doc.close()
+
+    def test_figures_return_caption(self, tmp_path, captioned_pdf):
+        out = tmp_path / "out.sdx"
+        convert(str(captioned_pdf), str(out), model="hashing")
+        doc = SDXDocument.open(str(out))
+        try:
+            figures = doc.figures()
+            assert len(figures) == 1
+            assert figures[0]["caption"] is not None
+            assert "Detention pond sizing" in figures[0]["caption"]
+        finally:
+            doc.close()
+
+    def test_figure_without_caption_returns_none(self, tmp_path, structured_pdf):
+        out = tmp_path / "out.sdx"
+        convert(str(structured_pdf), str(out), model="hashing")
+        doc = SDXDocument.open(str(out))
+        try:
+            figures = doc.figures()
+            assert figures[0]["caption"] is None
+        finally:
+            doc.close()

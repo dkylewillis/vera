@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass
+
+_CAPTION_RE = re.compile(r"^(figure|fig\.?|table|diagram|exhibit|chart|map|photo)\s*[0-9]+([.:\-\u2013]|\s|$)", re.I)
+_CAPTION_PROXIMITY = 60.0  # max vertical gap in points between caption and image
 
 
 @dataclass
@@ -174,4 +178,41 @@ def parse_pdf_structured(path: str) -> tuple[list[ParsedPage], list[ParsedBlock]
                     bbox=block.bbox,
                 )
             )
+    _mark_captions(blocks)
     return pages, blocks
+
+
+def _vertical_gap(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
+    """Vertical distance between two bboxes (0 when they overlap vertically)."""
+    if a[3] < b[1]:
+        return b[1] - a[3]
+    if b[3] < a[1]:
+        return a[1] - b[3]
+    return 0.0
+
+
+def _mark_captions(blocks: list[ParsedBlock]) -> None:
+    """Reclassify text blocks as captions when they label a nearby image.
+
+    A caption starts with a figure/table label (e.g. "Figure 3:") and sits
+    vertically adjacent to an image block on the same page.
+    """
+    images_by_page: dict[int, list[ParsedBlock]] = {}
+    for block in blocks:
+        if block.block_type == "image":
+            images_by_page.setdefault(block.page_number, []).append(block)
+    for block in blocks:
+        if block.block_type not in {"paragraph", "heading"}:
+            continue
+        first_line = block.text.splitlines()[0].strip() if block.text else ""
+        if not _CAPTION_RE.match(first_line) or len(block.text) > 500:
+            continue
+        images = images_by_page.get(block.page_number, [])
+        if not images or block.bbox is None:
+            continue
+        if any(
+            img.bbox is not None and _vertical_gap(block.bbox, img.bbox) <= _CAPTION_PROXIMITY
+            for img in images
+        ):
+            block.block_type = "caption"
+            block.heading_level = None

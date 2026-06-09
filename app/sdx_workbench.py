@@ -102,7 +102,8 @@ try:
                         cols = st.columns(min(len(figures), 3))
                         for fig_idx, figure in enumerate(figures):
                             with cols[fig_idx % len(cols)]:
-                                st.image(figure["data"], caption=f"p.{figure['page_number']} {figure['filename']}")
+                                caption = figure.get("caption") or f"p.{figure['page_number']} {figure['filename']}"
+                                st.image(figure["data"], caption=caption)
                     st.json(result.as_dict())
 
         st.subheader("Chunks")
