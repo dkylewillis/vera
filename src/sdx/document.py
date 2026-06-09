@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .embeddings import cosine_similarity, deserialize_vector, get_embedder
+from .schema import REQUIRED_METADATA_KEYS
 
 
 @dataclass
@@ -50,6 +51,110 @@ class SDXDocument:
         )
         return metadata
 
+    def validate(self) -> dict[str, Any]:
+        """Validate the SDX container, schema, metadata, indexes, and embeddings."""
+        issues: list[str] = []
+        warnings: list[str] = []
+        required_tables = {
+            "sdx_metadata",
+            "documents",
+            "pages",
+            "blocks",
+            "chunks",
+            "chunk_blocks",
+            "embeddings",
+            "assets",
+            "chunks_fts",
+        }
+
+        integrity = self.conn.execute("PRAGMA integrity_check").fetchone()[0]
+        if integrity != "ok":
+            issues.append(f"SQLite integrity check failed: {integrity}")
+
+        existing_tables = {
+            row["name"]
+            for row in self.conn.execute(
+                "SELECT name FROM sqlite_master WHERE type IN ('table','virtual table')"
+            )
+        }
+        for table in sorted(required_tables - existing_tables):
+            issues.append(f"Missing required table: {table}")
+
+        counts = {
+            "documents": self._safe_count("documents", existing_tables),
+            "pages": self._safe_count("pages", existing_tables),
+            "chunks": self._safe_count("chunks", existing_tables),
+            "embeddings": self._safe_count("embeddings", existing_tables),
+            "fts_rows": self._safe_count("chunks_fts", existing_tables),
+            "assets": self._safe_count("assets", existing_tables),
+        }
+
+        metadata = {}
+        if "sdx_metadata" in existing_tables:
+            metadata = {row["key"]: row["value"] for row in self.conn.execute("SELECT key, value FROM sdx_metadata")}
+            for key in REQUIRED_METADATA_KEYS:
+                if key not in metadata:
+                    issues.append(f"Missing required metadata key: {key}")
+
+        if counts["documents"] < 1:
+            issues.append("No document records found")
+        if counts["pages"] < 1:
+            issues.append("No page records found")
+        if counts["chunks"] < 1:
+            issues.append("No chunks found")
+        if counts["embeddings"] != counts["chunks"]:
+            issues.append(f"Embedding count ({counts['embeddings']}) does not match chunk count ({counts['chunks']})")
+        if counts["fts_rows"] != counts["chunks"]:
+            issues.append(f"FTS row count ({counts['fts_rows']}) does not match chunk count ({counts['chunks']})")
+
+        original_document_present = False
+        if "assets" in existing_tables:
+            original_document_present = (
+                self.conn.execute("SELECT COUNT(*) FROM assets WHERE asset_type='original_document'").fetchone()[0] > 0
+            )
+            if not original_document_present:
+                issues.append("Original document asset is missing")
+
+        if "embeddings" in existing_tables:
+            for row in self.conn.execute(
+                "SELECT embedding_id, chunk_id, model_dimension, vector FROM embeddings ORDER BY embedding_id"
+            ):
+                expected = int(row["model_dimension"] or 0) * 4
+                actual = len(row["vector"] or b"")
+                if expected <= 0 or actual != expected:
+                    issues.append(
+                        f"Invalid embedding blob for {row['embedding_id']} / {row['chunk_id']}: expected {expected} bytes, got {actual}"
+                    )
+
+        if "chunks" in existing_tables and "pages" in existing_tables:
+            bad_page_refs = self.conn.execute(
+                """
+                SELECT COUNT(*) FROM chunks
+                WHERE page_start IS NOT NULL
+                  AND page_start NOT IN (SELECT page_number FROM pages)
+                """
+            ).fetchone()[0]
+            if bad_page_refs:
+                issues.append(f"Chunks with invalid page_start references: {bad_page_refs}")
+
+        return {
+            "ok": not issues,
+            "issues": issues,
+            "warnings": warnings,
+            "counts": counts,
+            "checks": {
+                "sqlite_integrity": integrity,
+                "required_tables_present": required_tables.issubset(existing_tables),
+                "original_document_present": original_document_present,
+            },
+            "metadata": metadata,
+        }
+
+    def _safe_count(self, table: str, existing_tables: set[str]) -> int:
+        if table not in existing_tables:
+            return 0
+        return int(self.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+
     def search(self, query: str, mode: str = "hybrid", top_k: int = 10) -> list[SearchResult]:
         mode = mode.lower()
         if mode not in {"semantic", "keyword", "hybrid"}:
@@ -71,12 +176,6 @@ class SDXDocument:
             source_filename=row["source_filename"],
             document_id=row["document_id"],
         )
-
-    def _chunk_join_sql(self) -> str:
-        return """
-            SELECT c.*, d.source_filename
-            FROM chunks c JOIN documents d ON c.document_id = d.document_id
-        """
 
     def _semantic_search(self, query: str, top_k: int) -> list[SearchResult]:
         info = self.inspect()
@@ -107,6 +206,7 @@ class SDXDocument:
             WHERE chunks_fts MATCH ?
             ORDER BY rank LIMIT ?
         """
+
         def safe_query(raw: str) -> str:
             terms = []
             for token in raw.split():

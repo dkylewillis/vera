@@ -60,6 +60,35 @@ def cmd_search(args) -> int:
     return 0
 
 
+def cmd_validate(args) -> int:
+    doc = SDXDocument.open(args.file)
+    try:
+        report = doc.validate()
+    finally:
+        doc.close()
+
+    print(f"SDX validation: {'PASS' if report['ok'] else 'FAIL'}")
+    print(f"File: {args.file}")
+    counts = report["counts"]
+    print(f"Documents: {counts['documents']}")
+    print(f"Pages: {counts['pages']}")
+    print(f"Chunks: {counts['chunks']}")
+    print(f"Embeddings: {counts['embeddings']}")
+    print(f"FTS rows: {counts['fts_rows']}")
+    print(f"Original document: {'present' if report['checks']['original_document_present'] else 'missing'}")
+    print(f"Issues: {len(report['issues'])}")
+    for issue in report["issues"]:
+        print(f"- {issue}")
+    return 0 if report["ok"] else 1
+
+
+def cmd_workbench(args) -> int:
+    import subprocess
+
+    command = [sys.executable, "-m", "streamlit", "run", "app/sdx_workbench.py"]
+    raise SystemExit(subprocess.call(command))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sdx", description="Semantic Document eXchange CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -84,6 +113,13 @@ def build_parser() -> argparse.ArgumentParser:
     search_p.add_argument("--mode", choices=["semantic", "keyword", "hybrid"], default="hybrid")
     search_p.add_argument("--top-k", type=int, default=10)
     search_p.set_defaults(func=cmd_search)
+
+    validate_p = sub.add_parser("validate", help="Validate an SDX file")
+    validate_p.add_argument("file")
+    validate_p.set_defaults(func=cmd_validate)
+
+    workbench_p = sub.add_parser("workbench", help="Launch the optional Streamlit SDX Workbench")
+    workbench_p.set_defaults(func=cmd_workbench)
     return parser
 
 
