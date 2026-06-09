@@ -22,7 +22,7 @@ doc = SDXDocument.open("output.sdx")
 print(doc.search("parking requirements", mode="hybrid"))
 ```
 
-The MVP uses SQLite + FTS5 and brute-force cosine vector search. It supports PyMuPDF parsing and a deterministic local hashing embedder by default, with optional sentence-transformers support via `--model sentence-transformers/all-MiniLM-L6-v2`.
+The MVP uses SQLite + FTS5 and brute-force cosine vector search. Hybrid search min-max normalizes both score sets and blends them equally. It supports PyMuPDF parsing and a deterministic local hashing embedder by default, with optional sentence-transformers support via `--model sentence-transformers/all-MiniLM-L6-v2`.
 
 Conversion performs structured block-level parsing: headings are detected from font size/weight and produce hierarchical heading paths (`Chapter 110 > Article 5 > Parking`), chunks map back to their source blocks via `chunk_blocks`, and embedded images are extracted into the `assets` table. Figures co-located with a search result are available via the Python API:
 

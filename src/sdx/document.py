@@ -269,7 +269,8 @@ class SDXDocument:
             document_id=row["document_id"],
         )
 
-    def _semantic_search(self, query: str, top_k: int) -> list[SearchResult]:
+    def _semantic_scores(self, query: str) -> list[SearchResult]:
+        """Score every chunk against the query (brute-force cosine), unsorted."""
         info = self.inspect()
         embedder = get_embedder(info.get("default_embedding_model") or "hashing")
         query_vec = embedder.embed([query])[0]
@@ -286,6 +287,10 @@ class SDXDocument:
         for row in rows:
             vec = deserialize_vector(row["vector"])
             scored.append(self._row_to_result(row, cosine_similarity(query_vec, vec)))
+        return scored
+
+    def _semantic_search(self, query: str, top_k: int) -> list[SearchResult]:
+        scored = self._semantic_scores(query)
         return sorted(scored, key=lambda r: r.score, reverse=True)[:top_k]
 
     def _keyword_search(self, query: str, top_k: int) -> list[SearchResult]:
@@ -321,19 +326,35 @@ class SDXDocument:
         return results
 
     def _hybrid_search(self, query: str, top_k: int) -> list[SearchResult]:
-        semantic = self._semantic_search(query, max(top_k, 20))
-        keyword = self._keyword_search(query, max(top_k, 20))
-        by_id: dict[str, SearchResult] = {}
-        sem_scores = {r.chunk_id: r.score for r in semantic}
-        key_scores = {r.chunk_id: r.score for r in keyword}
-        for result in semantic + keyword:
-            by_id[result.chunk_id] = result
-        max_key = max(key_scores.values(), default=1.0) or 1.0
+        """Fuse semantic and keyword scores: hybrid = semantic*0.5 + keyword*0.5.
+
+        Semantic search is brute-force, so every chunk has a true cosine score
+        and keyword candidates are never starved of their semantic signal.
+        Both score sets are min-max normalized to [0, 1] before weighting so
+        the unbounded bm25-derived scores cannot swamp the cosine scores.
+        Equal weights sit in the middle of the robust plateau found by
+        sweeping weights over the GSMM and docling eval sets.
+        """
+        semantic = self._semantic_scores(query)
+        keyword = self._keyword_search(query, max(top_k * 5, 50))
+
+        def normalize(results: list[SearchResult]) -> dict[str, float]:
+            if not results:
+                return {}
+            scores = [r.score for r in results]
+            lo, hi = min(scores), max(scores)
+            if hi <= lo:
+                return {r.chunk_id: 1.0 for r in results}
+            return {r.chunk_id: (r.score - lo) / (hi - lo) for r in results}
+
+        sem_norm = normalize(semantic)
+        key_norm = normalize(keyword)
+        by_id = {r.chunk_id: r for r in semantic}
+        for r in keyword:
+            by_id.setdefault(r.chunk_id, r)
         results = []
         for chunk_id, result in by_id.items():
-            sem = max(sem_scores.get(chunk_id, 0.0), 0.0)
-            key = key_scores.get(chunk_id, 0.0) / max_key
-            combined = (sem * 0.7) + (key * 0.3)
+            combined = sem_norm.get(chunk_id, 0.0) * 0.5 + key_norm.get(chunk_id, 0.0) * 0.5
             copy = SearchResult(**result.as_dict())
             copy.score = combined
             results.append(copy)

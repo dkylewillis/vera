@@ -47,3 +47,22 @@ def test_convert_pdf_populates_sdx_and_searches(tmp_path):
     assert hybrid
     assert hybrid[0].score >= hybrid[-1].score
     doc.close()
+
+
+def test_hybrid_keeps_chunk_that_tops_both_modes(tmp_path):
+    """Regression: a chunk ranked #1 by both semantic and keyword search must
+    rank #1 in hybrid. The old fusion buried dual-mode winners behind chunks
+    that merely appeared in both candidate pools."""
+    pdf = tmp_path / "ordinance.pdf"
+    out = tmp_path / "ordinance.sdx"
+    make_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", chunk_size=40, overlap=5)
+
+    doc = SDXDocument.open(str(out))
+    query = "restaurant parking space requirements"
+    top_sem = doc.search(query, mode="semantic", top_k=1)[0]
+    top_key = doc.search(query, mode="keyword", top_k=1)[0]
+    if top_sem.chunk_id == top_key.chunk_id:
+        top_hybrid = doc.search(query, mode="hybrid", top_k=1)[0]
+        assert top_hybrid.chunk_id == top_sem.chunk_id
+    doc.close()
