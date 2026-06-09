@@ -64,7 +64,8 @@ class SentenceTransformerEmbedder:
 
         self.model_name = model_name
         self._model = SentenceTransformer(model_name)
-        dim = self._model.get_sentence_embedding_dimension()
+        get_dim = getattr(self._model, "get_embedding_dimension", None) or self._model.get_sentence_embedding_dimension
+        dim = get_dim()
         self.dimension = int(dim or len(self.embed(["dimension probe"])[0]))
 
     def embed(self, texts: list[str]) -> list[np.ndarray]:

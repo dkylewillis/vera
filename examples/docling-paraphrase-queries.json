@@ -1,0 +1,22 @@
+[
+  {
+    "query": "reading text out of pictures and scans",
+    "expected_terms": ["OCR"],
+    "note": "paraphrase: no shared vocabulary with 'OCR engine'"
+  },
+  {
+    "query": "how quickly can it chew through documents",
+    "expected_page": 5,
+    "note": "paraphrase of runtime benchmarks"
+  },
+  {
+    "query": "feeding chunks to a chatbot for grounded answers",
+    "expected_terms": ["RAG"],
+    "note": "paraphrase of retrieval-augmented generation"
+  },
+  {
+    "query": "what hardware speeds up processing",
+    "expected_terms": ["GPU"],
+    "note": "paraphrase of accelerator support"
+  }
+]
