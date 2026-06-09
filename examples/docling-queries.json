@@ -1,0 +1,33 @@
+[
+  {
+    "query": "table structure recognition model",
+    "expected_terms": ["TableFormer"],
+    "note": "TableFormer is the table model (section 3.2)"
+  },
+  {
+    "query": "OCR engine for scanned documents",
+    "expected_terms": ["EasyOCR"],
+    "note": "EasyOCR backend"
+  },
+  {
+    "query": "how to install and get started",
+    "expected_page": 2,
+    "expected_terms": ["PyPI"],
+    "note": "Getting Started section"
+  },
+  {
+    "query": "runtime performance pages per second",
+    "expected_page": 5,
+    "note": "benchmark table on page 5"
+  },
+  {
+    "query": "retrieval augmented generation applications",
+    "expected_terms": ["RAG"],
+    "note": "applications section"
+  },
+  {
+    "query": "layout analysis object detection",
+    "expected_terms": ["layout"],
+    "note": "layout model"
+  }
+]

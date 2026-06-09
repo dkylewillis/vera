@@ -38,6 +38,22 @@ Validate a generated SDX file:
 uv run python -m sdx.cli validate output.sdx
 ```
 
+Measure retrieval quality against an expected-answer query set:
+
+```bash
+uv run python -m sdx.cli eval output.sdx queries.json --mode all --top-k 5
+```
+
+Query files are JSON (or YAML with pyyaml installed) lists of cases:
+
+```json
+[
+  {"query": "restaurant parking", "expected_page": 42, "expected_terms": ["parking"]}
+]
+```
+
+The command reports hit rate and MRR per search mode, and exits non-zero if any query misses — handy for CI regression checks. See [examples/docling-queries.json](examples/docling-queries.json) for a working example.
+
 ## SDX Workbench
 
 For easy manual testing, install the optional Streamlit extra and launch the workbench:

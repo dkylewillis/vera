@@ -89,6 +89,26 @@ def cmd_workbench(args) -> int:
     raise SystemExit(subprocess.call(command))
 
 
+def cmd_eval(args) -> int:
+    from .evaluate import evaluate
+
+    summary = evaluate(args.file, args.queries, mode=args.mode, top_k=args.top_k)
+    print(f"File: {summary['file']}")
+    print(f"Queries: {summary['queries_file']}")
+    all_ok = True
+    for report in summary["reports"]:
+        print()
+        print(f"Mode: {report['mode']}  (top_k={report['top_k']})")
+        for entry in report["queries"]:
+            status = f"HIT rank={entry['rank']}" if entry["hit"] else "MISS"
+            note = f"  # {entry['note']}" if entry["note"] else ""
+            print(f"  [{status:>10}] {entry['query']}{note}")
+        print(f"  Hits: {report['hits']}/{report['total']} ({report['hit_rate']:.0%})  MRR: {report['mrr']:.3f}")
+        if report["hits"] < report["total"]:
+            all_ok = False
+    return 0 if all_ok else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sdx", description="Semantic Document eXchange CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -120,6 +140,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     workbench_p = sub.add_parser("workbench", help="Launch the optional Streamlit SDX Workbench")
     workbench_p.set_defaults(func=cmd_workbench)
+
+    eval_p = sub.add_parser("eval", help="Evaluate retrieval quality against a query file")
+    eval_p.add_argument("file")
+    eval_p.add_argument("queries", help="JSON or YAML file with query cases")
+    eval_p.add_argument("--mode", choices=["semantic", "keyword", "hybrid", "all"], default="all")
+    eval_p.add_argument("--top-k", type=int, default=5)
+    eval_p.set_defaults(func=cmd_eval)
     return parser
 
 
