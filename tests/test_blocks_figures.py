@@ -68,6 +68,24 @@ class TestParsePdfStructured:
         assert len(pages) == 2
         assert "Zoning" in pages[0].text
 
+    def test_rotated_text_is_not_a_heading(self, tmp_path):
+        import fitz
+
+        pdf = tmp_path / "rotated.pdf"
+        doc = fitz.open()
+        page = doc.new_page()
+        # Vertical watermark in large type (like an arXiv sidebar).
+        page.insert_text((30, 400), "arXiv:2408.09869v5", fontsize=22, rotate=90)
+        page.insert_text((72, 72), "Chapter 1 Zoning", fontsize=20)
+        page.insert_text((72, 110), "Body text about zoning regulations.", fontsize=11)
+        doc.save(pdf)
+        doc.close()
+
+        _, blocks = parse_pdf_structured(str(pdf))
+        headings = [b.text for b in blocks if b.block_type == "heading"]
+        assert "Chapter 1 Zoning" in headings
+        assert not any("arXiv" in h for h in headings)
+
 
 class TestBuildChunksFromBlocks:
     def _blocks(self):

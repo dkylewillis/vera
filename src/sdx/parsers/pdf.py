@@ -55,6 +55,7 @@ class _RawBlock:
     line_count: int
     image_bytes: bytes | None = None
     image_ext: str = ""
+    rotated: bool = False
 
 
 def _span_is_bold(span: dict) -> bool:
@@ -82,7 +83,11 @@ def _collect_raw_blocks(doc) -> tuple[list[ParsedPage], list[_RawBlock], Counter
             texts: list[str] = []
             bold_chars = 0
             total_chars = 0
+            rotated_lines = 0
             for line in lines:
+                direction = line.get("dir", (1.0, 0.0))
+                if abs(float(direction[0])) < 0.99:
+                    rotated_lines += 1
                 line_parts = []
                 for span in line.get("spans", []):
                     text = span.get("text", "")
@@ -103,7 +108,8 @@ def _collect_raw_blocks(doc) -> tuple[list[ParsedPage], list[_RawBlock], Counter
                 continue
             dominant = block_sizes.most_common(1)[0][0] if block_sizes else 0.0
             bold = total_chars > 0 and bold_chars / total_chars > 0.8
-            raw.append(_RawBlock(idx, text, bbox, dominant, bold, len(texts)))
+            rotated = len(lines) > 0 and rotated_lines == len(lines)
+            raw.append(_RawBlock(idx, text, bbox, dominant, bold, len(texts), rotated=rotated))
     return pages, raw, size_weights
 
 
@@ -123,6 +129,8 @@ def parse_pdf_structured(path: str) -> tuple[list[ParsedPage], list[ParsedBlock]
     body_size = size_weights.most_common(1)[0][0] if size_weights else 11.0
 
     def is_heading(block: _RawBlock) -> bool:
+        if block.rotated:
+            return False
         if not block.text or len(block.text) > 300 or block.line_count > 3:
             return False
         if block.dominant_size >= body_size + 0.9:
