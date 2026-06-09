@@ -1,3 +1,3 @@
-from .pdf import ParsedPage, parse_pdf
+from .pdf import ParsedBlock, ParsedPage, parse_pdf, parse_pdf_structured
 
-__all__ = ["ParsedPage", "parse_pdf"]
+__all__ = ["ParsedBlock", "ParsedPage", "parse_pdf", "parse_pdf_structured"]

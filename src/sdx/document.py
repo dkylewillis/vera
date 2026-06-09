@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from typing import Any
@@ -154,6 +155,53 @@ class SDXDocument:
         if table not in existing_tables:
             return 0
         return int(self.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+
+    def figures(
+        self,
+        page_start: int | None = None,
+        page_end: int | None = None,
+        include_data: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Return extracted figures (image blocks + stored image assets).
+
+        Optionally filter to a page range, e.g. the pages of a search result.
+        Set include_data=True to also return the image bytes.
+        """
+        sql = """
+            SELECT b.block_id, b.page_number, b.bbox_json,
+                   a.asset_id, a.mime_type, a.filename
+            FROM blocks b
+            JOIN assets a ON a.asset_id = 'asset_' || b.block_id
+            WHERE b.block_type = 'image'
+        """
+        params: list[Any] = []
+        if page_start is not None:
+            sql += " AND b.page_number >= ?"
+            params.append(page_start)
+        if page_end is not None:
+            sql += " AND b.page_number <= ?"
+            params.append(page_end)
+        sql += " ORDER BY b.page_number, b.sort_order"
+        figures = []
+        for row in self.conn.execute(sql, params):
+            figure = {
+                "block_id": row["block_id"],
+                "page_number": row["page_number"],
+                "bbox": json.loads(row["bbox_json"]) if row["bbox_json"] else None,
+                "asset_id": row["asset_id"],
+                "mime_type": row["mime_type"],
+                "filename": row["filename"],
+            }
+            if include_data:
+                figure["data"] = self.conn.execute(
+                    "SELECT data FROM assets WHERE asset_id = ?", (row["asset_id"],)
+                ).fetchone()["data"]
+            figures.append(figure)
+        return figures
+
+    def figures_for(self, result: SearchResult, include_data: bool = False) -> list[dict[str, Any]]:
+        """Return figures located on the pages of a search result."""
+        return self.figures(result.page_start, result.page_end, include_data=include_data)
 
     def search(self, query: str, mode: str = "hybrid", top_k: int = 10) -> list[SearchResult]:
         mode = mode.lower()

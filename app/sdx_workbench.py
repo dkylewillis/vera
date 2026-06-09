@@ -96,6 +96,13 @@ try:
                     expanded=idx == 1,
                 ):
                     st.write(result.text)
+                    figures = doc.figures_for(result, include_data=True)
+                    if figures:
+                        st.write(f"**Figures on pages {result.page_start}-{result.page_end}:**")
+                        cols = st.columns(min(len(figures), 3))
+                        for fig_idx, figure in enumerate(figures):
+                            with cols[fig_idx % len(cols)]:
+                                st.image(figure["data"], caption=f"p.{figure['page_number']} {figure['filename']}")
                     st.json(result.as_dict())
 
         st.subheader("Chunks")
