@@ -1,0 +1,62 @@
+[
+  {
+    "query": "when is detention required",
+    "expected_pages": [112, 118, 119, 120, 121, 258, 259, 260, 261, 262],
+    "expected_terms": ["detention"],
+    "note": "HARD CASE: policy answer uses different vocabulary (overbank flood protection, sizing criteria); tracks semantic-search improvement"
+  },
+  {
+    "query": "water quality treatment volume",
+    "expected_pages": [258, 259, 260, 261, 262, 330, 331, 332, 333, 334, 335, 336, 419, 435, 464, 500],
+    "expected_terms": ["water quality"],
+    "note": "WQv definition (sec 3.1.7), sizing criteria summary, and BMP target WQv calc steps"
+  },
+  {
+    "query": "stream buffer requirements",
+    "expected_pages": [44, 45, 46, 120, 289],
+    "expected_terms": ["buffer"],
+    "note": "ESCA stream buffer special requirements (Vol 1) and planning checklist"
+  },
+  {
+    "query": "channel protection volume",
+    "expected_pages": [120, 258, 259, 260, 261, 262],
+    "expected_terms": ["channel protection"],
+    "note": "CPv sizing criterion - 24hr extended detention of 1-yr storm"
+  },
+  {
+    "query": "bioretention design criteria",
+    "expected_pages": [398, 399, 400, 401, 402, 403, 404, 405, 751],
+    "expected_terms": ["bioretention"],
+    "note": "Bioretention BMP section + Appendix B design example"
+  },
+  {
+    "query": "permeable pavement design",
+    "expected_pages": [103, 504, 505, 506, 507, 508, 509, 510, 511, 512],
+    "expected_terms": ["permeable"],
+    "note": "Permeable paver BMP section; better site design parking lots"
+  },
+  {
+    "query": "SCS curve number method runoff",
+    "expected_pages": [314, 315, 316, 317, 318, 333, 334, 335],
+    "expected_terms": ["runoff"],
+    "note": "NRCS/SCS hydrologic method, Vol 2 sec 3.1"
+  },
+  {
+    "query": "outlet structure design for ponds",
+    "expected_pages": [357, 358, 359, 360, 361, 362, 363, 364, 365, 366, 367, 368, 369, 370, 371, 372, 589],
+    "expected_terms": ["outlet"],
+    "note": "Outlet structures sec 3.4.2-3.4.6 and stormwater pond BMP"
+  },
+  {
+    "query": "downstream analysis ten percent rule",
+    "expected_pages": [121, 340, 341, 342, 343, 344, 345],
+    "expected_terms": ["percent"],
+    "note": "Ten-percent rule downstream assessment"
+  },
+  {
+    "query": "runoff reduction volume calculation",
+    "expected_pages": [334, 427, 532, 615, 751, 765],
+    "expected_terms": ["runoff reduction"],
+    "note": "RRv definition (hydrology), BMP credit equations, and Appendix B design examples"
+  }
+]
