@@ -122,4 +122,8 @@ The workbench lets you upload a PDF, convert it to `.sdx`, inspect metadata, run
 
 ## Status
 
-SDX is v0.1 and experimental. The schema and format may change. See [docs/sdx-spec-v0.1.md](docs/sdx-spec-v0.1.md) for the format specification (in progress).
+SDX is v0.1 and experimental. The schema and format may change. See [docs/sdx-spec-v0.1.md](docs/sdx-spec-v0.1.md) for the format specification.
+
+## License
+
+Apache-2.0 — see [LICENSE](LICENSE).
