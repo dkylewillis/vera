@@ -109,6 +109,12 @@ def cmd_workbench(args) -> int:
     raise SystemExit(subprocess.call(command))
 
 
+def cmd_mcp(args) -> int:
+    from .mcp_server import main as mcp_main
+
+    return mcp_main()
+
+
 def cmd_eval(args) -> int:
     from .evaluate import evaluate
 
@@ -166,6 +172,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     workbench_p = sub.add_parser("workbench", help="Launch the optional Streamlit SDX Workbench")
     workbench_p.set_defaults(func=cmd_workbench)
+
+    mcp_p = sub.add_parser("mcp", help="Run the MCP server (stdio) exposing SDX tools to AI agents")
+    mcp_p.set_defaults(func=cmd_mcp)
 
     eval_p = sub.add_parser("eval", help="Evaluate retrieval quality against a query file")
     eval_p.add_argument("file")

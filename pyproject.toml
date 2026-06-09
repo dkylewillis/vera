@@ -26,7 +26,8 @@ Specification = "https://github.com/dkylewillis/sdx/blob/main/docs/sdx-spec-v0.1
 [project.optional-dependencies]
 ml = ["sentence-transformers>=2.7"]
 workbench = ["streamlit>=1.35"]
-dev = ["pytest>=8", "reportlab>=4"]
+mcp = ["mcp>=1.0"]
+dev = ["pytest>=8", "reportlab>=4", "mcp>=1.0"]
 
 [project.scripts]
 sdx = "sdx.cli:main"

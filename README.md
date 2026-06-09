@@ -78,6 +78,7 @@ for fig in doc.figures_for(result, include_data=True):  # figures on the result'
 | `sdx validate output.sdx` | Check schema, counts, and index consistency |
 | `sdx search output.sdx "query"` | Search (`--mode semantic\|keyword\|hybrid`, `--top-k`) |
 | `sdx eval output.sdx queries.json` | Measure retrieval quality against an expected-answer query set |
+| `sdx mcp` | Run the MCP server (stdio) exposing SDX tools to AI agents |
 | `sdx workbench` | Launch the Streamlit GUI |
 
 Every command accepts `--json` for machine-readable output (see below).
@@ -113,9 +114,32 @@ sdx search ordinance.sdx "when is detention required" --top-k 5 --json --figures
 
 Every result carries its citation (source file, page, heading path), so agent answers can point back to the exact location in the source document. `--figures` adds metadata and captions for images on the result's pages — agents can mention or fetch the relevant diagram.
 
+### MCP server
+
+SDX also ships a [Model Context Protocol](https://modelcontextprotocol.io/) server so MCP-capable agents (VS Code, Claude Desktop, etc.) can use SDX as native tools — `sdx_search`, `sdx_inspect`, `sdx_validate`, `sdx_figures`, and `sdx_get_page`. Install the `mcp` extra and point your client at `sdx mcp`:
+
+```bash
+pip install sdx[mcp]
+```
+
+Example VS Code configuration (`.vscode/mcp.json`):
+
+```json
+{
+  "servers": {
+    "sdx": {
+      "command": "uv",
+      "args": ["run", "--extra", "mcp", "sdx", "mcp"]
+    }
+  }
+}
+```
+
+See [AGENTS.md](AGENTS.md) for agent-facing usage guidance.
+
 ## Testing & retrieval evaluation
 
-Run the automated suite (97 tests, also run in CI on Ubuntu/Windows × Python 3.10/3.12):
+Run the automated suite (102 tests, also run in CI on Ubuntu/Windows × Python 3.10/3.12):
 
 ```bash
 uv run --extra dev pytest -q
