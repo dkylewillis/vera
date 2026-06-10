@@ -53,6 +53,7 @@ def build_server():
         mode: str = "hybrid",
         top_k: int = 5,
         include_figures: bool = False,
+        context_chunks: int = 0,
     ) -> dict[str, Any]:
         """Search a VERA file and return citation-ready chunks.
 
@@ -63,11 +64,12 @@ def build_server():
             top_k: Number of results to return.
             include_figures: Also return figure metadata and captions located on
                 each result's pages (no image bytes).
+            context_chunks: Include this many chunks before and after each result.
         """
         doc = _open(file)
         try:
             results = []
-            for result in doc.search(query, mode=mode, top_k=top_k):
+            for result in doc.search(query, mode=mode, top_k=top_k, context_chunks=context_chunks):
                 entry = result.as_dict()
                 if include_figures:
                     entry["figures"] = doc.figures_for(result)

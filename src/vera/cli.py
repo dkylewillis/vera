@@ -12,6 +12,13 @@ def _str_to_bool(value: str) -> bool:
     return str(value).lower() in {"1", "true", "yes", "y", "on"}
 
 
+def _non_negative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be non-negative")
+    return parsed
+
+
 def cmd_convert(args) -> int:
     path = convert(
         args.input,
@@ -53,7 +60,7 @@ def cmd_inspect(args) -> int:
 def cmd_search(args) -> int:
     doc = VeraDocument.open(args.file)
     try:
-        results = doc.search(args.query, mode=args.mode, top_k=args.top_k)
+        results = doc.search(args.query, mode=args.mode, top_k=args.top_k, context_chunks=args.context_chunks)
         if args.json:
             payload = []
             for result in results:
@@ -161,6 +168,12 @@ def build_parser() -> argparse.ArgumentParser:
     search_p.add_argument("query")
     search_p.add_argument("--mode", choices=["semantic", "keyword", "hybrid"], default="hybrid")
     search_p.add_argument("--top-k", type=int, default=10)
+    search_p.add_argument(
+        "--context-chunks",
+        type=_non_negative_int,
+        default=0,
+        help="Include N chunks before and after each search result in JSON output",
+    )
     search_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     search_p.add_argument("--figures", action="store_true", help="Include figure metadata/captions in --json output")
     search_p.set_defaults(func=cmd_search)

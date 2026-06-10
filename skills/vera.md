@@ -42,12 +42,19 @@ Include figure/table metadata when visual context matters:
 vera search manual.vera "pipe sizing chart" --mode hybrid --top-k 5 --json --figures
 ```
 
+Include neighboring text when the surrounding prose matters:
+
+```bash
+vera search manual.vera "stormwater detention requirements" --mode hybrid --top-k 5 --json --context-chunks 1
+```
+
 Arguments:
 
 - `file`: path to the `.vera` file.
 - `query`: natural-language or keyword query.
 - `--mode`: `hybrid`, `semantic`, or `keyword`. Default to `hybrid` unless the user asks otherwise.
 - `--top-k`: number of results. Use 5 for normal questions; increase when the user asks for broad coverage.
+- `--context-chunks`: include N chunks before and after each result as `before_chunks` and `after_chunks`.
 - `--figures`: include figure metadata and captions in JSON output.
 
 Use `keyword` for exact phrases, identifiers, section numbers, or codes. Use
@@ -104,8 +111,9 @@ image pixels unless separate image data is available and has actually been read.
 1. If the user gives a `.vera` path and a question, run `vera search` first with `--json`.
 2. If the result set is thin or exact terms matter, retry with `keyword` or a
    tighter query.
-3. If the user asks for comprehensive coverage, search several targeted queries
+3. If a result needs surrounding prose to interpret it, rerun with `--context-chunks 1`.
+4. If the user asks for comprehensive coverage, search several targeted queries
    and synthesize across the cited results.
-4. Use `vera inspect` or `vera validate` when file metadata or archive health matters.
-5. Answer from retrieved evidence and include citations for every substantive
+5. Use `vera inspect` or `vera validate` when file metadata or archive health matters.
+6. Answer from retrieved evidence and include citations for every substantive
    claim tied to the document.

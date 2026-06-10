@@ -76,7 +76,7 @@ for fig in doc.figures_for(result, include_data=True):  # figures on the result'
 | `vera convert input.pdf output.vera` | Convert a PDF (options: `--model`, `--chunk-size`, `--overlap`) |
 | `vera inspect output.vera` | Print metadata: pages, chunks, model, parser |
 | `vera validate output.vera` | Check schema, counts, and index consistency |
-| `vera search output.vera "query"` | Search (`--mode semantic\|keyword\|hybrid`, `--top-k`) |
+| `vera search output.vera "query"` | Search (`--mode semantic\|keyword\|hybrid`, `--top-k`, `--context-chunks`) |
 | `vera eval output.vera queries.json` | Measure retrieval quality against an expected-answer query set |
 | `vera mcp` | Run the MCP server (stdio) exposing VERA tools to AI agents |
 | `vera workbench` | Launch the Streamlit GUI |
@@ -88,7 +88,7 @@ Every command accepts `--json` for machine-readable output (see below).
 VERA was built to give agents grounded, citation-ready context from large documents without a retrieval service. Agents can call the CLI directly — every command supports `--json` and meaningful exit codes (`validate`/`eval` exit non-zero on failure):
 
 ```bash
-vera search ordinance.vera "when is detention required" --top-k 5 --json --figures
+vera search ordinance.vera "when is detention required" --top-k 5 --json --figures --context-chunks 1
 ```
 
 ```json
@@ -104,6 +104,8 @@ vera search ordinance.vera "when is detention required" --top-k 5 --json --figur
       "page_end": 120,
       "heading_path": "4. Implementing Stormwater Management > ...",
       "source_filename": "ordinance.pdf",
+      "before_chunks": [{"chunk_id": "chunk_000411", "text": "...", "page_start": 119, "page_end": 119}],
+      "after_chunks": [{"chunk_id": "chunk_000413", "text": "...", "page_start": 121, "page_end": 121}],
       "figures": [
         {"page_number": 120, "caption": "Figure 4-1: Detention sizing", "asset_id": "asset_block_000371", "...": "..."}
       ]
@@ -112,7 +114,7 @@ vera search ordinance.vera "when is detention required" --top-k 5 --json --figur
 }
 ```
 
-Every result carries its citation (source file, page, heading path), so agent answers can point back to the exact location in the source document. `--figures` adds metadata and captions for images on the result's pages — agents can mention or fetch the relevant diagram.
+Every result carries its citation (source file, page, heading path), so agent answers can point back to the exact location in the source document. `--figures` adds metadata and captions for images on the result's pages, and `--context-chunks N` adds N chunks before and after each result as `before_chunks` and `after_chunks`.
 
 ### MCP server
 

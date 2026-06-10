@@ -1,5 +1,7 @@
 import sqlite3
 
+import pytest
+
 from vera import VeraDocument, convert
 
 
@@ -11,6 +13,20 @@ def make_pdf(path):
     page.insert_text((72, 72), "Chapter 110 Zoning\nRestaurants require one parking space per 100 square feet.")
     page2 = doc.new_page()
     page2.insert_text((72, 72), "Stormwater Manual\nDetention is required when impervious area increases.")
+    doc.save(path)
+    doc.close()
+
+
+def make_context_pdf(path):
+    import fitz
+
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Opening Context\nAlpha approach overview precedes the target section.")
+    page2 = doc.new_page()
+    page2.insert_text((72, 72), "Middle Target\nBeacon target language lives in this middle section.")
+    page3 = doc.new_page()
+    page3.insert_text((72, 72), "Closing Context\nOmega followup details come after the target section.")
     doc.save(path)
     doc.close()
 
@@ -65,4 +81,40 @@ def test_hybrid_keeps_chunk_that_tops_both_modes(tmp_path):
     if top_sem.chunk_id == top_key.chunk_id:
         top_hybrid = doc.search(query, mode="hybrid", top_k=1)[0]
         assert top_hybrid.chunk_id == top_sem.chunk_id
+    doc.close()
+
+
+def test_search_can_include_context_chunks(tmp_path):
+    pdf = tmp_path / "context.pdf"
+    out = tmp_path / "context.vera"
+    make_context_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", chunk_size=80, overlap=5)
+
+    doc = VeraDocument.open(str(out))
+    default = doc.search("beacon target", mode="keyword", top_k=1)[0]
+    assert "before_chunks" not in default.as_dict()
+    assert "after_chunks" not in default.as_dict()
+
+    result = doc.search("beacon target", mode="keyword", top_k=1, context_chunks=1)[0]
+    assert "beacon target" in result.text.lower()
+    assert result.before_chunks is not None
+    assert result.after_chunks is not None
+    assert len(result.before_chunks) == 1
+    assert len(result.after_chunks) == 1
+    assert "alpha approach" in result.before_chunks[0]["text"].lower()
+    assert "omega followup" in result.after_chunks[0]["text"].lower()
+    assert result.chunk_id not in {result.before_chunks[0]["chunk_id"], result.after_chunks[0]["chunk_id"]}
+    assert "score" not in result.before_chunks[0]
+    doc.close()
+
+
+def test_search_rejects_negative_context_chunks(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", chunk_size=40, overlap=5)
+
+    doc = VeraDocument.open(str(out))
+    with pytest.raises(ValueError, match="context_chunks"):
+        doc.search("restaurant parking", context_chunks=-1)
     doc.close()

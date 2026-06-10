@@ -206,7 +206,7 @@ How a reader ranks results is implementation-defined. The reference implementati
 - **semantic** — brute-force cosine similarity between the query vector and every stored chunk vector. At document scale (≤ ~10⁴ chunks) this is fast enough without an ANN index.
 - **hybrid** — min-max normalize both score sets to [0, 1] over their candidate pools, then `score = 0.5 × semantic + 0.5 × keyword`. Raw bm25 and cosine scores are on incomparable scales and **MUST NOT** be combined without normalization.
 
-Search results SHOULD be citation-ready: chunk text, score, `page_start`/`page_end`, `heading_path`, and `source_filename`.
+Search results SHOULD be citation-ready: chunk text, score, `page_start`/`page_end`, `heading_path`, and `source_filename`. Readers MAY also return adjacent chunk context, such as chunks before and after a ranked hit, using `chunks.sort_order` within the same `document_id`.
 
 ## 8. Conformance levels
 

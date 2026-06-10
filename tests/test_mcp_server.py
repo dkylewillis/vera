@@ -46,6 +46,19 @@ async def test_search_tool_returns_citation_ready_results(server, vera_file):
 
 
 @pytest.mark.anyio
+async def test_search_tool_returns_context_chunks(server, vera_file):
+    result = await server.call_tool(
+        "vera_search",
+        {"file": str(vera_file), "query": "restaurant parking", "top_k": 1, "context_chunks": 1},
+    )
+    payload = _payload(result)
+    first = payload["results"][0]
+    assert {"before_chunks", "after_chunks"} <= set(first)
+    assert isinstance(first["before_chunks"], list)
+    assert isinstance(first["after_chunks"], list)
+
+
+@pytest.mark.anyio
 async def test_inspect_and_validate_tools(server, vera_file):
     info = _payload(await server.call_tool("vera_inspect", {"file": str(vera_file)}))
     assert info["format_version"] == "0.1"

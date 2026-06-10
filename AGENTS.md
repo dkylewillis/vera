@@ -20,6 +20,9 @@ vera search manual.vera "stormwater detention requirements" --top-k 5 --json
 # Include figure/table metadata near each result
 vera search manual.vera "pipe sizing chart" --json --figures
 
+# Include adjacent text context around each hit
+vera search manual.vera "stormwater detention requirements" --json --context-chunks 1
+
 # Keyword-only or semantic-only search
 vera search manual.vera "section 4.2" --mode keyword --json
 vera search manual.vera "how big should the pond be" --mode semantic --json
@@ -64,9 +67,11 @@ vera convert manual.pdf manual.vera
    IDs, or section numbers; use `semantic` for paraphrased natural-language questions.
 3. **Use `--figures`** when the question involves tables, charts, diagrams, or maps —
    results gain a `figures` array with captions and page locations.
-4. **Check exit codes.** `validate` returns non-zero for invalid files; `search` on a
+4. **Use `--context-chunks N`** when an answer needs surrounding prose — results gain
+  `before_chunks` and `after_chunks` arrays with citation-ready neighboring chunks.
+5. **Check exit codes.** `validate` returns non-zero for invalid files; `search` on a
    missing file returns non-zero. Parse stdout as JSON only when exit code is 0.
-5. **Don't read the SQLite file directly** unless the CLI is unavailable — the schema
+6. **Don't read the SQLite file directly** unless the CLI is unavailable — the schema
    is documented in the spec, but the CLI/MCP tools are the stable interface.
 
 ## MCP server

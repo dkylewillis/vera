@@ -67,3 +67,30 @@ def test_cli_json_output_for_agents(tmp_path):
     first = payload["results"][0]
     assert {"chunk_id", "score", "text", "page_start", "heading_path", "figures"} <= set(first)
     assert "parking" in first["text"].lower()
+    assert "before_chunks" not in first
+    assert "after_chunks" not in first
+
+    with_context = run(
+        "search",
+        str(out),
+        "restaurant parking",
+        "--mode",
+        "hybrid",
+        "--top-k",
+        "1",
+        "--json",
+        "--context-chunks",
+        "1",
+    )
+    context_result = with_context["results"][0]
+    assert {"before_chunks", "after_chunks"} <= set(context_result)
+    assert isinstance(context_result["before_chunks"], list)
+    assert isinstance(context_result["after_chunks"], list)
+
+    invalid = subprocess.run(
+        [sys.executable, "-m", "vera.cli", "search", str(out), "restaurant parking", "--context-chunks", "-1"],
+        text=True,
+        capture_output=True,
+    )
+    assert invalid.returncode != 0
+    assert "non-negative" in invalid.stderr

@@ -47,9 +47,16 @@ class SearchResult:
     heading_path: str | None
     source_filename: str | None
     document_id: str
+    before_chunks: list[dict[str, Any]] | None = None
+    after_chunks: list[dict[str, Any]] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return self.__dict__.copy()
+        data = self.__dict__.copy()
+        if self.before_chunks is None:
+            data.pop("before_chunks")
+        if self.after_chunks is None:
+            data.pop("after_chunks")
+        return data
 
 
 class VeraDocument:
@@ -247,15 +254,73 @@ class VeraDocument:
         """Return figures located on the pages of a search result."""
         return self.figures(result.page_start, result.page_end, include_data=include_data)
 
-    def search(self, query: str, mode: str = "hybrid", top_k: int = 10) -> list[SearchResult]:
+    def search(self, query: str, mode: str = "hybrid", top_k: int = 10, context_chunks: int = 0) -> list[SearchResult]:
         mode = mode.lower()
         if mode not in {"semantic", "keyword", "hybrid"}:
             raise ValueError("mode must be semantic, keyword, or hybrid")
+        if context_chunks < 0:
+            raise ValueError("context_chunks must be non-negative")
         if mode == "semantic":
-            return self._semantic_search(query, top_k)
-        if mode == "keyword":
-            return self._keyword_search(query, top_k)
-        return self._hybrid_search(query, top_k)
+            results = self._semantic_search(query, top_k)
+        elif mode == "keyword":
+            results = self._keyword_search(query, top_k)
+        else:
+            results = self._hybrid_search(query, top_k)
+        if context_chunks:
+            self._add_context_chunks(results, context_chunks)
+        return results
+
+    def _add_context_chunks(self, results: list[SearchResult], context_chunks: int) -> None:
+        for result in results:
+            before_chunks, after_chunks = self._context_chunks_for(result.chunk_id, context_chunks)
+            result.before_chunks = before_chunks
+            result.after_chunks = after_chunks
+
+    def _context_chunks_for(self, chunk_id: str, context_chunks: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        origin = self.conn.execute(
+            "SELECT document_id, sort_order FROM chunks WHERE chunk_id = ?",
+            (chunk_id,),
+        ).fetchone()
+        if origin is None:
+            return [], []
+
+        before_rows = self.conn.execute(
+            """
+            SELECT c.*, d.source_filename
+            FROM chunks c
+            JOIN documents d ON c.document_id = d.document_id
+            WHERE c.document_id = ? AND c.sort_order < ?
+            ORDER BY c.sort_order DESC
+            LIMIT ?
+            """,
+            (origin["document_id"], origin["sort_order"], context_chunks),
+        ).fetchall()
+        after_rows = self.conn.execute(
+            """
+            SELECT c.*, d.source_filename
+            FROM chunks c
+            JOIN documents d ON c.document_id = d.document_id
+            WHERE c.document_id = ? AND c.sort_order > ?
+            ORDER BY c.sort_order ASC
+            LIMIT ?
+            """,
+            (origin["document_id"], origin["sort_order"], context_chunks),
+        ).fetchall()
+        return (
+            [self._row_to_context_chunk(row) for row in reversed(before_rows)],
+            [self._row_to_context_chunk(row) for row in after_rows],
+        )
+
+    def _row_to_context_chunk(self, row) -> dict[str, Any]:
+        return {
+            "chunk_id": row["chunk_id"],
+            "text": row["text"],
+            "page_start": row["page_start"],
+            "page_end": row["page_end"],
+            "heading_path": row["heading_path"],
+            "source_filename": row["source_filename"],
+            "document_id": row["document_id"],
+        }
 
     def _row_to_result(self, row, score: float) -> SearchResult:
         return SearchResult(
