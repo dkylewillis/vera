@@ -8,15 +8,17 @@ import {
   FileInput,
   FileSearch,
   FolderOpen,
+  MessageSquareText,
   RefreshCw,
   Search,
+  Send,
   ShieldCheck,
   TerminalSquare,
 } from 'lucide-react';
-import type { ConvertResult, ExportResult, InspectResult, PageResult, RegionResult, SearchResult, SourceDocumentResult, ValidateResult } from './types';
+import type { ChatAnswerResult, ChatCitationResult, ConvertResult, ExportResult, InspectResult, PageResult, RegionResult, SearchResult, SourceDocumentResult, ValidateResult } from './types';
 import './styles.css';
 
-type ActiveTab = 'search' | 'viewer' | 'convert' | 'details';
+type ActiveTab = 'ask' | 'search' | 'viewer' | 'convert' | 'details';
 
 const EMPTY_REGIONS: RegionResult[] = [];
 
@@ -167,8 +169,22 @@ function PdfSourceViewer({
   );
 }
 
+function renderAnswerWithCitations(answer: ChatAnswerResult, selectCitation: (citation: ChatCitationResult) => void) {
+  const citationById = new Map(answer.citations.map((citation) => [citation.id, citation]));
+  return answer.answer.split(/(\[C\d+\])/g).map((part, index) => {
+    const id = part.match(/^\[(C\d+)\]$/)?.[1];
+    const citation = id ? citationById.get(id) : null;
+    if (!citation) return <React.Fragment key={`text-${index}`}>{part}</React.Fragment>;
+    return (
+      <button className="inlineCitation" key={citation.id} onClick={() => selectCitation(citation)}>
+        {part}
+      </button>
+    );
+  });
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('search');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('ask');
   const [path, setPath] = useState('');
   const [pdfPath, setPdfPath] = useState('');
   const [outputPath, setOutputPath] = useState('');
@@ -195,6 +211,7 @@ function App() {
   const [pageResult, setPageResult] = useState<PageResult | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState<SearchResult | null>(null);
+  const [chatAnswer, setChatAnswer] = useState<ChatAnswerResult | null>(null);
 
   const isCorpus = Boolean(inspect?.directory || (path && !path.toLowerCase().endsWith('.vera')));
   const busy = Boolean(busyAction);
@@ -304,6 +321,30 @@ function App() {
     }
   }
 
+  async function askTarget() {
+    const result = await call<ChatAnswerResult>({
+      action: 'answer',
+      path,
+      prompt: query,
+      mode,
+      top_k: topK,
+      context_chunks: contextChunks,
+      include_figures: includeFigures,
+      include_figure_data: includeFigures,
+    }, 'Asking');
+    if (result) {
+      setChatAnswer(result);
+      const citedResults = result.citations.map((citation) => citation.result);
+      setResults(citedResults);
+      if (citedResults[0]) {
+        selectSearchResult(citedResults[0]);
+      } else {
+        setSelected(null);
+      }
+      setActiveTab('ask');
+    }
+  }
+
   async function convertPdf() {
     const output = outputPath.trim() || defaultVeraPath(pdfPath);
     if (!output) {
@@ -353,6 +394,10 @@ function App() {
     }
   }
 
+  function selectCitation(citation: ChatCitationResult) {
+    selectSearchResult(citation.result);
+  }
+
   async function loadPage() {
     const result = await call<PageResult>({ action: 'page', path, page_number: pageNumber }, 'Loading page');
     if (result) {
@@ -374,6 +419,7 @@ function App() {
       <section className="workspace">
         <aside className="sidebar">
           <div className="tabs">
+            <button className={activeTab === 'ask' ? 'active' : ''} onClick={() => setActiveTab('ask')}>Ask</button>
             <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>Search</button>
             <button className={activeTab === 'viewer' ? 'active' : ''} onClick={() => setActiveTab('viewer')}>Viewer</button>
             <button className={activeTab === 'convert' ? 'active' : ''} onClick={() => setActiveTab('convert')}>Convert</button>
@@ -407,7 +453,7 @@ function App() {
               <button className="secondaryAction" onClick={() => loadSourceDocument(path, true)} disabled={!path.trim() || isCorpus || busy}><FileSearch size={16} />Load Source</button>
 
               <label className="field">
-                <span>Query</span>
+                <span>{activeTab === 'ask' ? 'Prompt' : 'Query'}</span>
                 <textarea value={query} onChange={(event) => setQuery(event.target.value)} />
               </label>
 
@@ -436,7 +482,11 @@ function App() {
                 <span>Figures</span>
               </label>
 
-              <button className="primaryAction" onClick={searchTarget} disabled={!path.trim() || !query.trim() || busy}><Search size={16} />Search</button>
+              {activeTab === 'ask' ? (
+                <button className="primaryAction" onClick={askTarget} disabled={!path.trim() || !query.trim() || busy}><Send size={16} />Ask</button>
+              ) : (
+                <button className="primaryAction" onClick={searchTarget} disabled={!path.trim() || !query.trim() || busy}><Search size={16} />Search</button>
+              )}
             </>
           ) : (
             <>
@@ -514,8 +564,8 @@ function App() {
 
         <section className="resultsPane">
           <div className="paneHeader">
-            <h1>{activeTab === 'viewer' ? 'Source Viewer' : 'Results'}</h1>
-            <span>{activeTab === 'viewer' ? sourceDocument?.filename || 'No source loaded' : `${results.length} matches`}</span>
+            <h1>{activeTab === 'viewer' ? 'Source Viewer' : activeTab === 'ask' ? 'Answer' : 'Results'}</h1>
+            <span>{activeTab === 'viewer' ? sourceDocument?.filename || 'No source loaded' : activeTab === 'ask' ? `${chatAnswer?.citations.length ?? 0} citations` : `${results.length} matches`}</span>
           </div>
           {activeTab === 'viewer' ? (
             <div className="sourceViewer">
@@ -528,6 +578,31 @@ function App() {
                 </div>
               ) : (
                 <div className="emptyState">Load a source document from a `.vera` archive</div>
+              )}
+            </div>
+          ) : activeTab === 'ask' ? (
+            <div className="chatPanel">
+              {chatAnswer ? (
+                <>
+                  <article className="chatMessage userMessage">
+                    <span>You</span>
+                    <p>{chatAnswer.prompt}</p>
+                  </article>
+                  <article className="chatMessage assistantMessage">
+                    <span>VERA</span>
+                    <p>{renderAnswerWithCitations(chatAnswer, selectCitation)}</p>
+                  </article>
+                  <section className="citationList">
+                    {chatAnswer.citations.map((citation) => (
+                      <button className={selected?.chunk_id === citation.result.chunk_id ? 'citationCard selected' : 'citationCard'} key={citation.id} onClick={() => selectCitation(citation)}>
+                        <strong>{citation.label}</strong>
+                        <span>{citation.result.heading_path || citation.result.source_filename || citation.result.chunk_id}</span>
+                      </button>
+                    ))}
+                  </section>
+                </>
+              ) : (
+                <div className="emptyState"><MessageSquareText size={20} />Ask a question about the selected archive or folder.</div>
               )}
             </div>
           ) : (

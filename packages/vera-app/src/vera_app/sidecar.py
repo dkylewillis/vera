@@ -77,6 +77,57 @@ def _search(request: Request) -> list[dict[str, Any]]:
         target.close()
 
 
+def _compact_text(text: str, limit: int = 420) -> str:
+    compact = " ".join(text.split())
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[:limit].rstrip()}..."
+
+
+def _answer(request: Request) -> dict[str, Any]:
+    prompt = str(request.get("prompt", "")).strip()
+    if not prompt:
+        raise ValueError("prompt is required")
+
+    results = _search({
+        **request,
+        "query": prompt,
+        "include_regions": True,
+        "include_figures": bool(request.get("include_figures", False)),
+        "include_figure_data": bool(request.get("include_figure_data", False)),
+    })
+    citations = []
+    answer_lines = []
+    for index, result in enumerate(results, start=1):
+        citation_id = f"C{index}"
+        page = result.get("page_start") or result.get("page_end") or "-"
+        heading = result.get("heading_path") or result.get("source_filename") or result.get("chunk_id")
+        citations.append({
+            "id": citation_id,
+            "label": f"[{citation_id}] p. {page}",
+            "result": result,
+        })
+        answer_lines.append(f"- {heading}: {_compact_text(str(result.get('text', '')))} [{citation_id}]")
+
+    if not answer_lines:
+        answer = "I could not find evidence in the selected VERA source for that question."
+    else:
+        answer = "I found these relevant passages:\n" + "\n".join(answer_lines)
+
+    llm_prompt = (
+        "Answer the user using only the cited evidence below. Keep citations in square brackets, "
+        "such as [C1], immediately after the claim they support.\n\n"
+        f"User question:\n{prompt}\n\nEvidence:\n"
+        + "\n".join(f"[{citation['id']}] {citation['result'].get('text', '')}" for citation in citations)
+    )
+    return {
+        "prompt": prompt,
+        "answer": answer,
+        "citations": citations,
+        "llm_prompt": llm_prompt,
+    }
+
+
 def _convert(request: Request) -> dict[str, str]:
     output = convert(
         str(request["input"]),
@@ -134,6 +185,7 @@ HANDLERS: dict[str, Handler] = {
     "inspect": _inspect,
     "validate": _validate,
     "search": _search,
+    "answer": _answer,
     "convert": _convert,
     "export": _export,
     "source": _source,

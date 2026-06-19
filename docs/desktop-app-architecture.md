@@ -52,6 +52,7 @@ Initial actions:
 - `inspect`
 - `validate`
 - `search`
+- `answer`
 - `convert`
 - `export`
 - `source`
@@ -79,6 +80,7 @@ uv run --extra dev python -m pytest -q
 
 ## Near-Term App Work
 
+- Replace the extractive cited draft in `answer` with configurable LLM provider calls that preserve citation ids.
 - Keep Evidence PDF rendering responsive for very large source documents.
 - Add library folder persistence and recent archive shortcuts.
 - Add richer conversion progress events from the sidecar.

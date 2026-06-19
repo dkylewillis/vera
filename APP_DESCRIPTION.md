@@ -63,8 +63,8 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 1. User asks a question
 2. App retrieves relevant context from `.vera`
 3. App composes prompt with instructions + context + user input
-4. LLM generates response
-5. App returns answer with visible grounding to source material
+4. App returns a grounded cited draft, or passes the composed prompt to a configured LLM provider
+5. Citation clicks open the source PDF evidence and highlight the supporting region
 
 ## Why `.vera` Matters in This App
 

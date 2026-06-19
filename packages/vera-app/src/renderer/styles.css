@@ -94,7 +94,7 @@ button {
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
   padding: 4px;
   background: #ded7c9;
@@ -394,6 +394,90 @@ select {
   min-height: 0;
   overflow: auto;
   padding: 12px;
+}
+
+.chatPanel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.chatMessage {
+  display: grid;
+  gap: 8px;
+  max-width: 92%;
+  padding: 12px;
+  border: 1px solid #d8d0c0;
+  border-radius: 6px;
+}
+
+.chatMessage span {
+  color: #746b5b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.chatMessage p {
+  margin: 0;
+  color: #2d2a24;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.userMessage {
+  justify-self: end;
+  background: #e8f0ec;
+  border-color: #c5d5cb;
+}
+
+.assistantMessage {
+  justify-self: start;
+  background: #fffdf7;
+}
+
+.inlineCitation {
+  display: inline;
+  height: auto;
+  margin: 0 1px;
+  padding: 1px 4px;
+  color: #2c2a25;
+  background: #dfe9e3;
+  border: 1px solid #aebfb5;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  vertical-align: baseline;
+}
+
+.citationList {
+  display: grid;
+  gap: 8px;
+}
+
+.citationCard {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 10px;
+  text-align: left;
+  color: #25221c;
+  background: #fffdf7;
+  border: 1px solid #d8d0c0;
+  border-radius: 6px;
+}
+
+.citationCard.selected {
+  border-color: #3f654f;
+  box-shadow: inset 3px 0 0 #3f654f;
+}
+
+.citationCard span {
+  color: #746b5b;
+  font-size: 12px;
 }
 
 .sourceViewer {

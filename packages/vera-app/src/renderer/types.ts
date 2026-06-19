@@ -76,6 +76,19 @@ export interface SearchResult {
   file?: string;
 }
 
+export interface ChatCitationResult {
+  id: string;
+  label: string;
+  result: SearchResult;
+}
+
+export interface ChatAnswerResult {
+  prompt: string;
+  answer: string;
+  citations: ChatCitationResult[];
+  llm_prompt: string;
+}
+
 export interface ConvertResult {
   output: string;
 }
