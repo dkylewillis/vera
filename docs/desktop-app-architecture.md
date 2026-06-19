@@ -77,8 +77,8 @@ uv run --extra dev python -m pytest -q
 
 ## Near-Term App Work
 
-- Render figure and region metadata in richer evidence views.
 - Render source pages with PDF.js.
 - Overlay `regions` from search results on the page view.
+- Add figure thumbnails and asset previews in the evidence pane.
 - Add conversion job state and progress reporting.
 - Add settings for model choice, library folders, and provider configuration.

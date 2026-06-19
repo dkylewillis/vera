@@ -44,6 +44,13 @@ export interface FigureResult {
   caption?: string | null;
 }
 
+export interface RegionResult {
+  page_number?: number;
+  bbox?: number[];
+  page_width?: number;
+  page_height?: number;
+}
+
 export interface SearchResult {
   chunk_id: string;
   score: number;
@@ -53,7 +60,7 @@ export interface SearchResult {
   heading_path: string | null;
   source_filename: string | null;
   document_id: string;
-  regions?: Array<Record<string, unknown>>;
+  regions?: RegionResult[];
   figures?: FigureResult[];
   file?: string;
 }

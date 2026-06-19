@@ -410,6 +410,75 @@ select {
   overflow-wrap: anywhere;
 }
 
+.evidenceSection {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.evidenceSection h2 {
+  margin: 0;
+  color: #2d2a24;
+  font-size: 13px;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.regionList,
+.figureList {
+  display: grid;
+  gap: 8px;
+}
+
+.regionRow,
+.figureCard {
+  min-width: 0;
+  padding: 10px;
+  background: #fffdf7;
+  border: 1px solid #ded7c9;
+  border-radius: 6px;
+}
+
+.regionRow {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.regionRow strong,
+.figureCard strong {
+  min-width: 0;
+  color: #25221c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.regionRow span,
+.figureCard span,
+.mutedText {
+  color: #746b5b;
+  font-size: 12px;
+}
+
+.figureCard {
+  display: grid;
+  gap: 5px;
+}
+
+.figureCard p {
+  margin: 0;
+  color: #4b463d;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.mutedText {
+  margin: 0;
+  line-height: 1.4;
+}
+
 .emptyState {
   display: grid;
   place-items: center;

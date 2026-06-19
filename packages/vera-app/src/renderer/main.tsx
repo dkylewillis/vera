@@ -16,6 +16,18 @@ import './styles.css';
 
 type ActiveTab = 'search' | 'convert' | 'details';
 
+function formatPages(start: number | null, end: number | null): string {
+  if (start === null && end === null) return '-';
+  if (start === end || end === null) return String(start);
+  if (start === null) return String(end);
+  return `${start}-${end}`;
+}
+
+function formatBox(box: number[] | undefined): string {
+  if (!box?.length) return '-';
+  return box.map((value) => Math.round(value)).join(', ');
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('search');
   const [path, setPath] = useState('');
@@ -37,9 +49,8 @@ function App() {
 
   const citation = useMemo(() => {
     if (!selected) return 'No result selected';
-    const page = selected.page_start === selected.page_end ? selected.page_start : `${selected.page_start}-${selected.page_end}`;
     const source = selected.file || selected.source_filename || 'document';
-    return `${source} · p. ${page}`;
+    return `${source} · p. ${formatPages(selected.page_start, selected.page_end)}`;
   }, [selected]);
 
   async function call<T>(payload: Record<string, unknown>): Promise<T | null> {
@@ -241,7 +252,7 @@ function App() {
                 key={`${result.file || result.document_id}-${result.chunk_id}`}
                 onClick={() => setSelected(result)}
               >
-                <span className="resultMeta">{result.score.toFixed(4)} · p. {result.page_start}{result.file ? ` · ${result.file}` : ''}</span>
+                <span className="resultMeta">{result.score.toFixed(4)} · p. {formatPages(result.page_start, result.page_end)}{result.file ? ` · ${result.file}` : ''}</span>
                 <strong>{result.heading_path || result.source_filename || result.chunk_id}</strong>
                 <span>{result.text}</span>
               </button>
@@ -270,9 +281,41 @@ function App() {
               <dl>
                 <div><dt>Chunk</dt><dd>{selected.chunk_id}</dd></div>
                 <div><dt>Heading</dt><dd>{selected.heading_path || '-'}</dd></div>
+                <div><dt>Pages</dt><dd>{formatPages(selected.page_start, selected.page_end)}</dd></div>
                 <div><dt>Regions</dt><dd>{selected.regions?.length ?? 0}</dd></div>
                 <div><dt>Figures</dt><dd>{selected.figures?.length ?? 0}</dd></div>
               </dl>
+              <section className="evidenceSection">
+                <h2>Regions</h2>
+                {selected.regions?.length ? (
+                  <div className="regionList">
+                    {selected.regions.map((region, index) => (
+                      <div className="regionRow" key={`${region.page_number || 'page'}-${index}`}>
+                        <strong>p. {region.page_number ?? '-'}</strong>
+                        <span>{formatBox(region.bbox)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mutedText">No highlight regions were returned for this result.</p>
+                )}
+              </section>
+              <section className="evidenceSection">
+                <h2>Figures</h2>
+                {selected.figures?.length ? (
+                  <div className="figureList">
+                    {selected.figures.map((figure, index) => (
+                      <article className="figureCard" key={`${figure.asset_id || figure.filename || 'figure'}-${index}`}>
+                        <span>p. {figure.page_number}</span>
+                        <strong>{figure.filename || figure.asset_id || 'Figure'}</strong>
+                        <p>{figure.caption || 'No caption available'}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mutedText">No nearby figures were returned for this result.</p>
+                )}
+              </section>
             </article>
           ) : (
             <div className="emptyState">No evidence selected</div>
