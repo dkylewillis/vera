@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('vera', {
   request: (payload: Record<string, unknown>) => ipcRenderer.invoke('vera:request', payload),

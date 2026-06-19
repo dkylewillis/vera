@@ -7,7 +7,8 @@
   "type": "module",
   "main": "dist-electron/electron/main.js",
   "scripts": {
-    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "predev": "tsc -p tsconfig.json",
+    "dev": "concurrently -k \"vite --host 127.0.0.1 --strictPort\" \"wait-on http://127.0.0.1:5173 && electron .\"",
     "build": "tsc -p tsconfig.json && vite build",
     "dist": "npm run build && electron-builder",
     "typecheck": "tsc -p tsconfig.json --noEmit",
