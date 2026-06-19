@@ -28,6 +28,12 @@ function formatBox(box: number[] | undefined): string {
   return box.map((value) => Math.round(value)).join(', ');
 }
 
+function defaultVeraPath(pdf: string): string {
+  const trimmed = pdf.trim();
+  if (!trimmed) return '';
+  return trimmed.toLowerCase().endsWith('.pdf') ? `${trimmed.slice(0, -4)}.vera` : `${trimmed}.vera`;
+}
+
 function regionStyle(region: RegionResult): CSSProperties {
   const [x0, y0, x1, y1] = region.bbox || [];
   if (!region.page_width || !region.page_height || x0 === undefined || y0 === undefined || x1 === undefined || y1 === undefined) {
@@ -57,6 +63,7 @@ function App() {
   const [overlap, setOverlap] = useState(75);
   const [storeOriginal, setStoreOriginal] = useState(true);
   const [status, setStatus] = useState('Ready');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [inspect, setInspect] = useState<InspectResult | null>(null);
   const [validation, setValidation] = useState<ValidateResult | null>(null);
@@ -79,16 +86,20 @@ function App() {
   async function call<T>(payload: Record<string, unknown>, label: string): Promise<T | null> {
     setStatus(label);
     setBusyAction(label);
+    setErrorMessage(null);
     try {
       const response = await window.vera.request<T>(payload);
       if (!response.ok) {
         setStatus(response.error || 'Request failed');
+        setErrorMessage(response.error || 'Request failed');
         return null;
       }
       setStatus('Ready');
       return (response.result || null) as T | null;
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Request failed');
+      const message = error instanceof Error ? error.message : 'Request failed';
+      setStatus(message);
+      setErrorMessage(message);
       return null;
     } finally {
       setBusyAction(null);
@@ -107,11 +118,14 @@ function App() {
 
   async function choosePdf() {
     const chosen = await window.vera.pickPdf();
-    if (chosen) setPdfPath(chosen);
+    if (chosen) {
+      setPdfPath(chosen);
+      if (!outputPath.trim()) setOutputPath(defaultVeraPath(chosen));
+    }
   }
 
   async function chooseOutput() {
-    const chosen = await window.vera.saveVera();
+    const chosen = await window.vera.saveVera(outputPath.trim() || defaultVeraPath(pdfPath));
     if (chosen) setOutputPath(chosen);
   }
 
@@ -152,10 +166,17 @@ function App() {
   }
 
   async function convertPdf() {
+    const output = outputPath.trim() || defaultVeraPath(pdfPath);
+    if (!output) {
+      setStatus('Choose an output path');
+      setErrorMessage('Choose an output path');
+      return;
+    }
+    setOutputPath(output);
     const result = await call<ConvertResult>({
       action: 'convert',
       input: pdfPath,
-      output: outputPath,
+      output,
       model: convertModel,
       parser: convertParser,
       chunk_size: chunkSize,
@@ -203,6 +224,7 @@ function App() {
           </div>
 
           {busyAction ? <div className="activityBanner"><span />{busyAction}</div> : null}
+          {errorMessage ? <div className="errorBanner">{errorMessage}</div> : null}
 
           {activeTab !== 'convert' ? (
             <>
@@ -263,7 +285,15 @@ function App() {
                 <span>PDF</span>
                 <div className="pathInput">
                   <FileInput size={16} />
-                  <input value={pdfPath} onChange={(event) => setPdfPath(event.target.value)} placeholder="C:\\docs\\manual.pdf" />
+                  <input
+                    value={pdfPath}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setPdfPath(value);
+                      if (!outputPath.trim()) setOutputPath(defaultVeraPath(value));
+                    }}
+                    placeholder="C:\\docs\\manual.pdf"
+                  />
                 </div>
               </label>
               <button className="secondaryAction" onClick={choosePdf} disabled={busy}><FolderOpen size={16} />Choose PDF</button>
@@ -310,7 +340,7 @@ function App() {
                 <span>Store original PDF</span>
               </label>
 
-              <button className="primaryAction" onClick={convertPdf} disabled={!pdfPath.trim() || !outputPath.trim() || busy}><RefreshCw size={16} />Convert</button>
+              <button className="primaryAction" onClick={convertPdf} disabled={!pdfPath.trim() || busy}><RefreshCw size={16} />Convert</button>
               {convertResult && <p className="note">Created {convertResult.output}</p>}
             </>
           )}

@@ -137,6 +137,19 @@ button {
   border-radius: 999px;
 }
 
+.errorBanner {
+  min-height: 34px;
+  padding: 8px 10px;
+  color: #5b201b;
+  background: #fff0ed;
+  border: 1px solid #d7a59e;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .pathInput {
   display: flex;
   align-items: center;

@@ -11,7 +11,7 @@ export interface VeraApi {
   pickArchive(): Promise<string | null>;
   pickFolder(): Promise<string | null>;
   pickPdf(): Promise<string | null>;
-  saveVera(): Promise<string | null>;
+  saveVera(defaultPath?: string): Promise<string | null>;
   saveAny(): Promise<string | null>;
 }
 

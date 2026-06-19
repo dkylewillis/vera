@@ -154,9 +154,10 @@ app.whenReady().then(() => {
     });
     return result.canceled ? null : result.filePaths[0];
   });
-  ipcMain.handle('vera:saveVera', async () => {
+  ipcMain.handle('vera:saveVera', async (_event, defaultPath?: string) => {
     const result = await dialog.showSaveDialog({
       title: 'Save VERA archive',
+      defaultPath,
       filters: [{ name: 'VERA Archives', extensions: ['vera'] }],
     });
     return result.canceled ? null : result.filePath;

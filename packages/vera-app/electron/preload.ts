@@ -5,6 +5,6 @@ contextBridge.exposeInMainWorld('vera', {
   pickArchive: () => ipcRenderer.invoke('vera:pickArchive'),
   pickFolder: () => ipcRenderer.invoke('vera:pickFolder'),
   pickPdf: () => ipcRenderer.invoke('vera:pickPdf'),
-  saveVera: () => ipcRenderer.invoke('vera:saveVera'),
+  saveVera: (defaultPath?: string) => ipcRenderer.invoke('vera:saveVera', defaultPath),
   saveAny: () => ipcRenderer.invoke('vera:saveAny'),
 });
