@@ -186,6 +186,7 @@ function renderAnswerWithCitations(answer: ChatAnswerResult, selectCitation: (ci
 }
 
 function App() {
+  const workspaceRef = useRef<HTMLElement | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('ask');
   const [path, setPath] = useState('');
   const [pdfPath, setPdfPath] = useState('');
@@ -214,7 +215,8 @@ function App() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState<SearchResult | null>(null);
   const [chatAnswer, setChatAnswer] = useState<ChatAnswerResult | null>(null);
-  const [sourceExpanded, setSourceExpanded] = useState(false);
+  const [sourcePaneWidth, setSourcePaneWidth] = useState(46);
+  const [isResizingSource, setIsResizingSource] = useState(false);
 
   const isCorpus = Boolean(inspect?.directory || (path && !path.toLowerCase().endsWith('.vera')));
   const busy = Boolean(busyAction);
@@ -227,6 +229,18 @@ function App() {
 
   const selectedSourcePath = selected?.file || path;
   const selectedTargetPage = selected?.regions?.find((region) => region.page_number)?.page_number ?? selected?.page_start ?? null;
+  const sourceExpanded = sourcePaneWidth >= 58;
+
+  function clampSourcePaneWidth(value: number): number {
+    return Math.min(70, Math.max(32, value));
+  }
+
+  function resizeSourcePane(clientX: number) {
+    const bounds = workspaceRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const widthFromRight = bounds.right - clientX;
+    setSourcePaneWidth(clampSourcePaneWidth((widthFromRight / bounds.width) * 100));
+  }
 
   async function call<T>(payload: Record<string, unknown>, label: string): Promise<T | null> {
     setStatus(label);
@@ -412,6 +426,25 @@ function App() {
     void openTargetPath(targetPath);
   }), []);
 
+  useEffect(() => {
+    if (!isResizingSource) return undefined;
+    function handlePointerMove(event: PointerEvent) {
+      event.preventDefault();
+      resizeSourcePane(event.clientX);
+    }
+    function handlePointerUp() {
+      setIsResizingSource(false);
+    }
+    document.body.classList.add('resizingPanes');
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    return () => {
+      document.body.classList.remove('resizingPanes');
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [isResizingSource]);
+
   return (
     <main className="shell">
       <header className="titlebar">
@@ -422,7 +455,7 @@ function App() {
         <div className="status"><TerminalSquare size={16} />{status}</div>
       </header>
 
-      <section className={sourceExpanded ? 'workspace sourceExpanded' : 'workspace'}>
+      <section className="workspace" ref={workspaceRef} style={{ '--source-pane-width': `${sourcePaneWidth}%` } as CSSProperties}>
         <section className="resultsPane">
           <div className="mainToolbar">
             <div className="tabs">
@@ -621,13 +654,33 @@ function App() {
           )}
         </section>
 
+        <div
+          className="paneDivider"
+          role="separator"
+          aria-label="Resize Source Document pane"
+          aria-orientation="vertical"
+          tabIndex={0}
+          onDoubleClick={() => setSourcePaneWidth(46)}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft') setSourcePaneWidth((value) => clampSourcePaneWidth(value + 4));
+            if (event.key === 'ArrowRight') setSourcePaneWidth((value) => clampSourcePaneWidth(value - 4));
+            if (event.key === 'Home') setSourcePaneWidth(32);
+            if (event.key === 'End') setSourcePaneWidth(70);
+          }}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            setIsResizingSource(true);
+            resizeSourcePane(event.clientX);
+          }}
+        />
+
         <section className="sourcePane">
           <div className="paneHeader sourcePaneHeader">
             <div className="paneTitleGroup">
               <h1>{activeTab === 'details' || activeTab === 'viewer' ? 'Document Details' : 'Source Document'}</h1>
               <span>{activeTab === 'details' || activeTab === 'viewer' ? path || 'No archive selected' : citation}</span>
             </div>
-            <button className="iconAction" onClick={() => setSourceExpanded((value) => !value)} title={sourceExpanded ? 'Restore source pane' : 'Expand source pane'} aria-label={sourceExpanded ? 'Restore source pane' : 'Expand source pane'}>
+            <button className="iconAction" onClick={() => setSourcePaneWidth(sourceExpanded ? 46 : 64)} title={sourceExpanded ? 'Restore source pane' : 'Expand source pane'} aria-label={sourceExpanded ? 'Restore source pane' : 'Expand source pane'}>
               {sourceExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
             </button>
           </div>
