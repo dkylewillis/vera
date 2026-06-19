@@ -72,6 +72,10 @@ button {
   padding: 10px;
 }
 
+.workspace.sourceExpanded {
+  grid-template-columns: minmax(360px, 0.62fr) minmax(560px, 1.38fr);
+}
+
 .resultsPane,
 .sourcePane {
   min-width: 0;
@@ -281,6 +285,18 @@ select {
   border: 1px solid #d2dce5;
 }
 
+.iconAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: #243b53;
+  background: #ffffff;
+  border: 1px solid #d2dce5;
+  border-radius: 6px;
+}
+
 .primaryAction:disabled,
 .secondaryAction:disabled {
   cursor: not-allowed;
@@ -464,6 +480,17 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sourcePaneHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.paneTitleGroup {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
 }
 
 .resultsList {

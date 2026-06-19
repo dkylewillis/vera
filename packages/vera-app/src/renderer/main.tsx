@@ -8,7 +8,9 @@ import {
   FileInput,
   FileSearch,
   FolderOpen,
+  Maximize2,
   MessageSquareText,
+  Minimize2,
   RefreshCw,
   Search,
   Send,
@@ -212,6 +214,7 @@ function App() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState<SearchResult | null>(null);
   const [chatAnswer, setChatAnswer] = useState<ChatAnswerResult | null>(null);
+  const [sourceExpanded, setSourceExpanded] = useState(false);
 
   const isCorpus = Boolean(inspect?.directory || (path && !path.toLowerCase().endsWith('.vera')));
   const busy = Boolean(busyAction);
@@ -419,7 +422,7 @@ function App() {
         <div className="status"><TerminalSquare size={16} />{status}</div>
       </header>
 
-      <section className="workspace">
+      <section className={sourceExpanded ? 'workspace sourceExpanded' : 'workspace'}>
         <section className="resultsPane">
           <div className="mainToolbar">
             <div className="tabs">
@@ -619,9 +622,14 @@ function App() {
         </section>
 
         <section className="sourcePane">
-          <div className="paneHeader">
-            <h1>{activeTab === 'details' || activeTab === 'viewer' ? 'Document Details' : 'Source Document'}</h1>
-            <span>{activeTab === 'details' || activeTab === 'viewer' ? path || 'No archive selected' : citation}</span>
+          <div className="paneHeader sourcePaneHeader">
+            <div className="paneTitleGroup">
+              <h1>{activeTab === 'details' || activeTab === 'viewer' ? 'Document Details' : 'Source Document'}</h1>
+              <span>{activeTab === 'details' || activeTab === 'viewer' ? path || 'No archive selected' : citation}</span>
+            </div>
+            <button className="iconAction" onClick={() => setSourceExpanded((value) => !value)} title={sourceExpanded ? 'Restore source pane' : 'Expand source pane'} aria-label={sourceExpanded ? 'Restore source pane' : 'Expand source pane'}>
+              {sourceExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            </button>
           </div>
           {activeTab === 'details' || activeTab === 'viewer' ? (
             <article className="sourceDetails">
