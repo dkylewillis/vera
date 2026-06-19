@@ -56,7 +56,7 @@ function regionStyle(region: RegionResult): CSSProperties {
   };
 }
 
-function PdfSourceViewer({ source, pageText }: { source: SourceDocumentResult; pageText: PageResult | null }) {
+function PdfSourceViewer({ source }: { source: SourceDocumentResult }) {
   const pagesRef = useRef<HTMLDivElement | null>(null);
   const renderedSourceRef = useRef('');
   const [scale, setScale] = useState(1.25);
@@ -90,14 +90,27 @@ function PdfSourceViewer({ source, pageText }: { source: SourceDocumentResult; p
           pageShell.className = 'pdfPage';
           const label = document.createElement('span');
           label.textContent = `Page ${pageIndex}`;
+          const pageSurface = document.createElement('div');
+          pageSurface.className = 'pdfPageSurface';
           const canvas = document.createElement('canvas');
+          const textLayerContainer = document.createElement('div');
+          textLayerContainer.className = 'textLayer';
           const context = canvas.getContext('2d');
           if (!context) continue;
           canvas.width = Math.floor(viewport.width);
           canvas.height = Math.floor(viewport.height);
-          pageShell.append(label, canvas);
+          pageSurface.style.width = `${Math.floor(viewport.width)}px`;
+          pageSurface.style.height = `${Math.floor(viewport.height)}px`;
+          pageSurface.append(canvas, textLayerContainer);
+          pageShell.append(label, pageSurface);
           container.append(pageShell);
           await page.render({ canvas, canvasContext: context, viewport }).promise;
+          const textLayer = new pdfjsLib.TextLayer({
+            textContentSource: page.streamTextContent(),
+            container: textLayerContainer,
+            viewport,
+          });
+          await textLayer.render();
         }
       } catch (renderError) {
         if (!canceled) setError(renderError instanceof Error ? renderError.message : 'Unable to render PDF');
@@ -121,20 +134,7 @@ function PdfSourceViewer({ source, pageText }: { source: SourceDocumentResult; p
         <button className="secondaryAction" onClick={() => setScale((value) => Math.min(2.5, value + 0.25))}>Zoom In</button>
       </div>
       {error ? <div className="errorBanner">{error}</div> : null}
-      <div className="pdfViewerGrid">
-        <div className="pdfCanvasWrap" ref={pagesRef} />
-        <aside className="copyPanel">
-          <h2>Copy Text</h2>
-          {pageText ? (
-            <>
-              <span>Extracted page {pageText.page_number}</span>
-              <textarea readOnly value={pageText.text || 'No text was extracted for this page.'} />
-            </>
-          ) : (
-            <p>Select Details and load a page to copy extracted text.</p>
-          )}
-        </aside>
-      </div>
+      <div className="pdfCanvasWrap" ref={pagesRef} />
     </div>
   );
 }
@@ -474,7 +474,7 @@ function App() {
           {activeTab === 'viewer' ? (
             <div className="sourceViewer">
               {sourceDocument && isPdfSource(sourceDocument) ? (
-                <PdfSourceViewer source={sourceDocument} pageText={pageResult} />
+                <PdfSourceViewer source={sourceDocument} />
               ) : sourceDocument ? (
                 <div className="unsupportedSource">
                   <strong>{sourceDocument.filename}</strong>
