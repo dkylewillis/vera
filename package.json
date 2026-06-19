@@ -1,0 +1,13 @@
+{
+  "name": "vera-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "app:install": "npm --prefix packages/vera-app install",
+    "app:dev": "npm --prefix packages/vera-app run dev",
+    "app:typecheck": "npm --prefix packages/vera-app run typecheck",
+    "app:build": "npm --prefix packages/vera-app run build",
+    "app:dist": "npm --prefix packages/vera-app run dist -- --dir",
+    "test": "uv run --extra dev python -m pytest -q"
+  }
+}

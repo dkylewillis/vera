@@ -58,14 +58,14 @@ This keeps the app UI independent from Python internals while preserving a simpl
 
 ## Development Commands
 
-From `packages/vera-app`:
+From the repo root:
 
 ```bash
-npm install
-npm run dev
-npm run typecheck
-npm run build
-npm run dist -- --dir
+npm run app:install
+npm run app:dev
+npm run app:typecheck
+npm run app:build
+npm run app:dist
 ```
 
 From the repo root:

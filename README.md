@@ -197,13 +197,12 @@ Current baseline on the stormwater manual (2,442 chunks, hashing embedder): hybr
 The app package is an Electron desktop shell with a React UI and a Python sidecar that calls `vera-doc` directly:
 
 ```bash
-cd packages/vera-app
-npm install
-npm run dev
-npm run dist -- --dir
+npm run app:install
+npm run app:dev
+npm run app:dist
 ```
 
-The current desktop scaffold can inspect and search local `.vera` archives through the sidecar protocol. The unpacked Windows build writes `VERA.exe` under `packages/vera-app/release/win-unpacked`. See [docs/desktop-app-architecture.md](docs/desktop-app-architecture.md) for the app architecture and next steps.
+Run these from the repo root. The current desktop scaffold can inspect and search local `.vera` archives through the sidecar protocol. The unpacked Windows build writes `VERA.exe` under `packages/vera-app/release/win-unpacked`. See [docs/desktop-app-architecture.md](docs/desktop-app-architecture.md) for the app architecture and next steps.
 
 ## Status
 
