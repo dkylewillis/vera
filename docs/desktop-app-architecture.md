@@ -82,6 +82,7 @@ uv run --extra dev python -m pytest -q
 
 - Replace the extractive cited draft in `answer` with configurable LLM provider calls that preserve citation ids.
 - Keep Source Document PDF rendering responsive for very large source documents.
+- Add native application menu entries for open file, open folder, and recent documents.
 - Add library folder persistence and recent archive shortcuts.
 - Add richer conversion progress events from the sidecar.
 - Add settings for provider configuration and app defaults.

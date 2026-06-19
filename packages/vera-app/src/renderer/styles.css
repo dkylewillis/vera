@@ -66,13 +66,12 @@ button {
 
 .workspace {
   display: grid;
-  grid-template-columns: 304px minmax(340px, 0.92fr) minmax(420px, 1.18fr);
+  grid-template-columns: minmax(460px, 1fr) minmax(420px, 0.92fr);
   gap: 10px;
   min-height: 0;
   padding: 10px;
 }
 
-.sidebar,
 .resultsPane,
 .sourcePane {
   min-width: 0;
@@ -80,14 +79,6 @@ button {
   border: 1px solid #d8e0e7;
   border-radius: 8px;
   box-shadow: 0 10px 24px rgba(24, 33, 47, 0.07);
-}
-
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 16px;
-  background: #f7f9fb;
 }
 
 .field {
@@ -355,6 +346,11 @@ select {
   margin-top: auto;
 }
 
+.metrics.inlineMetrics {
+  grid-template-columns: repeat(3, minmax(88px, auto));
+  margin-top: 0;
+}
+
 .metrics div {
   display: grid;
   grid-template-columns: 78px 1fr;
@@ -384,8 +380,74 @@ select {
 .resultsPane,
 .sourcePane {
   display: grid;
-  grid-template-rows: 54px 1fr;
   background: #ffffff;
+}
+
+.resultsPane {
+  grid-template-rows: auto auto auto auto auto 1fr;
+}
+
+.sourcePane {
+  grid-template-rows: 54px 1fr;
+}
+
+.mainToolbar {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  background: #ffffff;
+  border-bottom: 1px solid #d8e0e7;
+  border-radius: 8px 8px 0 0;
+}
+
+.fileMenu {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.documentBar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f7f9fb;
+  border-bottom: 1px solid #d8e0e7;
+}
+
+.documentPath {
+  min-width: 0;
+}
+
+.workbenchOptions {
+  background: #ffffff;
+  border-bottom: 1px solid #d8e0e7;
+}
+
+.workbenchOptions summary {
+  cursor: pointer;
+  padding: 9px 12px;
+  color: #52606d;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.optionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr)) repeat(3, auto);
+  gap: 10px;
+  align-items: end;
+  padding: 0 12px 12px;
+}
+
+.compactCheck {
+  min-height: 38px;
 }
 
 .paneHeader {
@@ -397,7 +459,6 @@ select {
   padding: 0 16px;
   background: #ffffff;
   border-bottom: 1px solid #d8e0e7;
-  border-radius: 8px 8px 0 0;
 }
 
 .paneHeader h1 {
@@ -421,6 +482,48 @@ select {
   min-height: 0;
   overflow: auto;
   padding: 12px;
+}
+
+.searchWorkspace {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.searchComposer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  background: #f7f9fb;
+  border-bottom: 1px solid #d8e0e7;
+}
+
+.searchComposer textarea {
+  min-height: 74px;
+}
+
+.convertPanel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-content: start;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+
+.convertPanel .optionGrid {
+  grid-column: 1 / -1;
+  padding: 0;
+}
+
+.convertPanel .primaryAction,
+.convertPanel .note {
+  grid-column: 1 / -1;
 }
 
 .chatPanel {

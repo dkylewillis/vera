@@ -202,7 +202,7 @@ npm run app:dev
 npm run app:dist
 ```
 
-Run these from the repo root. The desktop app can pick local `.vera` archives or folders, inspect and validate archives, ask natural-language questions with grounded citations, search documents or corpora with context and visual grounding, convert PDFs with parser/model settings, view embedded source PDFs as scrollable pages with selectable text and grounded highlights, keep the Source Document pane focused on the source viewer with raw retrieval data tucked into expandable details, preview figures, and export the embedded source document through the sidecar protocol. The unpacked Windows build writes `VERA.exe` under `packages/vera-app/release/win-unpacked`. See [docs/desktop-app-architecture.md](docs/desktop-app-architecture.md) for the app architecture and next steps.
+Run these from the repo root. The desktop app uses a two-pane Ask and Source Document workspace with Open File/Open Folder controls in the main toolbar. It can pick local `.vera` archives or folders, inspect and validate archives, ask natural-language questions with grounded citations, search documents or corpora with context and visual grounding, convert PDFs with parser/model settings, view embedded source PDFs as scrollable pages with selectable text and grounded highlights, keep raw retrieval data tucked into expandable details, preview figures, and export the embedded source document through the sidecar protocol. The unpacked Windows build writes `VERA.exe` under `packages/vera-app/release/win-unpacked`. See [docs/desktop-app-architecture.md](docs/desktop-app-architecture.md) for the app architecture and next steps.
 
 ## Status
 

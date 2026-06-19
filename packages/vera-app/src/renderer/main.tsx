@@ -250,12 +250,21 @@ function App() {
 
   async function chooseArchive() {
     const chosen = await window.vera.pickArchive();
-    if (chosen) updateTargetPath(chosen);
+    if (chosen) await openTargetPath(chosen);
   }
 
   async function chooseFolder() {
     const chosen = await window.vera.pickFolder();
-    if (chosen) updateTargetPath(chosen);
+    if (chosen) await openTargetPath(chosen);
+  }
+
+  async function openTargetPath(value: string) {
+    updateTargetPath(value);
+    const result = await call<InspectResult>({ action: 'inspect', path: value }, 'Opening');
+    if (result) {
+      setInspect(result);
+      setValidation(null);
+    }
   }
 
   function updateTargetPath(value: string) {
@@ -417,49 +426,41 @@ function App() {
       </header>
 
       <section className="workspace">
-        <aside className="sidebar">
-          <div className="tabs">
-            <button className={activeTab === 'ask' ? 'active primaryTab' : 'primaryTab'} onClick={() => setActiveTab('ask')}><MessageSquareText size={15} />Ask</button>
-            <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>Search</button>
-            <button className={activeTab === 'viewer' ? 'active' : ''} onClick={() => setActiveTab('viewer')}>Viewer</button>
-            <button className={activeTab === 'convert' ? 'active' : ''} onClick={() => setActiveTab('convert')}>Convert</button>
-            <button className={activeTab === 'details' ? 'active' : ''} onClick={() => setActiveTab('details')}>Details</button>
+        <section className="resultsPane">
+          <div className="mainToolbar">
+            <div className="tabs">
+              <button className={activeTab === 'ask' ? 'active primaryTab' : 'primaryTab'} onClick={() => setActiveTab('ask')}><MessageSquareText size={15} />Ask</button>
+              <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>Search</button>
+              <button className={activeTab === 'viewer' ? 'active' : ''} onClick={() => setActiveTab('viewer')}>Viewer</button>
+              <button className={activeTab === 'convert' ? 'active' : ''} onClick={() => setActiveTab('convert')}>Convert</button>
+              <button className={activeTab === 'details' ? 'active' : ''} onClick={() => setActiveTab('details')}>Details</button>
+            </div>
+            <div className="fileMenu">
+              <button className="secondaryAction" onClick={chooseArchive} disabled={busy}><FileInput size={16} />Open File</button>
+              <button className="secondaryAction" onClick={chooseFolder} disabled={busy}><FolderOpen size={16} />Open Folder</button>
+              <button className="secondaryAction" onClick={inspectTarget} disabled={!path.trim() || busy}><ShieldCheck size={16} />Inspect</button>
+            </div>
           </div>
 
           {busyAction ? <div className="activityBanner"><span />{busyAction}</div> : null}
           {errorMessage ? <div className="errorBanner">{errorMessage}</div> : null}
 
+          <div className="documentBar">
+            <label className="pathInput documentPath">
+              <FolderOpen size={16} />
+              <input value={path} onChange={(event) => updateTargetPath(event.target.value)} placeholder="Open a .vera archive or folder" />
+            </label>
+            <div className="metrics inlineMetrics">
+              <div><span>Pages</span><strong>{inspect?.pages ?? '-'}</strong></div>
+              <div><span>Chunks</span><strong>{inspect?.chunks ?? '-'}</strong></div>
+              <div><span>Files</span><strong>{inspect?.file_count ?? '-'}</strong></div>
+            </div>
+          </div>
+
           {activeTab !== 'convert' ? (
-            <>
-              <label className="field">
-                <span>Archive or Folder</span>
-                <div className="pathInput">
-                  <FolderOpen size={16} />
-                  <input value={path} onChange={(event) => updateTargetPath(event.target.value)} placeholder="C:\\docs\\manual.vera" />
-                </div>
-              </label>
-
-              <div className="actions three">
-                  <button onClick={chooseArchive} disabled={busy}><FileInput size={16} />File</button>
-                  <button onClick={chooseFolder} disabled={busy}><FolderOpen size={16} />Folder</button>
-                  <button onClick={inspectTarget} disabled={!path.trim() || busy}><ShieldCheck size={16} />Inspect</button>
-              </div>
-
-              <div className="actions two">
-                <button onClick={validateTarget} disabled={!path.trim() || isCorpus || busy}><CheckCircle2 size={16} />Validate</button>
-                <button onClick={exportSource} disabled={!path.trim() || isCorpus || busy}><Download size={16} />Export</button>
-              </div>
-
-              <button className="secondaryAction" onClick={() => loadSourceDocument(path, true)} disabled={!path.trim() || isCorpus || busy}><FileSearch size={16} />Load Source</button>
-
-              {activeTab !== 'ask' ? (
-                <label className="field">
-                  <span>Query</span>
-                  <textarea value={query} onChange={(event) => setQuery(event.target.value)} />
-                </label>
-              ) : null}
-
-              <div className="splitFields">
+            <details className="workbenchOptions">
+              <summary>Retrieval Options</summary>
+              <div className="optionGrid">
                 <label className="field">
                   <span>Mode</span>
                   <select value={mode} onChange={(event) => setMode(event.target.value)}>
@@ -472,99 +473,22 @@ function App() {
                   <span>Top K</span>
                   <input className="numberInput" type="number" min={1} max={50} value={topK} onChange={(event) => setTopK(Number(event.target.value))} />
                 </label>
+                <label className="field">
+                  <span>Context</span>
+                  <input className="numberInput" type="number" min={0} max={5} value={contextChunks} onChange={(event) => setContextChunks(Number(event.target.value))} />
+                </label>
+                <label className="checkField compactCheck">
+                  <input type="checkbox" checked={includeFigures} onChange={(event) => setIncludeFigures(event.target.checked)} />
+                  <span>Figures</span>
+                </label>
+                <button className="secondaryAction" onClick={validateTarget} disabled={!path.trim() || isCorpus || busy}><CheckCircle2 size={16} />Validate</button>
+                <button className="secondaryAction" onClick={exportSource} disabled={!path.trim() || isCorpus || busy}><Download size={16} />Export</button>
               </div>
+            </details>
+          ) : null}
 
-              <label className="field">
-                <span>Context Chunks</span>
-                <input className="numberInput" type="number" min={0} max={5} value={contextChunks} onChange={(event) => setContextChunks(Number(event.target.value))} />
-              </label>
-
-              <label className="checkField">
-                <input type="checkbox" checked={includeFigures} onChange={(event) => setIncludeFigures(event.target.checked)} />
-                <span>Figures</span>
-              </label>
-
-              {activeTab !== 'ask' ? (
-                <button className="primaryAction" onClick={searchTarget} disabled={!path.trim() || !query.trim() || busy}><Search size={16} />Search</button>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <label className="field">
-                <span>PDF</span>
-                <div className="pathInput">
-                  <FileInput size={16} />
-                  <input
-                    value={pdfPath}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setPdfPath(value);
-                      if (!outputPath.trim()) setOutputPath(defaultVeraPath(value));
-                    }}
-                    placeholder="C:\\docs\\manual.pdf"
-                  />
-                </div>
-              </label>
-              <button className="secondaryAction" onClick={choosePdf} disabled={busy}><FolderOpen size={16} />Choose PDF</button>
-
-              <label className="field">
-                <span>Output</span>
-                <div className="pathInput">
-                  <FileSearch size={16} />
-                  <input value={outputPath} onChange={(event) => setOutputPath(event.target.value)} placeholder="C:\\docs\\manual.vera" />
-                </div>
-              </label>
-              <button className="secondaryAction" onClick={chooseOutput} disabled={busy}><FolderOpen size={16} />Save As</button>
-
-              <div className="splitFields">
-                <label className="field">
-                  <span>Parser</span>
-                  <select value={convertParser} onChange={(event) => setConvertParser(event.target.value)}>
-                    <option value="pymupdf">PyMuPDF</option>
-                    <option value="docling">Docling</option>
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Model</span>
-                  <select value={convertModel} onChange={(event) => setConvertModel(event.target.value)}>
-                    <option value="hashing">Hashing</option>
-                    <option value="openai">OpenAI</option>
-                  </select>
-                </label>
-              </div>
-
-              <div className="splitFields">
-                <label className="field">
-                  <span>Chunk Size</span>
-                  <input className="numberInput" type="number" min={100} max={3000} step={50} value={chunkSize} onChange={(event) => setChunkSize(Number(event.target.value))} />
-                </label>
-                <label className="field">
-                  <span>Overlap</span>
-                  <input className="numberInput" type="number" min={0} max={1000} step={25} value={overlap} onChange={(event) => setOverlap(Number(event.target.value))} />
-                </label>
-              </div>
-
-              <label className="checkField">
-                <input type="checkbox" checked={storeOriginal} onChange={(event) => setStoreOriginal(event.target.checked)} />
-                <span>Store original PDF</span>
-              </label>
-
-              <button className="primaryAction" onClick={convertPdf} disabled={!pdfPath.trim() || busy}><RefreshCw size={16} />Convert</button>
-              {convertResult && <p className="note">Created {convertResult.output}</p>}
-            </>
-          )}
-
-          <section className="metrics">
-            <div><span>Pages</span><strong>{inspect?.pages ?? '-'}</strong></div>
-            <div><span>Chunks</span><strong>{inspect?.chunks ?? '-'}</strong></div>
-            <div><span>Files</span><strong>{inspect?.file_count ?? '-'}</strong></div>
-            <div><span>Model</span><strong>{inspect?.default_embedding_model || inspect?.embedding_models?.join(', ') || '-'}</strong></div>
-          </section>
-        </aside>
-
-        <section className="resultsPane">
           <div className="paneHeader">
-            <h1>{activeTab === 'viewer' ? 'Source Viewer' : activeTab === 'ask' ? 'Answer' : 'Results'}</h1>
+            <h1>{activeTab === 'viewer' ? 'Source Viewer' : activeTab === 'ask' ? 'Answer' : activeTab === 'convert' ? 'Convert PDF' : activeTab === 'details' ? 'Document Details' : 'Results'}</h1>
             <span>{activeTab === 'viewer' ? sourceDocument?.filename || 'No source loaded' : activeTab === 'ask' ? `${chatAnswer?.citations.length ?? 0} citations` : `${results.length} matches`}</span>
           </div>
           {activeTab === 'viewer' ? (
@@ -620,6 +544,83 @@ function App() {
                   placeholder="Ask VERA about the selected source..."
                 />
                 <button className="primaryAction askAction" onClick={askTarget} disabled={!path.trim() || !query.trim() || busy}><Send size={16} />Ask VERA</button>
+              </div>
+            </div>
+          ) : activeTab === 'convert' ? (
+            <div className="convertPanel">
+              <label className="field">
+                <span>PDF</span>
+                <div className="pathInput">
+                  <FileInput size={16} />
+                  <input
+                    value={pdfPath}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setPdfPath(value);
+                      if (!outputPath.trim()) setOutputPath(defaultVeraPath(value));
+                    }}
+                    placeholder="C:\\docs\\manual.pdf"
+                  />
+                </div>
+              </label>
+              <button className="secondaryAction" onClick={choosePdf} disabled={busy}><FolderOpen size={16} />Choose PDF</button>
+              <label className="field">
+                <span>Output</span>
+                <div className="pathInput">
+                  <FileSearch size={16} />
+                  <input value={outputPath} onChange={(event) => setOutputPath(event.target.value)} placeholder="C:\\docs\\manual.vera" />
+                </div>
+              </label>
+              <button className="secondaryAction" onClick={chooseOutput} disabled={busy}><FolderOpen size={16} />Save As</button>
+              <div className="optionGrid">
+                <label className="field">
+                  <span>Parser</span>
+                  <select value={convertParser} onChange={(event) => setConvertParser(event.target.value)}>
+                    <option value="pymupdf">PyMuPDF</option>
+                    <option value="docling">Docling</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Model</span>
+                  <select value={convertModel} onChange={(event) => setConvertModel(event.target.value)}>
+                    <option value="hashing">Hashing</option>
+                    <option value="openai">OpenAI</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Chunk Size</span>
+                  <input className="numberInput" type="number" min={100} max={3000} step={50} value={chunkSize} onChange={(event) => setChunkSize(Number(event.target.value))} />
+                </label>
+                <label className="field">
+                  <span>Overlap</span>
+                  <input className="numberInput" type="number" min={0} max={1000} step={25} value={overlap} onChange={(event) => setOverlap(Number(event.target.value))} />
+                </label>
+                <label className="checkField compactCheck">
+                  <input type="checkbox" checked={storeOriginal} onChange={(event) => setStoreOriginal(event.target.checked)} />
+                  <span>Store original PDF</span>
+                </label>
+              </div>
+              <button className="primaryAction" onClick={convertPdf} disabled={!pdfPath.trim() || busy}><RefreshCw size={16} />Convert</button>
+              {convertResult && <p className="note">Created {convertResult.output}</p>}
+            </div>
+          ) : activeTab === 'search' ? (
+            <div className="searchWorkspace">
+              <div className="searchComposer">
+                <textarea value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search the selected source..." />
+                <button className="primaryAction" onClick={searchTarget} disabled={!path.trim() || !query.trim() || busy}><Search size={16} />Search</button>
+              </div>
+              <div className="resultsList">
+                {results.map((result) => (
+                  <button
+                    className={selected?.chunk_id === result.chunk_id ? 'result selected' : 'result'}
+                    key={`${result.file || result.document_id}-${result.chunk_id}`}
+                    onClick={() => selectSearchResult(result)}
+                  >
+                    <span className="resultMeta">{result.score.toFixed(4)} · p. {formatPages(result.page_start, result.page_end)}{result.file ? ` · ${result.file}` : ''}</span>
+                    <strong>{result.heading_path || result.source_filename || result.chunk_id}</strong>
+                    <span>{result.text}</span>
+                  </button>
+                ))}
               </div>
             </div>
           ) : (
@@ -688,7 +689,7 @@ function App() {
                 ) : (
                   <div className="viewerPlaceholder">
                     <button className="secondaryAction" onClick={() => loadSourceDocument(selectedSourcePath, false)} disabled={!selectedSourcePath.trim() || busy}>
-                      <FileSearch size={16} />Load Source With Highlights
+                      <FileSearch size={16} />Open Source Document
                     </button>
                   </div>
                 )}
