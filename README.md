@@ -202,7 +202,7 @@ npm run app:dev
 npm run app:dist
 ```
 
-Run these from the repo root. The current desktop scaffold can inspect and search local `.vera` archives through the sidecar protocol. The unpacked Windows build writes `VERA.exe` under `packages/vera-app/release/win-unpacked`. See [docs/desktop-app-architecture.md](docs/desktop-app-architecture.md) for the app architecture and next steps.
+Run these from the repo root. The desktop app can pick local `.vera` archives or folders, inspect and validate archives, search documents or corpora, convert PDFs, and export the embedded source document through the sidecar protocol. The unpacked Windows build writes `VERA.exe` under `packages/vera-app/release/win-unpacked`. See [docs/desktop-app-architecture.md](docs/desktop-app-architecture.md) for the app architecture and next steps.
 
 ## Status
 

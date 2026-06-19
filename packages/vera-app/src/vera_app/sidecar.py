@@ -4,9 +4,11 @@ import json
 import sys
 import traceback
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from vera import VeraDocument, convert
+from vera.corpus import VeraCorpus
 
 Request = dict[str, Any]
 Response = dict[str, Any]
@@ -18,11 +20,18 @@ def _open_document(path: str) -> VeraDocument:
 
 
 def _inspect(request: Request) -> dict[str, Any]:
-    with_document = _open_document(str(request["path"]))
+    path = str(request["path"])
+    if Path(path).is_dir():
+        corpus = VeraCorpus.open(path)
+        try:
+            return corpus.inspect()
+        finally:
+            corpus.close()
+    doc = _open_document(path)
     try:
-        return with_document.inspect()
+        return doc.inspect()
     finally:
-        with_document.close()
+        doc.close()
 
 
 def _validate(request: Request) -> dict[str, Any]:
@@ -34,9 +43,10 @@ def _validate(request: Request) -> dict[str, Any]:
 
 
 def _search(request: Request) -> list[dict[str, Any]]:
-    doc = _open_document(str(request["path"]))
+    path = str(request["path"])
+    target = VeraCorpus.open(path) if Path(path).is_dir() else _open_document(path)
     try:
-        results = doc.search(
+        results = target.search(
             str(request.get("query", "")),
             mode=str(request.get("mode", "hybrid")),
             top_k=int(request.get("top_k", 10)),
@@ -48,13 +58,13 @@ def _search(request: Request) -> list[dict[str, Any]]:
         for result in results:
             entry = result.as_dict()
             if include_regions:
-                entry["regions"] = doc.regions_for(result)
+                entry["regions"] = target.regions_for(result)
             if include_figures:
-                entry["figures"] = doc.figures_for(result)
+                entry["figures"] = target.figures_for(result)
             payload.append(entry)
         return payload
     finally:
-        doc.close()
+        target.close()
 
 
 def _convert(request: Request) -> dict[str, str]:
@@ -70,12 +80,28 @@ def _convert(request: Request) -> dict[str, str]:
     return {"output": output}
 
 
+def _export(request: Request) -> dict[str, Any]:
+    doc = _open_document(str(request["path"]))
+    try:
+        output = doc.export_source_document(str(request["output"]) if request.get("output") else None)
+        source = doc.get_source_document()
+        return {
+            "output": output,
+            "filename": source.filename,
+            "mime_type": source.mime_type,
+            "hash": source.hash,
+        }
+    finally:
+        doc.close()
+
+
 HANDLERS: dict[str, Handler] = {
     "ping": lambda request: {"status": "ok"},
     "inspect": _inspect,
     "validate": _validate,
     "search": _search,
     "convert": _convert,
+    "export": _export,
 }
 
 

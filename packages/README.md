@@ -31,8 +31,6 @@ Owns:
 
 ### vera-app
 
-User-facing desktop application layer over `vera-doc`.
-
 User-facing application layer over `vera-doc`.
 
 Owns:

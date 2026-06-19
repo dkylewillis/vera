@@ -92,6 +92,30 @@ button {
   font-weight: 650;
 }
 
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  background: #ded7c9;
+  border: 1px solid #c9bfae;
+  border-radius: 6px;
+}
+
+.tabs button {
+  height: 30px;
+  color: #5d5548;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.tabs button.active {
+  color: #25221c;
+  background: #fffdf7;
+}
+
 .pathInput {
   display: flex;
   align-items: center;
@@ -122,6 +146,17 @@ select {
   outline: 0;
 }
 
+.numberInput {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  color: #25221c;
+  background: #fffdf7;
+  border: 1px solid #c9bfae;
+  border-radius: 6px;
+  outline: 0;
+}
+
 textarea {
   min-height: 104px;
   resize: vertical;
@@ -138,6 +173,14 @@ select {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.actions.two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.actions.three {
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .actions button {
@@ -159,6 +202,61 @@ select {
   color: #8d8678;
   background: #d8d0c0;
   border-color: #cbc2b2;
+}
+
+.primaryAction,
+.secondaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  height: 38px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+.primaryAction {
+  color: #f8f5ec;
+  background: #3f654f;
+  border: 1px solid #345542;
+}
+
+.secondaryAction {
+  color: #2c2a25;
+  background: #fffdf7;
+  border: 1px solid #c9bfae;
+}
+
+.primaryAction:disabled,
+.secondaryAction:disabled {
+  cursor: not-allowed;
+  color: #8d8678;
+  background: #d8d0c0;
+  border-color: #cbc2b2;
+}
+
+.splitFields {
+  display: grid;
+  grid-template-columns: 1fr 84px;
+  gap: 8px;
+}
+
+.checkField {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #5d5548;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.note {
+  margin: 0;
+  color: #5d5548;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .metrics {

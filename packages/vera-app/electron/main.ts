@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -131,6 +131,40 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   ipcMain.handle('vera:request', async (_event, payload: SidecarPayload) => sidecar.request(payload));
+  ipcMain.handle('vera:pickArchive', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Open VERA archive',
+      properties: ['openFile'],
+      filters: [{ name: 'VERA Archives', extensions: ['vera'] }],
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+  ipcMain.handle('vera:pickFolder', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Open VERA library folder',
+      properties: ['openDirectory'],
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+  ipcMain.handle('vera:pickPdf', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Open PDF',
+      properties: ['openFile'],
+      filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
+    });
+    return result.canceled ? null : result.filePaths[0];
+  });
+  ipcMain.handle('vera:saveVera', async () => {
+    const result = await dialog.showSaveDialog({
+      title: 'Save VERA archive',
+      filters: [{ name: 'VERA Archives', extensions: ['vera'] }],
+    });
+    return result.canceled ? null : result.filePath;
+  });
+  ipcMain.handle('vera:saveAny', async () => {
+    const result = await dialog.showSaveDialog({ title: 'Save file' });
+    return result.canceled ? null : result.filePath;
+  });
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

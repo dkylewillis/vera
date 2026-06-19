@@ -53,6 +53,7 @@ Initial actions:
 - `validate`
 - `search`
 - `convert`
+- `export`
 
 This keeps the app UI independent from Python internals while preserving a simple local development loop.
 
@@ -76,7 +77,7 @@ uv run --extra dev python -m pytest -q
 
 ## Near-Term App Work
 
-- Add file/folder picker APIs in Electron main.
+- Render figure and region metadata in richer evidence views.
 - Render source pages with PDF.js.
 - Overlay `regions` from search results on the page view.
 - Add conversion job state and progress reporting.
