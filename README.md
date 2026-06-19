@@ -145,7 +145,7 @@ Every result carries its citation (source file, page, heading path), so agent an
 VERA also ships a [Model Context Protocol](https://modelcontextprotocol.io/) server so MCP-capable agents can use VERA as native tools — `vera_search`, `vera_corpus_search`, `vera_inspect`, `vera_validate`, `vera_figures`, `vera_get_page`, and `vera_get_chunk_regions`. Install the `mcp` extra and point your client at `vera mcp`:
 
 ```bash
-pip install vera[mcp]
+pip install vera-cli "vera-doc[mcp]"
 ```
 
 Example VS Code configuration (`.vscode/mcp.json`):
@@ -168,13 +168,13 @@ See [AGENTS.md](AGENTS.md) and [skills/vera/SKILL.md](skills/vera/SKILL.md) for 
 Run the automated suite (140 tests, also run in CI on Ubuntu/Windows × Python 3.10/3.12):
 
 ```bash
-uv run --extra dev pytest -q
+uv run --extra dev python -m pytest -q
 ```
 
 Measure retrieval quality against an expected-answer query set:
 
 ```bash
-uv run python -m vera.cli eval output.vera queries.json --mode all --top-k 5
+uv run python -m vera_cli eval output.vera queries.json --mode all --top-k 5
 ```
 
 Query files are JSON (or YAML with pyyaml installed) lists of cases:
@@ -198,7 +198,7 @@ Current baseline on the stormwater manual (2,442 chunks, hashing embedder): hybr
 For easy manual testing, install the optional Streamlit extra and launch the workbench:
 
 ```bash
-uv run --extra workbench python -m vera.cli workbench
+uv run --extra workbench python -m vera_cli workbench
 ```
 
 The workbench lets you upload a PDF, convert it to `.vera`, inspect metadata, run validation, browse chunks, compare semantic/keyword/hybrid search results, and view figures (with captions) co-located with each result.

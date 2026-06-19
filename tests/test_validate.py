@@ -66,7 +66,7 @@ def test_cli_validate_outputs_pass(tmp_path):
     convert(str(pdf), str(out), model="hashing")
 
     result = subprocess.run(
-        [sys.executable, "-m", "vera.cli", "validate", str(out)],
+        [sys.executable, "-m", "vera_cli", "validate", str(out)],
         text=True,
         capture_output=True,
         check=True,

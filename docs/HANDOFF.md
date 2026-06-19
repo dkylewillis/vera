@@ -8,14 +8,14 @@ VERA is a single-file SQLite format (`.vera`) bundling a document + parsed struc
 embeddings + keyword index for portable semantic search. See [README.md](../README.md)
 and the spec at [vera-spec-v0.1.md](vera-spec-v0.1.md).
 
-**Driving goal:** VERA is the document engine for a separate app (`vera-app`, its own
-repo, not created yet) — a PDF viewer with a built-in research agent. Users query one
+**Driving goal:** VERA is the document engine for a planned mono-repo app package
+(`vera-app`, not created yet) — a PDF viewer with a built-in research agent. Users query one
 or many documents; the agent uses `.vera` search for context and answers with
 clickable citations that scroll the viewer to the page and highlight the cited text
 (visual grounding). The app imports `vera` directly as a Python library.
 
 **Decisions made:**
-- App lives in a separate repo; anything that touches `.vera` internals belongs in VERA
+- App should live in this mono-repo as `packages/vera-app`; anything that touches `.vera` internals belongs in `vera-doc`
 - Corpus = a flat folder of `.vera` files (no catalog DB)
 - Integration = Python library import (no HTTP server)
 - Hashing embedder stays the zero-dependency default; neural (sentence-transformers) is opt-in via the `ml` extra
@@ -23,7 +23,7 @@ clickable citations that scroll the viewer to the page and highlight the cited t
 
 ## Completed (2026-06-10)
 
-### Phase 1 — Document access APIs (in `src/vera/document.py`)
+### Phase 1 — Document access APIs (now under `packages/vera-doc/src/vera`)
 - `SourceDocument` dataclass; `get_source_document()` / `export_source_document(path)`
   — original PDF bytes back out of the archive (raises `ValueError` if
   `store_original=False`)
@@ -41,7 +41,7 @@ clickable citations that scroll the viewer to the page and highlight the cited t
 - Spec §7.1 documents the grounding query and coordinate contract
 - No schema changes were needed — bbox/chunk_blocks/page dims already existed
 
-### Phase 2 — Corpus search (`src/vera/corpus.py`, new)
+### Phase 2 — Corpus search (`packages/vera-doc/src/vera/corpus.py`)
 - `VeraCorpus.open(folder)` — discovers `*.vera`, lazy-opens/caches handles, context manager
 - `corpus.search(...)` → `CorpusSearchResult` (= `SearchResult` + `file` field)
 - Fusion: semantic = raw cosine merge; keyword/hybrid = RRF (k=60) with within-file
@@ -80,7 +80,8 @@ clickable citations that scroll the viewer to the page and highlight the cited t
 
 - **Run tests with** `.\.venv\Scripts\python.exe -m pytest tests/ -q` on this machine
   (`uv run` hit a trampoline error; bare `python` lacked pytest). On a fresh machine:
-  `uv sync --extra dev --extra ml --extra workbench --extra mcp` then `uv run pytest`.
+  `uv sync --extra dev --extra ml --extra workbench --extra mcp` then
+  `uv run --extra dev python -m pytest -q`.
 - **Don't regress retrieval baselines:** GSMM hybrid ≥ 9/10 hit rate, MRR ≥ 0.900
   (`vera eval <gsmm.vera> examples/gsmm-queries.json`); the .vera for it must be
   rebuilt locally from the GSMM PDF (not in repo)

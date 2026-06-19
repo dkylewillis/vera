@@ -152,7 +152,7 @@ class TestChunkRegions:
 class TestCli:
     def run(self, *argv):
         proc = subprocess.run(
-            [sys.executable, "-m", "vera.cli", *argv],
+            [sys.executable, "-m", "vera_cli", *argv],
             capture_output=True,
             text=True,
         )

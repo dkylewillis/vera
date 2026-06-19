@@ -1,8 +1,6 @@
 # VERA Mono-Repo Packages
 
-This directory is reserved for the future multi-package mono-repo layout.
-
-The current package remains `src/vera` until the internal module boundaries are stable enough to extract package-level distributions without changing behavior.
+This directory contains the active multi-package mono-repo layout.
 
 ## Planned Packages
 
@@ -33,6 +31,8 @@ Owns:
 
 ### vera-app
 
+Planned user-facing application layer over `vera-doc`.
+
 User-facing application layer over `vera-doc`.
 
 Owns:
@@ -55,13 +55,12 @@ vera-mcp  -> vera-doc
 
 The core document package must not import from CLI or app packages.
 
-## Extraction Criteria
+## Current Packages
 
-Create actual package directories here only when at least one of these is true:
+```text
+packages/
+	vera-doc/   # publishes the importable `vera` document package
+	vera-cli/   # publishes the `vera` console script and `vera_cli` module
+```
 
-- the root `src/vera` package boundaries are stable
-- `vera-cli` needs independent release or dependency metadata
-- `vera-app` needs its own runtime stack
-- downstream consumers need a smaller core dependency than the full repo package
-
-Until then, keep the internal structure under `src/vera` and use the root test suite as the source of truth.
+The root test suite is the integration contract across packages.

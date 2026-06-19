@@ -100,7 +100,7 @@ VERA ships an MCP server (stdio) exposing the same capabilities as tools:
 | `vera_get_page` | Full text of a specific page |
 | `vera_get_chunk_regions` | Page numbers + bounding boxes a chunk's text came from (visual grounding) |
 
-Requires the `mcp` extra: `pip install vera[mcp]`. Example VS Code config
+Requires the document package's `mcp` extra: `pip install vera-cli "vera-doc[mcp]"`. Example VS Code config
 (`.vscode/mcp.json`):
 
 ```json
@@ -119,7 +119,7 @@ Requires the `mcp` extra: `pip install vera[mcp]`. Example VS Code config
 - Python 3.10+, dependencies managed with [uv](https://docs.astral.sh/uv/):
   `uv sync --extra dev --extra ml --extra workbench --extra mcp`
 - Run tests with `pytest` (all tests must pass before committing).
-- Core code lives in [src/vera](src/vera); the format spec is
+- Core document code lives in [packages/vera-doc/src/vera](packages/vera-doc/src/vera), and CLI code lives in [packages/vera-cli/src/vera_cli](packages/vera-cli/src/vera_cli); the format spec is
   [docs/vera-spec-v0.1.md](docs/vera-spec-v0.1.md) — keep code and spec in sync.
 - Retrieval quality is tracked with `vera eval` against the query sets in
   [examples](examples); don't regress the baselines in the README.

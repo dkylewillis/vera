@@ -99,45 +99,50 @@ vera-mcp  -> vera-doc
 
 `vera-app` should not depend on `vera-cli` for normal operation. CLI commands are a user interface, not a backend API.
 
-## Phase 1 Internal Structure
+## Current Package Structure
 
-The current internal structure moves implementation code toward separable layers while keeping the package import path stable:
+VERA now uses a mono-repo package layout:
 
 ```text
-src/vera/
-  core/
-    access.py
-    embeddings.py
-    figures.py
-    inspection.py
-    schema.py
-    search.py
-    validation.py
-  ingest/
-    chunking.py
-    parsers/
-      pdf.py
-  cli/
-    main.py
-    commands.py
-  integrations/
-    mcp_server.py
+packages/
+  vera-doc/
+    src/vera/
+      core/
+        access.py
+        embeddings.py
+        figures.py
+        inspection.py
+        schema.py
+        search.py
+        validation.py
+      ingest/
+        chunking.py
+        parsers/
+          pdf.py
+      integrations/
+        mcp_server.py
+  vera-cli/
+    src/vera_cli/
+      main.py
+      commands.py
 ```
 
-During active development, internal tests and code should import implementation helpers from their owning layer instead of through compatibility shims:
+`vera-doc` publishes the importable `vera` package. `vera-cli` publishes the `vera_cli` module and the `vera` console script.
+
+Internal tests and code should import implementation helpers from their owning package:
 
 ```python
 from vera import convert, VeraDocument
 from vera.convert import convert
 from vera.document import VeraDocument, SearchResult
 from vera.ingest import build_chunks_from_blocks, chunk_pages
-from vera.cli import main, build_parser, str_to_bool
+from vera_cli import main, build_parser, str_to_bool
 from vera.integrations.mcp_server import build_server
 ```
 
-## Future Package Boundary Extraction
+## Future App Package
 
-After internal module boundaries settle, keep VERA as a mono-repo and move to a multi-package layout when package-level release boundaries are useful:
+`vera-app` remains planned until the application runtime needs its own package metadata:
 
 ```text
 packages/
@@ -146,9 +151,9 @@ packages/
   vera-app/
 ```
 
-This should be the default next architectural step. A mono-repo keeps shared tests, examples, docs, schema changes, and cross-package refactors easy while still giving `vera-doc`, `vera-cli`, and `vera-app` clean package boundaries.
+A mono-repo keeps shared tests, examples, docs, schema changes, and cross-package refactors easy while still giving `vera-doc`, `vera-cli`, and `vera-app` clean package boundaries.
 
-At that point, `vera-cli` and `vera-app` should depend on `vera-doc` through normal package dependencies. The root repo should own integration tests that prove the packages work together.
+`vera-cli` depends on `vera-doc` through normal package dependencies. `vera-app` should do the same when it is created. The root repo owns integration tests that prove the packages work together.
 
 See [packages/README.md](../packages/README.md) for the package ownership rules and extraction criteria.
 
@@ -189,13 +194,14 @@ For CLI compatibility, preserve JSON output shapes and exit-code behavior unless
 
 ## Baseline
 
-Use the project virtual environment for tests:
+Use the project virtual environment or uv workspace for tests:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
+uv run --extra dev python -m pytest -q
 ```
 
-Baseline after syncing to `origin/main` and reapplying the internal refactor on 2026-06-18:
+Baseline after the mono-repo package split on 2026-06-18:
 
 ```text
 140 passed
@@ -207,7 +213,7 @@ Baseline after syncing to `origin/main` and reapplying the internal refactor on 
 - Do not change search ranking behavior unless the change is explicit and evaluated.
 - Do not change chunking behavior during module moves.
 - Do not change CLI output formats during module moves.
-- Do not change public import paths without compatibility shims.
+- Document deliberate package/import moves in README, AGENTS.md, and package docs.
 - Do not introduce app/LLM behavior into core document modules.
 - Run tests after each small move.
 
@@ -216,7 +222,7 @@ Baseline after syncing to `origin/main` and reapplying the internal refactor on 
 The structure is successful when:
 
 - the full test suite passes through the project virtual environment
-- existing Python imports continue to work
+- package dependencies and imports follow the `vera-cli -> vera-doc` direction
 - existing CLI commands continue to work
 - docs describe the new boundaries clearly
 - `vera-doc` responsibilities are separable from CLI and app concerns

@@ -115,7 +115,7 @@ class TestInspect:
 class TestCli:
     def test_search_directory_json(self, corpus_dir):
         proc = subprocess.run(
-            [sys.executable, "-m", "vera.cli", "search", str(corpus_dir), "detention ponds", "--top-k", "2", "--json", "--regions"],
+            [sys.executable, "-m", "vera_cli", "search", str(corpus_dir), "detention ponds", "--top-k", "2", "--json", "--regions"],
             capture_output=True,
             text=True,
         )

@@ -11,6 +11,13 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
+[manifest]
+members = [
+    "vera-cli",
+    "vera-doc",
+    "vera-workspace",
+]
+
 [[package]]
 name = "altair"
 version = "6.2.1"
@@ -2999,13 +3006,59 @@ wheels = [
 ]
 
 [[package]]
-name = "vera"
+name = "vera-cli"
 version = "0.1.0"
-source = { editable = "." }
+source = { editable = "packages/vera-cli" }
+dependencies = [
+    { name = "vera-doc" },
+]
+
+[package.optional-dependencies]
+workbench = [
+    { name = "streamlit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "streamlit", marker = "extra == 'workbench'", specifier = ">=1.35" },
+    { name = "vera-doc", editable = "packages/vera-doc" },
+]
+provides-extras = ["workbench"]
+
+[[package]]
+name = "vera-doc"
+version = "0.1.0"
+source = { editable = "packages/vera-doc" }
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pymupdf" },
+]
+
+[package.optional-dependencies]
+mcp = [
+    { name = "mcp" },
+]
+ml = [
+    { name = "sentence-transformers" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "pymupdf", specifier = ">=1.23" },
+    { name = "sentence-transformers", marker = "extra == 'ml'", specifier = ">=2.7" },
+]
+provides-extras = ["ml", "mcp"]
+
+[[package]]
+name = "vera-workspace"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "vera-cli" },
+    { name = "vera-doc" },
 ]
 
 [package.optional-dependencies]
@@ -3028,14 +3081,14 @@ workbench = [
 requires-dist = [
     { name = "mcp", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" },
-    { name = "numpy", specifier = ">=1.24" },
-    { name = "pymupdf", specifier = ">=1.23" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "reportlab", marker = "extra == 'dev'", specifier = ">=4" },
     { name = "sentence-transformers", marker = "extra == 'ml'", specifier = ">=2.7" },
     { name = "streamlit", marker = "extra == 'workbench'", specifier = ">=1.35" },
+    { name = "vera-cli", editable = "packages/vera-cli" },
+    { name = "vera-doc", editable = "packages/vera-doc" },
 ]
-provides-extras = ["ml", "workbench", "mcp", "dev"]
+provides-extras = ["dev", "ml", "workbench", "mcp"]
 
 [[package]]
 name = "watchdog"

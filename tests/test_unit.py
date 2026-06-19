@@ -11,7 +11,7 @@ from vera.core.embeddings import (
     serialize_vector,
 )
 from vera.document import VeraDocument, SearchResult
-from vera.cli import str_to_bool
+from vera_cli import str_to_bool
 from vera.ingest.parsers.pdf import ParsedPage
 
 
