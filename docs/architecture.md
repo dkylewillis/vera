@@ -143,6 +143,8 @@ This should be the default next architectural step. A mono-repo keeps shared tes
 
 At that point, `vera-cli` and `vera-app` should depend on `vera-doc` through normal package dependencies. The root repo should own integration tests that prove the packages work together.
 
+See [packages/README.md](../packages/README.md) for the package ownership rules and extraction criteria.
+
 Separate repositories should wait until there is a clear reason, such as different owners, incompatible release cadences, governance requirements, or deployment constraints.
 
 ## Public API To Preserve
