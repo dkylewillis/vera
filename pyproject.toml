@@ -7,6 +7,7 @@ requires-python = ">=3.10"
 dependencies = [
   "vera-doc",
   "vera-cli",
+  "vera-app",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
@@ -14,18 +15,20 @@ license = {text = "Apache-2.0"}
 [project.optional-dependencies]
 dev = ["pytest>=8", "reportlab>=4", "mcp>=1.0"]
 ml = ["sentence-transformers>=2.7"]
-workbench = ["streamlit>=1.35"]
+workbench = ["vera-app"]
 mcp = ["mcp>=1.0"]
 
 [tool.uv.workspace]
 members = [
   "packages/vera-doc",
   "packages/vera-cli",
+  "packages/vera-app",
 ]
 
 [tool.uv.sources]
 vera-doc = { workspace = true }
 vera-cli = { workspace = true }
+vera-app = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
@@ -38,6 +41,7 @@ bypass-selection = true
 pythonpath = [
   "packages/vera-doc/src",
   "packages/vera-cli/src",
+  "packages/vera-app/src",
 ]
 testpaths = ["tests"]
 addopts = "-q"

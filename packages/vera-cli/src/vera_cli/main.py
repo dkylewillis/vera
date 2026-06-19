@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 
-from .commands import cmd_convert, cmd_eval, cmd_export, cmd_inspect, cmd_mcp, cmd_search, cmd_validate, cmd_workbench
+from .commands import cmd_convert, cmd_eval, cmd_export, cmd_inspect, cmd_mcp, cmd_search, cmd_validate
 
 
 def non_negative_int(value: str) -> int:
@@ -62,9 +62,6 @@ def build_parser() -> argparse.ArgumentParser:
     export_p.add_argument("output", nargs="?", default=None, help="Output path or directory (default: stored filename)")
     export_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     export_p.set_defaults(func=cmd_export)
-
-    workbench_p = sub.add_parser("workbench", help="Launch the optional Streamlit VERA Workbench")
-    workbench_p.set_defaults(func=cmd_workbench)
 
     mcp_p = sub.add_parser("mcp", help="Run the MCP server (stdio) exposing VERA tools to AI agents")
     mcp_p.set_defaults(func=cmd_mcp)

@@ -8,14 +8,14 @@ VERA is a single-file SQLite format (`.vera`) bundling a document + parsed struc
 embeddings + keyword index for portable semantic search. See [README.md](../README.md)
 and the spec at [vera-spec-v0.1.md](vera-spec-v0.1.md).
 
-**Driving goal:** VERA is the document engine for a planned mono-repo app package
-(`vera-app`, not created yet) — a PDF viewer with a built-in research agent. Users query one
+**Driving goal:** VERA is the document engine for the mono-repo app package
+(`packages/vera-app`) — a PDF viewer with a built-in research agent. Users query one
 or many documents; the agent uses `.vera` search for context and answers with
 clickable citations that scroll the viewer to the page and highlight the cited text
 (visual grounding). The app imports `vera` directly as a Python library.
 
 **Decisions made:**
-- App should live in this mono-repo as `packages/vera-app`; anything that touches `.vera` internals belongs in `vera-doc`
+- App lives in this mono-repo as `packages/vera-app`; anything that touches `.vera` internals belongs in `vera-doc`
 - Corpus = a flat folder of `.vera` files (no catalog DB)
 - Integration = Python library import (no HTTP server)
 - Hashing embedder stays the zero-dependency default; neural (sentence-transformers) is opt-in via the `ml` extra

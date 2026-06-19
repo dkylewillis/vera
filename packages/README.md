@@ -31,7 +31,7 @@ Owns:
 
 ### vera-app
 
-Planned user-facing application layer over `vera-doc`.
+User-facing application layer over `vera-doc`.
 
 User-facing application layer over `vera-doc`.
 
@@ -61,6 +61,7 @@ The core document package must not import from CLI or app packages.
 packages/
 	vera-doc/   # publishes the importable `vera` document package
 	vera-cli/   # publishes the `vera` console script and `vera_cli` module
+	vera-app/   # publishes the `vera-app` console script and `vera_app` module
 ```
 
 The root test suite is the integration contract across packages.

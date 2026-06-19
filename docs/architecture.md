@@ -125,9 +125,12 @@ packages/
     src/vera_cli/
       main.py
       commands.py
+  vera-app/
+    src/vera_app/
+      workbench.py
 ```
 
-`vera-doc` publishes the importable `vera` package. `vera-cli` publishes the `vera_cli` module and the `vera` console script.
+`vera-doc` publishes the importable `vera` package. `vera-cli` publishes the `vera_cli` module and the `vera` console script. `vera-app` publishes the `vera_app` module and the `vera-app` console script.
 
 Internal tests and code should import implementation helpers from their owning package:
 
@@ -140,20 +143,9 @@ from vera_cli import main, build_parser, str_to_bool
 from vera.integrations.mcp_server import build_server
 ```
 
-## Future App Package
-
-`vera-app` remains planned until the application runtime needs its own package metadata:
-
-```text
-packages/
-  vera-doc/
-  vera-cli/
-  vera-app/
-```
-
 A mono-repo keeps shared tests, examples, docs, schema changes, and cross-package refactors easy while still giving `vera-doc`, `vera-cli`, and `vera-app` clean package boundaries.
 
-`vera-cli` depends on `vera-doc` through normal package dependencies. `vera-app` should do the same when it is created. The root repo owns integration tests that prove the packages work together.
+`vera-cli` and `vera-app` depend on `vera-doc` through normal package dependencies. The root repo owns integration tests that prove the packages work together.
 
 See [packages/README.md](../packages/README.md) for the package ownership rules and extraction criteria.
 
@@ -187,7 +179,7 @@ vera search output.vera "query" --mode hybrid --top-k 5
 vera export output.vera
 vera eval output.vera queries.json --mode all
 vera mcp
-vera workbench
+vera-app
 ```
 
 For CLI compatibility, preserve JSON output shapes and exit-code behavior unless a deliberate breaking change is documented.

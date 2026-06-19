@@ -13,6 +13,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "vera-app",
     "vera-cli",
     "vera-doc",
     "vera-workspace",
@@ -3006,6 +3007,21 @@ wheels = [
 ]
 
 [[package]]
+name = "vera-app"
+version = "0.1.0"
+source = { editable = "packages/vera-app" }
+dependencies = [
+    { name = "streamlit" },
+    { name = "vera-doc" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "streamlit", specifier = ">=1.35" },
+    { name = "vera-doc", editable = "packages/vera-doc" },
+]
+
+[[package]]
 name = "vera-cli"
 version = "0.1.0"
 source = { editable = "packages/vera-cli" }
@@ -3013,17 +3029,8 @@ dependencies = [
     { name = "vera-doc" },
 ]
 
-[package.optional-dependencies]
-workbench = [
-    { name = "streamlit" },
-]
-
 [package.metadata]
-requires-dist = [
-    { name = "streamlit", marker = "extra == 'workbench'", specifier = ">=1.35" },
-    { name = "vera-doc", editable = "packages/vera-doc" },
-]
-provides-extras = ["workbench"]
+requires-dist = [{ name = "vera-doc", editable = "packages/vera-doc" }]
 
 [[package]]
 name = "vera-doc"
@@ -3057,6 +3064,7 @@ name = "vera-workspace"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "vera-app" },
     { name = "vera-cli" },
     { name = "vera-doc" },
 ]
@@ -3074,7 +3082,7 @@ ml = [
     { name = "sentence-transformers" },
 ]
 workbench = [
-    { name = "streamlit" },
+    { name = "vera-app" },
 ]
 
 [package.metadata]
@@ -3084,7 +3092,8 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "reportlab", marker = "extra == 'dev'", specifier = ">=4" },
     { name = "sentence-transformers", marker = "extra == 'ml'", specifier = ">=2.7" },
-    { name = "streamlit", marker = "extra == 'workbench'", specifier = ">=1.35" },
+    { name = "vera-app", editable = "packages/vera-app" },
+    { name = "vera-app", marker = "extra == 'workbench'", editable = "packages/vera-app" },
     { name = "vera-cli", editable = "packages/vera-cli" },
     { name = "vera-doc", editable = "packages/vera-doc" },
 ]

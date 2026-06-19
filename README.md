@@ -103,7 +103,6 @@ for fig in doc.figures_for(result, include_data=True):  # figures on the result'
 | `vera export output.vera [path]` | Write the original source document back out of the archive |
 | `vera eval output.vera queries.json` | Measure retrieval quality against an expected-answer query set |
 | `vera mcp` | Run the MCP server (stdio) exposing VERA tools to AI agents |
-| `vera workbench` | Launch the Streamlit GUI |
 
 Every command accepts `--json` for machine-readable output (see below).
 
@@ -198,7 +197,7 @@ Current baseline on the stormwater manual (2,442 chunks, hashing embedder): hybr
 For easy manual testing, install the optional Streamlit extra and launch the workbench:
 
 ```bash
-uv run --extra workbench python -m vera_cli workbench
+uv run --extra workbench vera-app
 ```
 
 The workbench lets you upload a PDF, convert it to `.vera`, inspect metadata, run validation, browse chunks, compare semantic/keyword/hybrid search results, and view figures (with captions) co-located with each result.

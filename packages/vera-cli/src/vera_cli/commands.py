@@ -128,13 +128,6 @@ def cmd_export(args) -> int:
     return 0
 
 
-def cmd_workbench(args) -> int:
-    import subprocess
-
-    command = [sys.executable, "-m", "streamlit", "run", "app/vera_workbench.py"]
-    raise SystemExit(subprocess.call(command))
-
-
 def cmd_mcp(args) -> int:
     from vera.integrations.mcp_server import main as mcp_main
 
