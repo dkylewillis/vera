@@ -582,8 +582,31 @@ select {
   background: rgba(74, 117, 140, 0.28);
 }
 
+.evidenceViewerOnly {
+  display: grid;
+  grid-template-rows: minmax(420px, 1fr);
+  grid-auto-rows: auto;
+  gap: 10px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.evidenceSourceSection {
+  display: grid;
+  min-height: 0;
+}
+
 .evidenceSourceSection .pdfViewer {
+  min-height: 0;
+}
+
+.viewerPlaceholder {
+  display: grid;
+  place-items: center;
   min-height: 420px;
+  background: #e8e0d1;
+  border: 1px solid #d8d0c0;
+  border-radius: 6px;
 }
 
 .pdfViewer.compact .viewerToolbar {
@@ -595,7 +618,7 @@ select {
 }
 
 .pdfViewer.compact .pdfCanvasWrap {
-  max-height: 460px;
+  max-height: none;
 }
 
 .unsupportedSource {
@@ -699,6 +722,44 @@ select {
   font-size: 13px;
   line-height: 1.2;
   text-transform: uppercase;
+}
+
+.evidenceDisclosure {
+  min-width: 0;
+  background: #fffdf7;
+  border: 1px solid #ded7c9;
+  border-radius: 6px;
+}
+
+.evidenceDisclosure summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  color: #2d2a24;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.evidenceDisclosure[open] {
+  overflow: auto;
+}
+
+.evidenceDisclosure > :not(summary) {
+  margin: 0 12px 12px;
+}
+
+.evidenceDisclosure p {
+  color: #2d2a24;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.evidenceDisclosure .contextPanel {
+  margin: 0 12px 12px;
+}
+
+.evidenceDisclosure dl {
+  margin: 0 12px 12px;
 }
 
 .regionList,

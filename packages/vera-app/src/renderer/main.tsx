@@ -664,70 +664,73 @@ function App() {
               </section>
             </article>
           ) : selected ? (
-            <article className="evidence">
-              <p>{selected.text}</p>
-              {(selected.before_chunks?.length || selected.after_chunks?.length) ? (
-                <section className="contextPanel">
-                  {selected.before_chunks?.map((chunk) => (
-                    <article className="contextChunk" key={`before-${chunk.chunk_id}`}>
-                      <span>Before · p. {formatPages(chunk.page_start, chunk.page_end)}</span>
-                      <p>{chunk.text}</p>
-                    </article>
-                  ))}
-                  {selected.after_chunks?.map((chunk) => (
-                    <article className="contextChunk" key={`after-${chunk.chunk_id}`}>
-                      <span>After · p. {formatPages(chunk.page_start, chunk.page_end)}</span>
-                      <p>{chunk.text}</p>
-                    </article>
-                  ))}
-                </section>
-              ) : null}
-              <dl>
-                <div><dt>Chunk</dt><dd>{selected.chunk_id}</dd></div>
-                <div><dt>Heading</dt><dd>{selected.heading_path || '-'}</dd></div>
-                <div><dt>Pages</dt><dd>{formatPages(selected.page_start, selected.page_end)}</dd></div>
-                <div><dt>Regions</dt><dd>{selected.regions?.length ?? 0}</dd></div>
-                <div><dt>Figures</dt><dd>{selected.figures?.length ?? 0}</dd></div>
-              </dl>
-              <section className="evidenceSection evidenceSourceSection">
-                <h2>Source PDF</h2>
+            <article className="evidence evidenceViewerOnly">
+              <section className="evidenceSourceSection">
                 {sourceDocument && isPdfSource(sourceDocument) && sourceDocumentPath === selectedSourcePath ? (
                   <PdfSourceViewer source={sourceDocument} highlightRegions={selected.regions || []} targetPage={selectedTargetPage} compact />
                 ) : (
-                  <button className="secondaryAction" onClick={() => loadSourceDocument(selectedSourcePath, false)} disabled={!selectedSourcePath.trim() || busy}>
-                    <FileSearch size={16} />Load Source With Highlights
-                  </button>
+                  <div className="viewerPlaceholder">
+                    <button className="secondaryAction" onClick={() => loadSourceDocument(selectedSourcePath, false)} disabled={!selectedSourcePath.trim() || busy}>
+                      <FileSearch size={16} />Load Source With Highlights
+                    </button>
+                  </div>
                 )}
               </section>
-              <section className="evidenceSection">
-                <h2>Regions</h2>
+
+              <details className="evidenceDisclosure">
+                <summary>Passage Text</summary>
+                <p>{selected.text}</p>
+              </details>
+
+              <details className="evidenceDisclosure">
+                <summary>Metadata</summary>
+                <dl>
+                  <div><dt>Chunk</dt><dd>{selected.chunk_id}</dd></div>
+                  <div><dt>Heading</dt><dd>{selected.heading_path || '-'}</dd></div>
+                  <div><dt>Pages</dt><dd>{formatPages(selected.page_start, selected.page_end)}</dd></div>
+                  <div><dt>Regions</dt><dd>{selected.regions?.length ?? 0}</dd></div>
+                  <div><dt>Figures</dt><dd>{selected.figures?.length ?? 0}</dd></div>
+                </dl>
+              </details>
+
+              {(selected.before_chunks?.length || selected.after_chunks?.length) ? (
+                <details className="evidenceDisclosure">
+                  <summary>Context Chunks</summary>
+                  <section className="contextPanel">
+                    {selected.before_chunks?.map((chunk) => (
+                      <article className="contextChunk" key={`before-${chunk.chunk_id}`}>
+                        <span>Before · p. {formatPages(chunk.page_start, chunk.page_end)}</span>
+                        <p>{chunk.text}</p>
+                      </article>
+                    ))}
+                    {selected.after_chunks?.map((chunk) => (
+                      <article className="contextChunk" key={`after-${chunk.chunk_id}`}>
+                        <span>After · p. {formatPages(chunk.page_start, chunk.page_end)}</span>
+                        <p>{chunk.text}</p>
+                      </article>
+                    ))}
+                  </section>
+                </details>
+              ) : null}
+
+              <details className="evidenceDisclosure">
+                <summary>Region Coordinates</summary>
                 {selected.regions?.length ? (
-                  <>
-                    <div className="regionMaps">
-                      {selected.regions.filter((region) => region.page_width && region.page_height && region.bbox?.length === 4).map((region, index) => (
-                        <article className="regionMapCard" key={`map-${region.page_number || 'page'}-${index}`}>
-                          <span>p. {region.page_number ?? '-'}</span>
-                          <div className="regionMap" style={{ aspectRatio: `${region.page_width} / ${region.page_height}` }}>
-                            <div className="regionBox" style={regionStyle(region)} />
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                    <div className="regionList">
-                      {selected.regions.map((region, index) => (
-                        <div className="regionRow" key={`${region.page_number || 'page'}-${index}`}>
-                          <strong>p. {region.page_number ?? '-'}</strong>
-                          <span>{formatBox(region.bbox)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
+                  <div className="regionList">
+                    {selected.regions.map((region, index) => (
+                      <div className="regionRow" key={`${region.page_number || 'page'}-${index}`}>
+                        <strong>p. {region.page_number ?? '-'}</strong>
+                        <span>{formatBox(region.bbox)}</span>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <p className="mutedText">No highlight regions were returned for this result.</p>
                 )}
-              </section>
-              <section className="evidenceSection">
-                <h2>Figures</h2>
+              </details>
+
+              <details className="evidenceDisclosure">
+                <summary>Figures</summary>
                 {selected.figures?.length ? (
                   <div className="figureList">
                     {selected.figures.map((figure, index) => (
@@ -742,7 +745,7 @@ function App() {
                 ) : (
                   <p className="mutedText">No nearby figures were returned for this result.</p>
                 )}
-              </section>
+              </details>
             </article>
           ) : (
             <div className="emptyState">No evidence selected</div>

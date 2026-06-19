@@ -36,7 +36,7 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 ### 3. Visual Grounding
 - Highlight retrieved passages in the source view
 - Show where each claim came from (page and heading path)
-- Display confidence and relevance cues for selected evidence
+- Keep selected evidence focused on the source PDF, with metadata and retrieval details available on demand
 
 ### 4. Session Management
 - Save conversations and retrieval state
