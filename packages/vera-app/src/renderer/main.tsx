@@ -248,16 +248,6 @@ function App() {
     }
   }
 
-  async function chooseArchive() {
-    const chosen = await window.vera.pickArchive();
-    if (chosen) await openTargetPath(chosen);
-  }
-
-  async function chooseFolder() {
-    const chosen = await window.vera.pickFolder();
-    if (chosen) await openTargetPath(chosen);
-  }
-
   async function openTargetPath(value: string) {
     updateTargetPath(value);
     const result = await call<InspectResult>({ action: 'inspect', path: value }, 'Opening');
@@ -415,6 +405,10 @@ function App() {
     }
   }
 
+  useEffect(() => window.vera.onOpenTarget((targetPath) => {
+    void openTargetPath(targetPath);
+  }), []);
+
   return (
     <main className="shell">
       <header className="titlebar">
@@ -435,27 +429,10 @@ function App() {
               <button className={activeTab === 'convert' ? 'active' : ''} onClick={() => setActiveTab('convert')}>Convert</button>
               <button className={activeTab === 'details' ? 'active' : ''} onClick={() => setActiveTab('details')}>Details</button>
             </div>
-            <div className="fileMenu">
-              <button className="secondaryAction" onClick={chooseArchive} disabled={busy}><FileInput size={16} />Open File</button>
-              <button className="secondaryAction" onClick={chooseFolder} disabled={busy}><FolderOpen size={16} />Open Folder</button>
-              <button className="secondaryAction" onClick={inspectTarget} disabled={!path.trim() || busy}><ShieldCheck size={16} />Inspect</button>
-            </div>
           </div>
 
           {busyAction ? <div className="activityBanner"><span />{busyAction}</div> : null}
           {errorMessage ? <div className="errorBanner">{errorMessage}</div> : null}
-
-          <div className="documentBar">
-            <label className="pathInput documentPath">
-              <FolderOpen size={16} />
-              <input value={path} onChange={(event) => updateTargetPath(event.target.value)} placeholder="Open a .vera archive or folder" />
-            </label>
-            <div className="metrics inlineMetrics">
-              <div><span>Pages</span><strong>{inspect?.pages ?? '-'}</strong></div>
-              <div><span>Chunks</span><strong>{inspect?.chunks ?? '-'}</strong></div>
-              <div><span>Files</span><strong>{inspect?.file_count ?? '-'}</strong></div>
-            </div>
-          </div>
 
           {activeTab !== 'convert' ? (
             <details className="workbenchOptions">
@@ -481,6 +458,7 @@ function App() {
                   <input type="checkbox" checked={includeFigures} onChange={(event) => setIncludeFigures(event.target.checked)} />
                   <span>Figures</span>
                 </label>
+                <button className="secondaryAction" onClick={inspectTarget} disabled={!path.trim() || busy}><ShieldCheck size={16} />Inspect</button>
                 <button className="secondaryAction" onClick={validateTarget} disabled={!path.trim() || isCorpus || busy}><CheckCircle2 size={16} />Validate</button>
                 <button className="secondaryAction" onClick={exportSource} disabled={!path.trim() || isCorpus || busy}><Download size={16} />Export</button>
               </div>
@@ -770,6 +748,13 @@ function App() {
           )}
         </section>
       </section>
+      <footer className="statusbar">
+        <span className="statusPath">{path || 'No file open'}</span>
+        <span>Pages: {inspect?.pages ?? '-'}</span>
+        <span>Chunks: {inspect?.chunks ?? '-'}</span>
+        <span>Files: {inspect?.file_count ?? '-'}</span>
+        <span>Model: {inspect?.default_embedding_model || inspect?.embedding_models?.join(', ') || '-'}</span>
+      </footer>
     </main>
   );
 }

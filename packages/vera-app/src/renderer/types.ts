@@ -13,6 +13,7 @@ export interface VeraApi {
   pickPdf(): Promise<string | null>;
   saveVera(defaultPath?: string): Promise<string | null>;
   saveAny(): Promise<string | null>;
+  onOpenTarget(callback: (path: string) => void): () => void;
 }
 
 export interface InspectResult {

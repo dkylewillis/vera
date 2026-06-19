@@ -28,6 +28,7 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 - Navigate by page and section
 - Jump from answer citations directly to source location
 - Work in a two-pane layout with Ask on the left and Source Document on the right
+- Open documents from the native File menu and show file metrics in the bottom status bar
 
 ### 2. Prompt Input + Retrieval
 - Accept natural language user prompts

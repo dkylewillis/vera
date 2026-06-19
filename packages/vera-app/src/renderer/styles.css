@@ -30,7 +30,7 @@ button {
 
 .shell {
   display: grid;
-  grid-template-rows: 48px 1fr;
+  grid-template-rows: 48px 1fr 30px;
   height: 100vh;
   background: #edf1f4;
 }
@@ -346,11 +346,6 @@ select {
   margin-top: auto;
 }
 
-.metrics.inlineMetrics {
-  grid-template-columns: repeat(3, minmax(88px, auto));
-  margin-top: 0;
-}
-
 .metrics div {
   display: grid;
   grid-template-columns: 78px 1fr;
@@ -384,7 +379,7 @@ select {
 }
 
 .resultsPane {
-  grid-template-rows: auto auto auto auto auto 1fr;
+  grid-template-rows: auto auto auto 1fr;
 }
 
 .sourcePane {
@@ -392,36 +387,12 @@ select {
 }
 
 .mainToolbar {
-  display: grid;
-  grid-template-columns: minmax(300px, 1fr) auto;
-  gap: 12px;
+  display: block;
   align-items: center;
   padding: 12px;
   background: #ffffff;
   border-bottom: 1px solid #d8e0e7;
   border-radius: 8px 8px 0 0;
-}
-
-.fileMenu {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-end;
-  min-width: 0;
-}
-
-.documentBar {
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 12px;
-  background: #f7f9fb;
-  border-bottom: 1px solid #d8e0e7;
-}
-
-.documentPath {
-  min-width: 0;
 }
 
 .workbenchOptions {
@@ -440,10 +411,30 @@ select {
 
 .optionGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr)) repeat(3, auto);
+  grid-template-columns: repeat(3, minmax(120px, 1fr)) repeat(4, auto);
   gap: 10px;
   align-items: end;
   padding: 0 12px 12px;
+}
+
+.statusbar {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) repeat(4, auto);
+  gap: 16px;
+  align-items: center;
+  min-width: 0;
+  padding: 0 12px;
+  color: #52606d;
+  background: #ffffff;
+  border-top: 1px solid #d8e0e7;
+  font-size: 12px;
+}
+
+.statusPath {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .compactCheck {

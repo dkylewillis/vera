@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -106,6 +106,54 @@ class PythonSidecar {
 
 const sidecar = new PythonSidecar();
 
+async function pickArchivePath(): Promise<string | null> {
+  const result = await dialog.showOpenDialog({
+    title: 'Open VERA archive',
+    properties: ['openFile'],
+    filters: [{ name: 'VERA Archives', extensions: ['vera'] }],
+  });
+  return result.canceled ? null : result.filePaths[0];
+}
+
+async function pickFolderPath(): Promise<string | null> {
+  const result = await dialog.showOpenDialog({
+    title: 'Open VERA library folder',
+    properties: ['openDirectory'],
+  });
+  return result.canceled ? null : result.filePaths[0];
+}
+
+function sendOpenTarget(path: string | null): void {
+  if (!path) return;
+  BrowserWindow.getFocusedWindow()?.webContents.send('vera:openTarget', path);
+}
+
+function configureMenu(): void {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Open...',
+          accelerator: 'CmdOrCtrl+O',
+          click: async () => sendOpenTarget(await pickArchivePath()),
+        },
+        {
+          label: 'Open Folder...',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: async () => sendOpenTarget(await pickFolderPath()),
+        },
+        { type: 'separator' },
+        { role: process.platform === 'darwin' ? 'close' : 'quit' },
+      ],
+    },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 function createWindow(): void {
   const preload = fileURLToPath(new URL('./preload.js', import.meta.url));
   const win = new BrowserWindow({
@@ -130,22 +178,10 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  configureMenu();
   ipcMain.handle('vera:request', async (_event, payload: SidecarPayload) => sidecar.request(payload));
-  ipcMain.handle('vera:pickArchive', async () => {
-    const result = await dialog.showOpenDialog({
-      title: 'Open VERA archive',
-      properties: ['openFile'],
-      filters: [{ name: 'VERA Archives', extensions: ['vera'] }],
-    });
-    return result.canceled ? null : result.filePaths[0];
-  });
-  ipcMain.handle('vera:pickFolder', async () => {
-    const result = await dialog.showOpenDialog({
-      title: 'Open VERA library folder',
-      properties: ['openDirectory'],
-    });
-    return result.canceled ? null : result.filePaths[0];
-  });
+  ipcMain.handle('vera:pickArchive', async () => pickArchivePath());
+  ipcMain.handle('vera:pickFolder', async () => pickFolderPath());
   ipcMain.handle('vera:pickPdf', async () => {
     const result = await dialog.showOpenDialog({
       title: 'Open PDF',
