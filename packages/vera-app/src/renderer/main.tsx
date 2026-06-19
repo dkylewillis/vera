@@ -1,5 +1,7 @@
-import React, { type CSSProperties, useMemo, useState } from 'react';
+import React, { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import {
   CheckCircle2,
   Download,
@@ -15,6 +17,8 @@ import type { ConvertResult, ExportResult, InspectResult, PageResult, RegionResu
 import './styles.css';
 
 type ActiveTab = 'search' | 'viewer' | 'convert' | 'details';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 function formatPages(start: number | null, end: number | null): string {
   if (start === null && end === null) return '-';
@@ -50,6 +54,67 @@ function regionStyle(region: RegionResult): CSSProperties {
     width: `${((x1 - x0) / region.page_width) * 100}%`,
     height: `${((y1 - y0) / region.page_height) * 100}%`,
   };
+}
+
+function PdfSourceViewer({ source }: { source: SourceDocumentResult }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageCount, setPageCount] = useState(1);
+  const [scale, setScale] = useState(1.25);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let canceled = false;
+
+    async function renderPdfPage() {
+      setError(null);
+      try {
+        const bytes = await fetch(source.data_url).then((response) => response.arrayBuffer());
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes) }).promise;
+        if (canceled) return;
+        setPageCount(pdf.numPages);
+        const safePage = Math.min(Math.max(pageNumber, 1), pdf.numPages);
+        if (safePage !== pageNumber) {
+          setPageNumber(safePage);
+          return;
+        }
+        const page = await pdf.getPage(safePage);
+        if (canceled) return;
+        const viewport = page.getViewport({ scale });
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const context = canvas.getContext('2d');
+        if (!context) return;
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        await page.render({ canvas, canvasContext: context, viewport }).promise;
+      } catch (renderError) {
+        if (!canceled) setError(renderError instanceof Error ? renderError.message : 'Unable to render PDF');
+      }
+    }
+
+    renderPdfPage();
+
+    return () => {
+      canceled = true;
+    };
+  }, [pageNumber, scale, source.data_url]);
+
+  return (
+    <div className="pdfViewer">
+      <div className="viewerToolbar">
+        <button className="secondaryAction" onClick={() => setPageNumber((page) => Math.max(1, page - 1))} disabled={pageNumber <= 1}>Previous</button>
+        <span>p. {pageNumber} / {pageCount}</span>
+        <button className="secondaryAction" onClick={() => setPageNumber((page) => Math.min(pageCount, page + 1))} disabled={pageNumber >= pageCount}>Next</button>
+        <button className="secondaryAction" onClick={() => setScale((value) => Math.max(0.75, value - 0.25))}>Zoom Out</button>
+        <button className="secondaryAction" onClick={() => setScale((value) => Math.min(2.5, value + 0.25))}>Zoom In</button>
+      </div>
+      {error ? <div className="errorBanner">{error}</div> : null}
+      <div className="pdfCanvasWrap">
+        <canvas ref={canvasRef} />
+      </div>
+    </div>
+  );
 }
 
 function App() {
@@ -387,7 +452,7 @@ function App() {
           {activeTab === 'viewer' ? (
             <div className="sourceViewer">
               {sourceDocument && isPdfSource(sourceDocument) ? (
-                <iframe className="pdfFrame" title={sourceDocument.filename} src={sourceDocument.data_url} />
+                <PdfSourceViewer source={sourceDocument} />
               ) : sourceDocument ? (
                 <div className="unsupportedSource">
                   <strong>{sourceDocument.filename}</strong>

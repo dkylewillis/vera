@@ -397,18 +397,48 @@ select {
 }
 
 .sourceViewer {
+  display: grid;
   min-height: 0;
   padding: 12px;
-  overflow: hidden;
+  overflow: auto;
 }
 
-.pdfFrame {
-  width: 100%;
-  height: 100%;
+.pdfViewer {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
   min-height: 0;
-  background: #fffdf7;
+}
+
+.viewerToolbar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, auto));
+  gap: 8px;
+  align-items: center;
+}
+
+.viewerToolbar span {
+  color: #5d5548;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pdfCanvasWrap {
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  background: #e8e0d1;
   border: 1px solid #d8d0c0;
   border-radius: 6px;
+}
+
+.pdfCanvasWrap canvas {
+  display: block;
+  margin: 0 auto;
+  max-width: none;
+  background: #fffdf7;
+  box-shadow: 0 8px 24px rgba(45, 42, 36, 0.18);
 }
 
 .unsupportedSource {

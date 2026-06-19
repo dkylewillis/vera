@@ -79,8 +79,7 @@ uv run --extra dev python -m pytest -q
 
 ## Near-Term App Work
 
-- Replace the current embedded-browser PDF view with PDF.js page rendering.
-- Overlay `regions` on the rendered source page, replacing the current scaled coordinate map.
+- Overlay `regions` on the PDF.js-rendered source page, replacing the current scaled coordinate map.
 - Add library folder persistence and recent archive shortcuts.
 - Add richer conversion progress events from the sidecar.
 - Add settings for provider configuration and app defaults.
