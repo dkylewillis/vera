@@ -18,6 +18,8 @@ import './styles.css';
 
 type ActiveTab = 'search' | 'viewer' | 'convert' | 'details';
 
+const EMPTY_REGIONS: RegionResult[] = [];
+
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 function formatPages(start: number | null, end: number | null): string {
@@ -56,13 +58,22 @@ function regionStyle(region: RegionResult): CSSProperties {
   };
 }
 
-function PdfSourceViewer({ source }: { source: SourceDocumentResult }) {
+function PdfSourceViewer({
+  source,
+  highlightRegions = EMPTY_REGIONS,
+  compact = false,
+}: {
+  source: SourceDocumentResult;
+  highlightRegions?: RegionResult[];
+  compact?: boolean;
+}) {
   const pagesRef = useRef<HTMLDivElement | null>(null);
   const renderedSourceRef = useRef('');
   const [scale, setScale] = useState(1.25);
   const [error, setError] = useState<string | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [rendering, setRendering] = useState(false);
+  const highlightKey = useMemo(() => JSON.stringify(highlightRegions), [highlightRegions]);
 
   useEffect(() => {
     let canceled = false;
@@ -93,6 +104,8 @@ function PdfSourceViewer({ source }: { source: SourceDocumentResult }) {
           const pageSurface = document.createElement('div');
           pageSurface.className = 'pdfPageSurface';
           const canvas = document.createElement('canvas');
+          const highlightLayer = document.createElement('div');
+          highlightLayer.className = 'pdfHighlightLayer';
           const textLayerContainer = document.createElement('div');
           textLayerContainer.className = 'textLayer';
           const context = canvas.getContext('2d');
@@ -101,7 +114,13 @@ function PdfSourceViewer({ source }: { source: SourceDocumentResult }) {
           canvas.height = Math.floor(viewport.height);
           pageSurface.style.width = `${Math.floor(viewport.width)}px`;
           pageSurface.style.height = `${Math.floor(viewport.height)}px`;
-          pageSurface.append(canvas, textLayerContainer);
+          for (const region of highlightRegions.filter((entry) => entry.page_number === pageIndex && entry.bbox?.length === 4)) {
+            const box = document.createElement('div');
+            box.className = 'pdfHighlightBox';
+            Object.assign(box.style, regionStyle(region));
+            highlightLayer.append(box);
+          }
+          pageSurface.append(canvas, highlightLayer, textLayerContainer);
           pageShell.append(label, pageSurface);
           container.append(pageShell);
           await page.render({ canvas, canvasContext: context, viewport }).promise;
@@ -124,10 +143,10 @@ function PdfSourceViewer({ source }: { source: SourceDocumentResult }) {
     return () => {
       canceled = true;
     };
-  }, [scale, source.data_url]);
+  }, [highlightKey, scale, source.data_url]);
 
   return (
-    <div className="pdfViewer">
+    <div className={compact ? 'pdfViewer compact' : 'pdfViewer'}>
       <div className="viewerToolbar">
         <span>{rendering ? 'Rendering' : `${pageCount || '-'} pages`}</span>
         <button className="secondaryAction" onClick={() => setScale((value) => Math.max(0.75, value - 0.25))}>Zoom Out</button>
@@ -162,6 +181,7 @@ function App() {
   const [convertResult, setConvertResult] = useState<ConvertResult | null>(null);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [sourceDocument, setSourceDocument] = useState<SourceDocumentResult | null>(null);
+  const [sourceDocumentPath, setSourceDocumentPath] = useState('');
   const [pageNumber, setPageNumber] = useState(1);
   const [pageResult, setPageResult] = useState<PageResult | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -215,6 +235,7 @@ function App() {
     setValidation(null);
     setExportResult(null);
     setSourceDocument(null);
+    setSourceDocumentPath('');
     setPageResult(null);
   }
 
@@ -299,11 +320,12 @@ function App() {
     if (result) setExportResult(result);
   }
 
-  async function loadSourceDocument() {
-    const result = await call<SourceDocumentResult>({ action: 'source', path }, 'Loading source');
+  async function loadSourceDocument(targetPath = path, activateViewer = true) {
+    const result = await call<SourceDocumentResult>({ action: 'source', path: targetPath }, 'Loading source');
     if (result) {
       setSourceDocument(result);
-      setActiveTab('viewer');
+      setSourceDocumentPath(targetPath);
+      if (activateViewer) setActiveTab('viewer');
     }
   }
 
@@ -358,7 +380,7 @@ function App() {
                 <button onClick={exportSource} disabled={!path.trim() || isCorpus || busy}><Download size={16} />Export</button>
               </div>
 
-              <button className="secondaryAction" onClick={loadSourceDocument} disabled={!path.trim() || isCorpus || busy}><FileSearch size={16} />Load Source</button>
+              <button className="secondaryAction" onClick={() => loadSourceDocument(path, true)} disabled={!path.trim() || isCorpus || busy}><FileSearch size={16} />Load Source</button>
 
               <label className="field">
                 <span>Query</span>
@@ -568,6 +590,16 @@ function App() {
                 <div><dt>Regions</dt><dd>{selected.regions?.length ?? 0}</dd></div>
                 <div><dt>Figures</dt><dd>{selected.figures?.length ?? 0}</dd></div>
               </dl>
+              <section className="evidenceSection evidenceSourceSection">
+                <h2>Source PDF</h2>
+                {sourceDocument && isPdfSource(sourceDocument) && sourceDocumentPath === (selected.file || path) ? (
+                  <PdfSourceViewer source={sourceDocument} highlightRegions={selected.regions || []} compact />
+                ) : (
+                  <button className="secondaryAction" onClick={() => loadSourceDocument(selected.file || path, false)} disabled={!path.trim() || busy}>
+                    <FileSearch size={16} />Load Source With Highlights
+                  </button>
+                )}
+              </section>
               <section className="evidenceSection">
                 <h2>Regions</h2>
                 {selected.regions?.length ? (
