@@ -411,8 +411,7 @@ select {
 }
 
 .viewerToolbar {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, auto));
+  display: flex;
   gap: 8px;
   align-items: center;
 }
@@ -424,7 +423,17 @@ select {
   white-space: nowrap;
 }
 
+.pdfViewerGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 10px;
+  min-height: 0;
+}
+
 .pdfCanvasWrap {
+  display: grid;
+  align-content: start;
+  gap: 18px;
   min-height: 0;
   overflow: auto;
   padding: 12px;
@@ -433,12 +442,59 @@ select {
   border-radius: 6px;
 }
 
-.pdfCanvasWrap canvas {
+.pdfPage {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+}
+
+.pdfPage span {
+  color: #746b5b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pdfPage canvas {
   display: block;
   margin: 0 auto;
   max-width: none;
   background: #fffdf7;
   box-shadow: 0 8px 24px rgba(45, 42, 36, 0.18);
+}
+
+.copyPanel {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 8px;
+  min-height: 0;
+  padding: 12px;
+  background: #fffdf7;
+  border: 1px solid #d8d0c0;
+  border-radius: 6px;
+}
+
+.copyPanel h2 {
+  margin: 0;
+  color: #2d2a24;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.copyPanel span,
+.copyPanel p {
+  margin: 0;
+  color: #746b5b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.copyPanel textarea {
+  min-height: 0;
+  resize: none;
+  color: #2d2a24;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .unsupportedSource {

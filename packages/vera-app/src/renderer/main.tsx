@@ -56,62 +56,84 @@ function regionStyle(region: RegionResult): CSSProperties {
   };
 }
 
-function PdfSourceViewer({ source }: { source: SourceDocumentResult }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [pageCount, setPageCount] = useState(1);
+function PdfSourceViewer({ source, pageText }: { source: SourceDocumentResult; pageText: PageResult | null }) {
+  const pagesRef = useRef<HTMLDivElement | null>(null);
+  const renderedSourceRef = useRef('');
   const [scale, setScale] = useState(1.25);
   const [error, setError] = useState<string | null>(null);
+  const [pageCount, setPageCount] = useState(0);
+  const [rendering, setRendering] = useState(false);
 
   useEffect(() => {
     let canceled = false;
 
-    async function renderPdfPage() {
+    async function renderPdfPages() {
       setError(null);
+      setRendering(true);
       try {
         const bytes = await fetch(source.data_url).then((response) => response.arrayBuffer());
         const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes) }).promise;
         if (canceled) return;
         setPageCount(pdf.numPages);
-        const safePage = Math.min(Math.max(pageNumber, 1), pdf.numPages);
-        if (safePage !== pageNumber) {
-          setPageNumber(safePage);
-          return;
+        const container = pagesRef.current;
+        if (!container) return;
+        if (renderedSourceRef.current !== source.data_url) {
+          container.scrollTop = 0;
+          renderedSourceRef.current = source.data_url;
         }
-        const page = await pdf.getPage(safePage);
-        if (canceled) return;
-        const viewport = page.getViewport({ scale });
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const context = canvas.getContext('2d');
-        if (!context) return;
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-        await page.render({ canvas, canvasContext: context, viewport }).promise;
+        container.replaceChildren();
+        for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex += 1) {
+          if (canceled) return;
+          const page = await pdf.getPage(pageIndex);
+          const viewport = page.getViewport({ scale });
+          const pageShell = document.createElement('article');
+          pageShell.className = 'pdfPage';
+          const label = document.createElement('span');
+          label.textContent = `Page ${pageIndex}`;
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          if (!context) continue;
+          canvas.width = Math.floor(viewport.width);
+          canvas.height = Math.floor(viewport.height);
+          pageShell.append(label, canvas);
+          container.append(pageShell);
+          await page.render({ canvas, canvasContext: context, viewport }).promise;
+        }
       } catch (renderError) {
         if (!canceled) setError(renderError instanceof Error ? renderError.message : 'Unable to render PDF');
+      } finally {
+        if (!canceled) setRendering(false);
       }
     }
 
-    renderPdfPage();
+    renderPdfPages();
 
     return () => {
       canceled = true;
     };
-  }, [pageNumber, scale, source.data_url]);
+  }, [scale, source.data_url]);
 
   return (
     <div className="pdfViewer">
       <div className="viewerToolbar">
-        <button className="secondaryAction" onClick={() => setPageNumber((page) => Math.max(1, page - 1))} disabled={pageNumber <= 1}>Previous</button>
-        <span>p. {pageNumber} / {pageCount}</span>
-        <button className="secondaryAction" onClick={() => setPageNumber((page) => Math.min(pageCount, page + 1))} disabled={pageNumber >= pageCount}>Next</button>
+        <span>{rendering ? 'Rendering' : `${pageCount || '-'} pages`}</span>
         <button className="secondaryAction" onClick={() => setScale((value) => Math.max(0.75, value - 0.25))}>Zoom Out</button>
         <button className="secondaryAction" onClick={() => setScale((value) => Math.min(2.5, value + 0.25))}>Zoom In</button>
       </div>
       {error ? <div className="errorBanner">{error}</div> : null}
-      <div className="pdfCanvasWrap">
-        <canvas ref={canvasRef} />
+      <div className="pdfViewerGrid">
+        <div className="pdfCanvasWrap" ref={pagesRef} />
+        <aside className="copyPanel">
+          <h2>Copy Text</h2>
+          {pageText ? (
+            <>
+              <span>Extracted page {pageText.page_number}</span>
+              <textarea readOnly value={pageText.text || 'No text was extracted for this page.'} />
+            </>
+          ) : (
+            <p>Select Details and load a page to copy extracted text.</p>
+          )}
+        </aside>
       </div>
     </div>
   );
@@ -452,7 +474,7 @@ function App() {
           {activeTab === 'viewer' ? (
             <div className="sourceViewer">
               {sourceDocument && isPdfSource(sourceDocument) ? (
-                <PdfSourceViewer source={sourceDocument} />
+                <PdfSourceViewer source={sourceDocument} pageText={pageResult} />
               ) : sourceDocument ? (
                 <div className="unsupportedSource">
                   <strong>{sourceDocument.filename}</strong>
