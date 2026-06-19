@@ -128,7 +128,7 @@ class TestCli:
 
 @pytest.mark.anyio
 async def test_mcp_corpus_search_tool(corpus_dir):
-    from vera.mcp_server import build_server
+    from vera.integrations.mcp_server import build_server
 
     server = build_server()
     result = await server.call_tool(

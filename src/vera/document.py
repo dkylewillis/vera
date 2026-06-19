@@ -13,7 +13,8 @@ from .core.access import get_source_document as get_stored_source_document
 from .core.access import regions_for_result
 from .core.figures import figures as get_figures
 from .core.figures import figures_for_result
-from .core.search import SearchResult, context_chunks_for, search_document
+from .core.inspection import inspect_document
+from .core.search import SearchResult, search_document
 from .core.validation import validate_document
 
 
@@ -32,18 +33,7 @@ class VeraDocument:
         self.conn.close()
 
     def inspect(self) -> dict[str, Any]:
-        metadata = {row["key"]: row["value"] for row in self.conn.execute("SELECT key, value FROM vera_metadata")}
-        doc = self.conn.execute("SELECT * FROM documents LIMIT 1").fetchone()
-        metadata.update(
-            {
-                "file": self.path,
-                "source": doc["source_filename"] if doc else None,
-                "pages": self.conn.execute("SELECT COUNT(*) FROM pages").fetchone()[0],
-                "chunks": self.conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0],
-                "embeddings": self.conn.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0],
-            }
-        )
-        return metadata
+        return inspect_document(self.conn, self.path)
 
     def validate(self) -> dict[str, Any]:
         return validate_document(self.conn)
@@ -116,6 +106,3 @@ class VeraDocument:
 
     def search(self, query: str, mode: str = "hybrid", top_k: int = 10, context_chunks: int = 0) -> list[SearchResult]:
         return search_document(self.conn, query, mode=mode, top_k=top_k, context_chunks=context_chunks)
-
-    def _context_chunks_for(self, chunk_id: str, context_chunks: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        return context_chunks_for(self.conn, chunk_id, context_chunks)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from ..schema import REQUIRED_METADATA_KEYS
+from .schema import REQUIRED_METADATA_KEYS
 
 
 def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:

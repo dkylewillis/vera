@@ -20,7 +20,7 @@ def vera_file(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def server():
-    from vera.mcp_server import build_server
+    from vera.integrations.mcp_server import build_server
 
     return build_server()
 

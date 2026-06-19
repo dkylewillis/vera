@@ -7,12 +7,10 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .embeddings import get_embedder, serialize_vector
-from .ingest.chunking import Chunk, build_chunks_from_blocks, chunk_pages, detect_heading
-from .parsers import ParsedBlock, parse_pdf, parse_pdf_structured
-from .schema import FORMAT_VERSION, create_schema
-
-_detect_heading = detect_heading
+from .core.embeddings import get_embedder, serialize_vector
+from .core.schema import FORMAT_VERSION, create_schema
+from .ingest.chunking import build_chunks_from_blocks
+from .ingest.parsers import ParsedBlock, parse_pdf_structured
 
 
 def _utc_now() -> str:

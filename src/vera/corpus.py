@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .core.search import context_chunks_for
 from .document import SearchResult, VeraDocument
 
 _RRF_K = 60.0
@@ -119,7 +120,7 @@ class VeraCorpus:
         if context_chunks:
             for result in final:
                 doc = self.document(result.file)
-                before, after = doc._context_chunks_for(result.chunk_id, context_chunks)
+                before, after = context_chunks_for(doc.conn, result.chunk_id, context_chunks)
                 result.before_chunks = before
                 result.after_chunks = after
         return final

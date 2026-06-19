@@ -2,8 +2,8 @@
 
 import pytest
 
-from vera.convert import chunk_pages, _detect_heading
-from vera.embeddings import (
+from vera.ingest.chunking import chunk_pages, detect_heading
+from vera.core.embeddings import (
     HashingEmbedder,
     cosine_similarity,
     deserialize_vector,
@@ -11,8 +11,8 @@ from vera.embeddings import (
     serialize_vector,
 )
 from vera.document import VeraDocument, SearchResult
-from vera.cli import _str_to_bool
-from vera.parsers.pdf import ParsedPage
+from vera.cli import str_to_bool
+from vera.ingest.parsers.pdf import ParsedPage
 
 
 # ---------------------------------------------------------------------------
@@ -92,21 +92,21 @@ class TestChunkPages:
 
 
 # ---------------------------------------------------------------------------
-# _detect_heading
+# detect_heading
 # ---------------------------------------------------------------------------
 
 class TestDetectHeading:
     def test_chapter_line_detected(self):
-        result = _detect_heading("Chapter 1 Introduction\nText here.", "")
+        result = detect_heading("Chapter 1 Introduction\nText here.", "")
         assert "Chapter" in result
 
     def test_non_heading_line_returns_current(self):
-        result = _detect_heading("This is just a sentence.", "current heading")
+        result = detect_heading("This is just a sentence.", "current heading")
         assert result == "current heading"
 
     def test_very_long_line_is_not_a_heading(self):
         long_line = "word " * 30  # > 120 chars
-        result = _detect_heading(long_line.strip(), "old heading")
+        result = detect_heading(long_line.strip(), "old heading")
         assert result == "old heading"
 
 
@@ -284,14 +284,14 @@ class TestConvertErrors:
 
 
 # ---------------------------------------------------------------------------
-# _str_to_bool (CLI helper)
+# str_to_bool (CLI helper)
 # ---------------------------------------------------------------------------
 
 class TestStrToBool:
     @pytest.mark.parametrize("value", ["true", "True", "TRUE", "1", "yes", "YES", "y", "on"])
     def test_truthy_values(self, value):
-        assert _str_to_bool(value) is True
+        assert str_to_bool(value) is True
 
     @pytest.mark.parametrize("value", ["false", "False", "0", "no", "n", "off", "", "random"])
     def test_falsy_values(self, value):
-        assert _str_to_bool(value) is False
+        assert str_to_bool(value) is False

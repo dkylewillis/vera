@@ -106,11 +106,17 @@ The current internal structure moves implementation code toward separable layers
 ```text
 src/vera/
   core/
-    validation.py
+    access.py
+    embeddings.py
     figures.py
+    inspection.py
+    schema.py
     search.py
+    validation.py
   ingest/
     chunking.py
+    parsers/
+      pdf.py
   cli/
     main.py
     commands.py
@@ -118,14 +124,15 @@ src/vera/
     mcp_server.py
 ```
 
-Compatibility shims should preserve current imports during this phase:
+During active development, internal tests and code should import implementation helpers from their owning layer instead of through compatibility shims:
 
 ```python
 from vera import convert, VeraDocument
-from vera.convert import convert, chunk_pages, build_chunks_from_blocks
+from vera.convert import convert
 from vera.document import VeraDocument, SearchResult
-from vera.cli import main, build_parser
-from vera.mcp_server import build_server
+from vera.ingest import build_chunks_from_blocks, chunk_pages
+from vera.cli import main, build_parser, str_to_bool
+from vera.integrations.mcp_server import build_server
 ```
 
 ## Future Package Boundary Extraction

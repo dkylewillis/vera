@@ -4,7 +4,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from ..embeddings import cosine_similarity, deserialize_vector, get_embedder
+from .embeddings import cosine_similarity, deserialize_vector, get_embedder
 
 
 @dataclass

@@ -136,7 +136,7 @@ def cmd_workbench(args) -> int:
 
 
 def cmd_mcp(args) -> int:
-    from ..mcp_server import main as mcp_main
+    from ..integrations.mcp_server import main as mcp_main
 
     return mcp_main()
 
