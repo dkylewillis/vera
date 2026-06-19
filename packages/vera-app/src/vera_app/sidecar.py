@@ -105,6 +105,22 @@ def _export(request: Request) -> dict[str, Any]:
         doc.close()
 
 
+def _source(request: Request) -> dict[str, Any]:
+    doc = _open_document(str(request["path"]))
+    try:
+        source = doc.get_source_document()
+        mime_type = source.mime_type or "application/octet-stream"
+        return {
+            "filename": source.filename,
+            "mime_type": mime_type,
+            "hash": source.hash,
+            "size": len(source.data),
+            "data_url": f"data:{mime_type};base64,{base64.b64encode(source.data).decode('ascii')}",
+        }
+    finally:
+        doc.close()
+
+
 def _page(request: Request) -> dict[str, Any] | None:
     doc = _open_document(str(request["path"]))
     try:
@@ -120,6 +136,7 @@ HANDLERS: dict[str, Handler] = {
     "search": _search,
     "convert": _convert,
     "export": _export,
+    "source": _source,
     "page": _page,
 }
 

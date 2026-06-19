@@ -11,10 +11,10 @@ import {
   ShieldCheck,
   TerminalSquare,
 } from 'lucide-react';
-import type { ConvertResult, ExportResult, InspectResult, PageResult, RegionResult, SearchResult, ValidateResult } from './types';
+import type { ConvertResult, ExportResult, InspectResult, PageResult, RegionResult, SearchResult, SourceDocumentResult, ValidateResult } from './types';
 import './styles.css';
 
-type ActiveTab = 'search' | 'convert' | 'details';
+type ActiveTab = 'search' | 'viewer' | 'convert' | 'details';
 
 function formatPages(start: number | null, end: number | null): string {
   if (start === null && end === null) return '-';
@@ -32,6 +32,11 @@ function defaultVeraPath(pdf: string): string {
   const trimmed = pdf.trim();
   if (!trimmed) return '';
   return trimmed.toLowerCase().endsWith('.pdf') ? `${trimmed.slice(0, -4)}.vera` : `${trimmed}.vera`;
+}
+
+function isPdfSource(source: SourceDocumentResult | null): boolean {
+  if (!source) return false;
+  return source.mime_type === 'application/pdf' || source.filename.toLowerCase().endsWith('.pdf');
 }
 
 function regionStyle(region: RegionResult): CSSProperties {
@@ -69,6 +74,7 @@ function App() {
   const [validation, setValidation] = useState<ValidateResult | null>(null);
   const [convertResult, setConvertResult] = useState<ConvertResult | null>(null);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
+  const [sourceDocument, setSourceDocument] = useState<SourceDocumentResult | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageResult, setPageResult] = useState<PageResult | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -108,12 +114,21 @@ function App() {
 
   async function chooseArchive() {
     const chosen = await window.vera.pickArchive();
-    if (chosen) setPath(chosen);
+    if (chosen) updateTargetPath(chosen);
   }
 
   async function chooseFolder() {
     const chosen = await window.vera.pickFolder();
-    if (chosen) setPath(chosen);
+    if (chosen) updateTargetPath(chosen);
+  }
+
+  function updateTargetPath(value: string) {
+    setPath(value);
+    setInspect(null);
+    setValidation(null);
+    setExportResult(null);
+    setSourceDocument(null);
+    setPageResult(null);
   }
 
   async function choosePdf() {
@@ -185,7 +200,7 @@ function App() {
     }, 'Converting PDF');
     if (result) {
       setConvertResult(result);
-      setPath(result.output);
+      updateTargetPath(result.output);
       setActiveTab('details');
     }
   }
@@ -195,6 +210,14 @@ function App() {
     if (!output) return;
     const result = await call<ExportResult>({ action: 'export', path, output }, 'Exporting source');
     if (result) setExportResult(result);
+  }
+
+  async function loadSourceDocument() {
+    const result = await call<SourceDocumentResult>({ action: 'source', path }, 'Loading source');
+    if (result) {
+      setSourceDocument(result);
+      setActiveTab('viewer');
+    }
   }
 
   async function loadPage() {
@@ -219,6 +242,7 @@ function App() {
         <aside className="sidebar">
           <div className="tabs">
             <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>Search</button>
+            <button className={activeTab === 'viewer' ? 'active' : ''} onClick={() => setActiveTab('viewer')}>Viewer</button>
             <button className={activeTab === 'convert' ? 'active' : ''} onClick={() => setActiveTab('convert')}>Convert</button>
             <button className={activeTab === 'details' ? 'active' : ''} onClick={() => setActiveTab('details')}>Details</button>
           </div>
@@ -232,7 +256,7 @@ function App() {
                 <span>Archive or Folder</span>
                 <div className="pathInput">
                   <FolderOpen size={16} />
-                  <input value={path} onChange={(event) => setPath(event.target.value)} placeholder="C:\\docs\\manual.vera" />
+                  <input value={path} onChange={(event) => updateTargetPath(event.target.value)} placeholder="C:\\docs\\manual.vera" />
                 </div>
               </label>
 
@@ -246,6 +270,8 @@ function App() {
                 <button onClick={validateTarget} disabled={!path.trim() || isCorpus || busy}><CheckCircle2 size={16} />Validate</button>
                 <button onClick={exportSource} disabled={!path.trim() || isCorpus || busy}><Download size={16} />Export</button>
               </div>
+
+              <button className="secondaryAction" onClick={loadSourceDocument} disabled={!path.trim() || isCorpus || busy}><FileSearch size={16} />Load Source</button>
 
               <label className="field">
                 <span>Query</span>
@@ -355,30 +381,45 @@ function App() {
 
         <section className="resultsPane">
           <div className="paneHeader">
-            <h1>Results</h1>
-            <span>{results.length} matches</span>
+            <h1>{activeTab === 'viewer' ? 'Source Viewer' : 'Results'}</h1>
+            <span>{activeTab === 'viewer' ? sourceDocument?.filename || 'No source loaded' : `${results.length} matches`}</span>
           </div>
-          <div className="resultsList">
-            {results.map((result) => (
-              <button
-                className={selected?.chunk_id === result.chunk_id ? 'result selected' : 'result'}
-                key={`${result.file || result.document_id}-${result.chunk_id}`}
-                onClick={() => setSelected(result)}
-              >
-                <span className="resultMeta">{result.score.toFixed(4)} · p. {formatPages(result.page_start, result.page_end)}{result.file ? ` · ${result.file}` : ''}</span>
-                <strong>{result.heading_path || result.source_filename || result.chunk_id}</strong>
-                <span>{result.text}</span>
-              </button>
-            ))}
-          </div>
+          {activeTab === 'viewer' ? (
+            <div className="sourceViewer">
+              {sourceDocument && isPdfSource(sourceDocument) ? (
+                <iframe className="pdfFrame" title={sourceDocument.filename} src={sourceDocument.data_url} />
+              ) : sourceDocument ? (
+                <div className="unsupportedSource">
+                  <strong>{sourceDocument.filename}</strong>
+                  <span>{sourceDocument.mime_type}</span>
+                </div>
+              ) : (
+                <div className="emptyState">Load a source document from a `.vera` archive</div>
+              )}
+            </div>
+          ) : (
+            <div className="resultsList">
+              {results.map((result) => (
+                <button
+                  className={selected?.chunk_id === result.chunk_id ? 'result selected' : 'result'}
+                  key={`${result.file || result.document_id}-${result.chunk_id}`}
+                  onClick={() => setSelected(result)}
+                >
+                  <span className="resultMeta">{result.score.toFixed(4)} · p. {formatPages(result.page_start, result.page_end)}{result.file ? ` · ${result.file}` : ''}</span>
+                  <strong>{result.heading_path || result.source_filename || result.chunk_id}</strong>
+                  <span>{result.text}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="evidencePane">
           <div className="paneHeader">
-            <h1>{activeTab === 'details' ? 'Details' : 'Evidence'}</h1>
-            <span>{activeTab === 'details' ? path || 'No archive selected' : citation}</span>
+            <h1>{activeTab === 'details' || activeTab === 'viewer' ? 'Details' : 'Evidence'}</h1>
+            <span>{activeTab === 'details' || activeTab === 'viewer' ? path || 'No archive selected' : citation}</span>
           </div>
-          {activeTab === 'details' ? (
+          {activeTab === 'details' || activeTab === 'viewer' ? (
             <article className="evidence">
               <dl>
                 <div><dt>Format</dt><dd>{inspect ? `${inspect.format_name || 'VERA'} ${inspect.format_version || ''}` : '-'}</dd></div>
@@ -387,6 +428,17 @@ function App() {
                 <div><dt>Issues</dt><dd>{validation?.issues?.length ? validation.issues.join('; ') : '0'}</dd></div>
                 <div><dt>Export</dt><dd>{exportResult?.output || '-'}</dd></div>
               </dl>
+              {sourceDocument ? (
+                <section className="evidenceSection">
+                  <h2>Source Document</h2>
+                  <dl>
+                    <div><dt>File</dt><dd>{sourceDocument.filename}</dd></div>
+                    <div><dt>Type</dt><dd>{sourceDocument.mime_type}</dd></div>
+                    <div><dt>Size</dt><dd>{Math.round(sourceDocument.size / 1024).toLocaleString()} KB</dd></div>
+                    <div><dt>Hash</dt><dd>{sourceDocument.hash}</dd></div>
+                  </dl>
+                </section>
+              ) : null}
               <section className="evidenceSection">
                 <h2>Page Text</h2>
                 <div className="pageControls">

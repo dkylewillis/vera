@@ -87,6 +87,14 @@ export interface ExportResult {
   hash: string;
 }
 
+export interface SourceDocumentResult {
+  filename: string;
+  mime_type: string;
+  hash: string;
+  size: number;
+  data_url: string;
+}
+
 export interface PageResult {
   page_number: number;
   width: number | null;
