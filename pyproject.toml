@@ -15,7 +15,7 @@ license = {text = "Apache-2.0"}
 [project.optional-dependencies]
 dev = ["pytest>=8", "reportlab>=4", "mcp>=1.0"]
 ml = ["sentence-transformers>=2.7"]
-workbench = ["vera-app"]
+app = ["vera-app"]
 mcp = ["mcp>=1.0"]
 
 [tool.uv.workspace]

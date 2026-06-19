@@ -117,7 +117,7 @@ Requires the document package's `mcp` extra: `pip install vera-cli "vera-doc[mcp
 ## Working on this repository
 
 - Python 3.10+, dependencies managed with [uv](https://docs.astral.sh/uv/):
-  `uv sync --extra dev --extra ml --extra workbench --extra mcp`
+  `uv sync --extra dev --extra ml --extra app --extra mcp`
 - Run tests with `pytest` (all tests must pass before committing).
 - Core document code lives in [packages/vera-doc/src/vera](packages/vera-doc/src/vera), and CLI code lives in [packages/vera-cli/src/vera_cli](packages/vera-cli/src/vera_cli); the format spec is
   [docs/vera-spec-v0.1.md](docs/vera-spec-v0.1.md) — keep code and spec in sync.

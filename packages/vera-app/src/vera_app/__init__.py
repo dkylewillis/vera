@@ -1,13 +1,3 @@
-from __future__ import annotations
+"""Python sidecar package for the VERA desktop app."""
 
-import subprocess
-import sys
-from pathlib import Path
-
-
-def main() -> int:
-    workbench = Path(__file__).with_name("workbench.py")
-    return subprocess.call([sys.executable, "-m", "streamlit", "run", str(workbench)])
-
-
-__all__ = ["main"]
+__all__: list[str] = []

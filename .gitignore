@@ -4,6 +4,9 @@ __pycache__/
 *.pyc
 *.vera
 dist/
+dist-electron/
+release/
 build/
+node_modules/
 *.egg-info/
 examples/*.pdf

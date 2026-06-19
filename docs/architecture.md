@@ -17,7 +17,7 @@ The current package, `vera`, contains several responsibilities in one namespace:
 - CLI command parsing and output formatting
 - retrieval evaluation utilities
 - MCP server integration
-- Streamlit workbench launcher
+- Electron desktop app and Python sidecar
 
 ## Target Product Boundaries
 
@@ -55,7 +55,7 @@ Responsibilities:
 - text and JSON output formatting
 - process exit codes
 - command-level error handling and messages
-- shell-friendly workflows for convert, inspect, validate, search, export, eval, mcp, and workbench launch
+- shell-friendly workflows for convert, inspect, validate, search, export, eval, and mcp
 
 Non-responsibilities:
 
@@ -126,11 +126,16 @@ packages/
       main.py
       commands.py
   vera-app/
+    electron/
+      main.ts
+      preload.ts
     src/vera_app/
-      workbench.py
+      sidecar.py
+    src/renderer/
+      main.tsx
 ```
 
-`vera-doc` publishes the importable `vera` package. `vera-cli` publishes the `vera_cli` module and the `vera` console script. `vera-app` publishes the `vera_app` module and the `vera-app` console script.
+`vera-doc` publishes the importable `vera` package. `vera-cli` publishes the `vera_cli` module and the `vera` console script. `vera-app` owns the Electron/React desktop app and publishes a Python `vera-app-sidecar` helper for local document operations.
 
 Internal tests and code should import implementation helpers from their owning package:
 

@@ -1,0 +1,54 @@
+{
+  "name": "@vera/app",
+  "version": "0.1.0",
+  "description": "Desktop workspace for VERA documents",
+  "author": "Kyle Willis",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "build": "tsc -p tsconfig.json && vite build",
+    "dist": "npm run build && electron-builder",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "concurrently": "latest",
+    "electron": "latest",
+    "electron-builder": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "wait-on": "latest"
+  },
+  "build": {
+    "appId": "dev.vera.desktop",
+    "productName": "VERA",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "src/vera_app",
+        "to": "python/vera_app"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

@@ -65,7 +65,7 @@ clickable citations that scroll the viewer to the page and highlight the cited t
    the hashing baseline
 
 ### Phase 4 — Polish
-5. Workbench: "download original PDF" button (`get_source_document()`), maybe show
+5. Desktop app: "download original PDF" button (`get_source_document()`), maybe show
    highlight regions on search results
 6. Consider MCP tool exposing source-document metadata (not bytes)
 
@@ -80,7 +80,7 @@ clickable citations that scroll the viewer to the page and highlight the cited t
 
 - **Run tests with** `.\.venv\Scripts\python.exe -m pytest tests/ -q` on this machine
   (`uv run` hit a trampoline error; bare `python` lacked pytest). On a fresh machine:
-  `uv sync --extra dev --extra ml --extra workbench --extra mcp` then
+  `uv sync --extra dev --extra ml --extra app --extra mcp` then
   `uv run --extra dev python -m pytest -q`.
 - **Don't regress retrieval baselines:** GSMM hybrid ≥ 9/10 hit rate, MRR ≥ 0.900
   (`vera eval <gsmm.vera> examples/gsmm-queries.json`); the .vera for it must be

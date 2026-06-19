@@ -1,16 +1,15 @@
 [project]
 name = "vera-app"
 version = "0.1.0"
-description = "Streamlit workbench for VERA documents"
+description = "Python sidecar for the VERA desktop app"
 readme = "../../README.md"
 requires-python = ">=3.10"
 dependencies = [
   "vera-doc",
-  "streamlit>=1.35",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
-keywords = ["semantic-search", "document", "sqlite", "streamlit"]
+keywords = ["semantic-search", "document", "sqlite", "desktop"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "License :: OSI Approved :: Apache Software License",
@@ -19,7 +18,7 @@ classifiers = [
 ]
 
 [project.scripts]
-vera-app = "vera_app:main"
+vera-app-sidecar = "vera_app.sidecar:main"
 
 [build-system]
 requires = ["hatchling"]

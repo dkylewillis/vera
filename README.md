@@ -13,7 +13,7 @@ Tagline: **Convert once. Search anywhere.**
                                    │                                       │
                               vector DB             ┌──────────────────────┼──────────────┐
                                    │                ▼                      ▼              ▼
-                                search           your app             CLI search      workbench
+                                search           desktop app          CLI search      agents
 
    ┌─────────────────── ordinance.vera (a single SQLite file) ────────────────────┐
    │                                                                             │
@@ -192,21 +192,24 @@ The command reports hit rate and MRR per search mode and exits non-zero on any m
 
 Current baseline on the stormwater manual (2,442 chunks, hashing embedder): hybrid and keyword both hit 9/10 at MRR 0.900.
 
-## VERA Workbench
+## VERA Desktop App
 
-For easy manual testing, install the optional Streamlit extra and launch the workbench:
+The app package is an Electron desktop shell with a React UI and a Python sidecar that calls `vera-doc` directly:
 
 ```bash
-uv run --extra workbench vera-app
+cd packages/vera-app
+npm install
+npm run dev
+npm run dist -- --dir
 ```
 
-The workbench lets you upload a PDF, convert it to `.vera`, inspect metadata, run validation, browse chunks, compare semantic/keyword/hybrid search results, and view figures (with captions) co-located with each result.
+The current desktop scaffold can inspect and search local `.vera` archives through the sidecar protocol. The unpacked Windows build writes `VERA.exe` under `packages/vera-app/release/win-unpacked`. See [docs/desktop-app-architecture.md](docs/desktop-app-architecture.md) for the app architecture and next steps.
 
 ## Status
 
 VERA is v0.1 and experimental. The schema and format may change. See [docs/vera-spec-v0.1.md](docs/vera-spec-v0.1.md) for the format specification.
 
-See [docs/architecture.md](docs/architecture.md) for the planned project boundaries between the core document engine, CLI, and future app layer.
+See [docs/architecture.md](docs/architecture.md) for the project boundaries between the core document engine, CLI, and desktop app layer.
 
 ## License
 

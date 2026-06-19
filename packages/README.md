@@ -31,12 +31,14 @@ Owns:
 
 ### vera-app
 
-User-facing application layer over `vera-doc`.
+User-facing desktop application layer over `vera-doc`.
 
 User-facing application layer over `vera-doc`.
 
 Owns:
 
+- Electron desktop shell and React workspace UI
+- Python sidecar protocol over `vera-doc`
 - source document viewer and visual grounding UX
 - sessions, prompts, instructions, and response configuration
 - LLM provider integrations
@@ -61,7 +63,7 @@ The core document package must not import from CLI or app packages.
 packages/
 	vera-doc/   # publishes the importable `vera` document package
 	vera-cli/   # publishes the `vera` console script and `vera_cli` module
-	vera-app/   # publishes the `vera-app` console script and `vera_app` module
+	vera-app/   # owns the Electron UI and Python `vera_app` sidecar module
 ```
 
 The root test suite is the integration contract across packages.
