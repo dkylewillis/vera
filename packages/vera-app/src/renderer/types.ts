@@ -42,6 +42,7 @@ export interface FigureResult {
   asset_id?: string;
   filename?: string;
   caption?: string | null;
+  data_url?: string;
 }
 
 export interface RegionResult {
@@ -49,6 +50,14 @@ export interface RegionResult {
   bbox?: number[];
   page_width?: number;
   page_height?: number;
+}
+
+export interface ContextChunkResult {
+  chunk_id: string;
+  text: string;
+  page_start: number | null;
+  page_end: number | null;
+  heading_path: string | null;
 }
 
 export interface SearchResult {
@@ -62,6 +71,8 @@ export interface SearchResult {
   document_id: string;
   regions?: RegionResult[];
   figures?: FigureResult[];
+  before_chunks?: ContextChunkResult[];
+  after_chunks?: ContextChunkResult[];
   file?: string;
 }
 
@@ -74,6 +85,13 @@ export interface ExportResult {
   filename: string;
   mime_type: string;
   hash: string;
+}
+
+export interface PageResult {
+  page_number: number;
+  width: number | null;
+  height: number | null;
+  text: string | null;
 }
 
 declare global {

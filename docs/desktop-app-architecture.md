@@ -54,6 +54,7 @@ Initial actions:
 - `search`
 - `convert`
 - `export`
+- `page`
 
 This keeps the app UI independent from Python internals while preserving a simple local development loop.
 
@@ -78,7 +79,7 @@ uv run --extra dev python -m pytest -q
 ## Near-Term App Work
 
 - Render source pages with PDF.js.
-- Overlay `regions` from search results on the page view.
-- Add figure thumbnails and asset previews in the evidence pane.
-- Add conversion job state and progress reporting.
-- Add settings for model choice, library folders, and provider configuration.
+- Overlay `regions` on the rendered source page, replacing the current scaled coordinate map.
+- Add library folder persistence and recent archive shortcuts.
+- Add richer conversion progress events from the sidecar.
+- Add settings for provider configuration and app defaults.

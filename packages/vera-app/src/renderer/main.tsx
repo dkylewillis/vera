@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { type CSSProperties, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   CheckCircle2,
@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   TerminalSquare,
 } from 'lucide-react';
-import type { ConvertResult, ExportResult, InspectResult, SearchResult, ValidateResult } from './types';
+import type { ConvertResult, ExportResult, InspectResult, PageResult, RegionResult, SearchResult, ValidateResult } from './types';
 import './styles.css';
 
 type ActiveTab = 'search' | 'convert' | 'details';
@@ -28,6 +28,19 @@ function formatBox(box: number[] | undefined): string {
   return box.map((value) => Math.round(value)).join(', ');
 }
 
+function regionStyle(region: RegionResult): CSSProperties {
+  const [x0, y0, x1, y1] = region.bbox || [];
+  if (!region.page_width || !region.page_height || x0 === undefined || y0 === undefined || x1 === undefined || y1 === undefined) {
+    return {};
+  }
+  return {
+    left: `${(x0 / region.page_width) * 100}%`,
+    top: `${(y0 / region.page_height) * 100}%`,
+    width: `${((x1 - x0) / region.page_width) * 100}%`,
+    height: `${((y1 - y0) / region.page_height) * 100}%`,
+  };
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('search');
   const [path, setPath] = useState('');
@@ -36,16 +49,26 @@ function App() {
   const [query, setQuery] = useState('restaurant parking requirements');
   const [mode, setMode] = useState('hybrid');
   const [topK, setTopK] = useState(8);
+  const [contextChunks, setContextChunks] = useState(0);
   const [includeFigures, setIncludeFigures] = useState(true);
+  const [convertModel, setConvertModel] = useState('hashing');
+  const [convertParser, setConvertParser] = useState('pymupdf');
+  const [chunkSize, setChunkSize] = useState(500);
+  const [overlap, setOverlap] = useState(75);
+  const [storeOriginal, setStoreOriginal] = useState(true);
   const [status, setStatus] = useState('Ready');
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const [inspect, setInspect] = useState<InspectResult | null>(null);
   const [validation, setValidation] = useState<ValidateResult | null>(null);
   const [convertResult, setConvertResult] = useState<ConvertResult | null>(null);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageResult, setPageResult] = useState<PageResult | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState<SearchResult | null>(null);
 
   const isCorpus = Boolean(inspect?.directory || (path && !path.toLowerCase().endsWith('.vera')));
+  const busy = Boolean(busyAction);
 
   const citation = useMemo(() => {
     if (!selected) return 'No result selected';
@@ -53,15 +76,23 @@ function App() {
     return `${source} · p. ${formatPages(selected.page_start, selected.page_end)}`;
   }, [selected]);
 
-  async function call<T>(payload: Record<string, unknown>): Promise<T | null> {
-    setStatus('Working');
-    const response = await window.vera.request<T>(payload);
-    if (!response.ok) {
-      setStatus(response.error || 'Request failed');
+  async function call<T>(payload: Record<string, unknown>, label: string): Promise<T | null> {
+    setStatus(label);
+    setBusyAction(label);
+    try {
+      const response = await window.vera.request<T>(payload);
+      if (!response.ok) {
+        setStatus(response.error || 'Request failed');
+        return null;
+      }
+      setStatus('Ready');
+      return (response.result || null) as T | null;
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Request failed');
       return null;
+    } finally {
+      setBusyAction(null);
     }
-    setStatus('Ready');
-    return (response.result || null) as T | null;
   }
 
   async function chooseArchive() {
@@ -85,7 +116,7 @@ function App() {
   }
 
   async function inspectTarget() {
-    const result = await call<InspectResult>({ action: 'inspect', path });
+    const result = await call<InspectResult>({ action: 'inspect', path }, 'Inspecting');
     if (result) {
       setInspect(result);
       setValidation(null);
@@ -94,7 +125,7 @@ function App() {
   }
 
   async function validateTarget() {
-    const result = await call<ValidateResult>({ action: 'validate', path });
+    const result = await call<ValidateResult>({ action: 'validate', path }, 'Validating');
     if (result) {
       setValidation(result);
       setActiveTab('details');
@@ -108,9 +139,11 @@ function App() {
       query,
       mode,
       top_k: topK,
+      context_chunks: contextChunks,
       include_regions: true,
       include_figures: includeFigures,
-    });
+      include_figure_data: includeFigures,
+    }, 'Searching');
     if (result) {
       setResults(result);
       setSelected(result[0] || null);
@@ -123,11 +156,12 @@ function App() {
       action: 'convert',
       input: pdfPath,
       output: outputPath,
-      model: 'hashing',
-      chunk_size: 500,
-      overlap: 75,
-      store_original: true,
-    });
+      model: convertModel,
+      parser: convertParser,
+      chunk_size: chunkSize,
+      overlap,
+      store_original: storeOriginal,
+    }, 'Converting PDF');
     if (result) {
       setConvertResult(result);
       setPath(result.output);
@@ -138,8 +172,16 @@ function App() {
   async function exportSource() {
     const output = await window.vera.saveAny();
     if (!output) return;
-    const result = await call<ExportResult>({ action: 'export', path, output });
+    const result = await call<ExportResult>({ action: 'export', path, output }, 'Exporting source');
     if (result) setExportResult(result);
+  }
+
+  async function loadPage() {
+    const result = await call<PageResult>({ action: 'page', path, page_number: pageNumber }, 'Loading page');
+    if (result) {
+      setPageResult(result);
+      setActiveTab('details');
+    }
   }
 
   return (
@@ -160,6 +202,8 @@ function App() {
             <button className={activeTab === 'details' ? 'active' : ''} onClick={() => setActiveTab('details')}>Details</button>
           </div>
 
+          {busyAction ? <div className="activityBanner"><span />{busyAction}</div> : null}
+
           {activeTab !== 'convert' ? (
             <>
               <label className="field">
@@ -171,14 +215,14 @@ function App() {
               </label>
 
               <div className="actions three">
-                <button onClick={chooseArchive}><FileInput size={16} />File</button>
-                <button onClick={chooseFolder}><FolderOpen size={16} />Folder</button>
-                <button onClick={inspectTarget} disabled={!path.trim()}><ShieldCheck size={16} />Inspect</button>
+                  <button onClick={chooseArchive} disabled={busy}><FileInput size={16} />File</button>
+                  <button onClick={chooseFolder} disabled={busy}><FolderOpen size={16} />Folder</button>
+                  <button onClick={inspectTarget} disabled={!path.trim() || busy}><ShieldCheck size={16} />Inspect</button>
               </div>
 
               <div className="actions two">
-                <button onClick={validateTarget} disabled={!path.trim() || isCorpus}><CheckCircle2 size={16} />Validate</button>
-                <button onClick={exportSource} disabled={!path.trim() || isCorpus}><Download size={16} />Export</button>
+                <button onClick={validateTarget} disabled={!path.trim() || isCorpus || busy}><CheckCircle2 size={16} />Validate</button>
+                <button onClick={exportSource} disabled={!path.trim() || isCorpus || busy}><Download size={16} />Export</button>
               </div>
 
               <label className="field">
@@ -201,12 +245,17 @@ function App() {
                 </label>
               </div>
 
+              <label className="field">
+                <span>Context Chunks</span>
+                <input className="numberInput" type="number" min={0} max={5} value={contextChunks} onChange={(event) => setContextChunks(Number(event.target.value))} />
+              </label>
+
               <label className="checkField">
                 <input type="checkbox" checked={includeFigures} onChange={(event) => setIncludeFigures(event.target.checked)} />
                 <span>Figures</span>
               </label>
 
-              <button className="primaryAction" onClick={searchTarget} disabled={!path.trim() || !query.trim()}><Search size={16} />Search</button>
+              <button className="primaryAction" onClick={searchTarget} disabled={!path.trim() || !query.trim() || busy}><Search size={16} />Search</button>
             </>
           ) : (
             <>
@@ -217,7 +266,7 @@ function App() {
                   <input value={pdfPath} onChange={(event) => setPdfPath(event.target.value)} placeholder="C:\\docs\\manual.pdf" />
                 </div>
               </label>
-              <button className="secondaryAction" onClick={choosePdf}><FolderOpen size={16} />Choose PDF</button>
+              <button className="secondaryAction" onClick={choosePdf} disabled={busy}><FolderOpen size={16} />Choose PDF</button>
 
               <label className="field">
                 <span>Output</span>
@@ -226,8 +275,42 @@ function App() {
                   <input value={outputPath} onChange={(event) => setOutputPath(event.target.value)} placeholder="C:\\docs\\manual.vera" />
                 </div>
               </label>
-              <button className="secondaryAction" onClick={chooseOutput}><FolderOpen size={16} />Save As</button>
-              <button className="primaryAction" onClick={convertPdf} disabled={!pdfPath.trim() || !outputPath.trim()}><RefreshCw size={16} />Convert</button>
+              <button className="secondaryAction" onClick={chooseOutput} disabled={busy}><FolderOpen size={16} />Save As</button>
+
+              <div className="splitFields">
+                <label className="field">
+                  <span>Parser</span>
+                  <select value={convertParser} onChange={(event) => setConvertParser(event.target.value)}>
+                    <option value="pymupdf">PyMuPDF</option>
+                    <option value="docling">Docling</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Model</span>
+                  <select value={convertModel} onChange={(event) => setConvertModel(event.target.value)}>
+                    <option value="hashing">Hashing</option>
+                    <option value="openai">OpenAI</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="splitFields">
+                <label className="field">
+                  <span>Chunk Size</span>
+                  <input className="numberInput" type="number" min={100} max={3000} step={50} value={chunkSize} onChange={(event) => setChunkSize(Number(event.target.value))} />
+                </label>
+                <label className="field">
+                  <span>Overlap</span>
+                  <input className="numberInput" type="number" min={0} max={1000} step={25} value={overlap} onChange={(event) => setOverlap(Number(event.target.value))} />
+                </label>
+              </div>
+
+              <label className="checkField">
+                <input type="checkbox" checked={storeOriginal} onChange={(event) => setStoreOriginal(event.target.checked)} />
+                <span>Store original PDF</span>
+              </label>
+
+              <button className="primaryAction" onClick={convertPdf} disabled={!pdfPath.trim() || !outputPath.trim() || busy}><RefreshCw size={16} />Convert</button>
               {convertResult && <p className="note">Created {convertResult.output}</p>}
             </>
           )}
@@ -274,10 +357,41 @@ function App() {
                 <div><dt>Issues</dt><dd>{validation?.issues?.length ? validation.issues.join('; ') : '0'}</dd></div>
                 <div><dt>Export</dt><dd>{exportResult?.output || '-'}</dd></div>
               </dl>
+              <section className="evidenceSection">
+                <h2>Page Text</h2>
+                <div className="pageControls">
+                  <input className="numberInput" type="number" min={1} max={inspect?.pages || undefined} value={pageNumber} onChange={(event) => setPageNumber(Number(event.target.value))} />
+                  <button className="secondaryAction" onClick={loadPage} disabled={!path.trim() || isCorpus || busy}>Load Page</button>
+                </div>
+                {pageResult ? (
+                  <article className="pageText">
+                    <span>p. {pageResult.page_number} · {pageResult.width ?? '-'} x {pageResult.height ?? '-'}</span>
+                    <p>{pageResult.text || 'No text was extracted for this page.'}</p>
+                  </article>
+                ) : (
+                  <p className="mutedText">Load a page to inspect extracted page text.</p>
+                )}
+              </section>
             </article>
           ) : selected ? (
             <article className="evidence">
               <p>{selected.text}</p>
+              {(selected.before_chunks?.length || selected.after_chunks?.length) ? (
+                <section className="contextPanel">
+                  {selected.before_chunks?.map((chunk) => (
+                    <article className="contextChunk" key={`before-${chunk.chunk_id}`}>
+                      <span>Before · p. {formatPages(chunk.page_start, chunk.page_end)}</span>
+                      <p>{chunk.text}</p>
+                    </article>
+                  ))}
+                  {selected.after_chunks?.map((chunk) => (
+                    <article className="contextChunk" key={`after-${chunk.chunk_id}`}>
+                      <span>After · p. {formatPages(chunk.page_start, chunk.page_end)}</span>
+                      <p>{chunk.text}</p>
+                    </article>
+                  ))}
+                </section>
+              ) : null}
               <dl>
                 <div><dt>Chunk</dt><dd>{selected.chunk_id}</dd></div>
                 <div><dt>Heading</dt><dd>{selected.heading_path || '-'}</dd></div>
@@ -288,14 +402,26 @@ function App() {
               <section className="evidenceSection">
                 <h2>Regions</h2>
                 {selected.regions?.length ? (
-                  <div className="regionList">
-                    {selected.regions.map((region, index) => (
-                      <div className="regionRow" key={`${region.page_number || 'page'}-${index}`}>
-                        <strong>p. {region.page_number ?? '-'}</strong>
-                        <span>{formatBox(region.bbox)}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <div className="regionMaps">
+                      {selected.regions.filter((region) => region.page_width && region.page_height && region.bbox?.length === 4).map((region, index) => (
+                        <article className="regionMapCard" key={`map-${region.page_number || 'page'}-${index}`}>
+                          <span>p. {region.page_number ?? '-'}</span>
+                          <div className="regionMap" style={{ aspectRatio: `${region.page_width} / ${region.page_height}` }}>
+                            <div className="regionBox" style={regionStyle(region)} />
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                    <div className="regionList">
+                      {selected.regions.map((region, index) => (
+                        <div className="regionRow" key={`${region.page_number || 'page'}-${index}`}>
+                          <strong>p. {region.page_number ?? '-'}</strong>
+                          <span>{formatBox(region.bbox)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 ) : (
                   <p className="mutedText">No highlight regions were returned for this result.</p>
                 )}
@@ -306,6 +432,7 @@ function App() {
                   <div className="figureList">
                     {selected.figures.map((figure, index) => (
                       <article className="figureCard" key={`${figure.asset_id || figure.filename || 'figure'}-${index}`}>
+                        {figure.data_url ? <img src={figure.data_url} alt={figure.caption || figure.filename || 'Figure preview'} /> : null}
                         <span>p. {figure.page_number}</span>
                         <strong>{figure.filename || figure.asset_id || 'Figure'}</strong>
                         <p>{figure.caption || 'No caption available'}</p>

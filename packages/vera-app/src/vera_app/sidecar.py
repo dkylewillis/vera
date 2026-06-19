@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import sys
 import traceback
@@ -17,6 +18,14 @@ Handler = Callable[[Request], Any]
 
 def _open_document(path: str) -> VeraDocument:
     return VeraDocument.open(path)
+
+
+def _figure_payload(figure: dict[str, Any]) -> dict[str, Any]:
+    data = figure.pop("data", None)
+    if data is not None:
+        mime_type = figure.get("mime_type") or "application/octet-stream"
+        figure["data_url"] = f"data:{mime_type};base64,{base64.b64encode(data).decode('ascii')}"
+    return figure
 
 
 def _inspect(request: Request) -> dict[str, Any]:
@@ -54,13 +63,14 @@ def _search(request: Request) -> list[dict[str, Any]]:
         )
         include_regions = bool(request.get("include_regions", False))
         include_figures = bool(request.get("include_figures", False))
+        include_figure_data = bool(request.get("include_figure_data", False))
         payload: list[dict[str, Any]] = []
         for result in results:
             entry = result.as_dict()
             if include_regions:
                 entry["regions"] = target.regions_for(result)
             if include_figures:
-                entry["figures"] = target.figures_for(result)
+                entry["figures"] = [_figure_payload(figure) for figure in target.figures_for(result, include_data=include_figure_data)]
             payload.append(entry)
         return payload
     finally:
@@ -95,6 +105,14 @@ def _export(request: Request) -> dict[str, Any]:
         doc.close()
 
 
+def _page(request: Request) -> dict[str, Any] | None:
+    doc = _open_document(str(request["path"]))
+    try:
+        return doc.get_page(int(request["page_number"]))
+    finally:
+        doc.close()
+
+
 HANDLERS: dict[str, Handler] = {
     "ping": lambda request: {"status": "ok"},
     "inspect": _inspect,
@@ -102,6 +120,7 @@ HANDLERS: dict[str, Handler] = {
     "search": _search,
     "convert": _convert,
     "export": _export,
+    "page": _page,
 }
 
 

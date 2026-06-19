@@ -116,6 +116,27 @@ button {
   background: #fffdf7;
 }
 
+.activityBanner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 8px 10px;
+  color: #2d2a24;
+  background: #fffdf7;
+  border: 1px solid #c9bfae;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.activityBanner span {
+  width: 9px;
+  height: 9px;
+  background: #3f654f;
+  border-radius: 999px;
+}
+
 .pathInput {
   display: flex;
   align-items: center;
@@ -257,6 +278,34 @@ select {
   font-size: 13px;
   line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+.contextPanel {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+
+.contextChunk {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  background: #f0eadf;
+  border: 1px solid #ded7c9;
+  border-radius: 6px;
+}
+
+.contextChunk span {
+  color: #746b5b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.contextChunk p {
+  margin: 0;
+  color: #4b463d;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .metrics {
@@ -425,9 +474,46 @@ select {
 }
 
 .regionList,
-.figureList {
+.figureList,
+.regionMaps {
   display: grid;
   gap: 8px;
+}
+
+.regionMapCard {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.regionMapCard span {
+  color: #746b5b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.regionMap {
+  position: relative;
+  width: 100%;
+  max-height: 220px;
+  background: linear-gradient(#fffdf7, #f0eadf);
+  border: 1px solid #ded7c9;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.regionMap::before {
+  content: '';
+  position: absolute;
+  inset: 10px;
+  border: 1px dashed #c9bfae;
+}
+
+.regionBox {
+  position: absolute;
+  background: rgba(63, 101, 79, 0.2);
+  border: 2px solid #3f654f;
+  border-radius: 3px;
 }
 
 .regionRow,
@@ -467,11 +553,49 @@ select {
   gap: 5px;
 }
 
+.figureCard img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  background: #f0eadf;
+  border: 1px solid #ded7c9;
+  border-radius: 4px;
+}
+
 .figureCard p {
   margin: 0;
   color: #4b463d;
   font-size: 13px;
   line-height: 1.45;
+}
+
+.pageControls {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 8px;
+}
+
+.pageText {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #fffdf7;
+  border: 1px solid #ded7c9;
+  border-radius: 6px;
+}
+
+.pageText span {
+  color: #746b5b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pageText p {
+  margin: 0;
+  color: #2d2a24;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .mutedText {
