@@ -1,25 +1,20 @@
 from __future__ import annotations
 
-import json
 import sqlite3
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
+from .core.access import SourceDocument
+from .core.access import export_source_document as export_source
+from .core.access import get_asset as get_stored_asset
+from .core.access import get_blocks as get_layout_blocks
+from .core.access import get_chunk_regions as get_regions
+from .core.access import get_page as get_stored_page
+from .core.access import get_source_document as get_stored_source_document
+from .core.access import regions_for_result
 from .core.figures import figures as get_figures
 from .core.figures import figures_for_result
 from .core.search import SearchResult, context_chunks_for, search_document
 from .core.validation import validate_document
-
-
-@dataclass
-class SourceDocument:
-    """The original source document stored inside a VERA file."""
-
-    filename: str | None
-    mime_type: str | None
-    data: bytes
-    hash: str | None
 
 
 class VeraDocument:
@@ -77,17 +72,7 @@ class VeraDocument:
 
         Raises ValueError if the file was created with store_original=False.
         """
-        row = self.conn.execute(
-            "SELECT filename, mime_type, data, hash FROM assets WHERE asset_type = 'original_document'"
-        ).fetchone()
-        if row is None or row["data"] is None:
-            raise ValueError("No original document stored in this VERA file")
-        return SourceDocument(
-            filename=row["filename"],
-            mime_type=row["mime_type"],
-            data=row["data"],
-            hash=row["hash"],
-        )
+        return get_stored_source_document(self.conn)
 
     def export_source_document(self, path: str | None = None) -> str:
         """Write the original source document to disk and return its path.
@@ -96,22 +81,11 @@ class VeraDocument:
         current working directory. When path is an existing directory, the
         stored filename is written inside it.
         """
-        source = self.get_source_document()
-        fallback = source.filename or "source_document"
-        target = Path(path) if path else Path(fallback)
-        if target.is_dir():
-            target = target / fallback
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(source.data)
-        return str(target)
+        return export_source(self.conn, path)
 
     def get_page(self, page_number: int) -> dict[str, Any] | None:
         """Return a single page (1-based) with its text and dimensions, or None."""
-        row = self.conn.execute(
-            "SELECT page_id, page_number, width, height, text FROM pages WHERE page_number = ?",
-            (page_number,),
-        ).fetchone()
-        return dict(row) if row is not None else None
+        return get_stored_page(self.conn, page_number)
 
     def get_blocks(self, page_number: int | None = None) -> list[dict[str, Any]]:
         """Return layout blocks in reading order, optionally for a single page.
@@ -119,35 +93,11 @@ class VeraDocument:
         Each block carries its bbox ([x0, y0, x1, y1] in page points, origin
         top-left) so applications can render page overlays.
         """
-        sql = """
-            SELECT block_id, page_number, block_type, text, bbox_json, heading_level, sort_order
-            FROM blocks
-        """
-        params: list[Any] = []
-        if page_number is not None:
-            sql += " WHERE page_number = ?"
-            params.append(page_number)
-        sql += " ORDER BY sort_order"
-        blocks = []
-        for row in self.conn.execute(sql, params):
-            block = dict(row)
-            bbox_json = block.pop("bbox_json")
-            block["bbox"] = json.loads(bbox_json) if bbox_json else None
-            blocks.append(block)
-        return blocks
+        return get_layout_blocks(self.conn, page_number)
 
     def get_asset(self, asset_id: str, include_data: bool = True) -> dict[str, Any] | None:
         """Return a stored asset by id (image, original document, ...), or None."""
-        row = self.conn.execute(
-            "SELECT asset_id, document_id, asset_type, mime_type, filename, data, hash FROM assets WHERE asset_id = ?",
-            (asset_id,),
-        ).fetchone()
-        if row is None:
-            return None
-        asset = dict(row)
-        if not include_data:
-            asset.pop("data")
-        return asset
+        return get_stored_asset(self.conn, asset_id, include_data=include_data)
 
     def get_chunk_regions(self, chunk_id: str) -> list[dict[str, Any]]:
         """Return the page regions (bounding boxes) a chunk's text came from.
@@ -158,33 +108,11 @@ class VeraDocument:
         to any rendered size. Regions are block-granular: a chunk that starts
         or ends mid-block highlights the whole block.
         """
-        rows = self.conn.execute(
-            """
-            SELECT b.block_id, b.page_number, b.bbox_json, p.width AS page_width, p.height AS page_height
-            FROM chunk_blocks cb
-            JOIN blocks b ON b.block_id = cb.block_id
-            LEFT JOIN pages p ON p.page_id = b.page_id
-            WHERE cb.chunk_id = ?
-            ORDER BY b.sort_order
-            """,
-            (chunk_id,),
-        ).fetchall()
-        regions = []
-        for row in rows:
-            regions.append(
-                {
-                    "block_id": row["block_id"],
-                    "page_number": row["page_number"],
-                    "bbox": json.loads(row["bbox_json"]) if row["bbox_json"] else None,
-                    "page_width": row["page_width"],
-                    "page_height": row["page_height"],
-                }
-            )
-        return regions
+        return get_regions(self.conn, chunk_id)
 
     def regions_for(self, result: SearchResult) -> list[dict[str, Any]]:
         """Return highlight regions for a search result (see get_chunk_regions)."""
-        return self.get_chunk_regions(result.chunk_id)
+        return regions_for_result(self.conn, result)
 
     def search(self, query: str, mode: str = "hybrid", top_k: int = 10, context_chunks: int = 0) -> list[SearchResult]:
         return search_document(self.conn, query, mode=mode, top_k=top_k, context_chunks=context_chunks)
