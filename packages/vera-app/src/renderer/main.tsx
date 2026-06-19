@@ -62,10 +62,12 @@ function PdfSourceViewer({
   source,
   highlightRegions = EMPTY_REGIONS,
   compact = false,
+  targetPage,
 }: {
   source: SourceDocumentResult;
   highlightRegions?: RegionResult[];
   compact?: boolean;
+  targetPage?: number | null;
 }) {
   const pagesRef = useRef<HTMLDivElement | null>(null);
   const renderedSourceRef = useRef('');
@@ -99,6 +101,7 @@ function PdfSourceViewer({
           const viewport = page.getViewport({ scale });
           const pageShell = document.createElement('article');
           pageShell.className = 'pdfPage';
+          pageShell.dataset.pageNumber = String(pageIndex);
           const label = document.createElement('span');
           label.textContent = `Page ${pageIndex}`;
           const pageSurface = document.createElement('div');
@@ -131,6 +134,12 @@ function PdfSourceViewer({
           });
           await textLayer.render();
         }
+        if (!canceled && targetPage) {
+          const target = container.querySelector<HTMLElement>(`[data-page-number="${targetPage}"]`);
+          if (target) {
+            container.scrollTo({ top: target.offsetTop, behavior: renderedSourceRef.current === source.data_url ? 'smooth' : 'auto' });
+          }
+        }
       } catch (renderError) {
         if (!canceled) setError(renderError instanceof Error ? renderError.message : 'Unable to render PDF');
       } finally {
@@ -143,7 +152,7 @@ function PdfSourceViewer({
     return () => {
       canceled = true;
     };
-  }, [highlightKey, scale, source.data_url]);
+  }, [highlightKey, scale, source.data_url, targetPage]);
 
   return (
     <div className={compact ? 'pdfViewer compact' : 'pdfViewer'}>
@@ -195,6 +204,9 @@ function App() {
     const source = selected.file || selected.source_filename || 'document';
     return `${source} · p. ${formatPages(selected.page_start, selected.page_end)}`;
   }, [selected]);
+
+  const selectedSourcePath = selected?.file || path;
+  const selectedTargetPage = selected?.regions?.find((region) => region.page_number)?.page_number ?? selected?.page_start ?? null;
 
   async function call<T>(payload: Record<string, unknown>, label: string): Promise<T | null> {
     setStatus(label);
@@ -283,7 +295,11 @@ function App() {
     }, 'Searching');
     if (result) {
       setResults(result);
-      setSelected(result[0] || null);
+      if (result[0]) {
+        selectSearchResult(result[0]);
+      } else {
+        setSelected(null);
+      }
       setActiveTab('search');
     }
   }
@@ -326,6 +342,14 @@ function App() {
       setSourceDocument(result);
       setSourceDocumentPath(targetPath);
       if (activateViewer) setActiveTab('viewer');
+    }
+  }
+
+  function selectSearchResult(result: SearchResult) {
+    setSelected(result);
+    const resultPath = result.file || path;
+    if (resultPath && resultPath !== sourceDocumentPath) {
+      void loadSourceDocument(resultPath, false);
     }
   }
 
@@ -512,7 +536,7 @@ function App() {
                 <button
                   className={selected?.chunk_id === result.chunk_id ? 'result selected' : 'result'}
                   key={`${result.file || result.document_id}-${result.chunk_id}`}
-                  onClick={() => setSelected(result)}
+                  onClick={() => selectSearchResult(result)}
                 >
                   <span className="resultMeta">{result.score.toFixed(4)} · p. {formatPages(result.page_start, result.page_end)}{result.file ? ` · ${result.file}` : ''}</span>
                   <strong>{result.heading_path || result.source_filename || result.chunk_id}</strong>
@@ -592,10 +616,10 @@ function App() {
               </dl>
               <section className="evidenceSection evidenceSourceSection">
                 <h2>Source PDF</h2>
-                {sourceDocument && isPdfSource(sourceDocument) && sourceDocumentPath === (selected.file || path) ? (
-                  <PdfSourceViewer source={sourceDocument} highlightRegions={selected.regions || []} compact />
+                {sourceDocument && isPdfSource(sourceDocument) && sourceDocumentPath === selectedSourcePath ? (
+                  <PdfSourceViewer source={sourceDocument} highlightRegions={selected.regions || []} targetPage={selectedTargetPage} compact />
                 ) : (
-                  <button className="secondaryAction" onClick={() => loadSourceDocument(selected.file || path, false)} disabled={!path.trim() || busy}>
+                  <button className="secondaryAction" onClick={() => loadSourceDocument(selectedSourcePath, false)} disabled={!selectedSourcePath.trim() || busy}>
                     <FileSearch size={16} />Load Source With Highlights
                   </button>
                 )}

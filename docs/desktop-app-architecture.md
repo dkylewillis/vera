@@ -79,7 +79,7 @@ uv run --extra dev python -m pytest -q
 
 ## Near-Term App Work
 
-- Sync selected search evidence to the matching PDF page and scroll position.
+- Keep Evidence PDF rendering responsive for very large source documents.
 - Add library folder persistence and recent archive shortcuts.
 - Add richer conversion progress events from the sidecar.
 - Add settings for provider configuration and app defaults.
