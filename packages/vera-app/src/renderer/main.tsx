@@ -411,7 +411,7 @@ function App() {
       <header className="titlebar">
         <div className="brand">
           <FileSearch size={20} />
-          <span>VERA</span>
+          <span>VERA Workbench</span>
         </div>
         <div className="status"><TerminalSquare size={16} />{status}</div>
       </header>
@@ -419,7 +419,7 @@ function App() {
       <section className="workspace">
         <aside className="sidebar">
           <div className="tabs">
-            <button className={activeTab === 'ask' ? 'active' : ''} onClick={() => setActiveTab('ask')}>Ask</button>
+            <button className={activeTab === 'ask' ? 'active primaryTab' : 'primaryTab'} onClick={() => setActiveTab('ask')}><MessageSquareText size={15} />Ask</button>
             <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>Search</button>
             <button className={activeTab === 'viewer' ? 'active' : ''} onClick={() => setActiveTab('viewer')}>Viewer</button>
             <button className={activeTab === 'convert' ? 'active' : ''} onClick={() => setActiveTab('convert')}>Convert</button>
@@ -454,7 +454,7 @@ function App() {
 
               <label className="field">
                 <span>{activeTab === 'ask' ? 'Prompt' : 'Query'}</span>
-                <textarea value={query} onChange={(event) => setQuery(event.target.value)} />
+                <textarea className={activeTab === 'ask' ? 'askInput' : ''} value={query} onChange={(event) => setQuery(event.target.value)} />
               </label>
 
               <div className="splitFields">
@@ -483,7 +483,7 @@ function App() {
               </label>
 
               {activeTab === 'ask' ? (
-                <button className="primaryAction" onClick={askTarget} disabled={!path.trim() || !query.trim() || busy}><Send size={16} />Ask</button>
+                <button className="primaryAction askAction" onClick={askTarget} disabled={!path.trim() || !query.trim() || busy}><Send size={16} />Ask VERA</button>
               ) : (
                 <button className="primaryAction" onClick={searchTarget} disabled={!path.trim() || !query.trim() || busy}><Search size={16} />Search</button>
               )}
@@ -622,13 +622,13 @@ function App() {
           )}
         </section>
 
-        <section className="evidencePane">
+        <section className="sourcePane">
           <div className="paneHeader">
-            <h1>{activeTab === 'details' || activeTab === 'viewer' ? 'Details' : 'Evidence'}</h1>
+            <h1>{activeTab === 'details' || activeTab === 'viewer' ? 'Document Details' : 'Source Document'}</h1>
             <span>{activeTab === 'details' || activeTab === 'viewer' ? path || 'No archive selected' : citation}</span>
           </div>
           {activeTab === 'details' || activeTab === 'viewer' ? (
-            <article className="evidence">
+            <article className="sourceDetails">
               <dl>
                 <div><dt>Format</dt><dd>{inspect ? `${inspect.format_name || 'VERA'} ${inspect.format_version || ''}` : '-'}</dd></div>
                 <div><dt>Source</dt><dd>{inspect?.source || inspect?.directory || '-'}</dd></div>
@@ -637,7 +637,7 @@ function App() {
                 <div><dt>Export</dt><dd>{exportResult?.output || '-'}</dd></div>
               </dl>
               {sourceDocument ? (
-                <section className="evidenceSection">
+                <section className="sourceMetaSection">
                   <h2>Source Document</h2>
                   <dl>
                     <div><dt>File</dt><dd>{sourceDocument.filename}</dd></div>
@@ -647,7 +647,7 @@ function App() {
                   </dl>
                 </section>
               ) : null}
-              <section className="evidenceSection">
+              <section className="sourceMetaSection">
                 <h2>Page Text</h2>
                 <div className="pageControls">
                   <input className="numberInput" type="number" min={1} max={inspect?.pages || undefined} value={pageNumber} onChange={(event) => setPageNumber(Number(event.target.value))} />
@@ -664,8 +664,8 @@ function App() {
               </section>
             </article>
           ) : selected ? (
-            <article className="evidence evidenceViewerOnly">
-              <section className="evidenceSourceSection">
+            <article className="sourceDetails sourceViewerOnly">
+              <section className="sourceDocumentSection">
                 {sourceDocument && isPdfSource(sourceDocument) && sourceDocumentPath === selectedSourcePath ? (
                   <PdfSourceViewer source={sourceDocument} highlightRegions={selected.regions || []} targetPage={selectedTargetPage} compact />
                 ) : (
@@ -677,12 +677,12 @@ function App() {
                 )}
               </section>
 
-              <details className="evidenceDisclosure">
+              <details className="sourceDisclosure">
                 <summary>Passage Text</summary>
                 <p>{selected.text}</p>
               </details>
 
-              <details className="evidenceDisclosure">
+              <details className="sourceDisclosure">
                 <summary>Metadata</summary>
                 <dl>
                   <div><dt>Chunk</dt><dd>{selected.chunk_id}</dd></div>
@@ -694,7 +694,7 @@ function App() {
               </details>
 
               {(selected.before_chunks?.length || selected.after_chunks?.length) ? (
-                <details className="evidenceDisclosure">
+                <details className="sourceDisclosure">
                   <summary>Context Chunks</summary>
                   <section className="contextPanel">
                     {selected.before_chunks?.map((chunk) => (
@@ -713,7 +713,7 @@ function App() {
                 </details>
               ) : null}
 
-              <details className="evidenceDisclosure">
+              <details className="sourceDisclosure">
                 <summary>Region Coordinates</summary>
                 {selected.regions?.length ? (
                   <div className="regionList">
@@ -729,7 +729,7 @@ function App() {
                 )}
               </details>
 
-              <details className="evidenceDisclosure">
+              <details className="sourceDisclosure">
                 <summary>Figures</summary>
                 {selected.figures?.length ? (
                   <div className="figureList">
@@ -748,7 +748,7 @@ function App() {
               </details>
             </article>
           ) : (
-            <div className="emptyState">No evidence selected</div>
+            <div className="emptyState">No source selection yet</div>
           )}
         </section>
       </section>

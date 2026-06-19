@@ -1,7 +1,7 @@
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #25221c;
-  background: #f3f1ec;
+  color: #1f2933;
+  background: #edf1f4;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -14,7 +14,7 @@ body {
   margin: 0;
   min-width: 980px;
   min-height: 660px;
-  background: #f3f1ec;
+  background: #edf1f4;
 }
 
 button,
@@ -32,6 +32,7 @@ button {
   display: grid;
   grid-template-rows: 48px 1fr;
   height: 100vh;
+  background: #edf1f4;
 }
 
 .titlebar {
@@ -40,9 +41,9 @@ button {
   justify-content: space-between;
   gap: 16px;
   padding: 0 18px;
-  color: #f8f5ec;
-  background: #2c2a25;
-  border-bottom: 1px solid #1d1b17;
+  color: #f8fafc;
+  background: #18212f;
+  border-bottom: 1px solid #111827;
 }
 
 .brand,
@@ -55,25 +56,30 @@ button {
 
 .brand {
   font-weight: 700;
+  letter-spacing: 0;
 }
 
 .status {
-  color: #d9d2c1;
+  color: #cbd5e1;
   font-size: 13px;
 }
 
 .workspace {
   display: grid;
-  grid-template-columns: 292px minmax(300px, 0.95fr) minmax(360px, 1.2fr);
+  grid-template-columns: 304px minmax(340px, 0.92fr) minmax(420px, 1.18fr);
+  gap: 10px;
   min-height: 0;
+  padding: 10px;
 }
 
 .sidebar,
 .resultsPane,
-.evidencePane {
+.sourcePane {
   min-width: 0;
   min-height: 0;
-  border-right: 1px solid #d8d0c0;
+  border: 1px solid #d8e0e7;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(24, 33, 47, 0.07);
 }
 
 .sidebar {
@@ -81,13 +87,13 @@ button {
   flex-direction: column;
   gap: 16px;
   padding: 16px;
-  background: #ebe4d6;
+  background: #f7f9fb;
 }
 
 .field {
   display: grid;
   gap: 7px;
-  color: #5d5548;
+  color: #52606d;
   font-size: 13px;
   font-weight: 650;
 }
@@ -95,25 +101,36 @@ button {
 .tabs {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 4px;
-  padding: 4px;
-  background: #ded7c9;
-  border: 1px solid #c9bfae;
-  border-radius: 6px;
+  gap: 5px;
+  padding: 5px;
+  background: #e5ebf1;
+  border: 1px solid #d2dce5;
+  border-radius: 8px;
 }
 
 .tabs button {
-  height: 30px;
-  color: #5d5548;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 32px;
+  color: #52606d;
   background: transparent;
   border: 0;
-  border-radius: 4px;
+  border-radius: 6px;
+  font-size: 12px;
   font-weight: 700;
 }
 
 .tabs button.active {
-  color: #25221c;
-  background: #fffdf7;
+  color: #102a43;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(24, 33, 47, 0.08);
+}
+
+.tabs button.primaryTab.active {
+  color: #ffffff;
+  background: #2563eb;
 }
 
 .activityBanner {
@@ -122,9 +139,9 @@ button {
   gap: 8px;
   min-height: 34px;
   padding: 8px 10px;
-  color: #2d2a24;
-  background: #fffdf7;
-  border: 1px solid #c9bfae;
+  color: #1f2933;
+  background: #ffffff;
+  border: 1px solid #d8e0e7;
   border-radius: 6px;
   font-size: 13px;
   font-weight: 700;
@@ -133,7 +150,7 @@ button {
 .activityBanner span {
   width: 9px;
   height: 9px;
-  background: #3f654f;
+  background: #2563eb;
   border-radius: 999px;
 }
 
@@ -156,8 +173,8 @@ button {
   gap: 8px;
   padding: 0 10px;
   height: 38px;
-  background: #fffdf7;
-  border: 1px solid #c9bfae;
+  background: #ffffff;
+  border: 1px solid #d2dce5;
   border-radius: 6px;
 }
 
@@ -167,15 +184,15 @@ button {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #25221c;
+  color: #1f2933;
 }
 
 textarea,
 select {
   width: 100%;
-  color: #25221c;
-  background: #fffdf7;
-  border: 1px solid #c9bfae;
+  color: #1f2933;
+  background: #ffffff;
+  border: 1px solid #d2dce5;
   border-radius: 6px;
   outline: 0;
 }
@@ -184,9 +201,9 @@ select {
   width: 100%;
   height: 38px;
   padding: 0 10px;
-  color: #25221c;
-  background: #fffdf7;
-  border: 1px solid #c9bfae;
+  color: #1f2933;
+  background: #ffffff;
+  border: 1px solid #d2dce5;
   border-radius: 6px;
   outline: 0;
 }
@@ -196,6 +213,12 @@ textarea {
   resize: vertical;
   padding: 10px;
   line-height: 1.4;
+}
+
+.askInput {
+  min-height: 142px;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 select {
@@ -224,9 +247,9 @@ select {
   gap: 7px;
   min-width: 0;
   height: 36px;
-  color: #f8f5ec;
-  background: #3f654f;
-  border: 1px solid #345542;
+  color: #ffffff;
+  background: #334e68;
+  border: 1px solid #243b53;
   border-radius: 6px;
   font-weight: 700;
 }
@@ -234,8 +257,8 @@ select {
 .actions button:disabled {
   cursor: not-allowed;
   color: #8d8678;
-  background: #d8d0c0;
-  border-color: #cbc2b2;
+  background: #e5ebf1;
+  border-color: #d2dce5;
 }
 
 .primaryAction,
@@ -251,23 +274,28 @@ select {
 }
 
 .primaryAction {
-  color: #f8f5ec;
-  background: #3f654f;
-  border: 1px solid #345542;
+  color: #ffffff;
+  background: #2563eb;
+  border: 1px solid #1d4ed8;
+}
+
+.askAction {
+  height: 44px;
+  font-size: 14px;
 }
 
 .secondaryAction {
-  color: #2c2a25;
-  background: #fffdf7;
-  border: 1px solid #c9bfae;
+  color: #243b53;
+  background: #ffffff;
+  border: 1px solid #d2dce5;
 }
 
 .primaryAction:disabled,
 .secondaryAction:disabled {
   cursor: not-allowed;
-  color: #8d8678;
-  background: #d8d0c0;
-  border-color: #cbc2b2;
+  color: #9aa5b1;
+  background: #e5ebf1;
+  border-color: #d2dce5;
 }
 
 .splitFields {
@@ -280,14 +308,14 @@ select {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #5d5548;
+  color: #52606d;
   font-size: 13px;
   font-weight: 650;
 }
 
 .note {
   margin: 0;
-  color: #5d5548;
+  color: #52606d;
   font-size: 13px;
   line-height: 1.4;
   overflow-wrap: anywhere;
@@ -303,20 +331,20 @@ select {
   display: grid;
   gap: 6px;
   padding: 10px;
-  background: #f0eadf;
-  border: 1px solid #ded7c9;
+  background: #f4f7fa;
+  border: 1px solid #d8e0e7;
   border-radius: 6px;
 }
 
 .contextChunk span {
-  color: #746b5b;
+  color: #627d98;
   font-size: 12px;
   font-weight: 700;
 }
 
 .contextChunk p {
   margin: 0;
-  color: #4b463d;
+  color: #334e68;
   font-size: 13px;
   line-height: 1.45;
 }
@@ -334,15 +362,15 @@ select {
   align-items: center;
   min-height: 34px;
   padding: 7px 9px;
-  background: #f8f5ec;
-  border: 1px solid #d8d0c0;
+  background: #ffffff;
+  border: 1px solid #d8e0e7;
   border-radius: 6px;
 }
 
 .metrics span,
 .resultMeta,
 .paneHeader span {
-  color: #746b5b;
+  color: #627d98;
   font-size: 12px;
 }
 
@@ -354,14 +382,10 @@ select {
 }
 
 .resultsPane,
-.evidencePane {
+.sourcePane {
   display: grid;
   grid-template-rows: 54px 1fr;
-  background: #f8f5ec;
-}
-
-.evidencePane {
-  border-right: 0;
+  background: #ffffff;
 }
 
 .paneHeader {
@@ -371,12 +395,15 @@ select {
   gap: 12px;
   min-width: 0;
   padding: 0 16px;
-  border-bottom: 1px solid #d8d0c0;
+  background: #ffffff;
+  border-bottom: 1px solid #d8e0e7;
+  border-radius: 8px 8px 0 0;
 }
 
 .paneHeader h1 {
   margin: 0;
-  font-size: 16px;
+  color: #102a43;
+  font-size: 15px;
   line-height: 1;
 }
 
@@ -402,7 +429,7 @@ select {
   gap: 12px;
   min-height: 0;
   overflow: auto;
-  padding: 12px;
+  padding: 16px;
 }
 
 .chatMessage {
@@ -410,12 +437,12 @@ select {
   gap: 8px;
   max-width: 92%;
   padding: 12px;
-  border: 1px solid #d8d0c0;
+  border: 1px solid #d8e0e7;
   border-radius: 6px;
 }
 
 .chatMessage span {
-  color: #746b5b;
+  color: #627d98;
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
@@ -423,20 +450,20 @@ select {
 
 .chatMessage p {
   margin: 0;
-  color: #2d2a24;
+  color: #1f2933;
   line-height: 1.55;
   white-space: pre-wrap;
 }
 
 .userMessage {
   justify-self: end;
-  background: #e8f0ec;
-  border-color: #c5d5cb;
+  background: #eaf2ff;
+  border-color: #bfd7ff;
 }
 
 .assistantMessage {
   justify-self: start;
-  background: #fffdf7;
+  background: #ffffff;
 }
 
 .inlineCitation {
@@ -444,9 +471,9 @@ select {
   height: auto;
   margin: 0 1px;
   padding: 1px 4px;
-  color: #2c2a25;
-  background: #dfe9e3;
-  border: 1px solid #aebfb5;
+  color: #0f5132;
+  background: #dff7ea;
+  border: 1px solid #a8e5c2;
   border-radius: 4px;
   font-size: 12px;
   font-weight: 800;
@@ -464,19 +491,19 @@ select {
   width: 100%;
   padding: 10px;
   text-align: left;
-  color: #25221c;
-  background: #fffdf7;
-  border: 1px solid #d8d0c0;
+  color: #1f2933;
+  background: #ffffff;
+  border: 1px solid #d8e0e7;
   border-radius: 6px;
 }
 
 .citationCard.selected {
-  border-color: #3f654f;
-  box-shadow: inset 3px 0 0 #3f654f;
+  border-color: #2563eb;
+  box-shadow: inset 3px 0 0 #2563eb;
 }
 
 .citationCard span {
-  color: #746b5b;
+  color: #627d98;
   font-size: 12px;
 }
 
@@ -514,8 +541,8 @@ select {
   min-height: 0;
   overflow: auto;
   padding: 12px;
-  background: #e8e0d1;
-  border: 1px solid #d8d0c0;
+  background: #e5ebf1;
+  border: 1px solid #d8e0e7;
   border-radius: 6px;
 }
 
@@ -526,14 +553,14 @@ select {
 }
 
 .pdfPage span {
-  color: #746b5b;
+  color: #627d98;
   font-size: 12px;
   font-weight: 700;
 }
 
 .pdfPageSurface {
   position: relative;
-  background: #fffdf7;
+  background: #ffffff;
   box-shadow: 0 8px 24px rgba(45, 42, 36, 0.18);
 }
 
@@ -551,8 +578,8 @@ select {
 
 .pdfHighlightBox {
   position: absolute;
-  background: rgba(63, 101, 79, 0.22);
-  border: 2px solid #3f654f;
+  background: rgba(37, 99, 235, 0.18);
+  border: 2px solid #2563eb;
   border-radius: 3px;
   box-shadow: 0 0 0 1px rgba(255, 253, 247, 0.7);
 }
@@ -579,10 +606,10 @@ select {
 }
 
 .textLayer ::selection {
-  background: rgba(74, 117, 140, 0.28);
+  background: rgba(37, 99, 235, 0.22);
 }
 
-.evidenceViewerOnly {
+.sourceViewerOnly {
   display: grid;
   grid-template-rows: minmax(420px, 1fr);
   grid-auto-rows: auto;
@@ -591,12 +618,12 @@ select {
   padding: 12px;
 }
 
-.evidenceSourceSection {
+.sourceDocumentSection {
   display: grid;
   min-height: 0;
 }
 
-.evidenceSourceSection .pdfViewer {
+.sourceDocumentSection .pdfViewer {
   min-height: 0;
 }
 
@@ -604,8 +631,8 @@ select {
   display: grid;
   place-items: center;
   min-height: 420px;
-  background: #e8e0d1;
-  border: 1px solid #d8d0c0;
+  background: #e5ebf1;
+  border: 1px solid #d8e0e7;
   border-radius: 6px;
 }
 
@@ -614,7 +641,7 @@ select {
   top: 0;
   z-index: 3;
   padding-bottom: 6px;
-  background: #f8f5ec;
+  background: #ffffff;
 }
 
 .pdfViewer.compact .pdfCanvasWrap {
@@ -626,7 +653,7 @@ select {
   place-content: center;
   gap: 8px;
   min-height: 100%;
-  color: #746b5b;
+  color: #627d98;
   text-align: center;
 }
 
@@ -641,15 +668,15 @@ select {
   min-height: 112px;
   padding: 11px;
   text-align: left;
-  color: #25221c;
-  background: #fffdf7;
-  border: 1px solid #d8d0c0;
+  color: #1f2933;
+  background: #ffffff;
+  border: 1px solid #d8e0e7;
   border-radius: 6px;
 }
 
 .result.selected {
-  border-color: #3f654f;
-  box-shadow: inset 3px 0 0 #3f654f;
+  border-color: #2563eb;
+  box-shadow: inset 3px 0 0 #2563eb;
 }
 
 .result strong,
@@ -666,99 +693,99 @@ select {
 
 .result span:last-child {
   -webkit-line-clamp: 3;
-  color: #4b463d;
+  color: #334e68;
   line-height: 1.42;
 }
 
-.evidence {
+.sourceDetails {
   min-height: 0;
   overflow: auto;
   padding: 18px;
 }
 
-.evidence p {
+.sourceDetails p {
   margin: 0 0 18px;
-  color: #2d2a24;
+  color: #1f2933;
   font-size: 15px;
   line-height: 1.55;
 }
 
-.evidence dl {
+.sourceDetails dl {
   display: grid;
   gap: 10px;
   margin: 0;
 }
 
-.evidence dl div {
+.sourceDetails dl div {
   display: grid;
   grid-template-columns: 92px 1fr;
   gap: 12px;
   padding: 9px 0;
-  border-top: 1px solid #ded7c9;
+  border-top: 1px solid #d8e0e7;
 }
 
-.evidence dt {
-  color: #746b5b;
+.sourceDetails dt {
+  color: #627d98;
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
 }
 
-.evidence dd {
+.sourceDetails dd {
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.evidenceSection {
+.sourceMetaSection {
   display: grid;
   gap: 10px;
   margin-top: 20px;
 }
 
-.evidenceSection h2 {
+.sourceMetaSection h2 {
   margin: 0;
-  color: #2d2a24;
+  color: #1f2933;
   font-size: 13px;
   line-height: 1.2;
   text-transform: uppercase;
 }
 
-.evidenceDisclosure {
+.sourceDisclosure {
   min-width: 0;
-  background: #fffdf7;
-  border: 1px solid #ded7c9;
+  background: #ffffff;
+  border: 1px solid #d8e0e7;
   border-radius: 6px;
 }
 
-.evidenceDisclosure summary {
+.sourceDisclosure summary {
   cursor: pointer;
   padding: 10px 12px;
-  color: #2d2a24;
+  color: #1f2933;
   font-size: 13px;
   font-weight: 800;
   text-transform: uppercase;
 }
 
-.evidenceDisclosure[open] {
+.sourceDisclosure[open] {
   overflow: auto;
 }
 
-.evidenceDisclosure > :not(summary) {
+.sourceDisclosure > :not(summary) {
   margin: 0 12px 12px;
 }
 
-.evidenceDisclosure p {
-  color: #2d2a24;
+.sourceDisclosure p {
+  color: #1f2933;
   font-size: 13px;
   line-height: 1.5;
 }
 
-.evidenceDisclosure .contextPanel {
+.sourceDisclosure .contextPanel {
   margin: 0 12px 12px;
 }
 
-.evidenceDisclosure dl {
+.sourceDisclosure dl {
   margin: 0 12px 12px;
 }
 
@@ -776,7 +803,7 @@ select {
 }
 
 .regionMapCard span {
-  color: #746b5b;
+  color: #627d98;
   font-size: 12px;
   font-weight: 700;
 }
@@ -785,8 +812,8 @@ select {
   position: relative;
   width: 100%;
   max-height: 220px;
-  background: linear-gradient(#fffdf7, #f0eadf);
-  border: 1px solid #ded7c9;
+  background: #f4f7fa;
+  border: 1px solid #d8e0e7;
   border-radius: 6px;
   overflow: hidden;
 }
@@ -795,13 +822,13 @@ select {
   content: '';
   position: absolute;
   inset: 10px;
-  border: 1px dashed #c9bfae;
+  border: 1px dashed #bcccdc;
 }
 
 .regionBox {
   position: absolute;
-  background: rgba(63, 101, 79, 0.2);
-  border: 2px solid #3f654f;
+  background: rgba(37, 99, 235, 0.16);
+  border: 2px solid #2563eb;
   border-radius: 3px;
 }
 
@@ -809,8 +836,8 @@ select {
 .figureCard {
   min-width: 0;
   padding: 10px;
-  background: #fffdf7;
-  border: 1px solid #ded7c9;
+  background: #ffffff;
+  border: 1px solid #d8e0e7;
   border-radius: 6px;
 }
 
@@ -824,7 +851,7 @@ select {
 .regionRow strong,
 .figureCard strong {
   min-width: 0;
-  color: #25221c;
+  color: #1f2933;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -833,7 +860,7 @@ select {
 .regionRow span,
 .figureCard span,
 .mutedText {
-  color: #746b5b;
+  color: #627d98;
   font-size: 12px;
 }
 
@@ -846,14 +873,14 @@ select {
   width: 100%;
   max-height: 220px;
   object-fit: contain;
-  background: #f0eadf;
-  border: 1px solid #ded7c9;
+  background: #f4f7fa;
+  border: 1px solid #d8e0e7;
   border-radius: 4px;
 }
 
 .figureCard p {
   margin: 0;
-  color: #4b463d;
+  color: #334e68;
   font-size: 13px;
   line-height: 1.45;
 }
@@ -868,20 +895,20 @@ select {
   display: grid;
   gap: 8px;
   padding: 12px;
-  background: #fffdf7;
-  border: 1px solid #ded7c9;
+  background: #ffffff;
+  border: 1px solid #d8e0e7;
   border-radius: 6px;
 }
 
 .pageText span {
-  color: #746b5b;
+  color: #627d98;
   font-size: 12px;
   font-weight: 700;
 }
 
 .pageText p {
   margin: 0;
-  color: #2d2a24;
+  color: #1f2933;
   font-size: 13px;
   line-height: 1.5;
   white-space: pre-wrap;

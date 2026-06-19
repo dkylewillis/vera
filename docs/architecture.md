@@ -76,7 +76,7 @@ Responsibilities:
 - instruction layering and response configuration
 - LLM provider integrations
 - external tool registry and tool-use policies
-- answer rendering, citations, and evidence views
+- answer rendering, citations, and source document views
 - app-specific auth, config, telemetry, and audit workflows
 
 Non-responsibilities:

@@ -36,7 +36,7 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 ### 3. Visual Grounding
 - Highlight retrieved passages in the source view
 - Show where each claim came from (page and heading path)
-- Keep selected evidence focused on the source PDF, with metadata and retrieval details available on demand
+- Keep selected citations focused on the source PDF, with metadata and retrieval details available on demand
 
 ### 4. Session Management
 - Save conversations and retrieval state
@@ -64,7 +64,7 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 2. App retrieves relevant context from `.vera`
 3. App composes prompt with instructions + context + user input
 4. App returns a grounded cited draft, or passes the composed prompt to a configured LLM provider
-5. Citation clicks open the source PDF evidence and highlight the supporting region
+5. Citation clicks open the Source Document viewer and highlight the supporting region
 
 ## Why `.vera` Matters in This App
 
