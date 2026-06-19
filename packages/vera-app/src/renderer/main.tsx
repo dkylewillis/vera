@@ -452,10 +452,12 @@ function App() {
 
               <button className="secondaryAction" onClick={() => loadSourceDocument(path, true)} disabled={!path.trim() || isCorpus || busy}><FileSearch size={16} />Load Source</button>
 
-              <label className="field">
-                <span>{activeTab === 'ask' ? 'Prompt' : 'Query'}</span>
-                <textarea className={activeTab === 'ask' ? 'askInput' : ''} value={query} onChange={(event) => setQuery(event.target.value)} />
-              </label>
+              {activeTab !== 'ask' ? (
+                <label className="field">
+                  <span>Query</span>
+                  <textarea value={query} onChange={(event) => setQuery(event.target.value)} />
+                </label>
+              ) : null}
 
               <div className="splitFields">
                 <label className="field">
@@ -482,11 +484,9 @@ function App() {
                 <span>Figures</span>
               </label>
 
-              {activeTab === 'ask' ? (
-                <button className="primaryAction askAction" onClick={askTarget} disabled={!path.trim() || !query.trim() || busy}><Send size={16} />Ask VERA</button>
-              ) : (
+              {activeTab !== 'ask' ? (
                 <button className="primaryAction" onClick={searchTarget} disabled={!path.trim() || !query.trim() || busy}><Search size={16} />Search</button>
-              )}
+              ) : null}
             </>
           ) : (
             <>
@@ -582,8 +582,9 @@ function App() {
             </div>
           ) : activeTab === 'ask' ? (
             <div className="chatPanel">
-              {chatAnswer ? (
-                <>
+              <div className="chatThread">
+                {chatAnswer ? (
+                  <>
                   <article className="chatMessage userMessage">
                     <span>You</span>
                     <p>{chatAnswer.prompt}</p>
@@ -600,10 +601,26 @@ function App() {
                       </button>
                     ))}
                   </section>
-                </>
-              ) : (
-                <div className="emptyState"><MessageSquareText size={20} />Ask a question about the selected archive or folder.</div>
-              )}
+                  </>
+                ) : (
+                  <div className="emptyState"><MessageSquareText size={20} />Ask a question about the selected archive or folder.</div>
+                )}
+              </div>
+              <div className="askComposer">
+                <textarea
+                  className="askInput"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                      event.preventDefault();
+                      void askTarget();
+                    }
+                  }}
+                  placeholder="Ask VERA about the selected source..."
+                />
+                <button className="primaryAction askAction" onClick={askTarget} disabled={!path.trim() || !query.trim() || busy}><Send size={16} />Ask VERA</button>
+              </div>
             </div>
           ) : (
             <div className="resultsList">

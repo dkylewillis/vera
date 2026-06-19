@@ -216,7 +216,7 @@ textarea {
 }
 
 .askInput {
-  min-height: 142px;
+  min-height: 88px;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -425,11 +425,20 @@ select {
 
 .chatPanel {
   display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.chatThread {
+  display: grid;
   align-content: start;
   gap: 12px;
   min-height: 0;
   overflow: auto;
-  padding: 16px;
+  padding-right: 2px;
 }
 
 .chatMessage {
@@ -505,6 +514,27 @@ select {
 .citationCard span {
   color: #627d98;
   font-size: 12px;
+}
+
+.askComposer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  background: #f7f9fb;
+  border: 1px solid #d8e0e7;
+  border-radius: 8px;
+  box-shadow: 0 -8px 20px rgba(24, 33, 47, 0.05);
+}
+
+.askComposer .askInput {
+  resize: vertical;
+}
+
+.askComposer .askAction {
+  min-width: 118px;
+  height: 42px;
 }
 
 .sourceViewer {
