@@ -207,6 +207,8 @@ The workbench lets you upload a PDF, convert it to `.vera`, inspect metadata, ru
 
 VERA is v0.1 and experimental. The schema and format may change. See [docs/vera-spec-v0.1.md](docs/vera-spec-v0.1.md) for the format specification.
 
+See [docs/architecture.md](docs/architecture.md) for the planned project boundaries between the core document engine, CLI, and future app layer.
+
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).
