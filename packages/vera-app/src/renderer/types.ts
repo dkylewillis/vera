@@ -6,14 +6,74 @@ export interface VeraResponse<T = unknown> {
   traceback?: string;
 }
 
+export interface TraceMessage {
+  role: string;
+  content?: string | null;
+  name?: string;
+  tool_call_id?: string;
+  tool_calls?: { id?: string; type?: string; function?: { name?: string; arguments?: string } }[];
+}
+
+export interface TraceToolCall {
+  id?: string;
+  name?: string;
+  arguments?: Record<string, unknown>;
+}
+
+export interface StreamEvent {
+  event: 'search_start' | 'search_done' | 'llm_request' | 'llm_response' | 'tool_call';
+  turn?: number;
+  query?: string;
+  mode?: string;
+  top_k?: number;
+  hits?: number;
+  // llm_request
+  model?: string;
+  tools?: string[];
+  messages?: TraceMessage[];
+  // llm_response
+  content?: string;
+  tool_calls?: TraceToolCall[];
+  usage?: Record<string, unknown> | null;
+  // tool_call
+  name?: string;
+  arguments?: Record<string, unknown>;
+  output?: unknown;
+}
+
 export interface VeraApi {
   request<T = unknown>(payload: Record<string, unknown>): Promise<VeraResponse<T>>;
+  getSettings(): Promise<AppSettings>;
+  saveSettings(settings: AppSettings): Promise<AppSettings>;
+  saveApiKey(providerId: string, apiKey: string): Promise<CredentialResult>;
+  clearApiKey(providerId: string): Promise<CredentialResult>;
+  getSessions(): Promise<Session[]>;
+  saveSession(session: Session): Promise<Session[]>;
+  deleteSession(id: string): Promise<Session[]>;
+  listModes(): Promise<VeraResponse<{ modes: Mode[] }>>;
+  openModesFolder(): Promise<unknown>;
   pickArchive(): Promise<string | null>;
   pickFolder(): Promise<string | null>;
+  listFolder(dir: string): Promise<WorkspaceFolderResult | null>;
   pickPdf(): Promise<string | null>;
   saveVera(defaultPath?: string): Promise<string | null>;
   saveAny(): Promise<string | null>;
   onOpenTarget(callback: (path: string) => void): () => void;
+  onOpenSettings(callback: () => void): () => void;
+  onAnswerEvent(callback: (data: StreamEvent) => void): () => void;
+}
+
+export interface FolderEntry {
+  path: string;
+  name: string;
+  relativePath: string;
+  type: 'vera' | 'pdf';
+}
+
+export interface WorkspaceFolderResult {
+  path: string;
+  name: string;
+  entries: FolderEntry[];
 }
 
 export interface InspectResult {
@@ -86,8 +146,81 @@ export interface ChatCitationResult {
 export interface ChatAnswerResult {
   prompt: string;
   answer: string;
+  answer_mode?: 'retrieval' | 'agent';
   citations: ChatCitationResult[];
-  llm_prompt: string;
+  instructions: string;
+  llm_prompt?: string;
+  mode?: string;
+  mode_label?: string;
+  searches?: { query: string; mode: string; top_k: number; hits: number }[];
+  trace?: StreamEvent[];
+  llm?: {
+    provider: string;
+    model: string;
+    usage?: Record<string, unknown> | null;
+  };
+}
+
+export interface SessionTurn {
+  role: 'user' | 'assistant';
+  content: string;
+  citations?: ChatCitationResult[];
+  searches?: { query: string; mode: string; top_k: number; hits: number }[];
+  answer_mode?: 'retrieval' | 'agent';
+  mode_label?: string;
+  trace?: StreamEvent[];
+  llm?: { provider: string; model: string; usage?: Record<string, unknown> | null };
+  timestamp: number;
+}
+
+export interface Session {
+  id: string;
+  title: string;
+  source_path: string;
+  turns: SessionTurn[];
+  created_at: number;
+  updated_at: number;
+}
+
+export interface Mode {
+  id: string;
+  label: string;
+  description: string;
+  instructions: string;
+  search_mode: 'hybrid' | 'semantic' | 'keyword';
+  top_k: number;
+  context_chunks: number;
+  include_figures: boolean;
+  max_searches: number;
+  max_chunks: number;
+  builtin: boolean;
+  path: string;
+}
+
+export interface ProviderProfile {
+  id: string;
+  label: string;
+  provider: string;
+  base_url: string;
+  api_key_env: string;
+  auth_type: string;
+  temperature: number;
+  max_tokens: number;
+  models: string[];
+  has_api_key?: boolean;
+}
+
+export interface AppSettings {
+  providers: ProviderProfile[];
+  active_provider_id: string;
+  active_model: string;
+  active_mode_id: string;
+}
+
+export interface CredentialResult {
+  ok: boolean;
+  has_api_key: boolean;
+  error?: string;
 }
 
 export interface ConvertResult {

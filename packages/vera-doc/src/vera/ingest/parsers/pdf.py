@@ -92,14 +92,30 @@ def _collect_raw_blocks(doc) -> tuple[list[ParsedPage], list[_RawBlock], Counter
                 direction = line.get("dir", (1.0, 0.0))
                 if abs(float(direction[0])) < 0.99:
                     rotated_lines += 1
-                line_parts = []
+                line_parts: list[str] = []
+                prev_x1: float | None = None
                 for span in line.get("spans", []):
                     text = span.get("text", "")
                     stripped = text.strip()
                     if not stripped:
                         continue
+                    span_bbox = span.get("bbox") or (0.0, 0.0, 0.0, 0.0)
+                    span_x0 = float(span_bbox[0])
+                    span_x1 = float(span_bbox[2])
+                    span_size = float(span.get("size", 0.0)) or 0.0
+                    # PyMuPDF often emits each word of justified text as its own
+                    # span with no trailing space, which would glue words together
+                    # ("elementsshallbeinstalled"). Insert a space when the visual
+                    # gap to the previous span looks like a word boundary.
+                    if line_parts and prev_x1 is not None:
+                        gap = span_x0 - prev_x1
+                        prev_ends_space = line_parts[-1][-1:].isspace()
+                        starts_space = text[:1].isspace()
+                        if not prev_ends_space and not starts_space and gap > max(1.0, 0.2 * span_size):
+                            line_parts.append(" ")
                     line_parts.append(text)
-                    size = round(float(span.get("size", 0.0)), 1)
+                    prev_x1 = span_x1
+                    size = round(span_size, 1)
                     block_sizes[size] += len(stripped)
                     size_weights[size] += len(stripped)
                     total_chars += len(stripped)
