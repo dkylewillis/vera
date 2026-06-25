@@ -21,7 +21,7 @@ export interface TraceToolCall {
 }
 
 export interface StreamEvent {
-  event: 'search_start' | 'search_done' | 'llm_request' | 'llm_response' | 'tool_call';
+  event: 'search_start' | 'search_done' | 'llm_request' | 'llm_response' | 'tool_call' | 'answer_delta' | 'answer_reset';
   turn?: number;
   query?: string;
   mode?: string;
@@ -39,6 +39,8 @@ export interface StreamEvent {
   name?: string;
   arguments?: Record<string, unknown>;
   output?: unknown;
+  // answer_delta
+  text?: string;
 }
 
 export interface VeraApi {
@@ -205,7 +207,6 @@ export interface ProviderProfile {
   api_key_env: string;
   auth_type: string;
   temperature: number;
-  max_tokens: number;
   models: string[];
   has_api_key?: boolean;
 }

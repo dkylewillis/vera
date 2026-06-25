@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -52,6 +53,21 @@ class VeraCorpus:
         if not paths:
             raise FileNotFoundError(f"No .vera files found in {directory}")
         return cls(str(root), paths)
+
+    @classmethod
+    def from_paths(cls, paths: list[str]) -> "VeraCorpus":
+        """Build a corpus from an explicit list of .vera file paths."""
+        resolved = [str(Path(p)) for p in paths]
+        if not resolved:
+            raise FileNotFoundError("No .vera files selected")
+        if len(resolved) == 1:
+            root = str(Path(resolved[0]).parent)
+        else:
+            try:
+                root = os.path.commonpath(resolved)
+            except ValueError:
+                root = str(Path(resolved[0]).parent)
+        return cls(root, sorted(resolved))
 
     def document(self, file: str) -> VeraDocument:
         """Return the (cached) open VeraDocument for a file in this corpus."""

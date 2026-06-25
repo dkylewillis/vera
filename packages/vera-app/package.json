@@ -19,7 +19,9 @@
     "lucide-react": "latest",
     "pdfjs-dist": "^6.0.227",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@types/node": "latest",

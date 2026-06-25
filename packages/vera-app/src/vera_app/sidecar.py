@@ -38,6 +38,24 @@ def _open_document(path: str) -> VeraDocument:
     return VeraDocument.open(path)
 
 
+def _resolve_target(request: Request):
+    """Open the search/inspect target for a request.
+
+    Returns a VeraCorpus when multiple paths are selected or the path is a
+    directory; otherwise a single VeraDocument. Single-file selection keeps
+    the original single-document code path.
+    """
+    paths = request.get("paths")
+    if isinstance(paths, list):
+        files = [str(p) for p in paths if str(p).strip()]
+        if len(files) > 1:
+            return VeraCorpus.from_paths(files)
+        if len(files) == 1:
+            return _open_document(files[0])
+    path = str(request["path"])
+    return VeraCorpus.open(path) if Path(path).is_dir() else _open_document(path)
+
+
 def _figure_payload(figure: dict[str, Any]) -> dict[str, Any]:
     data = figure.pop("data", None)
     if data is not None:
@@ -70,8 +88,7 @@ def _validate(request: Request) -> dict[str, Any]:
 
 
 def _search(request: Request) -> list[dict[str, Any]]:
-    path = str(request["path"])
-    target = VeraCorpus.open(path) if Path(path).is_dir() else _open_document(path)
+    target = _resolve_target(request)
     try:
         results = target.search(
             str(request.get("query", "")),
@@ -376,6 +393,16 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
         if write_event:
             write_event(entry)
 
+    # Stream the model's visible answer token-by-token when an event sink exists.
+    # Intermediate tool-deciding turns rarely emit prose; if such a turn does emit
+    # partial text and then calls a tool, we send `answer_reset` so the UI discards
+    # it and only the final answer turn's text survives.
+    stream_delta = (
+        (lambda text: write_event({"event": "answer_delta", "text": text}))
+        if write_event
+        else None
+    )
+
     last_response: ChatResponse | None = None
     try:
         # One extra turn beyond the search budget lets the model write its final answer.
@@ -394,6 +421,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
                 config,
                 tools=offered_tools,
                 tool_choice="auto",
+                on_delta=stream_delta,
             )
             last_response = response
             record({
@@ -416,6 +444,10 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
             )
             if force_answer or not response.tool_calls:
                 break
+            # This turn is using tools, so any prose it streamed is not the final
+            # answer — tell the UI to discard the partial it just rendered.
+            if stream_delta:
+                write_event({"event": "answer_reset"})
             # Build the assistant message to append — ensure content is not None.
             assistant_msg = dict(response.message)
             if assistant_msg.get("content") is None:
@@ -505,6 +537,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
                 config,
                 tools=None,
                 tool_choice="auto",
+                on_delta=stream_delta,
             )
             record({
                 "event": "llm_response",

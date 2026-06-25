@@ -51,7 +51,7 @@ def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):
 
     calls = {"n": 0}
 
-    def fake_chat(messages, config, tools=None, tool_choice="auto"):
+    def fake_chat(messages, config, tools=None, tool_choice="auto", on_delta=None):
         calls["n"] += 1
         if calls["n"] == 1:
             assert tools, "tools should be offered on the first turn"
@@ -96,7 +96,7 @@ def test_answer_action_merges_custom_instructions(tmp_path, monkeypatch):
 
     seen = {}
 
-    def fake_chat(messages, config, tools=None, tool_choice="auto"):
+    def fake_chat(messages, config, tools=None, tool_choice="auto", on_delta=None):
         seen["system"] = messages[0]["content"]
         return ChatResponse(
             content="Answer.",
@@ -130,7 +130,7 @@ def test_answer_action_falls_back_when_tools_unsupported(tmp_path, monkeypatch):
     make_pdf(pdf)
     convert(str(pdf), str(out), model="hashing", store_original=True)
 
-    def fake_chat(messages, config, tools=None, tool_choice="auto"):
+    def fake_chat(messages, config, tools=None, tool_choice="auto", on_delta=None):
         raise ToolsUnsupportedError("this model does not support tools")
 
     def fake_generate(messages, config):

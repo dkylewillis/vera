@@ -1,10 +1,13 @@
-import React, { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
+import React, { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import {
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   Download,
   FileInput,
   FileSearch,
@@ -61,22 +64,22 @@ const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     key: 'ollama',
     label: 'Ollama',
-    value: { label: 'Ollama', provider: 'ollama', models: [], base_url: 'http://localhost:11434/v1', api_key_env: '', auth_type: 'none', temperature: 0.2, max_tokens: 700 },
+    value: { label: 'Ollama', provider: 'ollama', models: [], base_url: 'http://localhost:11434/v1', api_key_env: '', auth_type: 'none', temperature: 0.2 },
   },
   {
     key: 'lmstudio',
     label: 'LM Studio',
-    value: { label: 'LM Studio', provider: 'lmstudio', models: [], base_url: 'http://localhost:1234/v1', api_key_env: '', auth_type: 'none', temperature: 0.2, max_tokens: 700 },
+    value: { label: 'LM Studio', provider: 'lmstudio', models: [], base_url: 'http://localhost:1234/v1', api_key_env: '', auth_type: 'none', temperature: 0.2 },
   },
   {
     key: 'openai',
     label: 'OpenAI',
-    value: { label: 'OpenAI', provider: 'openai_compatible', models: [], base_url: 'https://api.openai.com/v1', api_key_env: 'OPENAI_API_KEY', auth_type: 'api_key', temperature: 0.2, max_tokens: 700 },
+    value: { label: 'OpenAI', provider: 'openai_compatible', models: [], base_url: 'https://api.openai.com/v1', api_key_env: 'OPENAI_API_KEY', auth_type: 'api_key', temperature: 0.2 },
   },
   {
     key: 'openrouter',
     label: 'OpenRouter',
-    value: { label: 'OpenRouter', provider: 'openai_compatible', models: [], base_url: 'https://openrouter.ai/api/v1', api_key_env: 'OPENROUTER_API_KEY', auth_type: 'api_key', temperature: 0.2, max_tokens: 700 },
+    value: { label: 'OpenRouter', provider: 'openai_compatible', models: [], base_url: 'https://openrouter.ai/api/v1', api_key_env: 'OPENROUTER_API_KEY', auth_type: 'api_key', temperature: 0.2 },
   },
 ];
 
@@ -97,7 +100,6 @@ function emptyProvider(): ProviderProfile {
     api_key_env: 'OPENAI_API_KEY',
     auth_type: 'api_key',
     temperature: 0.2,
-    max_tokens: 700,
   };
 }
 
@@ -334,16 +336,57 @@ function PdfSourceViewer({
 
 function renderAnswerWithCitations(answer: ChatAnswerResult, selectCitation: (citation: ChatCitationResult) => void) {
   const citationById = new Map(answer.citations.map((citation) => [citation.id, citation]));
-  return answer.answer.split(/(\[C\d+\])/g).map((part, index) => {
-    const id = part.match(/^\[(C\d+)\]$/)?.[1];
-    const citation = id ? citationById.get(id) : null;
-    if (!citation) return <React.Fragment key={`text-${index}`}>{part}</React.Fragment>;
-    return (
-      <button className="inlineCitation" key={citation.id} onClick={() => selectCitation(citation)}>
-        {part}
-      </button>
-    );
-  });
+
+  // Replace any string child containing `[C#]` markers with clickable citation buttons,
+  // leaving the surrounding markdown-rendered elements intact.
+  const injectCitations = (children: ReactNode): ReactNode =>
+    React.Children.map(children, (child, index) => {
+      if (typeof child !== 'string') return child;
+      if (!child.includes('[C')) return child;
+      return child.split(/(\[C\d+\])/g).map((part, partIndex) => {
+        const id = part.match(/^\[(C\d+)\]$/)?.[1];
+        const citation = id ? citationById.get(id) : null;
+        if (!citation) return <React.Fragment key={`t-${index}-${partIndex}`}>{part}</React.Fragment>;
+        return (
+          <button className="inlineCitation" key={`c-${index}-${partIndex}`} onClick={() => selectCitation(citation)}>
+            {part}
+          </button>
+        );
+      });
+    });
+
+  const withCitations =
+    (Tag: keyof React.JSX.IntrinsicElements) =>
+    ({ children, ...props }: { children?: ReactNode }) =>
+      React.createElement(Tag, props, injectCitations(children));
+
+  return (
+    <div className="markdownBody">
+      <Markdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: withCitations('p'),
+          li: withCitations('li'),
+          td: withCitations('td'),
+          th: withCitations('th'),
+          h1: withCitations('h1'),
+          h2: withCitations('h2'),
+          h3: withCitations('h3'),
+          h4: withCitations('h4'),
+          h5: withCitations('h5'),
+          h6: withCitations('h6'),
+          strong: withCitations('strong'),
+          em: withCitations('em'),
+          blockquote: withCitations('blockquote'),
+          a: ({ children, ...props }) => (
+            <a {...props} target="_blank" rel="noreferrer">{injectCitations(children)}</a>
+          ),
+        }}
+      >
+        {answer.answer}
+      </Markdown>
+    </div>
+  );
 }
 
 function TraceView({ events }: { events: StreamEvent[] }) {
@@ -682,10 +725,6 @@ function ProviderManager({
                     <span>Temp</span>
                     <input className="numberInput" type="number" min={0} max={2} step={0.1} value={selected.temperature} onChange={(event) => updateSelected({ temperature: Number(event.target.value) })} />
                   </label>
-                  <label className="field">
-                    <span>Max Tokens</span>
-                    <input className="numberInput" type="number" min={64} max={8192} step={64} value={selected.max_tokens} onChange={(event) => updateSelected({ max_tokens: Number(event.target.value) })} />
-                  </label>
                 </div>
 
                 <div className="apiKeyRow">
@@ -799,12 +838,15 @@ function App() {
   const [pageResult, setPageResult] = useState<PageResult | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState<SearchResult | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [collapsedFolders, setCollapsedFolders] = useState<string[]>([]);
   const [chatAnswer, setChatAnswer] = useState<ChatAnswerResult | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessionTurns, setSessionTurns] = useState<SessionTurn[]>([]);
   const [streamEvents, setStreamEvents] = useState<StreamEvent[]>([]);
   const [traceEvents, setTraceEvents] = useState<StreamEvent[]>([]);
+  const [streamingAnswer, setStreamingAnswer] = useState('');
   const [showTrace, setShowTrace] = useState(() => {
     try {
       return localStorage.getItem('vera.showTrace') === '1';
@@ -815,8 +857,20 @@ function App() {
   const threadRef = useRef<HTMLDivElement | null>(null);
   const [sourcePaneWidth, setSourcePaneWidth] = useState(46);
   const [isResizingSource, setIsResizingSource] = useState(false);
+  const [sidePanelWidth, setSidePanelWidth] = useState(() => {
+    const stored = Number(localStorage.getItem('vera.sidePanelWidth'));
+    return stored >= 200 && stored <= 600 ? stored : 300;
+  });
+  const [isResizingSide, setIsResizingSide] = useState(false);
 
-  const isCorpus = Boolean(inspect?.directory || (path && !path.toLowerCase().endsWith('.vera')));
+  // Files to search: the explicitly checked set, or the active document.
+  const scopedFiles = useMemo(
+    () => (selectedFiles.length > 0 ? selectedFiles : path ? [path] : []),
+    [selectedFiles, path],
+  );
+  const isCorpus = Boolean(
+    inspect?.directory || (path && !path.toLowerCase().endsWith('.vera')) || selectedFiles.length > 1,
+  );
   const busy = Boolean(busyAction);
   const activeProvider = useMemo(
     () => providers.find((profile) => profile.id === activeProviderId) ?? null,
@@ -876,6 +930,18 @@ function App() {
     if (folder) setFolders((prev) => prev.map((entry) => (entry.path === folderPath ? folder : entry)));
   }
 
+  function toggleSelectedFile(filePath: string) {
+    setSelectedFiles((prev) =>
+      prev.includes(filePath) ? prev.filter((p) => p !== filePath) : [...prev, filePath],
+    );
+  }
+
+  function toggleFolderCollapsed(folderPath: string) {
+    setCollapsedFolders((prev) =>
+      prev.includes(folderPath) ? prev.filter((p) => p !== folderPath) : [...prev, folderPath],
+    );
+  }
+
   function openEntry(entry: FolderEntry) {
     if (entry.type === 'vera') {
       void openTargetPath(entry.path);
@@ -888,6 +954,17 @@ function App() {
 
   function clampSourcePaneWidth(value: number): number {
     return Math.min(70, Math.max(32, value));
+  }
+
+  function clampSidePanelWidth(value: number): number {
+    return Math.min(600, Math.max(200, value));
+  }
+
+  function resizeSidePanel(clientX: number) {
+    const bounds = workspaceRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const activityWidth = 52;
+    setSidePanelWidth(clampSidePanelWidth(clientX - bounds.left - activityWidth));
   }
 
   function resizeSourcePane(clientX: number) {
@@ -973,6 +1050,7 @@ function App() {
     const result = await call<SearchResult[]>({
       action: 'search',
       path,
+      paths: scopedFiles,
       query,
       mode,
       top_k: topK,
@@ -1026,7 +1104,6 @@ function App() {
       api_key_env: provider.api_key_env,
       auth_type: provider.auth_type,
       temperature: provider.temperature,
-      max_tokens: provider.max_tokens,
     };
 
     // Build conversation history from prior turns for multi-turn context.
@@ -1041,6 +1118,7 @@ function App() {
     // Set up streaming event listener before firing the request.
     setStreamEvents([]);
     setTraceEvents([]);
+    setStreamingAnswer('');
     // Collect every trace event locally too, so it survives even if the backend
     // response doesn't echo a `trace` array (e.g. an older sidecar process).
     const collectedTrace: StreamEvent[] = [];
@@ -1058,12 +1136,17 @@ function App() {
           }
           return [...prev, ev];
         });
+      } else if (ev.event === 'answer_delta') {
+        setStreamingAnswer((prev) => prev + (ev.text ?? ''));
+      } else if (ev.event === 'answer_reset') {
+        setStreamingAnswer('');
       }
     });
 
     const result = await call<ChatAnswerResult>({
       action: 'answer',
       path,
+      paths: scopedFiles,
       prompt: query,
       mode_id: activeModeId || activeMode?.id || '',
       history,
@@ -1072,6 +1155,7 @@ function App() {
     offEvents();
     setStreamEvents([]);
     setTraceEvents([]);
+    setStreamingAnswer('');
     if (result) {
       const now = Date.now();
       const sid = activeSessionId ?? `sess_${Math.random().toString(36).slice(2)}`;
@@ -1341,9 +1425,32 @@ function App() {
     };
   }, [isResizingSource]);
 
+  useEffect(() => {
+    if (!isResizingSide) return undefined;
+    function handlePointerMove(event: PointerEvent) {
+      event.preventDefault();
+      resizeSidePanel(event.clientX);
+    }
+    function handlePointerUp() {
+      setIsResizingSide(false);
+    }
+    document.body.classList.add('resizingPanes');
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    return () => {
+      document.body.classList.remove('resizingPanes');
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [isResizingSide]);
+
+  useEffect(() => {
+    try { localStorage.setItem('vera.sidePanelWidth', String(sidePanelWidth)); } catch { /* ignore persistence errors */ }
+  }, [sidePanelWidth]);
+
   return (
     <div className="appShell">
-      <div className="appBody" ref={workspaceRef} style={{ '--source-pane-width': `${sourcePaneWidth}%` } as CSSProperties}>
+      <div className="appBody" ref={workspaceRef} style={{ '--source-pane-width': `${sourcePaneWidth}%`, '--side-panel-width': `${sidePanelWidth}px` } as CSSProperties}>
         <nav className="activityBar">
           <div className="activityTop">
             <button className={!sidebarCollapsed && sideView === 'explorer' ? 'activityBtn active' : 'activityBtn'} onClick={() => toggleSide('explorer')} title="Explorer" aria-label="Explorer"><Files size={22} /></button>
@@ -1389,24 +1496,43 @@ function App() {
                     {folders.map((folder) => (
                       <section className="folderGroup" key={folder.path}>
                         <div className="folderGroupHead" title={folder.path}>
-                          <Folder size={14} />
-                          <span className="folderGroupName">{folder.name}</span>
+                          <button
+                            className="folderGroupToggle"
+                            onClick={() => toggleFolderCollapsed(folder.path)}
+                            title={collapsedFolders.includes(folder.path) ? 'Expand' : 'Collapse'}
+                          >
+                            {collapsedFolders.includes(folder.path) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                            <Folder size={14} />
+                            <span className="folderGroupName">{folder.name}</span>
+                          </button>
                           <button className="ghostIcon tiny" onClick={() => void refreshFolder(folder.path)} title="Refresh"><RotateCw size={12} /></button>
                           <button className="ghostIcon tiny" onClick={() => removeFolder(folder.path)} title="Close folder"><X size={12} /></button>
                         </div>
-                        {folder.entries.length === 0 ? (
+                        {collapsedFolders.includes(folder.path) ? null : folder.entries.length === 0 ? (
                           <p className="folderEmpty">No .vera or .pdf files</p>
                         ) : (
                           folder.entries.map((entry) => (
-                            <button
-                              key={entry.path}
-                              className={path === entry.path || pdfPath === entry.path ? 'fileRow active' : 'fileRow'}
-                              onClick={() => openEntry(entry)}
-                              title={entry.relativePath}
-                            >
-                              {entry.type === 'vera' ? <FileSearch size={14} className="fileRowIcon vera" /> : <FileText size={14} className="fileRowIcon pdf" />}
-                              <span className="fileRowName">{entry.relativePath}</span>
-                            </button>
+                            <div key={entry.path} className="fileRowWrap">
+                              {entry.type === 'vera' ? (
+                                <input
+                                  type="checkbox"
+                                  className="fileRowCheck"
+                                  checked={selectedFiles.includes(entry.path)}
+                                  onChange={() => toggleSelectedFile(entry.path)}
+                                  title="Include in search scope"
+                                />
+                              ) : (
+                                <span className="fileRowCheckSpacer" />
+                              )}
+                              <button
+                                className={path === entry.path || pdfPath === entry.path ? 'fileRow active' : 'fileRow'}
+                                onClick={() => openEntry(entry)}
+                                title={entry.relativePath}
+                              >
+                                {entry.type === 'vera' ? <FileSearch size={14} className="fileRowIcon vera" /> : <FileText size={14} className="fileRowIcon pdf" />}
+                                <span className="fileRowName">{entry.relativePath}</span>
+                              </button>
+                            </div>
                           ))
                         )}
                       </section>
@@ -1450,6 +1576,12 @@ function App() {
                       }}
                       placeholder="Search the selected document…"
                     />
+                    {selectedFiles.length > 0 ? (
+                      <div className="searchScope">
+                        <span>{selectedFiles.length === 1 ? '1 document selected' : `${selectedFiles.length} documents selected`}</span>
+                        <button type="button" onClick={() => setSelectedFiles([])} title="Clear selection">Clear</button>
+                      </div>
+                    ) : null}
                     <div className="searchControls">
                       <label className="miniField">
                         <span>Mode</span>
@@ -1472,7 +1604,7 @@ function App() {
                         <span>Figures</span>
                       </label>
                     </div>
-                    <button className="sidePrimary" onClick={searchTarget} disabled={!path.trim() || !query.trim() || busy}><Search size={15} />Search</button>
+                    <button className="sidePrimary" onClick={searchTarget} disabled={scopedFiles.length === 0 || !query.trim() || busy}><Search size={15} />Search</button>
                   </div>
                   <div className="searchResults">
                     {results.length === 0 ? (
@@ -1610,6 +1742,28 @@ function App() {
           </aside>
         ) : null}
 
+        {!sidebarCollapsed ? (
+          <div
+            className={isResizingSide ? 'paneDivider sideDivider resizing' : 'paneDivider sideDivider'}
+            role="separator"
+            aria-label="Resize side panel"
+            aria-orientation="vertical"
+            tabIndex={0}
+            onDoubleClick={() => setSidePanelWidth(300)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowLeft') setSidePanelWidth((value) => clampSidePanelWidth(value - 16));
+              if (event.key === 'ArrowRight') setSidePanelWidth((value) => clampSidePanelWidth(value + 16));
+              if (event.key === 'Home') setSidePanelWidth(200);
+              if (event.key === 'End') setSidePanelWidth(600);
+            }}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              setIsResizingSide(true);
+              resizeSidePanel(event.clientX);
+            }}
+          />
+        ) : null}
+
         <main className="centerPane">
           <header className="centerHeader">
             <button className="ghostIcon" onClick={() => setSidebarCollapsed((value) => !value)} title="Toggle sidebar" aria-label="Toggle sidebar"><PanelLeftClose size={16} /></button>
@@ -1647,32 +1801,42 @@ function App() {
                       {turn.answer_mode === 'retrieval' ? <div className="noteBanner">This provider does not support tool-calling, so VERA used a single retrieval pass instead of agentic search.</div> : null}
                       {chatAnswer && idx === sessionTurns.length - 1 && turn.role === 'assistant' ? (
                         <>
-                          <p>{renderAnswerWithCitations(chatAnswer, selectCitation)}</p>
-                          <section className="citationList">
-                            {chatAnswer.citations.map((citation) => (
-                              <button className={selected?.chunk_id === citation.result.chunk_id ? 'citationCard selected' : 'citationCard'} key={citation.id} onClick={() => selectCitation(citation)}>
-                                <strong>{citation.label}</strong>
-                                <span>{citation.result.heading_path || citation.result.source_filename || citation.result.chunk_id}</span>
-                              </button>
-                            ))}
-                          </section>
+                          {renderAnswerWithCitations(chatAnswer, selectCitation)}
+                          {chatAnswer.citations.length ? (
+                            <details className="citationDisclosure">
+                              <summary>{chatAnswer.citations.length} {chatAnswer.citations.length === 1 ? 'source' : 'sources'}</summary>
+                              <section className="citationList">
+                                {chatAnswer.citations.map((citation) => (
+                                  <button className={selected?.chunk_id === citation.result.chunk_id ? 'citationCard selected' : 'citationCard'} key={citation.id} onClick={() => selectCitation(citation)}>
+                                    <strong>{citation.label}</strong>
+                                    <span>{citation.result.heading_path || citation.result.source_filename || citation.result.chunk_id}</span>
+                                  </button>
+                                ))}
+                              </section>
+                            </details>
+                          ) : null}
                         </>
                       ) : (
-                        <p>{turn.content}</p>
+                        <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{turn.content}</Markdown></div>
                       )}
                       {showTrace && turn.trace?.length ? <TraceView events={turn.trace} /> : null}
                     </article>
                   ))}
-                  {busy && streamEvents.length > 0 ? (
+                  {busy && (streamEvents.length > 0 || streamingAnswer) ? (
                     <article className="chatMessage assistantMessage streamingMessage">
-                      <div className="searchTrace">
-                        {streamEvents.map((ev, i) => (
-                          <span className={ev.event === 'search_done' ? 'searchTraceItem' : 'searchTraceItem searchTraceItem--pending'} key={i}>
-                            <Search size={11} />{ev.query}
-                            {ev.event === 'search_done' ? <em> ({ev.mode}, {ev.hits})</em> : <em> …</em>}
-                          </span>
-                        ))}
-                      </div>
+                      {streamEvents.length > 0 ? (
+                        <div className="searchTrace">
+                          {streamEvents.map((ev, i) => (
+                            <span className={ev.event === 'search_done' ? 'searchTraceItem' : 'searchTraceItem searchTraceItem--pending'} key={i}>
+                              <Search size={11} />{ev.query}
+                              {ev.event === 'search_done' ? <em> ({ev.mode}, {ev.hits})</em> : <em> …</em>}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      {streamingAnswer ? (
+                        <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{streamingAnswer}</Markdown></div>
+                      ) : null}
                       {showTrace && traceEvents.length > 0 ? <TraceView events={traceEvents} /> : null}
                     </article>
                   ) : null}
@@ -1828,7 +1992,7 @@ function App() {
         </main>
 
         <div
-          className="paneDivider"
+          className={isResizingSource ? 'paneDivider resizing' : 'paneDivider'}
           role="separator"
           aria-label="Resize Source Document pane"
           aria-orientation="vertical"

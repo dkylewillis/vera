@@ -74,7 +74,6 @@ interface ProviderProfile {
   api_key_env: string;
   auth_type: string;
   temperature: number;
-  max_tokens: number;
   models: string[];
   has_api_key?: boolean;
 }
@@ -292,7 +291,6 @@ function normalizeProvider(raw: unknown): ProviderProfile | null {
     api_key_env: typeof profile.api_key_env === 'string' ? profile.api_key_env : '',
     auth_type: typeof profile.auth_type === 'string' ? profile.auth_type : 'none',
     temperature: typeof profile.temperature === 'number' ? profile.temperature : 0.2,
-    max_tokens: typeof profile.max_tokens === 'number' ? profile.max_tokens : 700,
     models,
   };
 }
