@@ -4,8 +4,14 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 
-_CAPTION_RE = re.compile(r"^(figure|fig\.?|table|diagram|exhibit|chart|map|photo)\s*[0-9]+([.:\-\u2013]|\s|$)", re.I)
+_CAPTION_RE = re.compile(
+    r"^(figure|fig\.?|table|diagram|exhibit|chart|map|photo|illustration|plate|drawing)\s*[0-9]+([.:\-\u2013]|\s|$)",
+    re.I,
+)
 _CAPTION_PROXIMITY = 60.0  # max vertical gap in points between caption and image
+# Embedded images smaller than this in *both* dimensions (PDF points) are treated
+# as decorative noise (icons, bullets, letterhead marks) rather than figures.
+_MIN_FIGURE_DIMENSION = 20.0
 
 
 @dataclass
@@ -165,6 +171,12 @@ def parse_pdf_structured(path: str) -> tuple[list[ParsedPage], list[ParsedBlock]
     blocks: list[ParsedBlock] = []
     for block in raw:
         if block.image_bytes is not None:
+            width = block.bbox[2] - block.bbox[0]
+            height = block.bbox[3] - block.bbox[1]
+            if width < _MIN_FIGURE_DIMENSION and height < _MIN_FIGURE_DIMENSION:
+                # Too small to be a real figure — an icon, bullet, or decorative
+                # mark rather than something worth surfacing as a "figure".
+                continue
             blocks.append(
                 ParsedBlock(
                     page_number=block.page_number,

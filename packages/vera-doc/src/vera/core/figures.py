@@ -30,6 +30,37 @@ def figures(
         params.append(page_end)
     sql += " ORDER BY b.page_number, b.sort_order"
     rows = conn.execute(sql, params).fetchall()
+    return _rows_to_figures(conn, rows, include_data)
+
+
+def figures_for_chunk(
+    conn: sqlite3.Connection,
+    chunk_id: str,
+    include_data: bool = False,
+) -> list[dict[str, Any]]:
+    """Return figures tightly linked to a specific chunk via ``chunk_blocks``.
+
+    This is precise (only images the chunker actually associated with this
+    chunk's text) rather than the coarser page-range lookup in :func:`figures`.
+    """
+    sql = """
+        SELECT b.block_id, b.page_number, b.bbox_json,
+               a.asset_id, a.mime_type, a.filename
+        FROM chunk_blocks cb
+        JOIN blocks b ON b.block_id = cb.block_id
+        JOIN assets a ON a.asset_id = 'asset_' || b.block_id
+        WHERE cb.chunk_id = ? AND b.block_type = 'image'
+        ORDER BY b.page_number, b.sort_order
+    """
+    rows = conn.execute(sql, (chunk_id,)).fetchall()
+    return _rows_to_figures(conn, rows, include_data)
+
+
+def _rows_to_figures(
+    conn: sqlite3.Connection,
+    rows: list[sqlite3.Row],
+    include_data: bool,
+) -> list[dict[str, Any]]:
     captions_by_page: dict[int, list[tuple[list[float] | None, str]]] = {}
     if rows:
         pages = sorted({row["page_number"] for row in rows})
@@ -66,7 +97,19 @@ def figures_for_result(
     result: Any,
     include_data: bool = False,
 ) -> list[dict[str, Any]]:
-    """Return figures located on the pages of a search result."""
+    """Return figures associated with a search result.
+
+    Prefers figures directly linked to the result's chunk via ``chunk_blocks``
+    (precise — the chunker only links an image when it co-occurs with the
+    chunk's surrounding text). Falls back to a page-range lookup when no such
+    link exists, e.g. for `.vera` files converted before this association was
+    tracked.
+    """
+    chunk_id = getattr(result, "chunk_id", None)
+    if chunk_id is not None:
+        tight = figures_for_chunk(conn, chunk_id, include_data=include_data)
+        if tight:
+            return tight
     return figures(conn, result.page_start, result.page_end, include_data=include_data)
 
 

@@ -15,6 +15,7 @@ import {
   Files,
   Folder,
   FolderOpen,
+  Highlighter,
   Info,
   KeyRound,
   ListChecks,
@@ -159,7 +160,16 @@ function regionStyle(region: RegionResult): CSSProperties {
   };
 }
 
-function PdfSourceViewer({
+const PDF_ZOOM_MIN = 0.75;
+const PDF_ZOOM_MAX = 2.5;
+const PDF_ZOOM_DEFAULT = 1.25;
+const PDF_ZOOM_STEP = 0.25;
+
+function clampPdfZoom(value: number): number {
+  return Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, Math.round(value * 100) / 100));
+}
+
+function PdfSourceViewerImpl({
   source,
   highlightRegions = EMPTY_REGIONS,
   compact = false,
@@ -173,10 +183,13 @@ function PdfSourceViewer({
   const pagesRef = useRef<HTMLDivElement | null>(null);
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const renderedSourceRef = useRef('');
-  const [scale, setScale] = useState(1.25);
+  const [scale, setScale] = useState(PDF_ZOOM_DEFAULT);
   const [error, setError] = useState<string | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [rendering, setRendering] = useState(false);
+  const [showHighlights, setShowHighlights] = useState(() => {
+    try { return localStorage.getItem('vera.showHighlights') !== '0'; } catch { return true; }
+  });
   const highlightKey = useMemo(() => JSON.stringify(highlightRegions), [highlightRegions]);
 
   // Scroll-only effect: targetPage changes just scroll, never re-render.
@@ -185,6 +198,54 @@ function PdfSourceViewer({
     const target = pagesRef.current.querySelector<HTMLElement>(`[data-page-number="${targetPage}"]`);
     if (target) pagesRef.current.scrollTo({ top: target.offsetTop, behavior: 'smooth' });
   }, [targetPage]);
+
+  // Ctrl/Cmd + mouse wheel (and trackpad pinch, which Chromium reports as a wheel
+  // event with ctrlKey set) zooms the viewer, like a standard PDF/browser viewer.
+  // Wheel deltas are coalesced per animation frame so a fast scroll gesture doesn't
+  // trigger a full page re-render on every tick.
+  useEffect(() => {
+    const container = pagesRef.current;
+    if (!container) return;
+    let rafId: number | null = null;
+    let pendingFactor = 1;
+
+    const commit = () => {
+      rafId = null;
+      const factor = pendingFactor;
+      pendingFactor = 1;
+      setScale((value) => clampPdfZoom(value * factor));
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      pendingFactor *= 1 - event.deltaY * 0.0015;
+      if (rafId == null) rafId = requestAnimationFrame(commit);
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+      if (rafId != null) cancelAnimationFrame(rafId);
+    };
+  }, []);
+
+  // Ctrl/Cmd +, -, 0 zoom the viewer, matching standard PDF-viewer hotkeys. Scoped to
+  // the viewer's own key handler so it only fires while the viewer has focus.
+  const onViewerKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    if (event.key === '=' || event.key === '+') {
+      event.preventDefault();
+      setScale((value) => clampPdfZoom(value + PDF_ZOOM_STEP));
+    } else if (event.key === '-') {
+      event.preventDefault();
+      setScale((value) => clampPdfZoom(value - PDF_ZOOM_STEP));
+    } else if (event.key === '0') {
+      event.preventDefault();
+      setScale(PDF_ZOOM_DEFAULT);
+    }
+  };
+
 
   // Main render effect: load PDF + set up virtualized rendering.
   // targetPage deliberately excluded from deps — handled by scroll effect above.
@@ -322,20 +383,37 @@ function PdfSourceViewer({
   }, [highlightKey, scale, source.data_url]); // targetPage intentionally excluded
 
   return (
-    <div className={compact ? 'pdfViewer compact' : 'pdfViewer'}>
+    <div className={`${compact ? 'pdfViewer compact' : 'pdfViewer'}${showHighlights ? '' : ' pdfViewer--hideHighlights'}`}>
       <div className="viewerToolbar">
         <span>{rendering ? 'Rendering' : `${pageCount || '-'} pages`}</span>
-        <button className="secondaryAction" onClick={() => setScale((value) => Math.max(0.75, value - 0.25))}>Zoom Out</button>
-        <button className="secondaryAction" onClick={() => setScale((value) => Math.min(2.5, value + 0.25))}>Zoom In</button>
+        <button
+          type="button"
+          className={showHighlights ? 'secondaryAction activeNow' : 'secondaryAction'}
+          onClick={() => setShowHighlights((value) => {
+            const next = !value;
+            try { localStorage.setItem('vera.showHighlights', next ? '1' : '0'); } catch { /* ignore persistence errors */ }
+            return next;
+          })}
+          title={showHighlights ? 'Hide highlight regions' : 'Show highlight regions'}
+        >
+          <Highlighter size={14} />Highlights
+        </button>
+        <button className="secondaryAction" onClick={() => setScale((value) => clampPdfZoom(value - PDF_ZOOM_STEP))}>Zoom Out</button>
+        <span className="zoomLevel">{Math.round(scale * 100)}%</span>
+        <button className="secondaryAction" onClick={() => setScale((value) => clampPdfZoom(value + PDF_ZOOM_STEP))}>Zoom In</button>
       </div>
       {error ? <div className="errorBanner">{error}</div> : null}
-      <div className="pdfCanvasWrap" ref={pagesRef} />
+      <div className="pdfCanvasWrap" ref={pagesRef} tabIndex={0} onKeyDown={onViewerKeyDown} />
     </div>
   );
 }
 
-function renderAnswerWithCitations(answer: ChatAnswerResult, selectCitation: (citation: ChatCitationResult) => void) {
-  const citationById = new Map(answer.citations.map((citation) => [citation.id, citation]));
+// Memoized so this doesn't re-render (and re-run its render body) when unrelated
+// App state changes, e.g. every keystroke in the chat composer.
+const PdfSourceViewer = React.memo(PdfSourceViewerImpl);
+
+function renderAnswerWithCitations(answerText: string, citations: ChatCitationResult[], selectCitation: (citation: ChatCitationResult) => void) {
+  const citationById = new Map(citations.map((citation) => [citation.id, citation]));
 
   // Replace any string child containing `[C#]` markers with clickable citation buttons,
   // leaving the surrounding markdown-rendered elements intact.
@@ -383,9 +461,115 @@ function renderAnswerWithCitations(answer: ChatAnswerResult, selectCitation: (ci
           ),
         }}
       >
-        {answer.answer}
+        {answerText}
       </Markdown>
     </div>
+  );
+}
+
+type ActivitySearchItem = { query: string; mode?: string; hits?: number; pending?: boolean };
+
+type ActivityStep =
+  | { kind: 'search'; item: ActivitySearchItem }
+  | { kind: 'source'; citation: ChatCitationResult };
+
+function ActivityStepRow({
+  step,
+  onSelectCitation,
+  selected,
+}: {
+  step: ActivityStep;
+  onSelectCitation?: (citation: ChatCitationResult) => void;
+  selected?: boolean;
+}) {
+  if (step.kind === 'search') {
+    const { item } = step;
+    return (
+      <li className={item.pending ? 'activityItem activityItem--pending' : 'activityItem'}>
+        <Search size={12} className="activityIcon" />
+        <span className="activityText">
+          Searched for <code className="activityPill">{item.query}</code>
+          {item.pending ? (
+            <span className="activityMeta"> …</span>
+          ) : (
+            <span className="activityMeta"> · {item.mode}, {item.hits} {item.hits === 1 ? 'hit' : 'hits'}</span>
+          )}
+        </span>
+      </li>
+    );
+  }
+  const { citation } = step;
+  const label = citation.result.heading_path || citation.result.source_filename || citation.result.chunk_id;
+  const pages =
+    citation.result.page_start != null
+      ? citation.result.page_end != null && citation.result.page_end !== citation.result.page_start
+        ? `p. ${citation.result.page_start}\u2013${citation.result.page_end}`
+        : `p. ${citation.result.page_start}`
+      : null;
+  return (
+    <li className="activityItem">
+      <button
+        type="button"
+        className={selected ? 'activityRowButton activityRowButton--selected' : 'activityRowButton'}
+        onClick={() => onSelectCitation?.(citation)}
+      >
+        <FileText size={12} className="activityIcon" />
+        <span className="activityText">
+          Read <code className="activityPill">{label}</code>
+          {pages ? <span className="activityMeta"> · {pages}</span> : null}
+        </span>
+      </button>
+    </li>
+  );
+}
+
+function ActivityTrace({
+  searches,
+  citations,
+  selectCitation,
+  selectedChunkId,
+  live,
+}: {
+  searches?: ActivitySearchItem[];
+  citations?: ChatCitationResult[];
+  selectCitation?: (citation: ChatCitationResult) => void;
+  selectedChunkId?: string;
+  live?: boolean;
+}) {
+  const steps: ActivityStep[] = [
+    ...(searches || []).map((item): ActivityStep => ({ kind: 'search', item })),
+    ...(citations || []).map((citation): ActivityStep => ({ kind: 'source', citation })),
+  ];
+  if (!steps.length) return null;
+
+  const list = (
+    <ul className="activityList">
+      {steps.map((step, i) => (
+        <ActivityStepRow
+          key={i}
+          step={step}
+          onSelectCitation={selectCitation}
+          selected={step.kind === 'source' && step.citation.result.chunk_id === selectedChunkId}
+        />
+      ))}
+    </ul>
+  );
+
+  if (live) {
+    return <div className="activityTrace activityTrace--live">{list}</div>;
+  }
+
+  const searchCount = searches?.length || 0;
+  const sourceCount = citations?.length || 0;
+  const summaryParts: string[] = [];
+  if (searchCount) summaryParts.push(`Searched ${searchCount} ${searchCount === 1 ? 'query' : 'queries'}`);
+  if (sourceCount) summaryParts.push(`reviewed ${sourceCount} ${sourceCount === 1 ? 'source' : 'sources'}`);
+
+  return (
+    <details className="activityDisclosure">
+      <summary>{summaryParts.join(' and ') || 'Activity'}</summary>
+      {list}
+    </details>
   );
 }
 
@@ -421,7 +605,17 @@ function TraceView({ events }: { events: StreamEvent[] }) {
                   return (
                     <div className={`traceMsg traceRole--${message.role}`} key={mi}>
                       <span className="traceRole">{message.role}{message.name ? ` · ${message.name}` : ''}</span>
-                      {message.content ? <pre className="traceContent">{message.content}</pre> : null}
+                      {Array.isArray(message.content) ? (
+                        message.content.map((part, pi) =>
+                          part.type === 'image_url' ? (
+                            <span className="traceContent traceImagePart" key={pi}>{part.image_url.url}</span>
+                          ) : (
+                            <pre className="traceContent" key={pi}>{part.text}</pre>
+                          ),
+                        )
+                      ) : message.content ? (
+                        <pre className="traceContent">{message.content}</pre>
+                      ) : null}
                       {calls ? <pre className="traceContent traceToolCalls">{calls}</pre> : null}
                     </div>
                   );
@@ -465,6 +659,50 @@ function TraceView({ events }: { events: StreamEvent[] }) {
     </div>
   );
 }
+
+// Memoized per-turn chat bubble. Historical turns keep a stable `turn` object
+// reference (new turns are only ever appended), so as long as the callback/selection
+// props stay stable too, React can skip re-rendering (and re-parsing Markdown for)
+// every past turn whenever unrelated App state changes, e.g. each composer keystroke.
+const ChatTurn = React.memo(function ChatTurn({
+  turn,
+  selectCitation,
+  selectedChunkId,
+  showTrace,
+}: {
+  turn: SessionTurn;
+  selectCitation: (citation: ChatCitationResult) => void;
+  selectedChunkId?: string;
+  showTrace: boolean;
+}) {
+  if (turn.role === 'user') {
+    return (
+      <article className="chatMessage userMessage">
+        <p>{turn.content}</p>
+      </article>
+    );
+  }
+  return (
+    <article className="chatMessage assistantMessage">
+      <span>
+        VERA{turn.mode_label ? ` · ${turn.mode_label}` : ''}{turn.llm ? ` · ${turn.llm.model}` : ''}
+      </span>
+      <ActivityTrace
+        searches={turn.searches}
+        citations={turn.citations}
+        selectCitation={selectCitation}
+        selectedChunkId={selectedChunkId}
+      />
+      {turn.answer_mode === 'retrieval' ? <div className="noteBanner">This provider does not support tool-calling, so VERA used a single retrieval pass instead of agentic search.</div> : null}
+      {turn.citations && turn.citations.length ? (
+        renderAnswerWithCitations(turn.content, turn.citations, selectCitation)
+      ) : (
+        <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{turn.content}</Markdown></div>
+      )}
+      {showTrace && turn.trace?.length ? <TraceView events={turn.trace} /> : null}
+    </article>
+  );
+});
 
 function ProviderManager({
   providers,
@@ -803,7 +1041,7 @@ function App() {
   const [sideView, setSideView] = useState<SideView>('explorer');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [folders, setFolders] = useState<WorkspaceFolderResult[]>([]);
-  const [viewerMode, setViewerMode] = useState<'selection' | 'document'>('selection');
+  const [viewerMode, setViewerMode] = useState<'selection' | 'document'>('document');
   const [path, setPath] = useState('');
   const [pdfPath, setPdfPath] = useState('');
   const [outputPath, setOutputPath] = useState('');
@@ -855,7 +1093,7 @@ function App() {
     }
   });
   const threadRef = useRef<HTMLDivElement | null>(null);
-  const [sourcePaneWidth, setSourcePaneWidth] = useState(46);
+  const [sourcePaneWidth, setSourcePaneWidth] = useState(34);
   const [isResizingSource, setIsResizingSource] = useState(false);
   const [sidePanelWidth, setSidePanelWidth] = useState(() => {
     const stored = Number(localStorage.getItem('vera.sidePanelWidth'));
@@ -1109,6 +1347,21 @@ function App() {
     // Build conversation history from prior turns for multi-turn context.
     const history = sessionTurns.map((t) => ({ role: t.role, content: t.content }));
 
+    // Carry forward citation labels so `[C#]` markers stay stable across the whole
+    // session: the same chunk keeps its original id in follow-up answers, and new
+    // chunks continue numbering after the highest id already used.
+    const priorCitationsMap = new Map<string, { id: string; chunk_id: string }>();
+    for (const t of sessionTurns) {
+      if (t.role !== 'assistant' || !t.citations) continue;
+      for (const c of t.citations) {
+        const chunkId = c.result?.chunk_id;
+        if (chunkId && !priorCitationsMap.has(chunkId)) {
+          priorCitationsMap.set(chunkId, { id: c.id, chunk_id: chunkId });
+        }
+      }
+    }
+    const priorCitations = [...priorCitationsMap.values()];
+
     // Optimistically append the user turn to the thread.
     const userTurn: SessionTurn = { role: 'user', content: query, timestamp: Date.now() };
     const nextTurns = [...sessionTurns, userTurn];
@@ -1150,6 +1403,7 @@ function App() {
       prompt: query,
       mode_id: activeModeId || activeMode?.id || '',
       history,
+      prior_citations: priorCitations,
       llm,
     }, 'Asking');
     offEvents();
@@ -1187,7 +1441,7 @@ function App() {
       setResults(citedResults);
       if (citedResults[0]) selectSearchResult(citedResults[0]);
       else setSelected(null);
-      setViewerMode('selection');
+      setViewerMode('document');
 
       // Persist / update session — strip traces so the on-disk store stays lean.
       const title = withAssistant[0]?.content.slice(0, 60) || 'New session';
@@ -1227,19 +1481,28 @@ function App() {
       return trace ? { ...turn, trace } : turn;
     });
     setSessionTurns(hydratedTurns);
-    // Restore the last cited result for source pane.
+    // Restore the source document FIRST so any stale source is cleared before we
+    // select a cited result. Selecting first would race with openTargetPath, which
+    // resets sourceDocument to null and blanks the viewer.
+    const sessionPath = session.source_path;
+    if (sessionPath && sessionPath !== path) {
+      await openTargetPath(sessionPath);
+    }
+    // Restore the last cited result for source pane. Use the session's path (not the
+    // possibly-stale `path` closure) as the single-document fallback; corpus results
+    // carry their own `file`.
     const lastAssistant = [...session.turns].reverse().find((t) => t.role === 'assistant');
     if (lastAssistant?.citations?.length) {
       const citedResults = lastAssistant.citations.map((c) => c.result);
       setResults(citedResults);
-      selectSearchResult(citedResults[0]);
+      const first = citedResults[0];
+      setSelected(first);
+      const resultPath = first.file || sessionPath || path;
+      if (resultPath) void loadSourceDocument(resultPath, false);
     } else {
       setResults([]);
       setSelected(null);
-    }
-    // Restore source path if different from current.
-    if (session.source_path && session.source_path !== path) {
-      void openTargetPath(session.source_path);
+      if (sessionPath) void loadSourceDocument(sessionPath, false);
     }
     setViewerMode('selection');
   }
@@ -1327,7 +1590,7 @@ function App() {
   function selectSearchResult(result: SearchResult) {
     setSelected(result);
     const resultPath = result.file || path;
-    if (resultPath && resultPath !== sourceDocumentPath) {
+    if (resultPath && (resultPath !== sourceDocumentPath || !sourceDocument)) {
       void loadSourceDocument(resultPath, false);
     }
   }
@@ -1336,6 +1599,13 @@ function App() {
     selectSearchResult(citation.result);
     setViewerMode('document');
   }
+
+  // `selectCitation` is recreated every render (it closes over lots of state), which
+  // would defeat memoization on chat-turn children. Route through a ref so callers get
+  // a permanently stable function identity while still always invoking the latest logic.
+  const selectCitationRef = useRef(selectCitation);
+  selectCitationRef.current = selectCitation;
+  const stableSelectCitation = useMemo(() => (citation: ChatCitationResult) => selectCitationRef.current(citation), []);
 
   async function loadPage() {
     const result = await call<PageResult>({ action: 'page', path, page_number: pageNumber }, 'Loading page');
@@ -1614,7 +1884,7 @@ function App() {
                         <button
                           className={selected?.chunk_id === result.chunk_id ? 'resultRow active' : 'resultRow'}
                           key={`${result.file || result.document_id}-${result.chunk_id}`}
-                          onClick={() => { selectSearchResult(result); setViewerMode('selection'); }}
+                          onClick={() => { selectSearchResult(result); setViewerMode('document'); }}
                         >
                           <span className="resultRowMeta">{result.score.toFixed(3)} · p. {formatPages(result.page_start, result.page_end)}{result.file ? ` · ${result.file}` : ''}</span>
                           <strong>{result.heading_path || result.source_filename || result.chunk_id}</strong>
@@ -1780,59 +2050,27 @@ function App() {
           <div className={sessionTurns.length > 0 ? 'chatPanel chatPanel--active' : 'chatPanel chatPanel--empty'}>
               {sessionTurns.length > 0 ? (
                 <div className="chatThread" ref={threadRef}>
-                  {sessionTurns.map((turn, idx) => turn.role === 'user' ? (
-                    <article className="chatMessage userMessage" key={idx}>
-                      <p>{turn.content}</p>
-                    </article>
-                  ) : (
-                    <article className="chatMessage assistantMessage" key={idx}>
-                      <span>
-                        VERA{turn.mode_label ? ` · ${turn.mode_label}` : ''}{turn.llm ? ` · ${turn.llm.model}` : ''}
-                      </span>
-                      {turn.searches && turn.searches.length ? (
-                        <div className="searchTrace">
-                          {turn.searches.map((entry, i) => (
-                            <span className="searchTraceItem" key={i}>
-                              <Search size={11} />{entry.query} <em>({entry.mode}, {entry.hits})</em>
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                      {turn.answer_mode === 'retrieval' ? <div className="noteBanner">This provider does not support tool-calling, so VERA used a single retrieval pass instead of agentic search.</div> : null}
-                      {chatAnswer && idx === sessionTurns.length - 1 && turn.role === 'assistant' ? (
-                        <>
-                          {renderAnswerWithCitations(chatAnswer, selectCitation)}
-                          {chatAnswer.citations.length ? (
-                            <details className="citationDisclosure">
-                              <summary>{chatAnswer.citations.length} {chatAnswer.citations.length === 1 ? 'source' : 'sources'}</summary>
-                              <section className="citationList">
-                                {chatAnswer.citations.map((citation) => (
-                                  <button className={selected?.chunk_id === citation.result.chunk_id ? 'citationCard selected' : 'citationCard'} key={citation.id} onClick={() => selectCitation(citation)}>
-                                    <strong>{citation.label}</strong>
-                                    <span>{citation.result.heading_path || citation.result.source_filename || citation.result.chunk_id}</span>
-                                  </button>
-                                ))}
-                              </section>
-                            </details>
-                          ) : null}
-                        </>
-                      ) : (
-                        <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{turn.content}</Markdown></div>
-                      )}
-                      {showTrace && turn.trace?.length ? <TraceView events={turn.trace} /> : null}
-                    </article>
+                  {sessionTurns.map((turn, idx) => (
+                    <ChatTurn
+                      key={idx}
+                      turn={turn}
+                      selectCitation={stableSelectCitation}
+                      selectedChunkId={selected?.chunk_id}
+                      showTrace={showTrace}
+                    />
                   ))}
                   {busy && (streamEvents.length > 0 || streamingAnswer) ? (
                     <article className="chatMessage assistantMessage streamingMessage">
                       {streamEvents.length > 0 ? (
-                        <div className="searchTrace">
-                          {streamEvents.map((ev, i) => (
-                            <span className={ev.event === 'search_done' ? 'searchTraceItem' : 'searchTraceItem searchTraceItem--pending'} key={i}>
-                              <Search size={11} />{ev.query}
-                              {ev.event === 'search_done' ? <em> ({ev.mode}, {ev.hits})</em> : <em> …</em>}
-                            </span>
-                          ))}
-                        </div>
+                        <ActivityTrace
+                          live
+                          searches={streamEvents.map((ev) => ({
+                            query: ev.query || '',
+                            mode: ev.mode,
+                            hits: ev.hits,
+                            pending: ev.event !== 'search_done',
+                          }))}
+                        />
                       ) : null}
                       {streamingAnswer ? (
                         <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{streamingAnswer}</Markdown></div>
@@ -1997,7 +2235,7 @@ function App() {
           aria-label="Resize Source Document pane"
           aria-orientation="vertical"
           tabIndex={0}
-          onDoubleClick={() => setSourcePaneWidth(46)}
+          onDoubleClick={() => setSourcePaneWidth(34)}
           onKeyDown={(event) => {
             if (event.key === 'ArrowLeft') setSourcePaneWidth((value) => clampSourcePaneWidth(value + 4));
             if (event.key === 'ArrowRight') setSourcePaneWidth((value) => clampSourcePaneWidth(value - 4));
@@ -2024,7 +2262,7 @@ function App() {
                   <button className={viewerMode === 'document' ? 'active' : ''} onClick={() => { setViewerMode('document'); if (!sourceDocument && selectedSourcePath) void loadSourceDocument(selectedSourcePath, false); }} title="Show full document">Document</button>
                 </div>
               ) : null}
-              <button className="ghostIcon" onClick={() => setSourcePaneWidth(sourceExpanded ? 46 : 64)} title={sourceExpanded ? 'Restore viewer' : 'Expand viewer'} aria-label={sourceExpanded ? 'Restore viewer' : 'Expand viewer'}>
+              <button className="ghostIcon" onClick={() => setSourcePaneWidth(sourceExpanded ? 34 : 64)} title={sourceExpanded ? 'Restore viewer' : 'Expand viewer'} aria-label={sourceExpanded ? 'Restore viewer' : 'Expand viewer'}>
                 {sourceExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
               </button>
             </div>

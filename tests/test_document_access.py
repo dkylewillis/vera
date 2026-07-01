@@ -148,6 +148,23 @@ class TestChunkRegions:
         pages = {r["page_number"] for r in regions}
         assert pages <= set(range(results[0].page_start, results[0].page_end + 1))
 
+    def test_regions_exclude_image_blocks(self, vera_doc):
+        doc, _, _ = vera_doc
+        result = doc.search("restaurant parking", mode="keyword", top_k=1)[0]
+        image_block_ids = {
+            row["block_id"] for row in doc.conn.execute("SELECT block_id FROM blocks WHERE block_type='image'")
+        }
+        # Sanity check: the chunk really is linked to an image via chunk_blocks,
+        # otherwise this test would trivially pass without exercising the fix.
+        linked = {
+            row["block_id"]
+            for row in doc.conn.execute("SELECT block_id FROM chunk_blocks WHERE chunk_id=?", (result.chunk_id,))
+        }
+        assert linked & image_block_ids
+
+        regions = doc.regions_for(result)
+        assert not any(r["block_id"] in image_block_ids for r in regions)
+
 
 class TestCli:
     def run(self, *argv):

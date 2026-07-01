@@ -155,13 +155,13 @@ button {
 
 .appBody {
   display: grid;
-  grid-template-columns: var(--activity-width) auto minmax(420px, 1fr) 1px minmax(340px, var(--source-pane-width, 46%));
+  grid-template-columns: var(--activity-width) auto minmax(420px, 1fr) 1px minmax(340px, var(--source-pane-width, 34%));
   min-height: 0;
 }
 
 /* When sidebar is collapsed the second column is absent. */
 .appBody:has(> .sidePanel) {
-  grid-template-columns: var(--activity-width) var(--side-panel-width, var(--side-width)) 1px minmax(420px, 1fr) 1px minmax(340px, var(--source-pane-width, 46%));
+  grid-template-columns: var(--activity-width) var(--side-panel-width, var(--side-width)) 1px minmax(420px, 1fr) 1px minmax(340px, var(--source-pane-width, 34%));
 }
 
 /* ── Activity bar ────────────────────────────────────── */
@@ -1263,11 +1263,11 @@ select {
   background: color-mix(in srgb, var(--good) 22%, var(--good-soft));
 }
 
-.citationDisclosure {
-  margin-top: 4px;
+.activityDisclosure {
+  margin: 2px 0 8px;
 }
 
-.citationDisclosure > summary {
+.activityDisclosure > summary {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1276,113 +1276,110 @@ select {
   width: fit-content;
   padding: 3px 4px;
   color: var(--text-muted);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
 }
 
-.citationDisclosure > summary::-webkit-details-marker {
+.activityDisclosure > summary::-webkit-details-marker {
   display: none;
 }
 
-.citationDisclosure > summary::before {
+.activityDisclosure > summary::before {
   content: '▸';
   color: var(--text-faint);
   font-size: 10px;
   transition: transform 0.12s;
 }
 
-.citationDisclosure[open] > summary::before {
+.activityDisclosure[open] > summary::before {
   transform: rotate(90deg);
 }
 
-.citationDisclosure > summary:hover {
+.activityDisclosure > summary:hover {
   color: var(--text-strong);
 }
 
-.citationList {
+.activityTrace--live {
+  margin: 2px 0 8px;
+}
+
+.activityList {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 6px;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 0 0 0 4px;
+  list-style: none;
 }
 
-.citationCard {
+.activityItem {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  width: 100%;
-  padding: 5px 10px;
-  text-align: left;
-  color: var(--text);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 12.5px;
-  transition: border-color 0.12s, background 0.12s;
-}
-
-.citationCard:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-surface-2);
-}
-
-.citationCard.selected {
-  border-color: var(--accent);
-  box-shadow: inset 3px 0 0 var(--accent);
-}
-
-.citationCard strong {
-  flex-shrink: 0;
-  font-size: 12px;
-}
-
-.citationCard span {
-  min-width: 0;
-  flex: 1;
-  color: var(--text-faint);
-  font-size: 11.5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.searchTrace {
-  display: flex;
-  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 6px;
-  margin: 2px 0;
+  padding: 2px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
-.searchTraceItem {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  max-width: 300px;
-  padding: 3px 9px;
-  color: var(--text-muted);
-  background: var(--bg-surface-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  font-size: 11.5px;
+.activityIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--text-faint);
+}
+
+.activityText {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.searchTraceItem svg {
-  flex-shrink: 0;
+.activityPill {
+  padding: 1px 6px;
+  color: var(--text);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11.5px;
+}
+
+.activityMeta {
   color: var(--text-faint);
 }
 
-.searchTraceItem em {
-  font-style: normal;
-  color: var(--text-faint);
+.activityRowButton {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
 }
 
-.searchTraceItem--pending {
+.activityRowButton:hover {
+  color: var(--text-strong);
+}
+
+.activityRowButton:hover .activityPill {
+  border-color: var(--border-strong);
+}
+
+.activityRowButton--selected .activityPill {
+  border-color: var(--accent);
   color: var(--accent-text);
-  background: var(--accent-soft);
-  border-color: var(--accent-soft-border);
+}
+
+.activityItem--pending {
+  color: var(--accent-text);
+}
+
+.activityItem--pending .activityIcon {
+  color: var(--accent-text);
   animation: pulse 1.4s ease-in-out infinite;
 }
 
@@ -2058,6 +2055,16 @@ details.traceEntry[open] > summary {
   font-size: 12px;
 }
 
+.zoomLevel {
+  min-width: 40px;
+  margin-right: 0 !important;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .pdfCanvasWrap {
   display: grid;
   align-content: start;
@@ -2068,6 +2075,11 @@ details.traceEntry[open] > summary {
   padding: 16px;
   background: var(--bg-surface-3);
   border-radius: var(--radius-sm);
+}
+
+.pdfCanvasWrap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .pdfPage {
@@ -2119,6 +2131,10 @@ details.traceEntry[open] > summary {
   border: 2px solid var(--accent);
   border-radius: 3px;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65);
+}
+
+.pdfViewer--hideHighlights .pdfHighlightBox {
+  display: none;
 }
 
 .textLayer {

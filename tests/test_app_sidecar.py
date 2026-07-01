@@ -1,8 +1,9 @@
 import json
 
+from test_blocks_figures import make_structured_pdf
 from test_convert_search import make_pdf
 from vera import convert
-from vera_app.llm import ChatResponse, LlmConfig, ToolCall, ToolsUnsupportedError
+from vera_app.llm import ChatResponse, LlmConfig, ToolCall, ToolsUnsupportedError, VisionUnsupportedError
 from vera_app.sidecar import handle
 
 
@@ -155,6 +156,144 @@ def test_answer_action_falls_back_when_tools_unsupported(tmp_path, monkeypatch):
     assert result["answer_mode"] == "retrieval"
     assert result["answer"].endswith("[C1]")
     assert result["citations"][0]["id"] == "C1"
+
+
+def _figures_mode_dir(tmp_path, max_figure_images=4):
+    """Write a custom mode file with include_figures on, for figure-image tests."""
+    modes_dir = tmp_path / "modes"
+    modes_dir.mkdir()
+    (modes_dir / "figures-test.md").write_text(
+        "---\n"
+        "name: Figures Test\n"
+        "include_figures: true\n"
+        f"max_figure_images: {max_figure_images}\n"
+        "---\n"
+        "Answer using the retrieved evidence.\n",
+        encoding="utf-8",
+    )
+    return str(modes_dir)
+
+
+def test_answer_action_sends_figure_images_to_llm(tmp_path, monkeypatch):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_structured_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", store_original=True)
+
+    calls = {"n": 0}
+
+    def fake_chat(messages, config, tools=None, tool_choice="auto", on_delta=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return ChatResponse(
+                content="",
+                tool_calls=[ToolCall(id="call_1", name="search", arguments={"query": "restaurant parking", "mode": "keyword", "top_k": 1})],
+                message={"role": "assistant", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "search", "arguments": "{}"}}]},
+                model="test-model",
+                usage=None,
+            )
+        # Second turn: the figure image should have been offered as a follow-up
+        # multimodal user message after the tool result.
+        image_messages = [
+            m for m in messages
+            if isinstance(m.get("content"), list) and any(part.get("type") == "image_url" for part in m["content"])
+        ]
+        assert image_messages, "expected a message carrying an image_url content part"
+        image_parts = [part for part in image_messages[0]["content"] if part.get("type") == "image_url"]
+        assert image_parts[0]["image_url"]["url"].startswith("data:image/")
+        return ChatResponse(
+            content="Restaurant parking requirements are in the cited passage. [C1]",
+            tool_calls=[],
+            message={"role": "assistant", "content": "done"},
+            model="test-model",
+            usage=None,
+        )
+
+    monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
+
+    response = handle({
+        "id": "1",
+        "action": "answer",
+        "path": str(out),
+        "prompt": "restaurant parking",
+        "modes_dir": _figures_mode_dir(tmp_path),
+        "mode_id": "figures-test",
+        "llm": _llm_payload(),
+    })
+
+    assert response["ok"] is True
+    assert calls["n"] == 2
+    result = response["result"]
+    assert result["answer"].endswith("[C1]")
+    # Trace must redact image bytes rather than embedding the raw data URL.
+    request_trace = next(e for e in result["trace"] if e["event"] == "llm_request" and e["turn"] == 1)
+    traced_image_parts = [
+        part
+        for message in request_trace["messages"]
+        if isinstance(message.get("content"), list)
+        for part in message["content"]
+        if part.get("type") == "image_url"
+    ]
+    assert traced_image_parts, "expected the traced request to include the image message"
+    assert "omitted" in traced_image_parts[0]["image_url"]["url"]
+
+
+def test_answer_action_falls_back_to_text_when_vision_unsupported(tmp_path, monkeypatch):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_structured_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", store_original=True)
+
+    calls = {"n": 0}
+
+    def fake_chat(messages, config, tools=None, tool_choice="auto", on_delta=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return ChatResponse(
+                content="",
+                tool_calls=[ToolCall(id="call_1", name="search", arguments={"query": "restaurant parking", "mode": "keyword", "top_k": 1})],
+                message={"role": "assistant", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "search", "arguments": "{}"}}]},
+                model="test-model",
+                usage=None,
+            )
+        if calls["n"] == 2:
+            has_image = any(
+                isinstance(m.get("content"), list) and any(part.get("type") == "image_url" for part in m["content"])
+                for m in messages
+            )
+            assert has_image, "first retry attempt should still offer the image"
+            raise VisionUnsupportedError("model does not accept image content")
+        # Third call: the retry after stripping the image message.
+        assert not any(
+            isinstance(m.get("content"), list) and any(part.get("type") == "image_url" for part in m["content"])
+            for m in messages
+        ), "image content should be stripped after VisionUnsupportedError"
+        joined = json.dumps(messages)
+        assert "does not support image input" in joined
+        return ChatResponse(
+            content="Restaurant parking requirements are in the cited passage. [C1]",
+            tool_calls=[],
+            message={"role": "assistant", "content": "done"},
+            model="test-model",
+            usage=None,
+        )
+
+    monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
+
+    response = handle({
+        "id": "1",
+        "action": "answer",
+        "path": str(out),
+        "prompt": "restaurant parking",
+        "modes_dir": _figures_mode_dir(tmp_path),
+        "mode_id": "figures-test",
+        "llm": _llm_payload(),
+    })
+
+    assert response["ok"] is True
+    assert calls["n"] == 3
+    assert response["result"]["answer"].endswith("[C1]")
+
 
 
 def test_list_modes_action_returns_builtin_modes():

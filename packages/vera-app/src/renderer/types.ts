@@ -6,9 +6,13 @@ export interface VeraResponse<T = unknown> {
   traceback?: string;
 }
 
+export type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 export interface TraceMessage {
   role: string;
-  content?: string | null;
+  content?: string | ContentPart[] | null;
   name?: string;
   tool_call_id?: string;
   tool_calls?: { id?: string; type?: string; function?: { name?: string; arguments?: string } }[];
@@ -195,6 +199,7 @@ export interface Mode {
   include_figures: boolean;
   max_searches: number;
   max_chunks: number;
+  max_figure_images: number;
   builtin: boolean;
   path: string;
 }

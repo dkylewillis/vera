@@ -21,6 +21,28 @@ def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _drop_repeated_images(
+    block_records: list[tuple[str, ParsedBlock]],
+) -> list[tuple[str, ParsedBlock]]:
+    """Keep only the first occurrence of each distinct image in the document.
+
+    A logo or letterhead mark repeated on every page would otherwise be stored
+    (and surfaced as a "figure") once per page. Keeping just the first
+    occurrence avoids that storage bloat and search-result noise while still
+    preserving genuinely distinct images.
+    """
+    seen_hashes: set[str] = set()
+    kept: list[tuple[str, ParsedBlock]] = []
+    for block_id, block in block_records:
+        if block.block_type == "image" and block.image_bytes:
+            image_hash = _sha256_bytes(block.image_bytes)
+            if image_hash in seen_hashes:
+                continue
+            seen_hashes.add(image_hash)
+        kept.append((block_id, block))
+    return kept
+
+
 def convert(
     input_path: str,
     output_path: str,
@@ -45,6 +67,7 @@ def convert(
     block_records: list[tuple[str, ParsedBlock]] = [
         (f"block_{idx:06d}", block) for idx, block in enumerate(parsed_blocks, start=1)
     ]
+    block_records = _drop_repeated_images(block_records)
     chunks = build_chunks_from_blocks(block_records, chunk_size=chunk_size, overlap=overlap)
     embedder = get_embedder(model)
     vectors = embedder.embed([c.text for c in chunks]) if chunks else []

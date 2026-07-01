@@ -88,14 +88,19 @@ def get_asset(conn: sqlite3.Connection, asset_id: str, include_data: bool = True
 
 
 def get_chunk_regions(conn: sqlite3.Connection, chunk_id: str) -> list[dict[str, Any]]:
-    """Return the page regions (bounding boxes) a chunk's text came from."""
+    """Return the page regions (bounding boxes) a chunk's text came from.
+
+    Image blocks are excluded — they're surfaced separately via the figures
+    API, and highlighting their bounding box as if it were quoted text would
+    incorrectly draw a text-highlight overlay on top of the figure itself.
+    """
     rows = conn.execute(
         """
         SELECT b.block_id, b.page_number, b.bbox_json, p.width AS page_width, p.height AS page_height
         FROM chunk_blocks cb
         JOIN blocks b ON b.block_id = cb.block_id
         LEFT JOIN pages p ON p.page_id = b.page_id
-        WHERE cb.chunk_id = ?
+        WHERE cb.chunk_id = ? AND b.block_type != 'image'
         ORDER BY b.sort_order
         """,
         (chunk_id,),

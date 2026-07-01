@@ -84,6 +84,9 @@ def build_chunks_from_blocks(
     buffer_words: list[str] = []
     buffer_blocks: list[str] = []
     buffer_pages: list[int] = []
+    # Image block ids seen since the last flush that haven't yet been attached
+    # to a chunk (e.g. an image appears before any text on a fresh page).
+    pending_images: list[tuple[int, str]] = []
 
     def heading_path() -> str:
         return " > ".join(text for _, text in heading_stack)
@@ -106,8 +109,28 @@ def build_chunks_from_blocks(
         buffer_blocks = []
         buffer_pages = []
 
+    def attach_pending_images(page_number: int, target_block_ids: list[str]) -> None:
+        """Attach queued image block ids for this page onto a chunk's blocks."""
+        nonlocal pending_images
+        if not pending_images:
+            return
+        remaining = []
+        for pg, image_block_id in pending_images:
+            if pg == page_number:
+                target_block_ids.append(image_block_id)
+            else:
+                remaining.append((pg, image_block_id))
+        pending_images = remaining
+
     for block_id, block in blocks:
         if block.block_type == "image":
+            if buffer_words and buffer_pages and buffer_pages[-1] == block.page_number:
+                # A chunk is actively being assembled for this page — attach directly
+                # so the image travels with its surrounding text.
+                buffer_blocks.append(block_id)
+            else:
+                # No open chunk on this page yet — queue it for the next one.
+                pending_images.append((block.page_number, block_id))
             continue
         if buffer_pages and block.page_number != buffer_pages[-1]:
             # Keep citations page-precise: do not merge chunks across pages.
@@ -125,9 +148,14 @@ def build_chunks_from_blocks(
         if len(words) > chunk_size:
             flush()
             step = chunk_size - overlap
+            first_part = True
             for start in range(0, len(words), step):
                 part = words[start : start + chunk_size]
                 if part:
+                    part_block_ids = [block_id]
+                    if first_part:
+                        attach_pending_images(block.page_number, part_block_ids)
+                        first_part = False
                     chunks.append(
                         Chunk(
                             " ".join(part),
@@ -135,7 +163,7 @@ def build_chunks_from_blocks(
                             block.page_number,
                             heading_path(),
                             len(part),
-                            [block_id],
+                            part_block_ids,
                         )
                     )
                 if start + chunk_size >= len(words):
@@ -145,8 +173,19 @@ def build_chunks_from_blocks(
             carry = buffer_words[-overlap:] if overlap else []
             flush()
             buffer_words.extend(carry)
+        starting_new_buffer = not buffer_words
         buffer_words.extend(words)
         buffer_blocks.append(block_id)
         buffer_pages.append(block.page_number)
+        if starting_new_buffer:
+            attach_pending_images(block.page_number, buffer_blocks)
     flush()
+    if pending_images:
+        # Trailing images with no following text on their page: attach to the
+        # last chunk that already covers that page, if any.
+        for page_number, image_block_id in pending_images:
+            for chunk in reversed(chunks):
+                if chunk.page_start <= page_number <= chunk.page_end:
+                    chunk.block_ids.append(image_block_id)
+                    break
     return chunks

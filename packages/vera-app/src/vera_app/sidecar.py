@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import copy
 import json
+import re
 import sys
 import traceback
 from collections.abc import Callable
@@ -15,6 +16,7 @@ from vera_app.llm import (
     ChatResponse,
     LlmConfig,
     ToolsUnsupportedError,
+    VisionUnsupportedError,
     chat,
     generate,
     list_models,
@@ -56,6 +58,28 @@ def _resolve_target(request: Request):
     return VeraCorpus.open(path) if Path(path).is_dir() else _open_document(path)
 
 
+def _scoped_single_file(request: Request) -> str | None:
+    """Return the source path when a request is scoped to exactly one file.
+
+    Single-document search results don't carry a `file` field (unlike corpus
+    results), but the UI needs it to locate and highlight the source when the
+    search was scoped via checkbox rather than an opened document. Returns the
+    explicit single path, or the request `path` when it points at a file.
+    """
+    paths = request.get("paths")
+    if isinstance(paths, list):
+        files = [str(p) for p in paths if str(p).strip()]
+        if len(files) == 1:
+            return files[0]
+        if len(files) > 1:
+            return None
+    path = str(request.get("path") or "")
+    if path and not Path(path).is_dir():
+        return path
+    return None
+
+
+
 def _figure_payload(figure: dict[str, Any]) -> dict[str, Any]:
     data = figure.pop("data", None)
     if data is not None:
@@ -89,6 +113,10 @@ def _validate(request: Request) -> dict[str, Any]:
 
 def _search(request: Request) -> list[dict[str, Any]]:
     target = _resolve_target(request)
+    # When the search is scoped to a single file, stamp each result with its
+    # source path so the UI can open/highlight it (corpus results already carry
+    # `file`; single-document results otherwise don't).
+    scoped_file = _scoped_single_file(request)
     try:
         results = target.search(
             str(request.get("query", "")),
@@ -102,6 +130,8 @@ def _search(request: Request) -> list[dict[str, Any]]:
         payload: list[dict[str, Any]] = []
         for result in results:
             entry = result.as_dict()
+            if scoped_file and not entry.get("file"):
+                entry["file"] = scoped_file
             if include_regions:
                 entry["regions"] = target.regions_for(result)
             if include_figures:
@@ -117,6 +147,27 @@ def _compact_text(text: str, limit: int = 420) -> str:
     if len(compact) <= limit:
         return compact
     return f"{compact[:limit].rstrip()}..."
+
+
+def _redact_messages_for_trace(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deep-copy `messages` with image_url data replaced by a short placeholder.
+
+    Figure images can be several hundred KB of base64; embedding them verbatim in
+    the trace would bloat the IPC payload and the session store for no benefit
+    (the trace is a debug view, not something that needs to re-render the image).
+    """
+    redacted = copy.deepcopy(messages)
+    for message in redacted:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if not isinstance(part, dict) or part.get("type") != "image_url":
+                continue
+            url = str((part.get("image_url") or {}).get("url") or "")
+            size = len(url)
+            part["image_url"] = {"url": f"<image omitted, {size} bytes>"}
+    return redacted
 
 
 def _instructions(request: Request, mode: Mode) -> str:
@@ -194,6 +245,31 @@ def _list_modes(request: Request) -> dict[str, Any]:
     return {"modes": [mode.to_dict() for mode in load_modes(str(request.get("modes_dir") or "") or None)]}
 
 
+def _prior_citation_labels(request: Request) -> tuple[dict[str, str], int]:
+    """Build a stable chunk_id -> citation id map from earlier turns.
+
+    Returns the registry plus the highest numeric id used so far, so new chunks
+    continue numbering after it and previously-cited chunks keep their original id.
+    """
+    registry: dict[str, str] = {}
+    max_index = 0
+    raw = request.get("prior_citations")
+    if not isinstance(raw, list):
+        return registry, max_index
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        citation_id = str(entry.get("id") or "").strip()
+        chunk_id = str(entry.get("chunk_id") or "").strip()
+        if not citation_id or not chunk_id:
+            continue
+        registry.setdefault(chunk_id, citation_id)
+        match = re.fullmatch(r"C(\d+)", citation_id)
+        if match:
+            max_index = max(max_index, int(match.group(1)))
+    return registry, max_index
+
+
 class _SearchTool:
     """Executes the model's `search` calls and accumulates citations."""
 
@@ -202,24 +278,44 @@ class _SearchTool:
     # threshold is unreliable; a per-search relative cutoff is mode-agnostic.
     _QUALITY_RATIOS = {"strict": 0.85, "balanced": 0.55, "permissive": 0.0}
 
-    def __init__(self, request: Request, mode: Mode, write_event=None) -> None:
+    def __init__(self, request: Request, mode: Mode, write_event=None, label_registry: dict[str, str] | None = None, label_start: int = 0) -> None:
         self._request = request
         self._mode = mode
         self._by_chunk: dict[str, dict[str, Any]] = {}
         self.citations: list[dict[str, Any]] = []
         self.searches: list[dict[str, Any]] = []
         self._write_event = write_event
+        # Session-wide label registry: chunk_id -> citation id (e.g. "C2"). Seeded
+        # from prior turns so the same chunk keeps its id across the conversation.
+        self._label_registry: dict[str, str] = dict(label_registry or {})
+        self._label_counter = label_start
+        # Bounds how many figure images get offered to the LLM across the whole
+        # answer (not just one search call) so a chatty agent loop can't blow up
+        # the prompt with dozens of images.
+        self._image_budget = mode.max_figure_images
+        self._pending_image_parts: list[dict[str, Any]] = []
 
     @property
     def chunk_count(self) -> int:
         return len(self.citations)
+
+    def take_pending_image_parts(self) -> list[dict[str, Any]]:
+        """Pop and return image/text content parts queued since the last call."""
+        parts, self._pending_image_parts = self._pending_image_parts, []
+        return parts
 
     def _register(self, result: dict[str, Any]) -> str:
         chunk_id = str(result.get("chunk_id") or f"chunk_{len(self._by_chunk)}")
         existing = self._by_chunk.get(chunk_id)
         if existing is not None:
             return str(existing["id"])
-        citation_id = f"C{len(self.citations) + 1}"
+        # Reuse a stable session-wide label if this chunk was cited in a prior turn;
+        # otherwise allocate the next id after the highest one used so far.
+        citation_id = self._label_registry.get(chunk_id)
+        if citation_id is None:
+            self._label_counter += 1
+            citation_id = f"C{self._label_counter}"
+            self._label_registry[chunk_id] = citation_id
         page = result.get("page_start") or result.get("page_end") or "-"
         entry = {
             "id": citation_id,
@@ -257,6 +353,9 @@ class _SearchTool:
             "context_chunks": max(0, min(3, int(context_chunks or 0))),
             "include_regions": True,
             "include_figures": include_figures,
+            # Fetch actual image bytes (not just captions) so citations carry a
+            # `data_url` the UI can render and so we can offer images to the LLM.
+            "include_figure_data": include_figures,
         })
         # Relative quality filter: drop hits far weaker than the best one.
         if results:
@@ -298,6 +397,23 @@ class _SearchTool:
                     {"caption": fig.get("caption"), "page": fig.get("page_number")}
                     for fig in result.get("figures", [])
                 ]
+                # Queue the actual images (bounded by the remaining budget) so the
+                # agent loop can show them to the LLM alongside this citation.
+                for fig in result.get("figures", []):
+                    if self._image_budget <= 0:
+                        break
+                    data_url = fig.get("data_url")
+                    if not data_url:
+                        continue
+                    page = fig.get("page_number") or result.get("page_start") or "-"
+                    caption = fig.get("caption") or "no caption"
+                    self._pending_image_parts.append(
+                        {"type": "text", "text": f"Figure for [{citation_id}] (p. {page}): {caption}"}
+                    )
+                    self._pending_image_parts.append(
+                        {"type": "image_url", "image_url": {"url": data_url}}
+                    )
+                    self._image_budget -= 1
             passages.append(passage)
         self.searches.append({"query": query, "mode": search_mode, "top_k": top_k, "hits": len(passages)})
         if self._write_event:
@@ -330,8 +446,15 @@ def _retrieval_payload(request: Request, mode: Mode, instructions: str) -> dict[
         "include_figures": mode.include_figures,
     })
     citations = []
-    for index, result in enumerate(results, start=1):
-        citation_id = f"C{index}"
+    label_registry, label_index = _prior_citation_labels(request)
+    for result in results:
+        chunk_id = str(result.get("chunk_id") or "")
+        citation_id = label_registry.get(chunk_id)
+        if citation_id is None:
+            label_index += 1
+            citation_id = f"C{label_index}"
+            if chunk_id:
+                label_registry[chunk_id] = citation_id
         page = result.get("page_start") or result.get("page_end") or "-"
         citations.append({
             "id": citation_id,
@@ -377,7 +500,10 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
             if role in {"user", "assistant"} and content:
                 history.append({"role": role, "content": content})
 
-    tool = _SearchTool(request, mode, write_event=write_event)
+    # Seed the citation labeller with ids already assigned in earlier turns so the
+    # same chunk keeps its `[C#]` id across the whole session.
+    label_registry, label_start = _prior_citation_labels(request)
+    tool = _SearchTool(request, mode, write_event=write_event, label_registry=label_registry, label_start=label_start)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": instructions},
         *history,
@@ -404,6 +530,14 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
     )
 
     last_response: ChatResponse | None = None
+    # Whether the active provider still appears to accept image content. Flipped
+    # off for the rest of this answer the first time it rejects an image message
+    # (auto-detected — there's no per-provider "supports vision" setting).
+    vision_available = True
+    # Index into `messages` of the most recently appended figure-image message,
+    # so it can be neutralized (replaced with a text placeholder) if the
+    # provider turns out not to support image input.
+    pending_image_msg_index: int | None = None
     try:
         # One extra turn beyond the search budget lets the model write its final answer.
         for turn in range(mode.max_searches + 1):
@@ -414,15 +548,34 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
                 "turn": turn,
                 "model": config.model,
                 "tools": [t["function"]["name"] for t in (offered_tools or [])],
-                "messages": copy.deepcopy(messages),
+                "messages": _redact_messages_for_trace(messages),
             })
-            response = chat(
-                messages,
-                config,
-                tools=offered_tools,
-                tool_choice="auto",
-                on_delta=stream_delta,
-            )
+            try:
+                response = chat(
+                    messages,
+                    config,
+                    tools=offered_tools,
+                    tool_choice="auto",
+                    on_delta=stream_delta,
+                )
+            except VisionUnsupportedError:
+                if pending_image_msg_index is None:
+                    raise
+                # Neutralize the offending image message and retry this turn once,
+                # text-only, without ever offering images again this answer.
+                messages[pending_image_msg_index] = {
+                    "role": "user",
+                    "content": "[Figure images omitted: this model does not support image input.]",
+                }
+                vision_available = False
+                pending_image_msg_index = None
+                response = chat(
+                    messages,
+                    config,
+                    tools=offered_tools,
+                    tool_choice="auto",
+                    on_delta=stream_delta,
+                )
             last_response = response
             record({
                 "event": "llm_response",
@@ -467,6 +620,20 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
                     "arguments": call.arguments,
                     "output": output,
                 })
+            # If any of this turn's searches surfaced figures within the image
+            # budget, offer them to the model as a follow-up multimodal message so
+            # it can actually see the images (not just their captions).
+            if vision_available:
+                image_parts = tool.take_pending_image_parts()
+                if image_parts:
+                    messages.append({
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Reference images for the figures cited above:"},
+                            *image_parts,
+                        ],
+                    })
+                    pending_image_msg_index = len(messages) - 1
             print(
                 f"[vera-answer]   -> appended tool results, messages now {len(messages)}, "
                 f"total citations: {tool.chunk_count}",

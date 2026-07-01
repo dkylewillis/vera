@@ -9,7 +9,10 @@ from dataclasses import dataclass
 from typing import Any, Callable, Protocol
 
 
-Message = dict[str, str]
+# `content` is usually a plain string, but may be a list of OpenAI-style content
+# parts (e.g. `{"type": "text", ...}` / `{"type": "image_url", ...}`) for
+# multimodal messages carrying figure images.
+Message = dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -71,6 +74,10 @@ class ToolsUnsupportedError(RuntimeError):
     """Raised when a provider rejects tool/function-calling requests."""
 
 
+class VisionUnsupportedError(RuntimeError):
+    """Raised when a provider rejects image content in a message."""
+
+
 class LlmProvider(Protocol):
     def generate(self, messages: list[Message], config: LlmConfig) -> LlmResult: ...
 
@@ -99,6 +106,26 @@ def _tools_rejected(detail: str) -> bool:
     if "max_completion_tokens" in lowered or "'temperature'" in lowered:
         return False
     return any(token in lowered for token in ("tool", "function call", "function_call", "functions"))
+
+
+def _has_image_content(messages: list[Message]) -> bool:
+    """True if any message carries an `image_url` content part."""
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "image_url":
+                return True
+    return False
+
+
+def _vision_rejected(detail: str) -> bool:
+    lowered = detail.lower()
+    return any(
+        token in lowered
+        for token in ("image", "vision", "multimodal", "image_url", "unsupported content", "invalid content")
+    )
 
 
 # Some models (and some local servers) don't emit native `tool_calls` and instead
@@ -254,6 +281,8 @@ class OpenAiCompatibleProvider:
                     continue
                 if exc.code in (400, 404, 422) and tools and _tools_rejected(detail):
                     raise ToolsUnsupportedError(detail) from exc
+                if exc.code in (400, 415, 422) and _has_image_content(messages) and _vision_rejected(detail):
+                    raise VisionUnsupportedError(detail) from exc
                 raise RuntimeError(f"LLM provider returned HTTP {exc.code}: {detail}") from exc
             except urllib.error.URLError as exc:
                 raise RuntimeError(f"Unable to reach LLM provider: {exc.reason}") from exc

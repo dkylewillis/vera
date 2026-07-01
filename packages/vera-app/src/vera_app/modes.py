@@ -31,6 +31,7 @@ class Mode:
     include_figures: bool = False
     max_searches: int = 6
     max_chunks: int = 20
+    max_figure_images: int = 4
     builtin: bool = False
     path: str = ""
 
@@ -46,6 +47,7 @@ class Mode:
             "include_figures": self.include_figures,
             "max_searches": self.max_searches,
             "max_chunks": self.max_chunks,
+            "max_figure_images": self.max_figure_images,
             "builtin": self.builtin,
             "path": self.path,
         }
@@ -124,6 +126,7 @@ def parse_mode(text: str, *, path: str = "", builtin: bool = False) -> Mode | No
         include_figures=_coerce_bool(meta.get("include_figures", "false"), False),
         max_searches=max(1, min(12, _coerce_int(meta.get("max_searches", "6"), 6))),
         max_chunks=max(1, min(60, _coerce_int(meta.get("max_chunks", "20"), 20))),
+        max_figure_images=max(0, min(20, _coerce_int(meta.get("max_figure_images", "4"), 4))),
         builtin=builtin,
         path=path,
     )
