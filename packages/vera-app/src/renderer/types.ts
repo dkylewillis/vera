@@ -149,6 +149,13 @@ export interface ChatCitationResult {
   result: SearchResult;
 }
 
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  mime_type: string;
+  data_url: string;
+}
+
 export interface ChatAnswerResult {
   prompt: string;
   answer: string;
@@ -160,6 +167,7 @@ export interface ChatAnswerResult {
   mode_label?: string;
   searches?: { query: string; mode: string; top_k: number; hits: number }[];
   trace?: StreamEvent[];
+  images_sent?: number;
   llm?: {
     provider: string;
     model: string;
@@ -171,10 +179,12 @@ export interface SessionTurn {
   role: 'user' | 'assistant';
   content: string;
   citations?: ChatCitationResult[];
+  attachments?: ChatAttachment[];
   searches?: { query: string; mode: string; top_k: number; hits: number }[];
   answer_mode?: 'retrieval' | 'agent';
   mode_label?: string;
   trace?: StreamEvent[];
+  images_sent?: number;
   llm?: { provider: string; model: string; usage?: Record<string, unknown> | null };
   timestamp: number;
 }

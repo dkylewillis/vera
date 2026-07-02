@@ -225,6 +225,8 @@ def test_answer_action_sends_figure_images_to_llm(tmp_path, monkeypatch):
     assert calls["n"] == 2
     result = response["result"]
     assert result["answer"].endswith("[C1]")
+    # The response reports how many images actually reached the model.
+    assert result["images_sent"] == 1
     # Trace must redact image bytes rather than embedding the raw data URL.
     request_trace = next(e for e in result["trace"] if e["event"] == "llm_request" and e["turn"] == 1)
     traced_image_parts = [
@@ -293,6 +295,8 @@ def test_answer_action_falls_back_to_text_when_vision_unsupported(tmp_path, monk
     assert response["ok"] is True
     assert calls["n"] == 3
     assert response["result"]["answer"].endswith("[C1]")
+    # Images were stripped after the rejection, so none actually reached the model.
+    assert response["result"]["images_sent"] == 0
 
 
 

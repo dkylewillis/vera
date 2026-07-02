@@ -4,7 +4,7 @@ description: Concise, answer-first responses grounded in the document.
 search_mode: hybrid
 top_k: 6
 context_chunks: 1
-include_figures: false
+include_figures: true
 max_searches: 3
 max_chunks: 12
 ---

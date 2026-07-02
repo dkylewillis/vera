@@ -16,6 +16,7 @@ import {
   Folder,
   FolderOpen,
   Highlighter,
+  Image as ImageIcon,
   Info,
   KeyRound,
   ListChecks,
@@ -36,7 +37,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import type { AppSettings, ChatAnswerResult, ChatCitationResult, ConvertResult, ExportResult, FolderEntry, InspectResult, Mode, PageResult, ProviderProfile, RegionResult, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
+import type { AppSettings, ChatAnswerResult, ChatAttachment, ChatCitationResult, ConvertResult, ExportResult, FigureResult, FolderEntry, InspectResult, Mode, PageResult, ProviderProfile, RegionResult, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
 import './styles.css';
 
 type SideView = 'explorer' | 'chats' | 'search' | 'convert' | 'info';
@@ -471,7 +472,8 @@ type ActivitySearchItem = { query: string; mode?: string; hits?: number; pending
 
 type ActivityStep =
   | { kind: 'search'; item: ActivitySearchItem }
-  | { kind: 'source'; citation: ChatCitationResult };
+  | { kind: 'source'; citation: ChatCitationResult }
+  | { kind: 'image'; citation: ChatCitationResult; figure: FigureResult };
 
 function ActivityStepRow({
   step,
@@ -495,6 +497,25 @@ function ActivityStepRow({
             <span className="activityMeta"> · {item.mode}, {item.hits} {item.hits === 1 ? 'hit' : 'hits'}</span>
           )}
         </span>
+      </li>
+    );
+  }
+  if (step.kind === 'image') {
+    const { citation, figure } = step;
+    const label = figure.caption?.trim() || citation.result.heading_path || citation.result.source_filename || citation.result.chunk_id;
+    return (
+      <li className="activityItem">
+        <button
+          type="button"
+          className={selected ? 'activityRowButton activityRowButton--selected' : 'activityRowButton'}
+          onClick={() => onSelectCitation?.(citation)}
+        >
+          <ImageIcon size={12} className="activityIcon" />
+          <span className="activityText">
+            Viewed image <code className="activityPill">{label}</code>
+            {figure.page_number != null ? <span className="activityMeta"> · p. {figure.page_number}</span> : null}
+          </span>
+        </button>
       </li>
     );
   }
@@ -539,6 +560,11 @@ function ActivityTrace({
   const steps: ActivityStep[] = [
     ...(searches || []).map((item): ActivityStep => ({ kind: 'search', item })),
     ...(citations || []).map((citation): ActivityStep => ({ kind: 'source', citation })),
+    ...(citations || []).flatMap((citation): ActivityStep[] =>
+      (citation.result.figures || [])
+        .filter((figure) => figure.data_url)
+        .map((figure): ActivityStep => ({ kind: 'image', citation, figure })),
+    ),
   ];
   if (!steps.length) return null;
 
@@ -549,7 +575,7 @@ function ActivityTrace({
           key={i}
           step={step}
           onSelectCitation={selectCitation}
-          selected={step.kind === 'source' && step.citation.result.chunk_id === selectedChunkId}
+          selected={step.kind !== 'search' && step.citation.result.chunk_id === selectedChunkId}
         />
       ))}
     </ul>
@@ -561,9 +587,11 @@ function ActivityTrace({
 
   const searchCount = searches?.length || 0;
   const sourceCount = citations?.length || 0;
+  const imageCount = steps.filter((step) => step.kind === 'image').length;
   const summaryParts: string[] = [];
   if (searchCount) summaryParts.push(`Searched ${searchCount} ${searchCount === 1 ? 'query' : 'queries'}`);
   if (sourceCount) summaryParts.push(`reviewed ${sourceCount} ${sourceCount === 1 ? 'source' : 'sources'}`);
+  if (imageCount) summaryParts.push(`viewed ${imageCount} ${imageCount === 1 ? 'image' : 'images'}`);
 
   return (
     <details className="activityDisclosure">
@@ -608,7 +636,10 @@ function TraceView({ events }: { events: StreamEvent[] }) {
                       {Array.isArray(message.content) ? (
                         message.content.map((part, pi) =>
                           part.type === 'image_url' ? (
-                            <span className="traceContent traceImagePart" key={pi}>{part.image_url.url}</span>
+                            <span className="traceContent traceImagePart" key={pi}>
+                              <ImageIcon size={12} />
+                              {part.image_url.url}
+                            </span>
                           ) : (
                             <pre className="traceContent" key={pi}>{part.text}</pre>
                           ),
@@ -678,6 +709,13 @@ const ChatTurn = React.memo(function ChatTurn({
   if (turn.role === 'user') {
     return (
       <article className="chatMessage userMessage">
+        {turn.attachments && turn.attachments.length ? (
+          <div className="userAttachments">
+            {turn.attachments.map((att) => (
+              <img key={att.id} className="userAttachmentThumb" src={att.data_url} alt={att.name} title={att.name} />
+            ))}
+          </div>
+        ) : null}
         <p>{turn.content}</p>
       </article>
     );
@@ -1046,6 +1084,9 @@ function App() {
   const [pdfPath, setPdfPath] = useState('');
   const [outputPath, setOutputPath] = useState('');
   const [query, setQuery] = useState('');
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState('hybrid');
   const [topK, setTopK] = useState(8);
   const [contextChunks, setContextChunks] = useState(0);
@@ -1308,6 +1349,46 @@ function App() {
     }
   }
 
+  const MAX_ATTACHMENTS = 6;
+
+  function readFileAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Reads dropped/selected image files into data URLs and adds them as chat
+  // attachments, up to MAX_ATTACHMENTS. Non-image files are ignored.
+  async function addAttachmentFiles(fileList: FileList | File[]) {
+    const files = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
+    if (!files.length) return;
+    const room = MAX_ATTACHMENTS - attachments.length;
+    if (room <= 0) {
+      setErrorMessage(`You can attach up to ${MAX_ATTACHMENTS} images per message.`);
+      return;
+    }
+    const accepted = files.slice(0, room);
+    const read = await Promise.all(
+      accepted.map(async (file) => ({
+        id: `att_${Math.random().toString(36).slice(2)}`,
+        name: file.name,
+        mime_type: file.type,
+        data_url: await readFileAsDataUrl(file),
+      })),
+    );
+    setAttachments((prev) => [...prev, ...read]);
+    if (files.length > accepted.length) {
+      setErrorMessage(`Only ${room} more image(s) could be attached (limit ${MAX_ATTACHMENTS} per message).`);
+    }
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }
+
   async function askTarget() {
     const provider = activeProvider;
     if (!provider) {
@@ -1363,10 +1444,17 @@ function App() {
     const priorCitations = [...priorCitationsMap.values()];
 
     // Optimistically append the user turn to the thread.
-    const userTurn: SessionTurn = { role: 'user', content: query, timestamp: Date.now() };
+    const pendingAttachments = attachments;
+    const userTurn: SessionTurn = {
+      role: 'user',
+      content: query,
+      timestamp: Date.now(),
+      ...(pendingAttachments.length ? { attachments: pendingAttachments } : {}),
+    };
     const nextTurns = [...sessionTurns, userTurn];
     setSessionTurns(nextTurns);
     setQuery('');
+    setAttachments([]);
 
     // Set up streaming event listener before firing the request.
     setStreamEvents([]);
@@ -1405,6 +1493,9 @@ function App() {
       history,
       prior_citations: priorCitations,
       llm,
+      ...(pendingAttachments.length
+        ? { attachments: pendingAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })) }
+        : {}),
     }, 'Asking');
     offEvents();
     setStreamEvents([]);
@@ -1425,6 +1516,7 @@ function App() {
         answer_mode: result.answer_mode,
         mode_label: result.mode_label,
         trace: turnTrace,
+        images_sent: result.images_sent,
         llm: result.llm,
         timestamp: now,
       };
@@ -1460,6 +1552,7 @@ function App() {
       // Roll back optimistic user turn on failure.
       setSessionTurns(sessionTurns);
       setQuery(query);
+      setAttachments(pendingAttachments);
     }
   }
 
@@ -1470,6 +1563,7 @@ function App() {
     setResults([]);
     setSelected(null);
     setQuery('');
+    setAttachments([]);
   }
 
   async function loadSession(session: Session) {
@@ -2085,8 +2179,69 @@ function App() {
                 </div>
               )}
               <div className="askComposerWrap">
-                <div className="askComposer">
+                <div
+                  className={isDraggingFiles ? 'askComposer askComposer--dragging' : 'askComposer'}
+                  onDragOver={(event) => {
+                    if (!event.dataTransfer.types.includes('Files')) return;
+                    event.preventDefault();
+                    setIsDraggingFiles(true);
+                  }}
+                  onDragLeave={(event) => {
+                    if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+                    setIsDraggingFiles(false);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setIsDraggingFiles(false);
+                    if (event.dataTransfer.files.length) void addAttachmentFiles(event.dataTransfer.files);
+                  }}
+                >
+                  <input
+                    ref={attachmentInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={(event) => {
+                      if (event.target.files?.length) void addAttachmentFiles(event.target.files);
+                      event.target.value = '';
+                    }}
+                  />
+                  {attachments.length ? (
+                    <div className="attachRow">
+                      {attachments.map((att) => (
+                        <span className="attachChip" key={att.id} title={att.name}>
+                          <img className="attachChipThumb" src={att.data_url} alt="" />
+                          <span className="attachChipName">{att.name}</span>
+                          <button
+                            type="button"
+                            className="attachChipRemove"
+                            onClick={() => removeAttachment(att.id)}
+                            aria-label={`Remove ${att.name}`}
+                            title="Remove"
+                          >
+                            <X size={11} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {isDraggingFiles ? (
+                    <div className="attachDropHint">
+                      <ImageIcon size={16} />
+                      <span>Drop images to attach</span>
+                    </div>
+                  ) : null}
                   <div className="askInputRow">
+                    <button
+                      type="button"
+                      className="ghostIcon attachButton"
+                      onClick={() => attachmentInputRef.current?.click()}
+                      title="Attach images"
+                      aria-label="Attach images"
+                    >
+                      <Plus size={16} />
+                    </button>
                     <textarea
                       className="askInput"
                       value={query}

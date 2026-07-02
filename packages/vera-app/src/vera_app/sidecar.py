@@ -170,6 +170,22 @@ def _redact_messages_for_trace(messages: list[dict[str, Any]]) -> list[dict[str,
     return redacted
 
 
+def _count_image_parts(messages: list[dict[str, Any]]) -> int:
+    """Count image_url content parts across `messages`.
+
+    Used to report how many images actually ended up in the final request sent
+    to the LLM — reflects reality even if some were dropped along the way (e.g.
+    `_strip_image_parts` after a `VisionUnsupportedError`).
+    """
+    total = 0
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        total += sum(1 for part in content if isinstance(part, dict) and part.get("type") == "image_url")
+    return total
+
+
 def _instructions(request: Request, mode: Mode) -> str:
     base = mode.instructions.strip() or DEFAULT_RAG_INSTRUCTIONS
     custom = str(request.get("instructions", "") or "").strip()
@@ -444,9 +460,16 @@ def _retrieval_payload(request: Request, mode: Mode, instructions: str) -> dict[
         "context_chunks": mode.context_chunks,
         "include_regions": True,
         "include_figures": mode.include_figures,
+        # Fetch actual image bytes too (not just captions), same as the agentic
+        # path, so this fallback can also offer figure images to the model.
+        "include_figure_data": mode.include_figures,
     })
     citations = []
     label_registry, label_index = _prior_citation_labels(request)
+    # Mirrors _SearchTool.run()'s image-part queueing, bounded by the same
+    # per-answer image budget.
+    image_parts: list[dict[str, Any]] = []
+    image_budget = mode.max_figure_images
     for result in results:
         chunk_id = str(result.get("chunk_id") or "")
         citation_id = label_registry.get(chunk_id)
@@ -461,6 +484,20 @@ def _retrieval_payload(request: Request, mode: Mode, instructions: str) -> dict[
             "label": f"[{citation_id}] p. {page}",
             "result": result,
         })
+        if mode.include_figures:
+            for fig in result.get("figures") or []:
+                if image_budget <= 0:
+                    break
+                data_url = fig.get("data_url")
+                if not data_url:
+                    continue
+                fig_page = fig.get("page_number") or page
+                caption = fig.get("caption") or "no caption"
+                image_parts.append(
+                    {"type": "text", "text": f"Figure for [{citation_id}] (p. {fig_page}): {caption}"}
+                )
+                image_parts.append({"type": "image_url", "image_url": {"url": data_url}})
+                image_budget -= 1
     evidence = "\n".join(
         f"[{citation['id']}] {citation['result'].get('text', '')}" for citation in citations
     )
@@ -473,7 +510,45 @@ def _retrieval_payload(request: Request, mode: Mode, instructions: str) -> dict[
         "citations": citations,
         "instructions": instructions,
         "llm_prompt": llm_prompt,
+        "image_parts": image_parts,
     }
+
+
+def _user_attachment_parts(request: Request) -> list[dict[str, Any]]:
+    """Build image content parts from images the user attached to this message."""
+    attachments = request.get("attachments")
+    if not isinstance(attachments, list):
+        return []
+    parts: list[dict[str, Any]] = []
+    for attachment in attachments:
+        if not isinstance(attachment, dict):
+            continue
+        data_url = attachment.get("data_url")
+        if not data_url:
+            continue
+        parts.append({"type": "image_url", "image_url": {"url": str(data_url)}})
+    return parts
+
+
+def _strip_image_parts(messages: list[dict[str, Any]]) -> None:
+    """In-place: collapse any multimodal (list-content) message back to plain text.
+
+    Called once a provider signals it can't accept image input (`VisionUnsupportedError`)
+    so a retry doesn't hit the same rejection again — regardless of whether the images
+    came from user attachments, cited figures, or both.
+    """
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        text = "\n".join(
+            str(part.get("text", "")) for part in content if isinstance(part, dict) and part.get("type") == "text"
+        ).strip()
+        had_images = any(isinstance(part, dict) and part.get("type") == "image_url" for part in content)
+        if had_images:
+            note = "[Images omitted: this model does not support image input.]"
+            text = f"{text}\n{note}" if text else note
+        message["content"] = text
 
 
 def _answer(request: Request, write_event=None) -> dict[str, Any]:
@@ -504,10 +579,17 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
     # same chunk keeps its `[C#]` id across the whole session.
     label_registry, label_start = _prior_citation_labels(request)
     tool = _SearchTool(request, mode, write_event=write_event, label_registry=label_registry, label_start=label_start)
+    # Images the user attached to this message (via the composer's attach button
+    # or drag-and-drop) ride along in the initial user message, alongside any
+    # figure images the agent surfaces later while searching.
+    attachment_parts = _user_attachment_parts(request)
+    user_content: Any = prompt
+    if attachment_parts:
+        user_content = [{"type": "text", "text": prompt}, *attachment_parts]
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": instructions},
         *history,
-        {"role": "user", "content": prompt},
+        {"role": "user", "content": user_content},
     ]
 
     # Collect a structured trace of every LLM request/response and tool call so the
@@ -534,10 +616,6 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
     # off for the rest of this answer the first time it rejects an image message
     # (auto-detected — there's no per-provider "supports vision" setting).
     vision_available = True
-    # Index into `messages` of the most recently appended figure-image message,
-    # so it can be neutralized (replaced with a text placeholder) if the
-    # provider turns out not to support image input.
-    pending_image_msg_index: int | None = None
     try:
         # One extra turn beyond the search budget lets the model write its final answer.
         for turn in range(mode.max_searches + 1):
@@ -559,16 +637,11 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
                     on_delta=stream_delta,
                 )
             except VisionUnsupportedError:
-                if pending_image_msg_index is None:
-                    raise
-                # Neutralize the offending image message and retry this turn once,
-                # text-only, without ever offering images again this answer.
-                messages[pending_image_msg_index] = {
-                    "role": "user",
-                    "content": "[Figure images omitted: this model does not support image input.]",
-                }
+                # Neutralize every image-bearing message (user attachments and/or
+                # figure images) and retry this turn once, text-only, without ever
+                # offering images again this answer.
+                _strip_image_parts(messages)
                 vision_available = False
-                pending_image_msg_index = None
                 response = chat(
                     messages,
                     config,
@@ -633,7 +706,6 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
                             *image_parts,
                         ],
                     })
-                    pending_image_msg_index = len(messages) - 1
             print(
                 f"[vera-answer]   -> appended tool results, messages now {len(messages)}, "
                 f"total citations: {tool.chunk_count}",
@@ -643,18 +715,34 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
     except ToolsUnsupportedError:
         # Provider can't do tool-calling: fall back to one-shot retrieve-then-answer.
         fallback = _retrieval_payload(request, mode, instructions)
-        fallback_messages = [
+        fallback_user_content: Any = fallback["llm_prompt"]
+        if attachment_parts:
+            fallback_user_content = [{"type": "text", "text": fallback["llm_prompt"]}, *attachment_parts]
+        fallback_messages: list[dict[str, Any]] = [
             {"role": "system", "content": instructions},
-            {"role": "user", "content": fallback["llm_prompt"]},
+            {"role": "user", "content": fallback_user_content},
         ]
+        if fallback["image_parts"]:
+            fallback_messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Reference images for the figures cited above:"},
+                    *fallback["image_parts"],
+                ],
+            })
         record({
             "event": "llm_request",
             "turn": 0,
             "model": config.model,
             "tools": [],
-            "messages": copy.deepcopy(fallback_messages),
+            "messages": _redact_messages_for_trace(fallback_messages),
         })
-        llm_result = generate(fallback_messages, config)
+        try:
+            llm_result = generate(fallback_messages, config)
+        except VisionUnsupportedError:
+            # This provider also can't take image input; retry once, text-only.
+            _strip_image_parts(fallback_messages)
+            llm_result = generate(fallback_messages, config)
         record({
             "event": "llm_response",
             "turn": 0,
@@ -673,6 +761,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
             "answer_mode": "retrieval",
             "searches": [],
             "trace": trace,
+            "images_sent": _count_image_parts(fallback_messages),
             "llm": {"provider": llm_result.provider, "model": llm_result.model, "usage": llm_result.usage},
         }
 
@@ -697,7 +786,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
                 "turn": mode.max_searches + 1,
                 "model": config.model,
                 "tools": [],
-                "messages": copy.deepcopy(nudge_messages),
+                "messages": _redact_messages_for_trace(nudge_messages),
             })
             nudge = chat(
                 nudge_messages,
@@ -731,6 +820,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
         "answer_mode": "agent",
         "searches": tool.searches,
         "trace": trace,
+        "images_sent": _count_image_parts(messages),
         "llm": {
             "provider": "openai_compatible",
             "model": last_response.model if last_response else config.model,

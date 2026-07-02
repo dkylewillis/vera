@@ -4,7 +4,7 @@ description: Structured overview of a section or document.
 search_mode: hybrid
 top_k: 10
 context_chunks: 1
-include_figures: false
+include_figures: true
 max_searches: 4
 max_chunks: 24
 ---
