@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { basename, delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -135,12 +135,16 @@ class PythonSidecar {
       return this.child;
     }
 
-    const python = process.env.VERA_APP_PYTHON || 'python';
     const env = { ...process.env };
-    const sourcePaths = [join(process.cwd(), 'src'), join(process.cwd(), '..', 'vera-doc', 'src')];
-    env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
+    const packagedSidecar = join(process.resourcesPath, 'python', 'sidecar', 'vera-sidecar.exe');
+    const executable = app.isPackaged ? packagedSidecar : process.env.VERA_APP_PYTHON || 'python';
+    const args = app.isPackaged ? [] : ['-m', 'vera_app.sidecar'];
+    if (!app.isPackaged) {
+      const sourcePaths = [join(process.cwd(), 'src'), join(process.cwd(), '..', 'vera-doc', 'src')];
+      env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
+    }
 
-    this.child = spawn(python, ['-m', 'vera_app.sidecar'], {
+    this.child = spawn(executable, args, {
       cwd: process.cwd(),
       env,
     });
@@ -232,6 +236,16 @@ function deleteSession(id: string): Session[] {
 function modesDir(): string {
   const dir = join(app.getPath('userData'), 'modes');
   mkdirSync(dir, { recursive: true });
+  const bundledModesDir = app.isPackaged
+    ? join(process.resourcesPath, 'python', 'vera_app', 'modes_builtin')
+    : join(process.cwd(), 'src', 'vera_app', 'modes_builtin');
+  for (const filename of ['ask.md', 'research.md']) {
+    const source = join(bundledModesDir, filename);
+    const target = join(dir, filename);
+    if (!existsSync(target) && existsSync(source)) {
+      copyFileSync(source, target);
+    }
+  }
   return dir;
 }
 
@@ -502,7 +516,8 @@ function createWindow(): void {
   });
 
   if (app.isPackaged) {
-    win.loadFile(join(process.cwd(), 'dist', 'index.html'));
+    const packagedIndex = join(app.getAppPath(), 'dist', 'index.html');
+    win.loadFile(packagedIndex);
   } else {
     win.loadURL('http://127.0.0.1:5173');
   }

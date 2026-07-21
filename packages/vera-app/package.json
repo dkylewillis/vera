@@ -10,7 +10,8 @@
     "predev": "tsc -p tsconfig.json",
     "dev": "concurrently -k --success first \"vite --host 127.0.0.1 --strictPort\" \"wait-on http://127.0.0.1:5173 && electron .\"",
     "build": "tsc -p tsconfig.json && vite build",
-    "dist": "npm run build && electron-builder",
+    "build:sidecar": "uv run --project ../.. --extra app --with pyinstaller pyinstaller --noconfirm --clean --onedir --name vera-sidecar --distpath build/sidecar --workpath build/pyinstaller --specpath build/pyinstaller src/vera_app/sidecar.py",
+    "dist": "npm run build && npm run build:sidecar && electron-builder",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "electron ."
   },
@@ -47,8 +48,12 @@
     ],
     "extraResources": [
       {
-        "from": "src/vera_app",
-        "to": "python/vera_app"
+        "from": "build/sidecar/vera-sidecar",
+        "to": "python/sidecar"
+      },
+      {
+        "from": "src/vera_app/modes_builtin",
+        "to": "python/vera_app/modes_builtin"
       }
     ],
     "win": {

@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "app:install": "npm --prefix packages/vera-app install",
-    "app:dev": "npm --prefix packages/vera-app run dev",
+    "app:dev": "uv run --extra app npm.cmd --prefix packages/vera-app run dev",
     "app:typecheck": "npm --prefix packages/vera-app run typecheck",
     "app:build": "npm --prefix packages/vera-app run build",
     "app:dist": "npm --prefix packages/vera-app run dist -- --dir",
+    "app:release": "node -e \"const fs=require('fs'); fs.rmSync('packages/vera-app/release',{recursive:true,force:true});\" && npm --prefix packages/vera-app run dist",
     "test": "uv run --extra dev python -m pytest -q"
   }
 }
