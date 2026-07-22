@@ -12,6 +12,13 @@ _CAPTION_PROXIMITY = 60.0  # max vertical gap in points between caption and imag
 # Embedded images smaller than this in *both* dimensions (PDF points) are treated
 # as decorative noise (icons, bullets, letterhead marks) rather than figures.
 _MIN_FIGURE_DIMENSION = 20.0
+# Drop PyMuPDF paragraph blocks when this fraction of the block area lies inside
+# a pdfplumber-detected table region (avoids indexing garbled cell text twice).
+_TABLE_OVERLAP_THRESHOLD = 0.5
+_TABLE_SETTINGS = {
+    "vertical_strategy": "lines",
+    "horizontal_strategy": "lines",
+}
 
 
 @dataclass
@@ -39,6 +46,14 @@ def _open_fitz():
     except Exception as exc:  # pragma: no cover
         raise RuntimeError("PyMuPDF is required for PDF parsing: install vera with pymupdf") from exc
     return fitz
+
+
+def _open_pdfplumber():
+    try:
+        import pdfplumber
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError("pdfplumber is required for PDF table parsing") from exc
+    return pdfplumber
 
 
 def parse_pdf(path: str) -> list[ParsedPage]:
@@ -206,8 +221,133 @@ def parse_pdf_structured(path: str) -> tuple[list[ParsedPage], list[ParsedBlock]
                     bbox=block.bbox,
                 )
             )
+    tables = _extract_tables_from_pdf(path)
+    blocks = _merge_tables_into_blocks(blocks, tables)
     _mark_captions(blocks)
     return pages, blocks
+
+
+def _clean_table_cell(cell: str | None) -> str:
+    if cell is None:
+        return ""
+    return str(cell).replace("|", "\\|").replace("\n", " ").strip()
+
+
+def _table_to_markdown(table: list[list[str | None]]) -> str:
+    """Convert a pdfplumber table grid to GitHub-flavored markdown."""
+    if not table or not table[0]:
+        return ""
+
+    header = [_clean_table_cell(cell) for cell in table[0]]
+    if not any(header):
+        return ""
+
+    lines = [
+        "| " + " | ".join(header) + " |",
+        "| " + " | ".join(["---"] * len(header)) + " |",
+    ]
+    for row in table[1:]:
+        cells = [_clean_table_cell(cell) for cell in row]
+        while len(cells) < len(header):
+            cells.append("")
+        lines.append("| " + " | ".join(cells[: len(header)]) + " |")
+    return "\n".join(lines)
+
+
+def _extract_tables_from_pdf(path: str) -> list[dict[str, object]]:
+    """Extract bordered tables with pdfplumber."""
+    pdfplumber = _open_pdfplumber()
+    tables: list[dict[str, object]] = []
+    with pdfplumber.open(path) as pdf:
+        for page_num, page in enumerate(pdf.pages, start=1):
+            for table_idx, table in enumerate(page.find_tables(_TABLE_SETTINGS)):
+                data = table.extract()
+                if not data or len(data) < 2:
+                    continue
+                markdown = _table_to_markdown(data)
+                if not markdown:
+                    continue
+                bbox = tuple(float(v) for v in table.bbox)
+                tables.append(
+                    {
+                        "table_text": markdown,
+                        "page_number": page_num,
+                        "table_index": table_idx,
+                        "bbox": bbox,
+                    }
+                )
+    return tables
+
+
+def _bbox_area(bbox: tuple[float, float, float, float]) -> float:
+    width = max(0.0, bbox[2] - bbox[0])
+    height = max(0.0, bbox[3] - bbox[1])
+    return width * height
+
+
+def _intersection_area(
+    a: tuple[float, float, float, float],
+    b: tuple[float, float, float, float],
+) -> float:
+    x0 = max(a[0], b[0])
+    y0 = max(a[1], b[1])
+    x1 = min(a[2], b[2])
+    y1 = min(a[3], b[3])
+    if x1 <= x0 or y1 <= y0:
+        return 0.0
+    return (x1 - x0) * (y1 - y0)
+
+
+def _overlap_fraction(
+    block_bbox: tuple[float, float, float, float],
+    table_bbox: tuple[float, float, float, float],
+) -> float:
+    block_area = _bbox_area(block_bbox)
+    if block_area <= 0.0:
+        return 0.0
+    return _intersection_area(block_bbox, table_bbox) / block_area
+
+
+def _merge_tables_into_blocks(
+    blocks: list[ParsedBlock],
+    tables: list[dict[str, object]],
+    *,
+    overlap_threshold: float = _TABLE_OVERLAP_THRESHOLD,
+) -> list[ParsedBlock]:
+    """Insert table blocks and drop paragraph text duplicated inside table regions."""
+    if not tables:
+        return blocks
+
+    table_bboxes_by_page: dict[int, list[tuple[float, float, float, float]]] = {}
+    for table in tables:
+        page_number = int(table["page_number"])
+        bbox = table["bbox"]
+        assert isinstance(bbox, tuple)
+        table_bboxes_by_page.setdefault(page_number, []).append(bbox)
+
+    kept: list[ParsedBlock] = []
+    for block in blocks:
+        if block.block_type != "paragraph" or block.bbox is None:
+            kept.append(block)
+            continue
+        overlaps = table_bboxes_by_page.get(block.page_number, [])
+        if any(_overlap_fraction(block.bbox, table_bbox) >= overlap_threshold for table_bbox in overlaps):
+            continue
+        kept.append(block)
+
+    table_blocks = [
+        ParsedBlock(
+            page_number=int(table["page_number"]),
+            block_type="table",
+            text=str(table["table_text"]),
+            bbox=table["bbox"],  # type: ignore[arg-type]
+        )
+        for table in tables
+    ]
+
+    merged = kept + table_blocks
+    merged.sort(key=lambda block: (block.page_number, block.bbox[1] if block.bbox else float("inf")))
+    return merged
 
 
 def _vertical_gap(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:

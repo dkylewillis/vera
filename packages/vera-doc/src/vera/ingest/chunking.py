@@ -142,6 +142,8 @@ def build_chunks_from_blocks(
                 heading_stack.pop()
             heading_stack.append((level, block.text))
             continue
+        if block.block_type == "table":
+            flush()
         words = tokens(block.text)
         if not words:
             continue
