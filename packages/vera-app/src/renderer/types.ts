@@ -48,6 +48,8 @@ export interface StreamEvent {
 }
 
 export interface VeraApi {
+  platform: string;
+  showMenu(menuId: string, x: number, y: number): Promise<boolean>;
   request<T = unknown>(payload: Record<string, unknown>): Promise<VeraResponse<T>>;
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;

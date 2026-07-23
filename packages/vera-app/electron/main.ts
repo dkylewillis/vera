@@ -549,6 +549,7 @@ function sendOpenSettings(): void {
 function configureMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     {
+      id: 'fileMenu',
       label: 'File',
       submenu: [
         {
@@ -577,8 +578,9 @@ function configureMenu(): void {
         { role: process.platform === 'darwin' ? 'close' : 'quit' },
       ],
     },
-    { role: 'editMenu' },
+    { id: 'editMenu', role: 'editMenu' },
     {
+      id: 'viewMenu',
       label: 'View',
       submenu: [
         { role: 'resetZoom' },
@@ -589,7 +591,23 @@ function configureMenu(): void {
         { role: 'togglefullscreen' },
       ],
     },
-    { role: 'windowMenu' },
+    {
+      id: 'helpMenu',
+      label: 'Help',
+      submenu: [
+        {
+          label: 'About VERA',
+          click: () => {
+            void dialog.showMessageBox({
+              type: 'info',
+              title: 'About VERA',
+              message: 'VERA',
+              detail: `Version ${app.getVersion()}`,
+            });
+          },
+        },
+      ],
+    },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
@@ -603,12 +621,21 @@ function createWindow(): void {
     minHeight: 660,
     title: 'VERA',
     backgroundColor: '#f3f1ec',
+    ...(process.platform !== 'darwin' ? {
+      titleBarStyle: 'hidden' as const,
+      titleBarOverlay: {
+        color: '#181818',
+        symbolColor: '#cccccc',
+        height: 30,
+      },
+    } : {}),
     webPreferences: {
       preload,
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+  if (process.platform !== 'darwin') win.setMenuBarVisibility(false);
 
   if (app.isPackaged) {
     const packagedIndex = join(app.getAppPath(), 'dist', 'index.html');
@@ -620,6 +647,17 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   configureMenu();
+  ipcMain.handle('vera:showMenu', (event, menuId: string, x: number, y: number) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const item = Menu.getApplicationMenu()?.getMenuItemById(menuId);
+    if (!win || !item?.submenu) return false;
+    item.submenu.popup({
+      window: win,
+      x: Math.round(x),
+      y: Math.round(y),
+    });
+    return true;
+  });
   ipcMain.handle('vera:getSessions', async () => readSessions());
   ipcMain.handle('vera:saveSession', async (_event, session: Session) => upsertSession(session));
   ipcMain.handle('vera:deleteSession', async (_event, id: string) => deleteSession(id));

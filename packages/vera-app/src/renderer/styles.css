@@ -157,6 +157,56 @@ button {
   background: var(--bg-app);
 }
 
+.appShell--customTitlebar {
+  grid-template-rows: 30px 1fr var(--status-height);
+}
+
+.appTitlebar {
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 30px;
+  padding: 0 140px 0 6px;
+  color: #cccccc;
+  background: #181818;
+  border-bottom: 1px solid #242424;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.appTitlebarLogo {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  color: #b7c8e6;
+}
+
+.appMenu {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.appMenu button {
+  min-width: 0;
+  padding: 0 8px;
+  color: #cccccc;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.appMenu button:hover,
+.appMenu button:focus-visible {
+  color: #ffffff;
+  background: #2a2a2a;
+  outline: 0;
+}
+
 .appBody {
   display: grid;
   grid-template-columns: minmax(420px, 1fr) 1px minmax(340px, var(--source-pane-width, 34%));
@@ -982,29 +1032,6 @@ select option {
   padding: 0 12px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-surface);
-}
-
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.brandMark {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  color: #ffffff;
-  background: var(--accent);
-  border-radius: 7px;
-}
-
-.brandName {
-  font-size: 14px;
-  font-weight: 750;
-  letter-spacing: 0.06em;
-  color: var(--text-strong);
 }
 
 .centerDoc {

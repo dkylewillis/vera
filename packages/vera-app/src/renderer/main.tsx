@@ -1314,6 +1314,7 @@ function ProviderManager({
 }
 
 function App() {
+  const customTitlebar = Boolean(window.vera.platform && window.vera.platform !== 'darwin');
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [sideView, setSideView] = useState<SideView>('explorer');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -2181,7 +2182,31 @@ function App() {
   }, [sidePanelWidth]);
 
   return (
-    <div className="appShell">
+    <div className={customTitlebar ? 'appShell appShell--customTitlebar' : 'appShell'}>
+      {customTitlebar ? (
+        <header className="appTitlebar">
+          <span className="appTitlebarLogo" title="VERA"><FileSearch size={14} /></span>
+          <nav className="appMenu" aria-label="Application menu">
+            {[
+              ['fileMenu', 'File'],
+              ['editMenu', 'Edit'],
+              ['viewMenu', 'View'],
+              ['helpMenu', 'Help'],
+            ].map(([id, label]) => (
+              <button
+                type="button"
+                key={id}
+                onClick={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  void window.vera.showMenu(id, rect.left, rect.bottom);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        </header>
+      ) : null}
       <div className="appBody" ref={workspaceRef} style={{ '--source-pane-width': `${sourcePaneWidth}%`, '--side-panel-width': `${sidePanelWidth}px` } as CSSProperties}>
         {!sidebarCollapsed ? (
           <aside className="sidePanel">
@@ -2495,10 +2520,6 @@ function App() {
         <main className="centerPane">
           <header className="centerHeader">
             <button className="ghostIcon" onClick={() => setSidebarCollapsed((value) => !value)} title="Toggle sidebar" aria-label="Toggle sidebar"><PanelLeftClose size={16} /></button>
-            <div className="brand">
-              <span className="brandMark"><FileSearch size={15} /></span>
-              <span className="brandName">VERA</span>
-            </div>
             <span className="centerDoc" title={path}>{path ? (path.split(/[\\/]/).pop() || path) : 'No document selected'}</span>
             <span className={busyAction ? 'centerStatus busy' : 'centerStatus'}>{busyAction ? <><span className="statusDot" />{busyAction}</> : status}</span>
           </header>
