@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('vera', {
   pickArchive: () => ipcRenderer.invoke('vera:pickArchive'),
   pickFolder: () => ipcRenderer.invoke('vera:pickFolder'),
   listFolder: (dir: string) => ipcRenderer.invoke('vera:listFolder', dir),
+  setWatchedFolders: (paths: string[]) => ipcRenderer.invoke('vera:setWatchedFolders', paths),
   pickPdf: () => ipcRenderer.invoke('vera:pickPdf'),
   saveVera: (defaultPath?: string) => ipcRenderer.invoke('vera:saveVera', defaultPath),
   saveAny: () => ipcRenderer.invoke('vera:saveAny'),
@@ -26,6 +27,11 @@ contextBridge.exposeInMainWorld('vera', {
     const listener = () => callback();
     ipcRenderer.on('vera:openSettings', listener);
     return () => ipcRenderer.removeListener('vera:openSettings', listener);
+  },
+  onFolderChanged: (callback: (path: string) => void) => {
+    const listener = (_event: unknown, path: string) => callback(path);
+    ipcRenderer.on('vera:folderChanged', listener);
+    return () => ipcRenderer.removeListener('vera:folderChanged', listener);
   },
   onAnswerEvent: (callback: (data: Record<string, unknown>) => void) => {
     const listener = (_event: unknown, data: Record<string, unknown>) => callback(data);

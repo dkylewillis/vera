@@ -61,11 +61,13 @@ export interface VeraApi {
   pickArchive(): Promise<string | null>;
   pickFolder(): Promise<string | null>;
   listFolder(dir: string): Promise<WorkspaceFolderResult | null>;
+  setWatchedFolders(paths: string[]): Promise<void>;
   pickPdf(): Promise<string | null>;
   saveVera(defaultPath?: string): Promise<string | null>;
   saveAny(): Promise<string | null>;
   onOpenTarget(callback: (path: string) => void): () => void;
   onOpenSettings(callback: () => void): () => void;
+  onFolderChanged(callback: (path: string) => void): () => void;
   onAnswerEvent(callback: (data: StreamEvent) => void): () => void;
 }
 
@@ -106,10 +108,14 @@ export interface ValidateResult {
 
 export interface FigureResult {
   page_number: number;
+  bbox?: number[];
+  page_width?: number;
+  page_height?: number;
   asset_id?: string;
   filename?: string;
   caption?: string | null;
   data_url?: string;
+  included_in_context?: boolean;
 }
 
 export interface RegionResult {
@@ -216,6 +222,7 @@ export interface Mode {
 
 export interface ProviderProfile {
   id: string;
+  preset_key?: string;
   label: string;
   provider: string;
   base_url: string;
@@ -223,6 +230,12 @@ export interface ProviderProfile {
   auth_type: string;
   temperature: number;
   models: string[];
+  available_models?: string[];
+  models_refreshed_at?: number;
+  model_options?: Record<string, {
+    reasoning_effort?: string;
+    fast?: boolean;
+  }>;
   has_api_key?: boolean;
 }
 

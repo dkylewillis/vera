@@ -158,6 +158,9 @@ def _redact_messages_for_trace(messages: list[dict[str, Any]]) -> list[dict[str,
     """
     redacted = copy.deepcopy(messages)
     for message in redacted:
+        # Responses API replay items may contain large encrypted reasoning blobs.
+        # They are required for the next model call but add no value to the UI trace.
+        message.pop("_responses_items", None)
         content = message.get("content")
         if not isinstance(content, list):
             continue
@@ -184,6 +187,12 @@ def _count_image_parts(messages: list[dict[str, Any]]) -> int:
             continue
         total += sum(1 for part in content if isinstance(part, dict) and part.get("type") == "image_url")
     return total
+
+
+def _clear_figure_context_flags(citations: list[dict[str, Any]]) -> None:
+    for citation in citations:
+        for figure in (citation.get("result") or {}).get("figures") or []:
+            figure.pop("included_in_context", None)
 
 
 def _instructions(request: Request, mode: Mode) -> str:
@@ -421,6 +430,7 @@ class _SearchTool:
                     data_url = fig.get("data_url")
                     if not data_url:
                         continue
+                    fig["included_in_context"] = True
                     page = fig.get("page_number") or result.get("page_start") or "-"
                     caption = fig.get("caption") or "no caption"
                     self._pending_image_parts.append(
@@ -491,6 +501,7 @@ def _retrieval_payload(request: Request, mode: Mode, instructions: str) -> dict[
                 data_url = fig.get("data_url")
                 if not data_url:
                     continue
+                fig["included_in_context"] = True
                 fig_page = fig.get("page_number") or page
                 caption = fig.get("caption") or "no caption"
                 image_parts.append(
@@ -751,6 +762,9 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
             "tool_calls": [],
             "usage": llm_result.usage,
         })
+        images_sent = _count_image_parts(fallback_messages)
+        if images_sent == 0:
+            _clear_figure_context_flags(fallback["citations"])
         return {
             "prompt": prompt,
             "answer": llm_result.answer,
@@ -761,7 +775,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
             "answer_mode": "retrieval",
             "searches": [],
             "trace": trace,
-            "images_sent": _count_image_parts(fallback_messages),
+            "images_sent": images_sent,
             "llm": {"provider": llm_result.provider, "model": llm_result.model, "usage": llm_result.usage},
         }
 
@@ -810,6 +824,9 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
             pass
     if not answer:
         answer = "I could not produce an answer from the selected VERA source."
+    images_sent = _count_image_parts(messages)
+    if images_sent == 0:
+        _clear_figure_context_flags(tool.citations)
     return {
         "prompt": prompt,
         "answer": answer,
@@ -820,7 +837,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
         "answer_mode": "agent",
         "searches": tool.searches,
         "trace": trace,
-        "images_sent": _count_image_parts(messages),
+        "images_sent": images_sent,
         "llm": {
             "provider": "openai_compatible",
             "model": last_response.model if last_response else config.model,

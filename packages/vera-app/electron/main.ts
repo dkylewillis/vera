@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { basename, delimiter, join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
+import { basename, delimiter, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 interface FolderEntry {
@@ -15,6 +15,11 @@ interface WorkspaceFolderResult {
   path: string;
   name: string;
   entries: FolderEntry[];
+}
+
+interface FolderWatcher {
+  path: string;
+  watcher: FSWatcher;
 }
 
 interface SidecarRequest {
@@ -68,6 +73,7 @@ interface SessionStore {
 
 interface ProviderProfile {
   id: string;
+  preset_key?: string;
   label: string;
   provider: string;
   base_url: string;
@@ -75,6 +81,9 @@ interface ProviderProfile {
   auth_type: string;
   temperature: number;
   models: string[];
+  available_models?: string[];
+  models_refreshed_at?: number;
+  model_options?: Record<string, { reasoning_effort?: string; fast?: boolean }>;
   has_api_key?: boolean;
 }
 
@@ -297,8 +306,23 @@ function normalizeProvider(raw: unknown): ProviderProfile | null {
     // Migrate the legacy single-model shape.
     models = [profile.model.trim()];
   }
+  const availableModels = Array.isArray(profile.available_models)
+    ? profile.available_models.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : [...models];
+  const modelOptions: Record<string, { reasoning_effort?: string; fast?: boolean }> = {};
+  if (profile.model_options && typeof profile.model_options === 'object' && !Array.isArray(profile.model_options)) {
+    for (const [model, rawOptions] of Object.entries(profile.model_options as Record<string, unknown>)) {
+      if (!rawOptions || typeof rawOptions !== 'object' || Array.isArray(rawOptions)) continue;
+      const options = rawOptions as Record<string, unknown>;
+      modelOptions[model] = {
+        reasoning_effort: typeof options.reasoning_effort === 'string' ? options.reasoning_effort : undefined,
+        fast: typeof options.fast === 'boolean' ? options.fast : undefined,
+      };
+    }
+  }
   return {
     id,
+    preset_key: typeof profile.preset_key === 'string' ? profile.preset_key : undefined,
     label: typeof profile.label === 'string' ? profile.label : '',
     provider: typeof profile.provider === 'string' ? profile.provider : 'openai_compatible',
     base_url: typeof profile.base_url === 'string' ? profile.base_url : '',
@@ -306,6 +330,9 @@ function normalizeProvider(raw: unknown): ProviderProfile | null {
     auth_type: typeof profile.auth_type === 'string' ? profile.auth_type : 'none',
     temperature: typeof profile.temperature === 'number' ? profile.temperature : 0.2,
     models,
+    available_models: availableModels,
+    models_refreshed_at: typeof profile.models_refreshed_at === 'number' ? profile.models_refreshed_at : undefined,
+    model_options: modelOptions,
   };
 }
 
@@ -452,6 +479,64 @@ function listFolder(dir: string): WorkspaceFolderResult | null {
   return { path: dir, name: basename(dir) || dir, entries };
 }
 
+const folderWatchers = new Map<string, FolderWatcher>();
+const folderChangeTimers = new Map<string, NodeJS.Timeout>();
+
+function folderWatcherKey(path: string): string {
+  const absolute = resolve(path);
+  return process.platform === 'win32' ? absolute.toLowerCase() : absolute;
+}
+
+function scheduleFolderChanged(folderPath: string): void {
+  const key = folderWatcherKey(folderPath);
+  const existing = folderChangeTimers.get(key);
+  if (existing) clearTimeout(existing);
+  folderChangeTimers.set(key, setTimeout(() => {
+    folderChangeTimers.delete(key);
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send('vera:folderChanged', folderPath);
+    }
+  }, 200));
+}
+
+function setWatchedFolders(paths: string[]): void {
+  const requested = new Map<string, string>();
+  for (const path of paths) {
+    if (typeof path !== 'string' || !path.trim() || !existsSync(path)) continue;
+    requested.set(folderWatcherKey(path), resolve(path));
+  }
+
+  for (const [key, entry] of folderWatchers) {
+    if (requested.has(key)) continue;
+    entry.watcher.close();
+    folderWatchers.delete(key);
+    const timer = folderChangeTimers.get(key);
+    if (timer) clearTimeout(timer);
+    folderChangeTimers.delete(key);
+  }
+
+  for (const [key, folderPath] of requested) {
+    if (folderWatchers.has(key)) continue;
+    try {
+      const watcher = watch(folderPath, { recursive: true }, () => scheduleFolderChanged(folderPath));
+      watcher.on('error', () => {
+        watcher.close();
+        folderWatchers.delete(key);
+      });
+      folderWatchers.set(key, { path: folderPath, watcher });
+    } catch {
+      // The folder may have been removed or become inaccessible between listing and watching.
+    }
+  }
+}
+
+function stopFolderWatchers(): void {
+  for (const entry of folderWatchers.values()) entry.watcher.close();
+  folderWatchers.clear();
+  for (const timer of folderChangeTimers.values()) clearTimeout(timer);
+  folderChangeTimers.clear();
+}
+
 function sendOpenTarget(path: string | null): void {
   if (!path) return;
   BrowserWindow.getFocusedWindow()?.webContents.send('vera:openTarget', path);
@@ -493,7 +578,17 @@ function configureMenu(): void {
       ],
     },
     { role: 'editMenu' },
-    { role: 'viewMenu' },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        ...(!app.isPackaged ? [{ role: 'toggleDevTools' as const }] : []),
+        { role: 'togglefullscreen' },
+      ],
+    },
     { role: 'windowMenu' },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -544,6 +639,9 @@ app.whenReady().then(() => {
   ipcMain.handle('vera:pickArchive', async () => pickArchivePath());
   ipcMain.handle('vera:pickFolder', async () => pickFolderPath());
   ipcMain.handle('vera:listFolder', async (_event, dir: string) => listFolder(dir));
+  ipcMain.handle('vera:setWatchedFolders', async (_event, paths: string[]) => {
+    setWatchedFolders(Array.isArray(paths) ? paths : []);
+  });
   ipcMain.handle('vera:pickPdf', async () => {
     const result = await dialog.showOpenDialog({
       title: 'Open PDF',
@@ -572,7 +670,10 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('before-quit', () => sidecar.stop());
+app.on('before-quit', () => {
+  stopFolderWatchers();
+  sidecar.stop();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

@@ -16,8 +16,10 @@ def figures(
     """Return extracted figures (image blocks + stored image assets)."""
     sql = """
         SELECT b.block_id, b.page_number, b.bbox_json,
+               p.width AS page_width, p.height AS page_height,
                a.asset_id, a.mime_type, a.filename
         FROM blocks b
+        JOIN pages p ON p.document_id = b.document_id AND p.page_number = b.page_number
         JOIN assets a ON a.asset_id = 'asset_' || b.block_id
         WHERE b.block_type = 'image'
     """
@@ -45,9 +47,11 @@ def figures_for_chunk(
     """
     sql = """
         SELECT b.block_id, b.page_number, b.bbox_json,
+               p.width AS page_width, p.height AS page_height,
                a.asset_id, a.mime_type, a.filename
         FROM chunk_blocks cb
         JOIN blocks b ON b.block_id = cb.block_id
+        JOIN pages p ON p.document_id = b.document_id AND p.page_number = b.page_number
         JOIN assets a ON a.asset_id = 'asset_' || b.block_id
         WHERE cb.chunk_id = ? AND b.block_type = 'image'
         ORDER BY b.page_number, b.sort_order
@@ -79,6 +83,8 @@ def _rows_to_figures(
             "block_id": row["block_id"],
             "page_number": row["page_number"],
             "bbox": bbox,
+            "page_width": row["page_width"],
+            "page_height": row["page_height"],
             "asset_id": row["asset_id"],
             "mime_type": row["mime_type"],
             "filename": row["filename"],

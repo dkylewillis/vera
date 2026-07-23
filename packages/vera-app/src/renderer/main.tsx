@@ -12,7 +12,6 @@ import {
   FileInput,
   FileSearch,
   FileText,
-  Files,
   Folder,
   FolderOpen,
   Highlighter,
@@ -43,6 +42,11 @@ import './styles.css';
 type SideView = 'explorer' | 'chats' | 'search' | 'convert' | 'info';
 
 const EMPTY_REGIONS: RegionResult[] = [];
+const REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+
+function reasoningEffortLabel(effort: string): string {
+  return effort === 'xhigh' ? 'Extra High' : effort.charAt(0).toUpperCase() + effort.slice(1);
+}
 
 // In-memory store for LLM traces. Traces are large (full prompt/response dumps),
 // so we keep them only for the lifetime of this app window instead of writing them
@@ -60,30 +64,121 @@ function stripTrace(turn: SessionTurn): SessionTurn {
   return rest;
 }
 
-type ProviderPreset = { key: string; label: string; value: Omit<ProviderProfile, 'id'> };
+type ProviderPreset = {
+  key: string;
+  label: string;
+  description: string;
+  kind: 'hosted' | 'local';
+  catalog?: string[];
+  value: Omit<ProviderProfile, 'id'>;
+};
 
 const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     key: 'ollama',
     label: 'Ollama',
+    description: 'Run models locally with Ollama.',
+    kind: 'local',
     value: { label: 'Ollama', provider: 'ollama', models: [], base_url: 'http://localhost:11434/v1', api_key_env: '', auth_type: 'none', temperature: 0.2 },
   },
   {
     key: 'lmstudio',
     label: 'LM Studio',
+    description: 'Use models served by LM Studio on this computer.',
+    kind: 'local',
     value: { label: 'LM Studio', provider: 'lmstudio', models: [], base_url: 'http://localhost:1234/v1', api_key_env: '', auth_type: 'none', temperature: 0.2 },
   },
   {
     key: 'openai',
     label: 'OpenAI',
-    value: { label: 'OpenAI', provider: 'openai_compatible', models: [], base_url: 'https://api.openai.com/v1', api_key_env: 'OPENAI_API_KEY', auth_type: 'api_key', temperature: 0.2 },
+    description: 'GPT and reasoning models from OpenAI.',
+    kind: 'hosted',
+    catalog: [
+      'gpt-5.6-sol',
+      'gpt-5.6-terra',
+      'gpt-5.6-luna',
+      'gpt-5.6-sol-pro',
+      'gpt-5.6-terra-pro',
+      'gpt-5.6-luna-pro',
+      'gpt-5.5',
+      'gpt-5.4',
+      'gpt-5.4-mini',
+      'gpt-4.1',
+      'gpt-4.1-mini',
+      'gpt-4.1-nano',
+      'gpt-4o',
+      'gpt-4o-mini',
+      'o3',
+      'o3-mini',
+      'o4-mini',
+    ],
+    value: {
+      label: 'OpenAI',
+      provider: 'openai_compatible',
+      models: [],
+      base_url: 'https://api.openai.com/v1',
+      api_key_env: 'OPENAI_API_KEY',
+      auth_type: 'api_key',
+      temperature: 0.2,
+    },
   },
   {
     key: 'openrouter',
     label: 'OpenRouter',
-    value: { label: 'OpenRouter', provider: 'openai_compatible', models: [], base_url: 'https://openrouter.ai/api/v1', api_key_env: 'OPENROUTER_API_KEY', auth_type: 'api_key', temperature: 0.2 },
+    description: 'One API for models from multiple providers.',
+    kind: 'hosted',
+    catalog: [
+      'openai/gpt-5.6-sol',
+      'openai/gpt-5.6-terra',
+      'openai/gpt-5.6-luna',
+      'openai/gpt-5.6-sol-pro',
+      'anthropic/claude-fable-5',
+      'anthropic/claude-opus-4.8',
+      'google/gemini-3.1-pro-preview',
+      'google/gemini-3.5-flash',
+      'openai/gpt-5.5',
+      'openai/gpt-5.4',
+      'openai/gpt-5.4-mini',
+      'deepseek/deepseek-v4-pro',
+    ],
+    value: {
+      label: 'OpenRouter',
+      provider: 'openai_compatible',
+      models: [],
+      base_url: 'https://openrouter.ai/api/v1',
+      api_key_env: 'OPENROUTER_API_KEY',
+      auth_type: 'api_key',
+      temperature: 0.2,
+    },
   },
 ];
+
+function providerPresetFor(profile: ProviderProfile): ProviderPreset | null {
+  if (profile.preset_key) {
+    return PROVIDER_PRESETS.find((preset) => preset.key === profile.preset_key) ?? null;
+  }
+  const baseUrl = profile.base_url.trim().replace(/\/+$/, '').toLowerCase();
+  return PROVIDER_PRESETS.find((preset) =>
+    preset.value.label === profile.label
+    && preset.value.base_url.replace(/\/+$/, '').toLowerCase() === baseUrl,
+  ) ?? null;
+}
+
+function withPresetModels(profile: ProviderProfile): ProviderProfile {
+  const preset = providerPresetFor(profile);
+  if (!preset) return profile;
+  return {
+    ...profile,
+    preset_key: preset.key,
+  };
+}
+
+function filterDiscoveredModels(profile: ProviderProfile, discovered: string[]): string[] {
+  const preset = providerPresetFor(profile);
+  if (!preset?.catalog?.length) return discovered;
+  const liveIds = new Set(discovered.map((model) => model.toLowerCase()));
+  return preset.catalog.filter((model) => liveIds.has(model.toLowerCase()));
+}
 
 function newProviderId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -98,8 +193,8 @@ function emptyProvider(): ProviderProfile {
     label: 'New Provider',
     provider: 'openai_compatible',
     models: [],
-    base_url: 'https://api.openai.com/v1',
-    api_key_env: 'OPENAI_API_KEY',
+    base_url: '',
+    api_key_env: '',
     auth_type: 'api_key',
     temperature: 0.2,
   };
@@ -143,6 +238,12 @@ function defaultVeraPath(pdf: string): string {
   return trimmed.toLowerCase().endsWith('.pdf') ? `${trimmed.slice(0, -4)}.vera` : `${trimmed}.vera`;
 }
 
+function isPathInsideFolder(filePath: string, folderPath: string): boolean {
+  const file = filePath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const folder = folderPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  return file === folder || file.startsWith(`${folder}/`);
+}
+
 function isPdfSource(source: SourceDocumentResult | null): boolean {
   if (!source) return false;
   return source.mime_type === 'application/pdf' || source.filename.toLowerCase().endsWith('.pdf');
@@ -173,11 +274,13 @@ function clampPdfZoom(value: number): number {
 function PdfSourceViewerImpl({
   source,
   highlightRegions = EMPTY_REGIONS,
+  highlightFigures = [],
   compact = false,
   targetPage,
 }: {
   source: SourceDocumentResult;
   highlightRegions?: RegionResult[];
+  highlightFigures?: FigureResult[];
   compact?: boolean;
   targetPage?: number | null;
 }) {
@@ -191,7 +294,10 @@ function PdfSourceViewerImpl({
   const [showHighlights, setShowHighlights] = useState(() => {
     try { return localStorage.getItem('vera.showHighlights') !== '0'; } catch { return true; }
   });
-  const highlightKey = useMemo(() => JSON.stringify(highlightRegions), [highlightRegions]);
+  const highlightKey = useMemo(
+    () => JSON.stringify([highlightRegions, highlightFigures]),
+    [highlightRegions, highlightFigures],
+  );
 
   // Scroll-only effect: targetPage changes just scroll, never re-render.
   useEffect(() => {
@@ -329,6 +435,12 @@ function PdfSourceViewerImpl({
             const box = document.createElement('div');
             box.className = 'pdfHighlightBox';
             Object.assign(box.style, regionStyle(region));
+            highlightLayer.append(box);
+          }
+          for (const figure of highlightFigures.filter((item) => item.page_number === pageNum && item.bbox?.length === 4)) {
+            const box = document.createElement('div');
+            box.className = 'pdfHighlightBox pdfHighlightBox--figure';
+            Object.assign(box.style, regionStyle(figure));
             highlightLayer.append(box);
           }
 
@@ -731,7 +843,7 @@ const ChatTurn = React.memo(function ChatTurn({
         selectCitation={selectCitation}
         selectedChunkId={selectedChunkId}
       />
-      {turn.answer_mode === 'retrieval' ? <div className="noteBanner">This provider does not support tool-calling, so VERA used a single retrieval pass instead of agentic search.</div> : null}
+      {turn.answer_mode === 'retrieval' ? <div className="noteBanner">The active API route rejected tool calling, so VERA used a single retrieval pass instead of agentic search.</div> : null}
       {turn.citations && turn.citations.length ? (
         renderAnswerWithCitations(turn.content, turn.citations, selectCitation)
       ) : (
@@ -741,6 +853,83 @@ const ChatTurn = React.memo(function ChatTurn({
     </article>
   );
 });
+
+function ModelManager({
+  providers,
+  busyProviderId,
+  message,
+  onToggle,
+  onRefresh,
+  onAddProvider,
+  onClose,
+}: {
+  providers: ProviderProfile[];
+  busyProviderId: string;
+  message: string;
+  onToggle: (providerId: string, model: string) => void;
+  onRefresh: (providerId: string) => void;
+  onAddProvider: () => void;
+  onClose: () => void;
+}) {
+  const [filter, setFilter] = useState('');
+  const normalizedFilter = filter.trim().toLowerCase();
+
+  return (
+    <div className="modalBackdrop" onClick={onClose}>
+      <div className="modal modelManagerModal" onClick={(event) => event.stopPropagation()}>
+        <header className="modalHeader">
+          <h2><ListChecks size={18} />Models</h2>
+          <button className="iconAction" onClick={onClose} aria-label="Close"><X size={18} /></button>
+        </header>
+        <div className="modelManagerSearch">
+          <Search size={14} />
+          <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search models" autoFocus />
+        </div>
+        <div className="modelManagerBody">
+          {providers.length === 0 ? <p className="mutedText">Add a provider to discover models.</p> : null}
+          {providers.map((profile) => {
+            const models = Array.from(new Set([...(profile.available_models ?? []), ...profile.models]))
+              .filter((model) => !normalizedFilter || model.toLowerCase().includes(normalizedFilter))
+              .sort((a, b) => a.localeCompare(b));
+            return (
+              <section className="modelManagerGroup" key={profile.id}>
+                <div className="modelManagerGroupHead">
+                  <span>{providerDisplayName(profile)}</span>
+                  <button
+                    type="button"
+                    className="ghostIcon tiny visible"
+                    onClick={() => onRefresh(profile.id)}
+                    disabled={Boolean(busyProviderId)}
+                    title="Refresh models"
+                  >
+                    <RefreshCw size={13} className={busyProviderId === profile.id ? 'spinning' : ''} />
+                  </button>
+                </div>
+                {models.length ? models.map((model) => (
+                  <label className="modelManagerRow" key={`${profile.id}:${model}`}>
+                    <span>{model}</span>
+                    <input
+                      type="checkbox"
+                      checked={profile.models.includes(model)}
+                      onChange={() => onToggle(profile.id, model)}
+                      aria-label={`Enable ${model}`}
+                    />
+                  </label>
+                )) : (
+                  <p className="modelManagerEmpty">{normalizedFilter ? 'No matching models.' : 'Refresh to discover models.'}</p>
+                )}
+              </section>
+            );
+          })}
+        </div>
+        <footer className="modalFooter">
+          <button className="modelManagerAdd" onClick={onAddProvider}><Plus size={14} />Add provider…</button>
+          <span className="modalMessage">{message}</span>
+        </footer>
+      </div>
+    </div>
+  );
+}
 
 function ProviderManager({
   providers,
@@ -759,7 +948,7 @@ function ProviderManager({
   onRefresh: () => Promise<AppSettings>;
   onClose: () => void;
 }) {
-  const [list, setList] = useState<ProviderProfile[]>(providers);
+  const [list, setList] = useState<ProviderProfile[]>(() => providers.map(withPresetModels));
   const [activeId, setActiveId] = useState(activeProviderId);
   const [activeModelLocal, setActiveModelLocal] = useState(activeModel);
   const [selectedId, setSelectedId] = useState<string>(providers[0]?.id ?? '');
@@ -770,8 +959,13 @@ function ProviderManager({
   const [availableModels, setAvailableModels] = useState<string[]>([]);
 
   const selected = list.find((profile) => profile.id === selectedId) ?? null;
+  const selectedPreset = selected ? providerPresetFor(selected) : null;
   const enabledModels = new Set(selected?.models ?? []);
-  const modelOptions = Array.from(new Set([...(selected?.models ?? []), ...availableModels])).sort((a, b) =>
+  const modelOptions = Array.from(new Set([
+    ...(selected?.models ?? []),
+    ...(selected?.available_models ?? []),
+    ...availableModels,
+  ])).sort((a, b) =>
     a.localeCompare(b),
   );
 
@@ -815,7 +1009,9 @@ function ProviderManager({
   }
 
   function addProvider(preset?: ProviderPreset) {
-    const profile: ProviderProfile = preset ? { ...preset.value, id: newProviderId() } : emptyProvider();
+    const profile: ProviderProfile = preset
+      ? { ...preset.value, models: [...preset.value.models], preset_key: preset.key, id: newProviderId() }
+      : emptyProvider();
     setList((prev) => [...prev, profile]);
     setSelectedId(profile.id);
     setApiKeyInput('');
@@ -917,8 +1113,13 @@ function ProviderManager({
         setMessage(response.error || 'Unable to fetch models');
         return;
       }
-      const models = response.result?.models ?? [];
+      const models = filterDiscoveredModels(selected, response.result?.models ?? []);
       setAvailableModels(models);
+      updateSelected({
+        available_models: models,
+        models_refreshed_at: Date.now(),
+        models: selected.models.length === 0 ? models : selected.models,
+      });
       setMessage(models.length ? `Found ${models.length} models` : 'No models returned');
     } finally {
       setBusy(false);
@@ -937,7 +1138,7 @@ function ProviderManager({
           <aside className="providerList">
             <div className="providerListHead">
               <span>Providers</span>
-              <button className="secondaryAction compactAction" onClick={() => addProvider()} disabled={busy}><Plus size={14} />Add</button>
+              <button className="secondaryAction compactAction" onClick={() => addProvider()} disabled={busy}><Plus size={14} />Custom</button>
             </div>
             {list.length === 0 ? <p className="mutedText">No providers configured yet.</p> : null}
             {list.map((profile) => (
@@ -955,7 +1156,7 @@ function ProviderManager({
               </button>
             ))}
             <div className="presetRow">
-              <span>Quick add</span>
+              <span>Add provider</span>
               <div className="presetButtons">
                 {PROVIDER_PRESETS.map((preset) => (
                   <button key={preset.key} type="button" className="secondaryAction compactAction" onClick={() => addProvider(preset)} disabled={busy}>{preset.label}</button>
@@ -967,55 +1168,34 @@ function ProviderManager({
           <section className="providerEditor">
             {selected ? (
               <>
-                <div className="editorGrid">
-                  <label className="field wideField">
-                    <span>Display Name</span>
-                    <input value={selected.label} onChange={(event) => updateSelected({ label: event.target.value })} placeholder="My Provider" />
-                  </label>
-                  <label className="field">
-                    <span>Type</span>
-                    <select value={selected.provider} onChange={(event) => updateSelected({ provider: event.target.value })}>
-                      <option value="openai_compatible">OpenAI Compatible</option>
-                      <option value="ollama">Ollama</option>
-                      <option value="lmstudio">LM Studio</option>
-                    </select>
-                  </label>
-                  <label className="field wideField">
-                    <span>Base URL</span>
-                    <input value={selected.base_url} onChange={(event) => updateSelected({ base_url: event.target.value })} placeholder="https://api.openai.com/v1" />
-                  </label>
-                  <label className="field">
-                    <span>Auth</span>
-                    <select value={selected.auth_type} onChange={(event) => updateSelected({ auth_type: event.target.value })}>
-                      <option value="none">None</option>
-                      <option value="api_key">API Key</option>
-                      <option value="env">Env Var</option>
-                      <option value="oauth" disabled>OAuth (soon)</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>API Env</span>
-                    <input value={selected.api_key_env} onChange={(event) => updateSelected({ api_key_env: event.target.value })} placeholder="OPENAI_API_KEY" />
-                  </label>
-                  <label className="field">
-                    <span>Temp</span>
-                    <input className="numberInput" type="number" min={0} max={2} step={0.1} value={selected.temperature} onChange={(event) => updateSelected({ temperature: Number(event.target.value) })} />
-                  </label>
+                <div className="providerEditorIntro">
+                  <div>
+                    <h3>{providerDisplayName(selected)}</h3>
+                    <p>{selectedPreset?.description ?? 'Connect any service with an OpenAI-compatible API.'}</p>
+                  </div>
+                  {selected.has_api_key ? <span className="connectedTag"><CheckCircle2 size={13} />Key saved</span> : null}
                 </div>
 
-                <div className="apiKeyRow">
+                {selected.auth_type === 'api_key' ? <div className="apiKeyRow">
                   <label className="field apiKeyField">
-                    <span>{selected.has_api_key ? 'API Key (saved)' : 'API Key'}</span>
-                    <input type="password" value={apiKeyInput} onChange={(event) => setApiKeyInput(event.target.value)} placeholder={selected.has_api_key ? '•••••••• stored' : 'sk-...'} />
+                    <span>API Key</span>
+                    <input type="password" value={apiKeyInput} onChange={(event) => setApiKeyInput(event.target.value)} placeholder={selected.has_api_key ? '•••••••• stored securely' : `Paste ${providerDisplayName(selected)} key`} />
                   </label>
                   <button className="secondaryAction" onClick={saveKey} disabled={busy || !apiKeyInput.trim()}><KeyRound size={16} />Save Key</button>
                   <button className="secondaryAction" onClick={clearKey} disabled={busy || !selected.has_api_key}><Trash2 size={16} />Clear</button>
-                </div>
+                </div> : null}
+
+                {selectedPreset?.kind === 'local' ? (
+                  <label className="field">
+                    <span>Server URL</span>
+                    <input value={selected.base_url} onChange={(event) => updateSelected({ base_url: event.target.value })} placeholder={selectedPreset.value.base_url} />
+                  </label>
+                ) : null}
 
                 <div className="modelsSection">
                   <div className="modelsHead">
                     <span>Models <em>{selected.models.length} enabled</em></span>
-                    <button type="button" className="secondaryAction compactAction" onClick={fetchModels} disabled={busy || !selected.base_url.trim()}><ListChecks size={14} />Fetch models</button>
+                    <button type="button" className="secondaryAction compactAction" onClick={fetchModels} disabled={busy || !selected.base_url.trim()}><ListChecks size={14} />Refresh models</button>
                   </div>
                   {modelOptions.length ? (
                     <div className="modelChecklist">
@@ -1027,7 +1207,7 @@ function ProviderManager({
                       ))}
                     </div>
                   ) : (
-                    <p className="mutedText">No models yet. Click “Fetch models” or add one manually below.</p>
+                    <p className="mutedText">No models found yet. Refresh the provider or add a model ID.</p>
                   )}
                   <div className="modelAddRow">
                     <input
@@ -1044,6 +1224,65 @@ function ProviderManager({
                     <button type="button" className="secondaryAction compactAction" onClick={addManualModel} disabled={!modelInput.trim()}><Plus size={14} />Add</button>
                   </div>
                 </div>
+
+                {selectedPreset ? (
+                  <details className="providerAdvanced">
+                    <summary>Advanced</summary>
+                    <div className="editorGrid">
+                      <label className="field">
+                        <span>Display Name</span>
+                        <input value={selected.label} onChange={(event) => updateSelected({ label: event.target.value })} />
+                      </label>
+                      {selectedPreset.kind === 'hosted' ? (
+                        <label className="field">
+                          <span>Base URL override</span>
+                          <input value={selected.base_url} onChange={(event) => updateSelected({ base_url: event.target.value })} placeholder={selectedPreset.value.base_url} />
+                        </label>
+                      ) : null}
+                      <label className="field">
+                        <span>Temperature</span>
+                        <input className="numberInput" type="number" min={0} max={2} step={0.1} value={selected.temperature} onChange={(event) => updateSelected({ temperature: Number(event.target.value) })} />
+                      </label>
+                    </div>
+                  </details>
+                ) : (
+                  <div className="customProviderFields">
+                    <div className="editorGrid">
+                      <label className="field">
+                        <span>Display Name</span>
+                        <input value={selected.label} onChange={(event) => updateSelected({ label: event.target.value })} placeholder="My Provider" />
+                      </label>
+                      <label className="field">
+                        <span>Type</span>
+                        <select value={selected.provider} onChange={(event) => updateSelected({ provider: event.target.value })}>
+                          <option value="openai_compatible">OpenAI Compatible</option>
+                          <option value="ollama">Ollama</option>
+                          <option value="lmstudio">LM Studio</option>
+                        </select>
+                      </label>
+                      <label className="field wideField">
+                        <span>Base URL</span>
+                        <input value={selected.base_url} onChange={(event) => updateSelected({ base_url: event.target.value })} placeholder="https://api.example.com/v1" />
+                      </label>
+                      <label className="field">
+                        <span>Authentication</span>
+                        <select value={selected.auth_type} onChange={(event) => updateSelected({ auth_type: event.target.value })}>
+                          <option value="none">None</option>
+                          <option value="api_key">API Key</option>
+                          <option value="env">Environment variable</option>
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>API environment variable</span>
+                        <input value={selected.api_key_env} onChange={(event) => updateSelected({ api_key_env: event.target.value })} placeholder="PROVIDER_API_KEY" />
+                      </label>
+                      <label className="field">
+                        <span>Temperature</span>
+                        <input className="numberInput" type="number" min={0} max={2} step={0.1} value={selected.temperature} onChange={(event) => updateSelected({ temperature: Number(event.target.value) })} />
+                      </label>
+                    </div>
+                  </div>
+                )}
 
                 <div className="editorActions">
                   <button
@@ -1099,6 +1338,15 @@ function App() {
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [modelFilter, setModelFilter] = useState('');
+  const [hoveredModelOptions, setHoveredModelOptions] = useState<{
+    providerId: string;
+    model: string;
+    top: number;
+  } | null>(null);
+  const [modelManagerOpen, setModelManagerOpen] = useState(false);
+  const [modelRefreshBusyId, setModelRefreshBusyId] = useState('');
+  const [modelRefreshMessage, setModelRefreshMessage] = useState('');
   const [convertModel, setConvertModel] = useState('hashing');
   const [convertParser, setConvertParser] = useState('pymupdf');
   const [chunkSize, setChunkSize] = useState(500);
@@ -1138,7 +1386,8 @@ function App() {
   const [isResizingSource, setIsResizingSource] = useState(false);
   const [sidePanelWidth, setSidePanelWidth] = useState(() => {
     const stored = Number(localStorage.getItem('vera.sidePanelWidth'));
-    return stored >= 200 && stored <= 600 ? stored : 300;
+    if (stored === 300) return 260;
+    return stored >= 200 && stored <= 600 ? stored : 260;
   });
   const [isResizingSide, setIsResizingSide] = useState(false);
 
@@ -1155,6 +1404,7 @@ function App() {
     () => providers.find((profile) => profile.id === activeProviderId) ?? null,
     [providers, activeProviderId],
   );
+  const activeModelOptions = activeProvider?.model_options?.[activeModel] ?? {};
   const activeMode = useMemo(
     () => modes.find((entry) => entry.id === activeModeId) ?? modes.find((entry) => entry.id === 'ask') ?? modes[0] ?? null,
     [modes, activeModeId],
@@ -1173,15 +1423,6 @@ function App() {
   function openSide(view: SideView) {
     setSideView(view);
     setSidebarCollapsed(false);
-  }
-
-  function toggleSide(view: SideView) {
-    if (sideView === view && !sidebarCollapsed) {
-      setSidebarCollapsed(true);
-    } else {
-      setSideView(view);
-      setSidebarCollapsed(false);
-    }
   }
 
   async function addFolder() {
@@ -1242,8 +1483,7 @@ function App() {
   function resizeSidePanel(clientX: number) {
     const bounds = workspaceRef.current?.getBoundingClientRect();
     if (!bounds) return;
-    const activityWidth = 52;
-    setSidePanelWidth(clampSidePanelWidth(clientX - bounds.left - activityWidth));
+    setSidePanelWidth(clampSidePanelWidth(clientX - bounds.left));
   }
 
   function resizeSourcePane(clientX: number) {
@@ -1416,14 +1656,18 @@ function App() {
       setSettingsOpen(true);
       return;
     }
-    const llm = {
+    const modelOptions = provider.model_options?.[model] ?? {};
+    const llm: Record<string, unknown> = {
       provider: provider.provider,
+      provider_key: provider.preset_key,
       model: activeModel,
       base_url: provider.base_url,
       api_key_env: provider.api_key_env,
       auth_type: provider.auth_type,
       temperature: provider.temperature,
     };
+    if (modelOptions.reasoning_effort) llm.reasoning_effort = modelOptions.reasoning_effort;
+    if (modelOptions.fast) llm.service_tier = 'priority';
 
     // Build conversation history from prior turns for multi-turn context.
     const history = sessionTurns.map((t) => ({ role: t.role, content: t.content }));
@@ -1634,6 +1878,111 @@ function App() {
     await persistSettings({ providers, active_provider_id: providerId, active_model: model, active_mode_id: activeModeId });
   }
 
+  async function refreshProviderModels(providerId: string) {
+    const profile = providers.find((entry) => entry.id === providerId);
+    if (!profile) return;
+    if (!profile.base_url.trim()) {
+      setModelRefreshMessage(`Set a base URL for ${providerDisplayName(profile)} first.`);
+      setStatus('Set provider base URL');
+      return;
+    }
+    setModelRefreshBusyId(providerId);
+    setModelRefreshMessage(`Refreshing ${providerDisplayName(profile)}…`);
+    try {
+      const response = await window.vera.request<{ models: string[] }>({
+        action: 'list_models',
+        llm: {
+          provider: profile.provider,
+          base_url: profile.base_url,
+          api_key_env: profile.api_key_env,
+          auth_type: profile.auth_type,
+        },
+      });
+      if (!response.ok) {
+        setModelRefreshMessage(response.error || 'Unable to refresh models.');
+        setStatus('Model refresh failed');
+        return;
+      }
+      const discovered = filterDiscoveredModels(profile, response.result?.models ?? []);
+      const enabled = profile.models.length ? profile.models : discovered;
+      const nextProviders = providers.map((entry) => entry.id === providerId
+        ? { ...entry, available_models: discovered, models_refreshed_at: Date.now(), models: enabled }
+        : entry);
+      const nextActiveModel = activeProviderId === providerId && !enabled.includes(activeModel)
+        ? (enabled[0] ?? '')
+        : activeModel;
+      await persistSettings({
+        providers: nextProviders,
+        active_provider_id: activeProviderId,
+        active_model: nextActiveModel,
+        active_mode_id: activeModeId,
+      });
+      setModelRefreshMessage(discovered.length
+        ? `Found ${discovered.length} models from ${providerDisplayName(profile)}.`
+        : `${providerDisplayName(profile)} returned no models.`);
+      setStatus(discovered.length ? `Found ${discovered.length} models` : 'No models returned');
+    } finally {
+      setModelRefreshBusyId('');
+    }
+  }
+
+  async function toggleProviderModel(providerId: string, model: string) {
+    const profile = providers.find((entry) => entry.id === providerId);
+    if (!profile) return;
+    const enabled = profile.models.includes(model)
+      ? profile.models.filter((entry) => entry !== model)
+      : [...profile.models, model];
+    const nextProviders = providers.map((entry) => entry.id === providerId ? { ...entry, models: enabled } : entry);
+    const nextActiveModel = activeProviderId === providerId && activeModel === model && !enabled.includes(model)
+      ? (enabled[0] ?? '')
+      : activeModel;
+    await persistSettings({
+      providers: nextProviders,
+      active_provider_id: activeProviderId,
+      active_model: nextActiveModel,
+      active_mode_id: activeModeId,
+    });
+  }
+
+  async function updateModelOptions(
+    providerId: string,
+    model: string,
+    options: { reasoning_effort?: string; fast?: boolean },
+  ) {
+    const nextProviders = providers.map((entry) => entry.id === providerId
+      ? {
+          ...entry,
+          model_options: {
+            ...(entry.model_options ?? {}),
+            [model]: options,
+          },
+        }
+      : entry);
+    await persistSettings({
+      providers: nextProviders,
+      active_provider_id: activeProviderId,
+      active_model: activeModel,
+      active_mode_id: activeModeId,
+    });
+  }
+
+  useEffect(() => {
+    const cycleReasoning = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || !event.altKey || event.code !== 'Slash' || !activeProvider || !activeModel) return;
+      event.preventDefault();
+      const options = activeProvider.model_options?.[activeModel] ?? {};
+      const current = options.reasoning_effort && options.reasoning_effort !== 'none'
+        ? options.reasoning_effort
+        : 'medium';
+      const currentIndex = REASONING_EFFORTS.indexOf(current as (typeof REASONING_EFFORTS)[number]);
+      const next = REASONING_EFFORTS[(currentIndex + 1) % REASONING_EFFORTS.length];
+      setStatus(`Reasoning: ${reasoningEffortLabel(next)}`);
+      void updateModelOptions(activeProvider.id, activeModel, { ...options, reasoning_effort: next });
+    };
+    window.addEventListener('keydown', cycleReasoning);
+    return () => window.removeEventListener('keydown', cycleReasoning);
+  }, [activeProvider, activeModel, providers, activeProviderId, activeModeId]);
+
   async function selectActiveMode(modeId: string) {
     setModePickerOpen(false);
     setActiveModeId(modeId);
@@ -1660,6 +2009,11 @@ function App() {
     }, 'Converting PDF');
     if (result) {
       setConvertResult(result);
+      await Promise.all(
+        folders
+          .filter((folder) => isPathInsideFolder(result.output, folder.path))
+          .map((folder) => refreshFolder(folder.path)),
+      );
       updateTargetPath(result.output);
       openSide('info');
     }
@@ -1715,6 +2069,20 @@ function App() {
 
   useEffect(() => window.vera.onOpenSettings(() => {
     setSettingsOpen(true);
+  }), []);
+
+  const folderPathsKey = folders.map((folder) => folder.path).join('\n');
+
+  useEffect(() => {
+    const folderPaths = folderPathsKey ? folderPathsKey.split('\n') : [];
+    void window.vera.setWatchedFolders(folderPaths);
+  }, [folderPathsKey]);
+
+  useEffect(() => window.vera.onFolderChanged((folderPath) => {
+    void window.vera.listFolder(folderPath).then((folder) => {
+      if (!folder) return;
+      setFolders((prev) => prev.map((entry) => (entry.path === folder.path ? folder : entry)));
+    });
   }), []);
 
   useEffect(() => {
@@ -1815,25 +2183,21 @@ function App() {
   return (
     <div className="appShell">
       <div className="appBody" ref={workspaceRef} style={{ '--source-pane-width': `${sourcePaneWidth}%`, '--side-panel-width': `${sidePanelWidth}px` } as CSSProperties}>
-        <nav className="activityBar">
-          <div className="activityTop">
-            <button className={!sidebarCollapsed && sideView === 'explorer' ? 'activityBtn active' : 'activityBtn'} onClick={() => toggleSide('explorer')} title="Explorer" aria-label="Explorer"><Files size={22} /></button>
-            <button className={!sidebarCollapsed && sideView === 'chats' ? 'activityBtn active' : 'activityBtn'} onClick={() => toggleSide('chats')} title="Chats" aria-label="Chats"><MessageSquareText size={22} /></button>
-            <button className={!sidebarCollapsed && sideView === 'search' ? 'activityBtn active' : 'activityBtn'} onClick={() => toggleSide('search')} title="Search" aria-label="Search"><Search size={22} /></button>
-            <button className={!sidebarCollapsed && sideView === 'convert' ? 'activityBtn active' : 'activityBtn'} onClick={() => toggleSide('convert')} title="Convert PDF" aria-label="Convert PDF"><FileInput size={22} /></button>
-            <button className={!sidebarCollapsed && sideView === 'info' ? 'activityBtn active' : 'activityBtn'} onClick={() => toggleSide('info')} title="Document Info" aria-label="Document Info"><Info size={22} /></button>
-          </div>
-          <div className="activityBottom">
-            <button className="activityBtn" onClick={() => setSettingsOpen(true)} title="LLM Providers" aria-label="LLM Providers"><Settings size={22} /></button>
-          </div>
-        </nav>
-
         {!sidebarCollapsed ? (
           <aside className="sidePanel">
             <div className="sidePanelHeader">
-              <span className="sidePanelTitle">
-                {sideView === 'explorer' ? 'Explorer' : sideView === 'chats' ? 'Chats' : sideView === 'search' ? 'Search' : sideView === 'convert' ? 'Convert PDF' : 'Document'}
-              </span>
+              <select
+                className="sideViewSelect"
+                value={sideView}
+                onChange={(event) => openSide(event.target.value as SideView)}
+                aria-label="Sidebar view"
+              >
+                <option value="explorer">Explorer</option>
+                <option value="chats">Chats</option>
+                <option value="search">Search</option>
+                <option value="convert">Convert PDF</option>
+                <option value="info">Document Info</option>
+              </select>
               <div className="sidePanelActions">
                 {sideView === 'explorer' ? (
                   <>
@@ -1841,13 +2205,11 @@ function App() {
                     <button className="ghostIcon" onClick={async () => { const f = await window.vera.pickArchive(); if (f) void openTargetPath(f); }} title="Open .vera file"><FileSearch size={15} /></button>
                   </>
                 ) : null}
-                {sideView === 'chats' ? (
-                  <button className="ghostIcon" onClick={() => void newSession()} title="New chat"><Plus size={16} /></button>
-                ) : null}
+                <button className="ghostIcon" onClick={() => setSettingsOpen(true)} title="LLM Providers" aria-label="LLM Providers"><Settings size={15} /></button>
                 <button className="ghostIcon" onClick={() => setSidebarCollapsed(true)} title="Hide sidebar"><PanelLeftClose size={15} /></button>
               </div>
             </div>
-            <div className="sidePanelBody">
+            <div className={`sidePanelBody${sideView === 'explorer' ? ' sidePanelBody--explorer' : ''}${sideView === 'chats' ? ' sidePanelBody--chats' : ''}`}>
               {sideView === 'explorer' ? (
                 folders.length === 0 ? (
                   <div className="sideEmpty">
@@ -1865,8 +2227,10 @@ function App() {
                             onClick={() => toggleFolderCollapsed(folder.path)}
                             title={collapsedFolders.includes(folder.path) ? 'Expand' : 'Collapse'}
                           >
-                            {collapsedFolders.includes(folder.path) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                            <Folder size={14} />
+                            <span className="folderToggleIcon">
+                              {collapsedFolders.includes(folder.path) ? <Folder size={14} className="folderStateIcon" /> : <FolderOpen size={14} className="folderStateIcon" />}
+                              {collapsedFolders.includes(folder.path) ? <ChevronRight size={14} className="folderCaretIcon" /> : <ChevronDown size={14} className="folderCaretIcon" />}
+                            </span>
                             <span className="folderGroupName">{folder.name}</span>
                           </button>
                           <button className="ghostIcon tiny" onClick={() => void refreshFolder(folder.path)} title="Refresh"><RotateCw size={12} /></button>
@@ -2113,7 +2477,7 @@ function App() {
             aria-label="Resize side panel"
             aria-orientation="vertical"
             tabIndex={0}
-            onDoubleClick={() => setSidePanelWidth(300)}
+            onDoubleClick={() => setSidePanelWidth(260)}
             onKeyDown={(event) => {
               if (event.key === 'ArrowLeft') setSidePanelWidth((value) => clampSidePanelWidth(value - 16));
               if (event.key === 'ArrowRight') setSidePanelWidth((value) => clampSidePanelWidth(value + 16));
@@ -2173,11 +2537,7 @@ function App() {
                     </article>
                   ) : null}
                 </div>
-              ) : (
-                <div className="chatEmptyState">
-                  <p>Ready when you are.</p>
-                </div>
-              )}
+              ) : null}
               <div className="askComposerWrap">
                 <div
                   className={isDraggingFiles ? 'askComposer askComposer--dragging' : 'askComposer'}
@@ -2317,50 +2677,150 @@ function App() {
                       <button
                         type="button"
                         className="modelPickerButton"
-                        onClick={() => setModelPickerOpen((open) => !open)}
+                        title="Select model · Ctrl+Alt+/ cycles reasoning effort"
+                        onClick={() => {
+                          const opening = !modelPickerOpen;
+                          setModelPickerOpen(opening);
+                          if (!opening) return;
+                          setModelFilter('');
+                          const refreshedAt = activeProvider?.models_refreshed_at ?? 0;
+                          if (activeProvider && Date.now() - refreshedAt > 60 * 60 * 1000) {
+                            void refreshProviderModels(activeProvider.id);
+                          }
+                        }}
                       >
                         <Sparkles size={14} />
-                        <span>{activeProvider && activeModel ? `${providerDisplayName(activeProvider)} · ${activeModel}` : 'Select model'}</span>
+                        <span>
+                          {activeProvider && activeModel
+                            ? `${activeModel}${activeModelOptions.reasoning_effort ? ` · ${reasoningEffortLabel(activeModelOptions.reasoning_effort)}` : ''}${activeModelOptions.fast ? ' · Fast' : ''}`
+                            : 'Select model'}
+                        </span>
                         <ChevronDown size={14} />
                       </button>
                       {modelPickerOpen ? (
                         <>
                           <div className="modelPickerBackdrop" onClick={() => setModelPickerOpen(false)} />
-                          <div className="modelPickerMenu" role="menu">
-                            {providers.length === 0 ? (
-                              <div className="modelPickerEmpty">No providers yet — add one below.</div>
-                            ) : null}
-                            {providers.map((profile) => (
-                              <div className="modelPickerGroup" key={profile.id}>
-                                <div className="modelPickerGroupLabel">{providerDisplayName(profile)}</div>
-                                {profile.models.length === 0 ? (
-                                  <div className="modelPickerEmpty">No models enabled</div>
-                                ) : (
-                                  profile.models.map((model) => (
-                                    <button
-                                      type="button"
-                                      key={`${profile.id}-${model}`}
-                                      className={profile.id === activeProviderId && model === activeModel ? 'modelOption active' : 'modelOption'}
-                                      onClick={() => void selectActiveModel(profile.id, model)}
-                                    >
-                                      <span>{model}</span>
-                                    </button>
-                                  ))
-                                )}
+                          <div className="modelPickerMenu" role="menu" onMouseLeave={() => setHoveredModelOptions(null)}>
+                            <div className="modelPickerMenuScroll">
+                              <div className="modelPickerSearch">
+                                <Search size={13} />
+                                <input value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} placeholder="Search models" autoFocus />
                               </div>
-                            ))}
+                              {providers.length === 0 ? (
+                                <div className="modelPickerEmpty">No providers yet — add one below.</div>
+                              ) : null}
+                              {providers.map((profile) => (
+                                <div className="modelPickerGroup" key={profile.id}>
+                                  <div className="modelPickerGroupLabel">{providerDisplayName(profile)}</div>
+                                  {profile.models.length === 0 ? (
+                                    <div className="modelPickerEmpty">No models enabled</div>
+                                  ) : (
+                                    profile.models
+                                      .filter((model) => !modelFilter.trim() || model.toLowerCase().includes(modelFilter.trim().toLowerCase()))
+                                      .map((model) => (
+                                      <button
+                                        type="button"
+                                        key={`${profile.id}-${model}`}
+                                        className={profile.id === activeProviderId && model === activeModel ? 'modelOption active' : 'modelOption'}
+                                        onClick={() => void selectActiveModel(profile.id, model)}
+                                        onMouseEnter={(event) => {
+                                          const menu = event.currentTarget.closest<HTMLElement>('.modelPickerMenu');
+                                          const menuTop = menu?.getBoundingClientRect().top ?? 0;
+                                          setHoveredModelOptions({
+                                            providerId: profile.id,
+                                            model,
+                                            top: event.currentTarget.getBoundingClientRect().top - menuTop,
+                                          });
+                                        }}
+                                      >
+                                        <span>{model}</span>
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                             <div className="modelPickerSep" />
                             <button
                               type="button"
                               className="modelOption manageOption"
                               onClick={() => {
+                                if (activeProviderId) void refreshProviderModels(activeProviderId);
+                                else {
+                                  setModelPickerOpen(false);
+                                  setSettingsOpen(true);
+                                }
+                              }}
+                              disabled={Boolean(modelRefreshBusyId)}
+                            >
+                              <RefreshCw size={14} className={modelRefreshBusyId ? 'spinning' : ''} />
+                              <span>{modelRefreshBusyId ? 'Refreshing models…' : 'Refresh models'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="modelOption manageOption"
+                              onClick={() => {
                                 setModelPickerOpen(false);
-                                setSettingsOpen(true);
+                                setModelManagerOpen(true);
                               }}
                             >
                               <Settings size={14} />
-                              <span>Manage providers…</span>
+                              <span>Edit models…</span>
                             </button>
+                            {hoveredModelOptions ? (() => {
+                              const profile = providers.find((entry) => entry.id === hoveredModelOptions.providerId);
+                              if (!profile) return null;
+                              const options: { reasoning_effort?: string; fast?: boolean } = profile.model_options?.[hoveredModelOptions.model] ?? {};
+                              const thinkingEnabled = options.reasoning_effort !== 'none';
+                              const selectedEffort = options.reasoning_effort && options.reasoning_effort !== 'none'
+                                ? options.reasoning_effort
+                                : 'medium';
+                              return (
+                                <div className="modelOptionsFlyout" style={{ top: hoveredModelOptions.top }}>
+                                  <span className="modelOptionsHeading">Options</span>
+                                  <label className="modelFlyoutToggle">
+                                    <span>Thinking</span>
+                                    <input
+                                      type="checkbox"
+                                      checked={thinkingEnabled}
+                                      onChange={() => void updateModelOptions(profile.id, hoveredModelOptions.model, {
+                                        ...options,
+                                        reasoning_effort: thinkingEnabled ? 'none' : 'medium',
+                                      })}
+                                    />
+                                  </label>
+                                  <label className="modelFlyoutToggle">
+                                    <span>Fast</span>
+                                    <input
+                                      type="checkbox"
+                                      checked={Boolean(options.fast)}
+                                      onChange={() => void updateModelOptions(profile.id, hoveredModelOptions.model, {
+                                        ...options,
+                                        fast: !options.fast,
+                                      })}
+                                    />
+                                  </label>
+                                  <span className="modelOptionsHeading effortHeading">Effort</span>
+                                  <div className="modelEffortMenu">
+                                    {REASONING_EFFORTS.map((effort) => (
+                                      <button
+                                        type="button"
+                                        key={effort}
+                                        className={thinkingEnabled && selectedEffort === effort ? 'active' : ''}
+                                        disabled={!thinkingEnabled}
+                                        onClick={() => void updateModelOptions(profile.id, hoveredModelOptions.model, {
+                                          ...options,
+                                          reasoning_effort: effort,
+                                        })}
+                                      >
+                                        <span>{reasoningEffortLabel(effort)}</span>
+                                        {thinkingEnabled && selectedEffort === effort ? <CheckCircle2 size={13} /> : null}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })() : null}
                           </div>
                         </>
                       ) : null}
@@ -2499,6 +2959,9 @@ function App() {
               <PdfSourceViewer
                 source={sourceDocument}
                 highlightRegions={selected && sourceDocumentPath === selectedSourcePath ? (selected.regions || EMPTY_REGIONS) : EMPTY_REGIONS}
+                highlightFigures={selected && sourceDocumentPath === selectedSourcePath
+                  ? (selected.figures || []).filter((figure) => figure.included_in_context)
+                  : []}
                 targetPage={selected && sourceDocumentPath === selectedSourcePath ? selectedTargetPage : null}
               />
             </div>
@@ -2522,6 +2985,20 @@ function App() {
         <span>Files: {inspect?.file_count ?? '-'}</span>
         <span>Model: {inspect?.default_embedding_model || inspect?.embedding_models?.join(', ') || '-'}</span>
       </footer>
+      {modelManagerOpen ? (
+        <ModelManager
+          providers={providers}
+          busyProviderId={modelRefreshBusyId}
+          message={modelRefreshMessage}
+          onToggle={(providerId, model) => void toggleProviderModel(providerId, model)}
+          onRefresh={(providerId) => void refreshProviderModels(providerId)}
+          onAddProvider={() => {
+            setModelManagerOpen(false);
+            setSettingsOpen(true);
+          }}
+          onClose={() => setModelManagerOpen(false)}
+        />
+      ) : null}
       {settingsOpen ? (
         <ProviderManager
           providers={providers}
