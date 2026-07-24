@@ -4,7 +4,8 @@ import json
 import sys
 from pathlib import Path
 
-from vera import convert
+from vera import batch_convert, convert
+from vera.collection import build_library_index, library_index_status, update_library_index
 from vera.corpus import VeraCorpus
 from vera.document import VeraDocument
 
@@ -14,9 +15,36 @@ def str_to_bool(value: str) -> bool:
 
 
 def cmd_convert(args) -> int:
+    input_path = Path(args.input)
+    if input_path.is_dir():
+        if args.output:
+            print("Directory conversion creates each .vera beside its PDF; do not provide an output path.", file=sys.stderr)
+            return 2
+        report = batch_convert(
+            args.input,
+            recursive=args.recursive,
+            overwrite=args.overwrite,
+            model=args.model,
+            parser=args.parser,
+            chunk_size=args.chunk_size,
+            overlap=args.overlap,
+            store_original=str_to_bool(args.store_original),
+        )
+        if args.json:
+            print(json.dumps({"ok": report["failed"] == 0, **report}))
+        else:
+            print(
+                f"Found {report['discovered']} PDFs: {report['converted']} converted, "
+                f"{report['skipped']} skipped, {report['failed']} failed"
+            )
+            for entry in report["errors"]:
+                print(f"Failed {entry['input']}: {entry['error']}", file=sys.stderr)
+        return 1 if report["failed"] else 0
+
+    output = args.output or str(input_path.with_suffix(".vera"))
     path = convert(
         args.input,
-        args.output,
+        output,
         model=args.model,
         parser=args.parser,
         chunk_size=args.chunk_size,
@@ -52,7 +80,15 @@ def cmd_inspect(args) -> int:
 
 
 def cmd_search(args) -> int:
-    target = VeraCorpus.open(args.file) if Path(args.file).is_dir() else VeraDocument.open(args.file)
+    target = (
+        VeraCorpus.open(
+            args.file,
+            recursive=True if getattr(args, "recursive", False) else None,
+            excludes=getattr(args, "exclude", None),
+        )
+        if Path(args.file).is_dir()
+        else VeraDocument.open(args.file)
+    )
     try:
         results = target.search(args.query, mode=args.mode, top_k=args.top_k, context_chunks=args.context_chunks)
         if args.json:
@@ -64,8 +100,17 @@ def cmd_search(args) -> int:
                 if args.regions:
                     entry["regions"] = target.regions_for(result)
                 payload.append(entry)
-            print(json.dumps({"query": args.query, "mode": args.mode, "results": payload}))
+            response = {"query": args.query, "mode": args.mode, "results": payload}
+            if isinstance(target, VeraCorpus):
+                response["index"] = {"used": target.uses_index, **target.index_status}
+            print(json.dumps(response))
             return 0
+        if isinstance(target, VeraCorpus):
+            if target.uses_index:
+                print(f"Index: {target.index_status.get('index')} (active)")
+            elif target.index_status.get("exists"):
+                reasons = "; ".join(target.index_status.get("reasons", []))
+                print(f"Index: fallback ({reasons})")
         for result in results:
             print(f"Score: {result.score:.4f}")
             file = getattr(result, "file", None)
@@ -81,6 +126,57 @@ def cmd_search(args) -> int:
     finally:
         target.close()
     return 0
+
+
+def _print_index_report(report: dict) -> None:
+    print(f"Index: {report['index']}")
+    print(f"Directory: {report['directory']}")
+    if "fresh" in report:
+        print(f"Status: {'fresh' if report['fresh'] else 'stale'}")
+        for reason in report.get("reasons", []):
+            print(f"- {reason}")
+        return
+    print(f"Files: {report['indexed']}/{report['discovered']}")
+    print(f"Chunks: {report['chunks']}")
+    print(
+        "Changes: "
+        f"{report['added']} added, {report['changed']} changed, "
+        f"{report['moved']} moved, {report['removed']} removed"
+    )
+    for category in ("invalid", "incompatible"):
+        for item in report.get(category, []):
+            print(f"{category.title()}: {item['file']}: {item['reason']}")
+
+
+def cmd_index_build(args) -> int:
+    report = build_library_index(
+        args.directory,
+        recursive=args.recursive,
+        excludes=args.exclude or (),
+    )
+    if args.json:
+        print(json.dumps(report))
+    else:
+        _print_index_report(report)
+    return 0
+
+
+def cmd_index_update(args) -> int:
+    report = update_library_index(args.directory)
+    if args.json:
+        print(json.dumps(report))
+    else:
+        _print_index_report(report)
+    return 0
+
+
+def cmd_index_status(args) -> int:
+    report = library_index_status(args.directory)
+    if args.json:
+        print(json.dumps(report))
+    else:
+        _print_index_report(report)
+    return 0 if report.get("fresh") else 1
 
 
 def cmd_validate(args) -> int:

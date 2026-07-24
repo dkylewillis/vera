@@ -94,3 +94,39 @@ def test_cli_json_output_for_agents(tmp_path):
     )
     assert invalid.returncode != 0
     assert "non-negative" in invalid.stderr
+
+
+def test_cli_batch_convert_directory_recursively(tmp_path):
+    root = tmp_path / "proposals"
+    root.mkdir()
+    top_pdf = root / "top.pdf"
+    nested_pdf = root / "nested" / "proposal.PDF"
+    nested_pdf.parent.mkdir()
+    make_pdf(top_pdf)
+    make_pdf(nested_pdf)
+
+    command = [
+        sys.executable,
+        "-m",
+        "vera_cli",
+        "convert",
+        str(root),
+        "--recursive",
+        "--model",
+        "hashing",
+        "--json",
+    ]
+    converted = subprocess.run(command, text=True, capture_output=True, check=True)
+    report = json.loads(converted.stdout)
+
+    assert report["ok"] is True
+    assert report["discovered"] == 2
+    assert report["converted"] == 2
+    assert report["skipped"] == 0
+    assert (root / "top.vera").is_file()
+    assert (nested_pdf.parent / "proposal.vera").is_file()
+
+    repeated = subprocess.run(command, text=True, capture_output=True, check=True)
+    repeated_report = json.loads(repeated.stdout)
+    assert repeated_report["converted"] == 0
+    assert repeated_report["skipped"] == 2

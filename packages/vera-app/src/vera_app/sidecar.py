@@ -10,7 +10,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from vera import VeraDocument, convert
+from vera import (
+    VeraDocument,
+    batch_convert,
+    build_library_index,
+    convert,
+    library_index_status,
+    update_library_index,
+)
 from vera.corpus import VeraCorpus
 from vera_app.llm import (
     ChatResponse,
@@ -40,6 +47,18 @@ def _open_document(path: str) -> VeraDocument:
     return VeraDocument.open(path)
 
 
+def _open_corpus(path: str, request: Request) -> VeraCorpus:
+    recursive_value = request.get("recursive")
+    recursive = None if recursive_value is None else bool(recursive_value)
+    excludes_value = request.get("excludes")
+    excludes = (
+        [str(value) for value in excludes_value if str(value).strip()]
+        if isinstance(excludes_value, list)
+        else None
+    )
+    return VeraCorpus.open(path, recursive=recursive, excludes=excludes)
+
+
 def _resolve_target(request: Request):
     """Open the search/inspect target for a request.
 
@@ -53,9 +72,9 @@ def _resolve_target(request: Request):
         if len(files) > 1:
             return VeraCorpus.from_paths(files)
         if len(files) == 1:
-            return _open_document(files[0])
+            return _open_corpus(files[0], request) if Path(files[0]).is_dir() else _open_document(files[0])
     path = str(request["path"])
-    return VeraCorpus.open(path) if Path(path).is_dir() else _open_document(path)
+    return _open_corpus(path, request) if Path(path).is_dir() else _open_document(path)
 
 
 def _scoped_single_file(request: Request) -> str | None:
@@ -70,7 +89,7 @@ def _scoped_single_file(request: Request) -> str | None:
     if isinstance(paths, list):
         files = [str(p) for p in paths if str(p).strip()]
         if len(files) == 1:
-            return files[0]
+            return None if Path(files[0]).is_dir() else files[0]
         if len(files) > 1:
             return None
     path = str(request.get("path") or "")
@@ -91,7 +110,7 @@ def _figure_payload(figure: dict[str, Any]) -> dict[str, Any]:
 def _inspect(request: Request) -> dict[str, Any]:
     path = str(request["path"])
     if Path(path).is_dir():
-        corpus = VeraCorpus.open(path)
+        corpus = _open_corpus(path, request)
         try:
             return corpus.inspect()
         finally:
@@ -109,6 +128,26 @@ def _validate(request: Request) -> dict[str, Any]:
         return doc.validate()
     finally:
         doc.close()
+
+
+def _index_status(request: Request) -> dict[str, Any]:
+    return library_index_status(
+        str(request["path"]),
+        verify_hashes=bool(request.get("verify_hashes", True)),
+    )
+
+
+def _index_build(request: Request) -> dict[str, Any]:
+    excludes = request.get("excludes")
+    return build_library_index(
+        str(request["path"]),
+        recursive=bool(request.get("recursive", True)),
+        excludes=[str(value) for value in excludes] if isinstance(excludes, list) else (),
+    )
+
+
+def _index_update(request: Request) -> dict[str, Any]:
+    return update_library_index(str(request["path"]))
 
 
 def _search(request: Request) -> list[dict[str, Any]]:
@@ -860,6 +899,19 @@ def _convert(request: Request) -> dict[str, str]:
     return {"output": output}
 
 
+def _batch_convert(request: Request) -> dict[str, Any]:
+    return batch_convert(
+        str(request["directory"]),
+        recursive=bool(request.get("recursive", True)),
+        overwrite=bool(request.get("overwrite", False)),
+        model=str(request.get("model", "hashing")),
+        parser=str(request.get("parser", "pymupdf")),
+        chunk_size=int(request.get("chunk_size", 500)),
+        overlap=int(request.get("overlap", 75)),
+        store_original=bool(request.get("store_original", True)),
+    )
+
+
 def _export(request: Request) -> dict[str, Any]:
     doc = _open_document(str(request["path"]))
     try:
@@ -909,9 +961,13 @@ HANDLERS: dict[str, Handler] = {
     "ping": lambda request: {"status": "ok"},
     "inspect": _inspect,
     "validate": _validate,
+    "index_status": _index_status,
+    "index_build": _index_build,
+    "index_update": _index_update,
     "search": _search,
     "answer": _answer,
     "convert": _convert,
+    "batch_convert": _batch_convert,
     "export": _export,
     "source": _source,
     "page": _page,

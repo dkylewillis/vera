@@ -84,6 +84,39 @@ export interface WorkspaceFolderResult {
   path: string;
   name: string;
   entries: FolderEntry[];
+  index?: LibraryIndexStatus;
+}
+
+export interface LibraryIndexStatus {
+  directory: string;
+  index: string;
+  exists: boolean;
+  fresh: boolean;
+  reasons: string[];
+  recursive?: boolean;
+  excludes?: string[];
+  file_count?: number;
+  skipped?: number;
+  discovered?: number;
+}
+
+export interface LibraryIndexBuildReport {
+  ok: boolean;
+  operation: 'build' | 'update';
+  directory: string;
+  index: string;
+  recursive: boolean;
+  excludes: string[];
+  discovered: number;
+  indexed: number;
+  chunks: number;
+  skipped: number;
+  invalid: { file: string; reason: string }[];
+  incompatible: { file: string; reason: string }[];
+  added: number;
+  changed: number;
+  removed: number;
+  moved: number;
 }
 
 export interface InspectResult {
@@ -99,6 +132,8 @@ export interface InspectResult {
   directory?: string;
   file_count?: number;
   embedding_models?: string[];
+  recursive?: boolean;
+  index?: LibraryIndexStatus;
 }
 
 export interface ValidateResult {
@@ -256,6 +291,19 @@ export interface CredentialResult {
 
 export interface ConvertResult {
   output: string;
+}
+
+export interface BatchConvertResult {
+  directory: string;
+  recursive: boolean;
+  overwrite: boolean;
+  discovered: number;
+  converted: number;
+  skipped: number;
+  failed: number;
+  outputs: string[];
+  skipped_existing: string[];
+  errors: { input: string; error: string }[];
 }
 
 export interface ExportResult {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 from typing import Any
 
 from .core.access import SourceDocument
@@ -26,6 +27,8 @@ class VeraDocument:
 
     @classmethod
     def open(cls, path: str) -> "VeraDocument":
+        if not Path(path).is_file():
+            raise FileNotFoundError(path)
         conn = sqlite3.connect(path)
         return cls(path, conn)
 

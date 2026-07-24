@@ -3,9 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import mimetypes
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from .core.embeddings import get_embedder, serialize_vector
 from .core.schema import FORMAT_VERSION, create_schema
@@ -162,3 +164,76 @@ def convert(
     finally:
         conn.close()
     return str(target)
+
+
+def batch_convert(
+    directory: str,
+    *,
+    recursive: bool = False,
+    overwrite: bool = False,
+    model: str = "hashing",
+    parser: str = "pymupdf",
+    chunk_size: int = 500,
+    overlap: int = 75,
+    store_original: bool = True,
+) -> dict[str, Any]:
+    """Convert every PDF in a directory, continuing after per-file failures."""
+    root = Path(directory).resolve()
+    if not root.is_dir():
+        raise NotADirectoryError(str(root))
+
+    pdfs: list[Path] = []
+    if recursive:
+        for current, directories, filenames in os.walk(root, followlinks=False):
+            directories[:] = sorted(
+                name
+                for name in directories
+                if not (Path(current) / name).is_symlink()
+            )
+            pdfs.extend(
+                Path(current) / name
+                for name in sorted(filenames)
+                if Path(name).suffix.lower() == ".pdf"
+            )
+    else:
+        pdfs = sorted(
+            path
+            for path in root.iterdir()
+            if path.is_file() and path.suffix.lower() == ".pdf"
+        )
+
+    outputs: list[str] = []
+    skipped_existing: list[str] = []
+    errors: list[dict[str, str]] = []
+    for pdf in pdfs:
+        output = pdf.with_suffix(".vera")
+        if output.exists() and not overwrite:
+            skipped_existing.append(str(output))
+            continue
+        try:
+            outputs.append(
+                convert(
+                    str(pdf),
+                    str(output),
+                    model=model,
+                    parser=parser,
+                    chunk_size=chunk_size,
+                    overlap=overlap,
+                    store_original=store_original,
+                )
+            )
+        except Exception as exc:
+            errors.append({"input": str(pdf), "error": str(exc)})
+
+    return {
+        "directory": str(root),
+        "recursive": recursive,
+        "overwrite": overwrite,
+        "discovered": len(pdfs),
+        "converted": len(outputs),
+        "skipped": len(skipped_existing),
+        "failed": len(errors),
+        "outputs": outputs,
+        "skipped_existing": skipped_existing,
+        "errors": errors,
+    }

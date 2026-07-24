@@ -4,6 +4,10 @@ VERA is a Vector-Embedded Retrieval Archive: one SQLite `.vera` file that carrie
 
 Tagline: **Convert once. Search anywhere.**
 
+New to VERA? Start with the
+[documentation guide](docs/README.md) or the
+[installation and first-search tutorial](docs/getting-started.md).
+
 ## What is VERA?
 
 ```text
@@ -34,10 +38,12 @@ A search result always points back to its source: filename, page range, heading 
 
 ```bash
 vera convert input.pdf output.vera
+vera convert ./pdf-library --recursive                    # same-named .vera files beside PDFs
 vera inspect output.vera
 vera validate output.vera
 vera search output.vera "stream buffer requirements" --mode hybrid
 vera search ./library "stream buffer requirements"   # search a folder of .vera files
+vera index build ./library --recursive                # accelerate a nested library
 vera export output.vera original.pdf                 # get the source document back out
 ```
 
@@ -89,26 +95,32 @@ for fig in doc.figures_for(result, include_data=True):  # figures on the result'
 - **Pluggable embeddings** — a deterministic local hashing embedder (384-dim, zero dependencies) is the default; `--model sentence-transformers/all-MiniLM-L6-v2` enables neural embeddings via the optional `ml` extra.
 - **Visual grounding** — every chunk maps back to the page regions it came from. `doc.regions_for(result)` (or `vera search --regions`) returns page numbers and bounding boxes (page points, origin top-left) plus page dimensions, so a viewer can scroll to the page and highlight the cited text.
 - **Document access** — the original source file is stored inside the archive and comes back out intact: `doc.get_source_document()` / `vera export`. Pages (`get_page`), layout blocks with bounding boxes (`get_blocks`), and stored assets (`get_asset`) are all directly accessible for building viewers.
-- **Corpus search** — `VeraCorpus.open(folder)` (or `vera search <folder> "query"`) searches every `.vera` file in a directory as one collection and fuses the rankings; each result is attributed to its file.
+- **Corpus search** — `VeraCorpus.open(folder)` (or `vera search <folder> "query"`) searches every `.vera` file in a directory as one collection and fuses the rankings; each result is attributed to its file. Add `--recursive` for an unindexed nested tree.
+- **Local library indexes** — `vera index build <folder> --recursive` creates a hidden, rebuildable SQLite/NumPy index for hundreds of documents. Searches use a fresh index automatically and fall back to direct file search when it is missing or stale; each `.vera` file remains independently portable.
 - **Transparent** — every file records its parser, chunking strategy, and embedding model in `vera_metadata`.
 
 ## CLI
 
 | Command | Purpose |
 | ------- | ------- |
-| `vera convert input.pdf output.vera` | Convert a PDF (options: `--model`, `--chunk-size`, `--overlap`) |
+| `vera convert input.pdf [output.vera]` | Convert one PDF; output defaults to the same base filename |
+| `vera convert <directory> [--recursive]` | Batch-convert PDFs beside their sources (`--overwrite` replaces existing archives) |
 | `vera inspect output.vera` | Print metadata: pages, chunks, model, parser |
 | `vera validate output.vera` | Check schema, counts, and index consistency |
 | `vera search output.vera "query"` | Search a file — or a directory of `.vera` files — (`--mode semantic\|keyword\|hybrid`, `--top-k`, `--context-chunks`, `--figures`, `--regions`) |
+| `vera index build <directory> [--recursive]` | Build a local collection index (`--exclude` is repeatable) |
+| `vera index update <directory>` | Rebuild an index with its saved discovery settings |
+| `vera index status <directory>` | Report whether an index is fresh or why it is stale |
 | `vera export output.vera [path]` | Write the original source document back out of the archive |
 | `vera eval output.vera queries.json` | Measure retrieval quality against an expected-answer query set |
 | `vera mcp` | Run the MCP server (stdio) exposing VERA tools to AI agents |
 
-Every command accepts `--json` for machine-readable output (see below).
+Every one-shot command accepts `--json` for machine-readable output. `vera mcp`
+is a long-running stdio protocol server and does not accept `--json`.
 
 ## Using VERA with AI agents
 
-VERA was built to give agents grounded, citation-ready context from large documents without a retrieval service. Agents can call the CLI directly — every command supports `--json` and meaningful exit codes (`validate`/`eval` exit non-zero on failure):
+VERA was built to give agents grounded, citation-ready context from large documents without a retrieval service. Agents can call the CLI directly with structured output and meaningful exit codes (`validate`, `index status`, and `eval` can emit a JSON report while exiting non-zero for a negative result):
 
 ```bash
 vera search ordinance.vera "when is detention required" --top-k 5 --json --figures --context-chunks 1
@@ -137,7 +149,7 @@ vera search ordinance.vera "when is detention required" --top-k 5 --json --figur
 }
 ```
 
-Every result carries its citation (source file, page, heading path), so agent answers can point back to the exact location in the source document. `--figures` adds metadata and captions for images on the result's pages, and `--context-chunks N` adds N chunks before and after each result as `before_chunks` and `after_chunks`. Add `--regions` and each result also carries a `regions` array — the page numbers and bounding boxes (`[x0, y0, x1, y1]` in page points, origin top-left, with page dimensions) of the blocks the chunk came from — so a viewer can scroll to the citation and highlight it. Point `vera search` at a directory instead of a file and the agent searches every `.vera` file in it as one corpus, with each result attributed to its `file`.
+Every result carries its citation (source file, page, heading path), so agent answers can point back to the exact location in the source document. `--figures` adds metadata and captions for images on the result's pages, and `--context-chunks N` adds N chunks before and after each result as `before_chunks` and `after_chunks`. Add `--regions` and each result also carries a `regions` array — the page numbers and bounding boxes (`[x0, y0, x1, y1]` in page points, origin top-left, with page dimensions) of the blocks the chunk came from — so a viewer can scroll to the citation and highlight it. Point `vera search` at a directory instead of a file and the agent searches every `.vera` file in it as one corpus, with each result attributed to its `file`. For nested libraries, use `vera index build <directory> --recursive` once; subsequent CLI and MCP searches automatically reuse that discovery setting. Run `vera index update` after adding, replacing, moving, or deleting proposals.
 
 ### MCP server
 
@@ -160,11 +172,15 @@ Example VS Code configuration (`.vscode/mcp.json`):
 }
 ```
 
-See [AGENTS.md](AGENTS.md) and [skills/vera/SKILL.md](skills/vera/SKILL.md) for agent-facing usage guidance.
+See [AGENTS.md](AGENTS.md) for the quick reference, the portable
+[VERA Agent Skill](skills/vera/SKILL.md) for reusable agent instructions, its
+[CLI contract](skills/vera/references/cli-reference.md) for exact JSON and exit
+behavior, and [docs/agent-skills.md](docs/agent-skills.md) for installation
+across Hermes, OpenClaw, Cursor, and other Agent Skills clients.
 
 ## Testing & retrieval evaluation
 
-Run the automated suite (140 tests, also run in CI on Ubuntu/Windows × Python 3.10/3.12):
+Run the automated suite (also run in CI on Ubuntu/Windows × Python 3.10/3.12):
 
 ```bash
 uv run --extra dev python -m pytest -q
@@ -192,6 +208,16 @@ The command reports hit rate and MRR per search mode and exits non-zero on any m
 
 Current baseline on the stormwater manual (2,442 chunks, hashing embedder): hybrid and keyword both hit 9/10 at MRR 0.900.
 
+Measure corpus fan-out versus indexed search on generated proposal-like documents:
+
+```bash
+uv run python benchmarks/benchmark_corpus.py --documents 100 --chunks 100 --runs 5
+```
+
+See [docs/collection-index.md](docs/collection-index.md) for the artifact layout,
+fallback behavior, measured baseline, and criteria for future sqlite-vec, FAISS,
+HNSW, or Qdrant adapters.
+
 ## VERA Desktop App
 
 The app package is an Electron desktop shell with a React UI and a Python sidecar that calls `vera-doc` directly:
@@ -202,7 +228,7 @@ npm run app:dev
 npm run app:dist
 ```
 
-Run these from the repo root. The desktop app uses a two-pane Ask and Source Document workspace with document opening in the native File menu, open document metrics in a bottom status bar, and a draggable Source Document divider for PDF review. It can pick local `.vera` archives or folders, inspect and validate archives, ask natural-language questions with grounded citations, search documents or corpora with context and visual grounding, convert PDFs with parser/model settings, view embedded source PDFs as scrollable pages with selectable text and grounded highlights, keep raw retrieval data tucked into expandable details, preview figures, and export the embedded source document through the sidecar protocol. The unpacked Windows build writes `VERA.exe` under `packages/vera-app/release/win-unpacked`. See [docs/desktop-app-architecture.md](docs/desktop-app-architecture.md) for the app architecture and next steps.
+Run these from the repo root. The desktop app uses a two-pane Ask and Source Document workspace with document opening in the native File menu, open document metrics in a bottom status bar, and a draggable Source Document divider for PDF review. Activating a folder makes the entire nested library the default Search and Ask scope while opening an individual archive only changes the viewer; checked archives temporarily narrow retrieval and clearing them restores the library. Explorer shows `Indexed`, `Stale`, and `No index` badges, prompts to build or update local collection indexes, and always allows recursive fallback search with a slower-search notice. The Convert view can process one PDF or batch-convert a directory recursively, naming each archive after its source PDF and skipping existing archives unless overwrite is enabled. The app can also inspect and validate archives, ask natural-language questions with grounded citations, view embedded source PDFs as scrollable pages with selectable text and grounded highlights, preview figures, and export the embedded source document through the sidecar protocol. The unpacked Windows build writes `VERA.exe` under `packages/vera-app/release/win-unpacked`. See [docs/desktop-app-architecture.md](docs/desktop-app-architecture.md) for the app architecture and library-index workflow.
 
 ## Status
 

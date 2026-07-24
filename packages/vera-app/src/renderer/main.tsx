@@ -5,10 +5,12 @@ import remarkGfm from 'remark-gfm';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import {
+  AlertTriangle,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   Download,
+  Database,
   FileInput,
   FileSearch,
   FileText,
@@ -36,10 +38,11 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import type { AppSettings, ChatAnswerResult, ChatAttachment, ChatCitationResult, ConvertResult, ExportResult, FigureResult, FolderEntry, InspectResult, Mode, PageResult, ProviderProfile, RegionResult, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
+import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ConvertResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, ProviderProfile, RegionResult, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
 import './styles.css';
 
 type SideView = 'explorer' | 'chats' | 'search' | 'convert' | 'info';
+type IndexPrompt = { path: string; status: LibraryIndexStatus };
 
 const EMPTY_REGIONS: RegionResult[] = [];
 const REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
@@ -1313,6 +1316,94 @@ function ProviderManager({
   );
 }
 
+function LibraryIndexModal({
+  prompt,
+  report,
+  recursive,
+  excludes,
+  busy,
+  onRecursiveChange,
+  onExcludesChange,
+  onConfirm,
+  onDismiss,
+}: {
+  prompt: IndexPrompt | null;
+  report: LibraryIndexBuildReport | null;
+  recursive: boolean;
+  excludes: string;
+  busy: boolean;
+  onRecursiveChange: (value: boolean) => void;
+  onExcludesChange: (value: string) => void;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  if (!prompt && !report) return null;
+  const isUpdate = Boolean(prompt?.status.exists);
+  return (
+    <div className="modalBackdrop" onClick={busy ? undefined : onDismiss}>
+      <div className="modal libraryIndexModal" onClick={(event) => event.stopPropagation()}>
+        <header className="modalHeader">
+          <h2><Database size={18} />{report ? 'Library index ready' : isUpdate ? 'Update library index?' : 'Build library index?'}</h2>
+          <button className="iconAction" onClick={onDismiss} disabled={busy} title="Close"><X size={17} /></button>
+        </header>
+        <div className="libraryIndexModalBody">
+          {report ? (
+            <>
+              <p>Indexed <strong>{report.indexed}</strong> of {report.discovered} archives with {report.chunks.toLocaleString()} searchable chunks.</p>
+              {report.skipped ? (
+                <div className="indexReportWarning">
+                  <AlertTriangle size={16} />
+                  <span>{report.skipped} archive{report.skipped === 1 ? ' was' : 's were'} skipped.</span>
+                </div>
+              ) : null}
+              {[...report.invalid, ...report.incompatible].map((entry) => (
+                <div className="indexSkippedFile" key={`${entry.file}:${entry.reason}`}>
+                  <strong>{entry.file}</strong><span>{entry.reason}</span>
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              <p>
+                {isUpdate
+                  ? 'This library changed after its index was built. Update it for fast whole-library search.'
+                  : 'Build a local index for fast whole-library search. You can still search recursively without one.'}
+              </p>
+              {prompt?.status.reasons.length ? (
+                <div className="indexReasons">{prompt.status.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
+              ) : null}
+              {!isUpdate ? (
+                <>
+                  <label className="miniCheck">
+                    <input type="checkbox" checked={recursive} onChange={(event) => onRecursiveChange(event.target.checked)} />
+                    <span>Include nested folders (Recursive)</span>
+                  </label>
+                  <label className="field">
+                    <span>Exclusions (one folder, file, or glob pattern per line)</span>
+                    <textarea rows={4} value={excludes} onChange={(event) => onExcludesChange(event.target.value)} placeholder={'archive\n**/drafts/**'} />
+                  </label>
+                </>
+              ) : (
+                <p className="sideMuted">Saved settings: {prompt?.status.recursive ? 'recursive' : 'top-level only'}{prompt?.status.excludes?.length ? `; ${prompt.status.excludes.length} exclusion(s)` : ''}.</p>
+              )}
+            </>
+          )}
+        </div>
+        <footer className="modalFooter">
+          <span className="modalMessage">{report?.skipped ? 'Skipped archives are listed above.' : ''}</span>
+          <div className="modalFooterActions">
+            {!report ? <button className="secondaryAction" onClick={onDismiss} disabled={busy}>Search anyway</button> : null}
+            <button className="primaryAction" onClick={report ? onDismiss : onConfirm} disabled={busy}>
+              {busy ? <RefreshCw className="spinning" size={15} /> : null}
+              {report ? 'Done' : isUpdate ? 'Update index' : 'Build index'}
+            </button>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const customTitlebar = Boolean(window.vera.platform && window.vera.platform !== 'darwin');
   const workspaceRef = useRef<HTMLDivElement | null>(null);
@@ -1321,6 +1412,14 @@ function App() {
   const [folders, setFolders] = useState<WorkspaceFolderResult[]>([]);
   const [viewerMode, setViewerMode] = useState<'selection' | 'document'>('document');
   const [path, setPath] = useState('');
+  const [activeLibraryPath, setActiveLibraryPath] = useState('');
+  const activeLibraryPathRef = useRef('');
+  const [indexStatuses, setIndexStatuses] = useState<Record<string, LibraryIndexStatus>>({});
+  const [indexPrompt, setIndexPrompt] = useState<IndexPrompt | null>(null);
+  const [indexReport, setIndexReport] = useState<LibraryIndexBuildReport | null>(null);
+  const [indexRecursive, setIndexRecursive] = useState(true);
+  const [indexExcludes, setIndexExcludes] = useState('');
+  const dismissedIndexStates = useRef(new Map<string, string>());
   const [pdfPath, setPdfPath] = useState('');
   const [outputPath, setOutputPath] = useState('');
   const [query, setQuery] = useState('');
@@ -1350,6 +1449,10 @@ function App() {
   const [modelRefreshMessage, setModelRefreshMessage] = useState('');
   const [convertModel, setConvertModel] = useState('hashing');
   const [convertParser, setConvertParser] = useState('pymupdf');
+  const [convertMode, setConvertMode] = useState<'single' | 'batch'>('single');
+  const [batchDirectory, setBatchDirectory] = useState('');
+  const [batchRecursive, setBatchRecursive] = useState(true);
+  const [batchOverwrite, setBatchOverwrite] = useState(false);
   const [chunkSize, setChunkSize] = useState(500);
   const [overlap, setOverlap] = useState(75);
   const [storeOriginal, setStoreOriginal] = useState(true);
@@ -1359,6 +1462,7 @@ function App() {
   const [inspect, setInspect] = useState<InspectResult | null>(null);
   const [validation, setValidation] = useState<ValidateResult | null>(null);
   const [convertResult, setConvertResult] = useState<ConvertResult | null>(null);
+  const [batchConvertResult, setBatchConvertResult] = useState<BatchConvertResult | null>(null);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [sourceDocument, setSourceDocument] = useState<SourceDocumentResult | null>(null);
   const [sourceDocumentPath, setSourceDocumentPath] = useState('');
@@ -1392,11 +1496,9 @@ function App() {
   });
   const [isResizingSide, setIsResizingSide] = useState(false);
 
-  // Files to search: the explicitly checked set, or the active document.
-  const scopedFiles = useMemo(
-    () => (selectedFiles.length > 0 ? selectedFiles : path ? [path] : []),
-    [selectedFiles, path],
-  );
+  const searchScopePath = activeLibraryPath || path;
+  const activeIndexStatus = activeLibraryPath ? indexStatuses[activeLibraryPath] : undefined;
+  const usesFallback = Boolean(activeLibraryPath && selectedFiles.length === 0 && activeIndexStatus && !activeIndexStatus.fresh);
   const isCorpus = Boolean(
     inspect?.directory || (path && !path.toLowerCase().endsWith('.vera')) || selectedFiles.length > 1,
   );
@@ -1426,6 +1528,37 @@ function App() {
     setSidebarCollapsed(false);
   }
 
+  function indexStateKey(value: LibraryIndexStatus): string {
+    return `${value.exists}:${value.fresh}:${value.reasons.join('|')}`;
+  }
+
+  function presentIndexPrompt(folderPath: string, value: LibraryIndexStatus, force = false) {
+    if (value.fresh) return;
+    const key = indexStateKey(value);
+    if (!force && dismissedIndexStates.current.get(folderPath) === key) return;
+    setIndexRecursive(value.exists ? Boolean(value.recursive) : true);
+    setIndexExcludes(value.excludes?.join('\n') ?? '');
+    setIndexReport(null);
+    setIndexPrompt({ path: folderPath, status: value });
+  }
+
+  async function refreshIndexStatus(folderPath: string, prompt = false): Promise<LibraryIndexStatus | null> {
+    try {
+      const response = await window.vera.request<LibraryIndexStatus>({
+        action: 'index_status',
+        path: folderPath,
+        verify_hashes: false,
+      });
+      if (!response.ok || !response.result) return null;
+      const value = response.result;
+      setIndexStatuses((prev) => ({ ...prev, [folderPath]: value }));
+      if (prompt) presentIndexPrompt(folderPath, value);
+      return value;
+    } catch {
+      return null;
+    }
+  }
+
   async function addFolder() {
     const dir = await window.vera.pickFolder();
     if (!dir) return;
@@ -1436,6 +1569,7 @@ function App() {
       localStorage.setItem('vera.folders', JSON.stringify(next.map((entry) => entry.path)));
       return next;
     });
+    await openTargetPath(folder.path, { asLibrary: true });
   }
 
   function removeFolder(folderPath: string) {
@@ -1444,11 +1578,22 @@ function App() {
       localStorage.setItem('vera.folders', JSON.stringify(next.map((entry) => entry.path)));
       return next;
     });
+    if (activeLibraryPath === folderPath) {
+      setActiveLibraryPath('');
+      try { localStorage.removeItem('vera.activeLibraryPath'); } catch { /* ignore persistence errors */ }
+      setSelectedFiles([]);
+    }
+    setIndexStatuses((prev) => {
+      const next = { ...prev };
+      delete next[folderPath];
+      return next;
+    });
   }
 
   async function refreshFolder(folderPath: string) {
     const folder = await window.vera.listFolder(folderPath);
     if (folder) setFolders((prev) => prev.map((entry) => (entry.path === folderPath ? folder : entry)));
+    await refreshIndexStatus(folderPath, folderPath === activeLibraryPath);
   }
 
   function toggleSelectedFile(filePath: string) {
@@ -1465,7 +1610,7 @@ function App() {
 
   function openEntry(entry: FolderEntry) {
     if (entry.type === 'vera') {
-      void openTargetPath(entry.path);
+      void openTargetPath(entry.path, { preserveLibrary: true });
     } else {
       setPdfPath(entry.path);
       if (!outputPath.trim()) setOutputPath(defaultVeraPath(entry.path));
@@ -1517,7 +1662,36 @@ function App() {
     }
   }
 
-  async function openTargetPath(value: string) {
+  async function openTargetPath(
+    value: string,
+    options: { asLibrary?: boolean; preserveLibrary?: boolean } = {},
+  ) {
+    const asLibrary = options.asLibrary ?? (
+      folders.some((folder) => folder.path === value) || !value.toLowerCase().endsWith('.vera')
+    );
+    if (asLibrary) {
+      setActiveLibraryPath(value);
+      try { localStorage.setItem('vera.activeLibraryPath', value); } catch { /* ignore persistence errors */ }
+      setSelectedFiles([]);
+      const index = await refreshIndexStatus(value, true);
+      updateTargetPath(value);
+      const result = await call<InspectResult>({
+        action: 'inspect',
+        path: value,
+        recursive: index?.recursive ?? true,
+        excludes: index?.excludes ?? [],
+      }, 'Opening library');
+      if (result) {
+        setInspect(result);
+        setValidation(null);
+      }
+      return;
+    }
+    if (!options.preserveLibrary) {
+      setActiveLibraryPath('');
+      try { localStorage.removeItem('vera.activeLibraryPath'); } catch { /* ignore persistence errors */ }
+      setSelectedFiles([]);
+    }
     updateTargetPath(value);
     const result = await call<InspectResult>({ action: 'inspect', path: value }, 'Opening');
     if (result) {
@@ -1544,13 +1718,25 @@ function App() {
     }
   }
 
+  async function chooseBatchDirectory() {
+    const chosen = await window.vera.pickFolder();
+    if (chosen) {
+      setBatchDirectory(chosen);
+      setBatchConvertResult(null);
+    }
+  }
+
   async function chooseOutput() {
     const chosen = await window.vera.saveVera(outputPath.trim() || defaultVeraPath(pdfPath));
     if (chosen) setOutputPath(chosen);
   }
 
   async function inspectTarget() {
-    const result = await call<InspectResult>({ action: 'inspect', path }, 'Inspecting');
+    const result = await call<InspectResult>({
+      action: 'inspect',
+      path,
+      ...(path === activeLibraryPath ? { recursive: activeIndexStatus?.recursive ?? true, excludes: activeIndexStatus?.excludes ?? [] } : {}),
+    }, 'Inspecting');
     if (result) {
       setInspect(result);
       setValidation(null);
@@ -1566,11 +1752,57 @@ function App() {
     }
   }
 
+  function dismissIndexPrompt() {
+    if (indexPrompt) {
+      dismissedIndexStates.current.set(indexPrompt.path, indexStateKey(indexPrompt.status));
+    }
+    setIndexPrompt(null);
+    setIndexReport(null);
+  }
+
+  async function manageLibraryIndex(folderPath: string) {
+    const value = indexStatuses[folderPath] ?? await refreshIndexStatus(folderPath);
+    if (value) presentIndexPrompt(folderPath, value, true);
+  }
+
+  async function confirmIndexAction() {
+    if (!indexPrompt) return;
+    const folderPath = indexPrompt.path;
+    const action = indexPrompt.status.exists ? 'index_update' : 'index_build';
+    const result = await call<LibraryIndexBuildReport>({
+      action,
+      path: folderPath,
+      ...(action === 'index_build'
+        ? {
+            recursive: indexRecursive,
+            excludes: indexExcludes.split(/\r?\n/).map((value) => value.trim()).filter(Boolean),
+          }
+        : {}),
+    }, action === 'index_build' ? 'Building library index' : 'Updating library index');
+    if (!result) return;
+    dismissedIndexStates.current.delete(folderPath);
+    setIndexPrompt(null);
+    setIndexReport(result);
+    const value = await refreshIndexStatus(folderPath);
+    if (value && path === folderPath) {
+      const inspected = await call<InspectResult>({
+        action: 'inspect',
+        path: folderPath,
+        recursive: value.recursive ?? true,
+        excludes: value.excludes ?? [],
+      }, 'Refreshing library');
+      if (inspected) setInspect(inspected);
+    }
+  }
+
   async function searchTarget() {
     const result = await call<SearchResult[]>({
       action: 'search',
-      path,
-      paths: scopedFiles,
+      path: searchScopePath,
+      ...(selectedFiles.length ? { paths: selectedFiles } : {}),
+      ...(activeLibraryPath && selectedFiles.length === 0
+        ? { recursive: activeIndexStatus?.fresh ? activeIndexStatus.recursive ?? true : true, excludes: activeIndexStatus?.excludes ?? [] }
+        : {}),
       query,
       mode,
       top_k: topK,
@@ -1731,8 +1963,11 @@ function App() {
 
     const result = await call<ChatAnswerResult>({
       action: 'answer',
-      path,
-      paths: scopedFiles,
+      path: searchScopePath,
+      ...(selectedFiles.length ? { paths: selectedFiles } : {}),
+      ...(activeLibraryPath && selectedFiles.length === 0
+        ? { recursive: activeIndexStatus?.fresh ? activeIndexStatus.recursive ?? true : true, excludes: activeIndexStatus?.excludes ?? [] }
+        : {}),
       prompt: query,
       mode_id: activeModeId || activeMode?.id || '',
       history,
@@ -1785,7 +2020,7 @@ function App() {
       const session: Session = {
         id: sid,
         title,
-        source_path: path,
+        source_path: searchScopePath,
         turns: withAssistant.map(stripTrace),
         created_at: activeSessionId ? (sessions.find((s) => s.id === sid)?.created_at ?? now) : now,
         updated_at: now,
@@ -2020,6 +2255,34 @@ function App() {
     }
   }
 
+  async function batchConvertPdfs() {
+    const directory = batchDirectory.trim();
+    if (!directory) {
+      setStatus('Choose a PDF directory');
+      setErrorMessage('Choose the directory containing the PDFs to convert.');
+      return;
+    }
+    const result = await call<BatchConvertResult>({
+      action: 'batch_convert',
+      directory,
+      recursive: batchRecursive,
+      overwrite: batchOverwrite,
+      model: convertModel,
+      parser: convertParser,
+      chunk_size: chunkSize,
+      overlap,
+      store_original: storeOriginal,
+    }, 'Converting PDF directory');
+    if (!result) return;
+    setBatchConvertResult(result);
+    setConvertResult(null);
+    await Promise.all(
+      folders
+        .filter((folder) => isPathInsideFolder(result.directory, folder.path))
+        .map((folder) => refreshFolder(folder.path)),
+    );
+  }
+
   async function exportSource() {
     const output = await window.vera.saveAny();
     if (!output) return;
@@ -2072,6 +2335,10 @@ function App() {
     setSettingsOpen(true);
   }), []);
 
+  useEffect(() => {
+    activeLibraryPathRef.current = activeLibraryPath;
+  }, [activeLibraryPath]);
+
   const folderPathsKey = folders.map((folder) => folder.path).join('\n');
 
   useEffect(() => {
@@ -2080,10 +2347,12 @@ function App() {
   }, [folderPathsKey]);
 
   useEffect(() => window.vera.onFolderChanged((folderPath) => {
+    dismissedIndexStates.current.delete(folderPath);
     void window.vera.listFolder(folderPath).then((folder) => {
       if (!folder) return;
       setFolders((prev) => prev.map((entry) => (entry.path === folder.path ? folder : entry)));
     });
+    void refreshIndexStatus(folderPath, folderPath === activeLibraryPathRef.current);
   }), []);
 
   useEffect(() => {
@@ -2111,7 +2380,13 @@ function App() {
       if (!Array.isArray(saved) || saved.length === 0) return;
       const loaded = await Promise.all(saved.map((dir) => window.vera.listFolder(dir)));
       if (canceled) return;
-      setFolders(loaded.filter((entry): entry is WorkspaceFolderResult => entry !== null));
+      const available = loaded.filter((entry): entry is WorkspaceFolderResult => entry !== null);
+      setFolders(available);
+      await Promise.all(available.map((entry) => refreshIndexStatus(entry.path)));
+      const savedActive = localStorage.getItem('vera.activeLibraryPath') || '';
+      if (!canceled && available.some((entry) => entry.path === savedActive)) {
+        await openTargetPath(savedActive, { asLibrary: true });
+      }
     }
     void loadSettings();
     void loadSessions();
@@ -2244,11 +2519,19 @@ function App() {
                   </div>
                 ) : (
                   <div className="explorerTree">
-                    {folders.map((folder) => (
-                      <section className="folderGroup" key={folder.path}>
+                    {folders.map((folder) => {
+                      const folderIndex = indexStatuses[folder.path];
+                      const indexLabel = folderIndex?.fresh ? 'Indexed' : folderIndex?.exists ? 'Stale' : 'No index';
+                      return (
+                      <section
+                        className={activeLibraryPath === folder.path
+                          ? selectedFiles.length > 0 ? 'folderGroup overriddenLibrary' : 'folderGroup activeLibrary'
+                          : 'folderGroup'}
+                        key={folder.path}
+                      >
                         <div className="folderGroupHead" title={folder.path}>
                           <button
-                            className="folderGroupToggle"
+                            className="folderCollapseAction"
                             onClick={() => toggleFolderCollapsed(folder.path)}
                             title={collapsedFolders.includes(folder.path) ? 'Expand' : 'Collapse'}
                           >
@@ -2256,10 +2539,32 @@ function App() {
                               {collapsedFolders.includes(folder.path) ? <Folder size={14} className="folderStateIcon" /> : <FolderOpen size={14} className="folderStateIcon" />}
                               {collapsedFolders.includes(folder.path) ? <ChevronRight size={14} className="folderCaretIcon" /> : <ChevronDown size={14} className="folderCaretIcon" />}
                             </span>
-                            <span className="folderGroupName">{folder.name}</span>
                           </button>
-                          <button className="ghostIcon tiny" onClick={() => void refreshFolder(folder.path)} title="Refresh"><RotateCw size={12} /></button>
-                          <button className="ghostIcon tiny" onClick={() => removeFolder(folder.path)} title="Close folder"><X size={12} /></button>
+                          <button
+                            className="folderGroupToggle"
+                            onClick={() => void openTargetPath(folder.path, { asLibrary: true })}
+                            title="Use this folder as the active library"
+                          >
+                            <span className="folderGroupName">{folder.name}</span>
+                            {activeLibraryPath === folder.path ? (
+                              <span className={selectedFiles.length > 0 ? 'activeLibraryMark overridden' : 'activeLibraryMark'}>
+                                {selectedFiles.length > 0 ? 'Overridden' : 'Active'}
+                              </span>
+                            ) : null}
+                          </button>
+                          <span
+                            className={`indexBadge ${folderIndex?.fresh ? 'fresh' : folderIndex?.exists ? 'stale' : 'missing'}`}
+                            title={folderIndex?.fresh ? 'Library index is current' : folderIndex?.reasons.join('; ')}
+                          >
+                            {indexLabel}
+                          </span>
+                          {!folderIndex?.fresh ? (
+                            <button className="indexAction" onClick={() => void manageLibraryIndex(folder.path)}>
+                              {folderIndex?.exists ? 'Update' : 'Build'}
+                            </button>
+                          ) : null}
+                          <button className="ghostIcon tiny visible" onClick={() => void refreshFolder(folder.path)} title="Refresh"><RotateCw size={12} /></button>
+                          <button className="ghostIcon tiny visible" onClick={() => removeFolder(folder.path)} title="Close folder"><X size={12} /></button>
                         </div>
                         {collapsedFolders.includes(folder.path) ? null : folder.entries.length === 0 ? (
                           <p className="folderEmpty">No .vera or .pdf files</p>
@@ -2289,7 +2594,8 @@ function App() {
                           ))
                         )}
                       </section>
-                    ))}
+                      );
+                    })}
                   </div>
                 )
               ) : null}
@@ -2327,14 +2633,16 @@ function App() {
                           void searchTarget();
                         }
                       }}
-                      placeholder="Search the selected document…"
+                      placeholder="Search the active scope…"
                     />
-                    {selectedFiles.length > 0 ? (
-                      <div className="searchScope">
-                        <span>{selectedFiles.length === 1 ? '1 document selected' : `${selectedFiles.length} documents selected`}</span>
+                    <div className="searchScope">
+                      <span>{selectedFiles.length > 0
+                        ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
+                        : activeLibraryPath ? 'Entire library' : path ? 'Current document' : 'No search scope'}</span>
+                      {selectedFiles.length > 0 ? (
                         <button type="button" onClick={() => setSelectedFiles([])} title="Clear selection">Clear</button>
-                      </div>
-                    ) : null}
+                      ) : null}
+                    </div>
                     <div className="searchControls">
                       <label className="miniField">
                         <span>Mode</span>
@@ -2357,11 +2665,11 @@ function App() {
                         <span>Figures</span>
                       </label>
                     </div>
-                    <button className="sidePrimary" onClick={searchTarget} disabled={scopedFiles.length === 0 || !query.trim() || busy}><Search size={15} />Search</button>
+                    <button className="sidePrimary" onClick={searchTarget} disabled={!searchScopePath || !query.trim() || busy}><Search size={15} />Search</button>
                   </div>
                   <div className="searchResults">
                     {results.length === 0 ? (
-                      <p className="sideMuted">{path ? 'No results yet.' : 'Open a document first.'}</p>
+                      <p className="sideMuted">{searchScopePath ? 'No results yet.' : 'Open a document or library first.'}</p>
                     ) : (
                       results.map((result) => (
                         <button
@@ -2381,30 +2689,58 @@ function App() {
 
               {sideView === 'convert' ? (
                 <div className="convertView">
-                  <label className="field">
-                    <span>PDF</span>
-                    <div className="pathInput">
-                      <FileInput size={16} />
-                      <input
-                        value={pdfPath}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setPdfPath(value);
-                          if (!outputPath.trim()) setOutputPath(defaultVeraPath(value));
-                        }}
-                        placeholder="C:\\docs\\manual.pdf"
-                      />
-                    </div>
-                  </label>
-                  <button className="secondaryAction" onClick={choosePdf} disabled={busy}><FolderOpen size={16} />Choose PDF</button>
-                  <label className="field">
-                    <span>Output</span>
-                    <div className="pathInput">
-                      <FileSearch size={16} />
-                      <input value={outputPath} onChange={(event) => setOutputPath(event.target.value)} placeholder="C:\\docs\\manual.vera" />
-                    </div>
-                  </label>
-                  <button className="secondaryAction" onClick={chooseOutput} disabled={busy}><FolderOpen size={16} />Save As</button>
+                  <div className="convertModeToggle">
+                    <button className={convertMode === 'single' ? 'active' : ''} onClick={() => setConvertMode('single')}>Single PDF</button>
+                    <button className={convertMode === 'batch' ? 'active' : ''} onClick={() => setConvertMode('batch')}>PDF Directory</button>
+                  </div>
+                  {convertMode === 'single' ? (
+                    <>
+                      <label className="field">
+                        <span>PDF</span>
+                        <div className="pathInput">
+                          <FileInput size={16} />
+                          <input
+                            value={pdfPath}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setPdfPath(value);
+                              if (!outputPath.trim()) setOutputPath(defaultVeraPath(value));
+                            }}
+                            placeholder="C:\\docs\\manual.pdf"
+                          />
+                        </div>
+                      </label>
+                      <button className="secondaryAction" onClick={choosePdf} disabled={busy}><FolderOpen size={16} />Choose PDF</button>
+                      <label className="field">
+                        <span>Output</span>
+                        <div className="pathInput">
+                          <FileSearch size={16} />
+                          <input value={outputPath} onChange={(event) => setOutputPath(event.target.value)} placeholder="C:\\docs\\manual.vera" />
+                        </div>
+                      </label>
+                      <button className="secondaryAction" onClick={chooseOutput} disabled={busy}><FolderOpen size={16} />Save As</button>
+                    </>
+                  ) : (
+                    <>
+                      <label className="field">
+                        <span>PDF directory</span>
+                        <div className="pathInput">
+                          <Folder size={16} />
+                          <input value={batchDirectory} onChange={(event) => setBatchDirectory(event.target.value)} placeholder="C:\\proposals" />
+                        </div>
+                      </label>
+                      <button className="secondaryAction" onClick={chooseBatchDirectory} disabled={busy}><FolderOpen size={16} />Choose Directory</button>
+                      <label className="miniCheck">
+                        <input type="checkbox" checked={batchRecursive} onChange={(event) => setBatchRecursive(event.target.checked)} />
+                        <span>Include PDFs in nested folders</span>
+                      </label>
+                      <label className="miniCheck">
+                        <input type="checkbox" checked={batchOverwrite} onChange={(event) => setBatchOverwrite(event.target.checked)} />
+                        <span>Overwrite existing .vera files</span>
+                      </label>
+                      <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Existing archives are skipped unless overwrite is enabled.</p>
+                    </>
+                  )}
                   <div className="convertGrid">
                     <label className="miniField">
                       <span>Parser</span>
@@ -2433,8 +2769,23 @@ function App() {
                     <input type="checkbox" checked={storeOriginal} onChange={(event) => setStoreOriginal(event.target.checked)} />
                     <span>Store original PDF</span>
                   </label>
-                  <button className="sidePrimary" onClick={convertPdf} disabled={!pdfPath.trim() || busy}><RefreshCw size={16} />Convert</button>
-                  {convertResult && <p className="sideMuted">Created {convertResult.output}</p>}
+                  <button
+                    className="sidePrimary"
+                    onClick={convertMode === 'single' ? convertPdf : batchConvertPdfs}
+                    disabled={convertMode === 'single' ? !pdfPath.trim() || busy : !batchDirectory.trim() || busy}
+                  >
+                    <RefreshCw size={16} />{convertMode === 'single' ? 'Convert' : 'Convert Directory'}
+                  </button>
+                  {convertMode === 'single' && convertResult ? <p className="sideMuted">Created {convertResult.output}</p> : null}
+                  {convertMode === 'batch' && batchConvertResult ? (
+                    <div className="batchConvertReport">
+                      <strong>{batchConvertResult.converted} converted</strong>
+                      <span>{batchConvertResult.discovered} PDFs found · {batchConvertResult.skipped} skipped · {batchConvertResult.failed} failed</span>
+                      {batchConvertResult.errors.map((entry) => (
+                        <span className="batchConvertError" key={entry.input} title={entry.error}>{entry.input}: {entry.error}</span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -2525,6 +2876,15 @@ function App() {
           </header>
 
           {errorMessage ? <div className="errorBanner centerBanner">{errorMessage}</div> : null}
+          {usesFallback ? (
+            <div className="fallbackBanner centerBanner">
+              <AlertTriangle size={15} />
+              <span>Searching this library recursively without a current index may be slower.</span>
+              <button type="button" onClick={() => void manageLibraryIndex(activeLibraryPath)}>
+                {activeIndexStatus?.exists ? 'Update index' : 'Build index'}
+              </button>
+            </div>
+          ) : null}
 
           <div className={sessionTurns.length > 0 ? 'chatPanel chatPanel--active' : 'chatPanel chatPanel--empty'}>
               {sessionTurns.length > 0 ? (
@@ -2560,6 +2920,11 @@ function App() {
                 </div>
               ) : null}
               <div className="askComposerWrap">
+                <div className="composerScope">
+                  {selectedFiles.length > 0
+                    ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
+                    : activeLibraryPath ? 'Entire library' : path ? 'Current document' : 'No search scope'}
+                </div>
                 <div
                   className={isDraggingFiles ? 'askComposer askComposer--dragging' : 'askComposer'}
                   onDragOver={(event) => {
@@ -2636,7 +3001,7 @@ function App() {
                       }}
                       placeholder={sessionTurns.length > 0 ? 'Follow up…' : 'Ask anything'}
                     />
-                    <button className="askSendButton" onClick={askTarget} disabled={!path.trim() || !query.trim() || busy} title="Send (Enter)">
+                    <button className="askSendButton" onClick={askTarget} disabled={!searchScopePath.trim() || !query.trim() || busy} title="Send (Enter)">
                       {busy ? <span className="askSpinner" /> : <Send size={16} />}
                     </button>
                   </div>
@@ -3031,6 +3396,17 @@ function App() {
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}
+      <LibraryIndexModal
+        prompt={indexPrompt}
+        report={indexReport}
+        recursive={indexRecursive}
+        excludes={indexExcludes}
+        busy={busy}
+        onRecursiveChange={setIndexRecursive}
+        onExcludesChange={setIndexExcludes}
+        onConfirm={() => void confirmIndexAction()}
+        onDismiss={dismissIndexPrompt}
+      />
     </div>
   );
 }

@@ -78,19 +78,30 @@ def build_server():
         query: str,
         mode: str = "hybrid",
         top_k: int = 5,
+        include_figures: bool = False,
         include_regions: bool = False,
         context_chunks: int = 0,
+        recursive: bool | None = None,
+        excludes: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Search every .vera file in a directory as one corpus and return fused top results."""
-        corpus = VeraCorpus.open(directory)
+        """Search a VERA library, automatically using its fresh local index when available."""
+        corpus = VeraCorpus.open(directory, recursive=recursive, excludes=excludes)
         try:
             results = []
             for result in corpus.search(query, mode=mode, top_k=top_k, context_chunks=context_chunks):
                 entry = result.as_dict()
+                if include_figures:
+                    entry["figures"] = corpus.figures_for(result)
                 if include_regions:
                     entry["regions"] = corpus.regions_for(result)
                 results.append(entry)
-            return {"directory": directory, "query": query, "mode": mode, "results": results}
+            return {
+                "directory": directory,
+                "query": query,
+                "mode": mode,
+                "index": {"used": corpus.uses_index, **corpus.index_status},
+                "results": results,
+            }
         finally:
             corpus.close()
 

@@ -4,7 +4,9 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from .embeddings import cosine_similarity, deserialize_vector, get_embedder
+import numpy as np
+
+from .embeddings import deserialize_vector, get_embedder
 
 
 @dataclass
@@ -39,8 +41,12 @@ def search_document(
     mode = mode.lower()
     if mode not in {"semantic", "keyword", "hybrid"}:
         raise ValueError("mode must be semantic, keyword, or hybrid")
+    if top_k < 0:
+        raise ValueError("top_k must be non-negative")
     if context_chunks < 0:
         raise ValueError("context_chunks must be non-negative")
+    if top_k == 0:
+        return []
     if mode == "semantic":
         results = semantic_search(conn, query, top_k)
     elif mode == "keyword":
@@ -125,10 +131,10 @@ def row_to_result(row: sqlite3.Row, score: float) -> SearchResult:
 
 
 def semantic_scores(conn: sqlite3.Connection, query: str) -> list[SearchResult]:
-    """Score every chunk against the query (brute-force cosine), unsorted."""
+    """Score every chunk with one batched NumPy cosine operation, unsorted."""
     metadata = {row["key"]: row["value"] for row in conn.execute("SELECT key, value FROM vera_metadata")}
     embedder = get_embedder(metadata.get("default_embedding_model") or "hashing")
-    query_vec = embedder.embed([query])[0]
+    query_vec = np.asarray(embedder.embed([query])[0], dtype=np.float32)
     rows = conn.execute(
         """
         SELECT c.*, d.source_filename, e.vector
@@ -138,11 +144,19 @@ def semantic_scores(conn: sqlite3.Connection, query: str) -> list[SearchResult]:
         ORDER BY c.sort_order
         """
     ).fetchall()
-    scored = []
-    for row in rows:
-        vec = deserialize_vector(row["vector"])
-        scored.append(row_to_result(row, cosine_similarity(query_vec, vec)))
-    return scored
+    if not rows:
+        return []
+    vectors = np.vstack([deserialize_vector(row["vector"]) for row in rows]).astype(np.float32, copy=False)
+    query_norm = float(np.linalg.norm(query_vec))
+    vector_norms = np.linalg.norm(vectors, axis=1)
+    denominators = vector_norms * query_norm
+    scores = np.divide(
+        vectors @ query_vec,
+        denominators,
+        out=np.zeros(len(rows), dtype=np.float32),
+        where=denominators != 0,
+    )
+    return [row_to_result(row, float(score)) for row, score in zip(rows, scores)]
 
 
 def semantic_search(conn: sqlite3.Connection, query: str, top_k: int) -> list[SearchResult]:
@@ -150,7 +164,13 @@ def semantic_search(conn: sqlite3.Connection, query: str, top_k: int) -> list[Se
     return sorted(scored, key=lambda r: r.score, reverse=True)[:top_k]
 
 
-def keyword_search(conn: sqlite3.Connection, query: str, top_k: int) -> list[SearchResult]:
+def keyword_search(
+    conn: sqlite3.Connection,
+    query: str,
+    top_k: int,
+    *,
+    allow_fallback: bool = True,
+) -> list[SearchResult]:
     # FTS5 bm25 is lower-is-better; convert to bounded positive-ish score.
     sql = """
         SELECT c.*, d.source_filename, bm25(chunks_fts) AS rank
@@ -167,14 +187,20 @@ def keyword_search(conn: sqlite3.Connection, query: str, top_k: int) -> list[Sea
             cleaned = "".join(ch for ch in token if ch.isalnum() or ch == "_")
             if cleaned:
                 terms.append(f"{cleaned}*")
-        return " OR ".join(terms) or raw
+        return " OR ".join(terms)
 
     try:
         rows = conn.execute(sql, (query, top_k)).fetchall()
     except sqlite3.OperationalError:
         rows = []
-    if not rows:
-        rows = conn.execute(sql, (safe_query(query), top_k)).fetchall()
+    if not rows and allow_fallback:
+        fallback = safe_query(query)
+        if not fallback:
+            return []
+        try:
+            rows = conn.execute(sql, (fallback, top_k)).fetchall()
+        except sqlite3.OperationalError:
+            return []
     results = []
     for row in rows:
         rank = float(row["rank"])
@@ -183,10 +209,30 @@ def keyword_search(conn: sqlite3.Connection, query: str, top_k: int) -> list[Sea
     return results
 
 
-def hybrid_search(conn: sqlite3.Connection, query: str, top_k: int) -> list[SearchResult]:
+def hybrid_search(
+    conn: sqlite3.Connection,
+    query: str,
+    top_k: int,
+    *,
+    allow_keyword_fallback: bool = True,
+) -> list[SearchResult]:
     """Fuse semantic and keyword scores: hybrid = semantic*0.5 + keyword*0.5."""
     semantic = semantic_scores(conn, query)
-    keyword = keyword_search(conn, query, max(top_k * 5, 50))
+    keyword = keyword_search(
+        conn,
+        query,
+        max(top_k * 5, 50),
+        allow_fallback=allow_keyword_fallback,
+    )
+    return fuse_hybrid_results(semantic, keyword, top_k)
+
+
+def fuse_hybrid_results(
+    semantic: list[SearchResult],
+    keyword: list[SearchResult],
+    top_k: int,
+) -> list[SearchResult]:
+    """Normalize and fuse precomputed semantic and keyword candidate lists."""
 
     def normalize(results: list[SearchResult]) -> dict[str, float]:
         if not results:

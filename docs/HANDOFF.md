@@ -42,15 +42,29 @@ clickable citations that scroll the viewer to the page and highlight the cited t
 - No schema changes were needed — bbox/chunk_blocks/page dims already existed
 
 ### Phase 2 — Corpus search (`packages/vera-doc/src/vera/corpus.py`)
-- `VeraCorpus.open(folder)` — discovers `*.vera`, lazy-opens/caches handles, context manager
+- `VeraCorpus.open(folder)` — discovers `*.vera`, supports opt-in recursive discovery,
+  and uses a bounded LRU for source handles
 - `corpus.search(...)` → `CorpusSearchResult` (= `SearchResult` + `file` field)
-- Fusion: semantic = raw cosine merge; keyword/hybrid = RRF (k=60) with within-file
-  score tiebreak (BM25 scores aren't comparable across files)
+- Fusion: semantic = raw cosine merge for one model or model-group rank fusion for
+  mixed models; keyword/hybrid = within-file score with reciprocal-rank tiebreak
 - Per-file query embedding uses each file's recorded model (mixed-model corpora OK)
+- Unindexed fan-out searches files in parallel; per-file cosine scoring is batched with NumPy
 - `corpus.regions_for()` / `figures_for()` dispatch to the right file
 - CLI: `vera search <directory> "query"`; MCP: `vera_corpus_search`
-- Tests: `tests/test_document_access.py`, `tests/test_corpus.py` (140 tests total, all green)
+- Tests: corpus, collection, app-sidecar, and CLI behavior is covered by the
+  corresponding test modules (201 tests total, all green)
 - README + AGENTS.md updated for all of the above
+
+### Phase 2.5 — Local collection indexes (`packages/vera-doc/src/vera/collection.py`)
+- `vera index build <folder> --recursive [--exclude PATTERN]` creates `.vera-index/`
+- SQLite owns the manifest, file fingerprints, source metadata, chunk references, and
+  unified FTS5 index; normalized vectors live in contiguous per-model NumPy matrices
+- `vera index update` reuses persisted discovery settings; `vera index status` reports
+  missing, stale, or corrupt artifacts
+- `VeraCorpus.open(folder)` automatically uses a fresh index and safely falls back to
+  direct fan-out when files are added, changed, moved, or removed
+- Mixed embedding model groups are queried separately and rank-fused
+- The index is rebuildable and does not change the `.vera` v0.1 format
 
 ## Next steps
 
@@ -72,9 +86,8 @@ clickable citations that scroll the viewer to the page and highlight the cited t
 ### Later / app-driven (build vera-app first, promote needs back into VERA)
 - Word-precise highlighting: `locate_text(page_number, text)` using PyMuPDF
   `page.search_for` against the stored original PDF (upgrade from block-granular)
-- ANN index if corpus latency hurts at scale (hundreds of files ≈ 250k–500k chunks,
-  cached matrices can reach several hundred MB)
-- Memory cap / LRU eviction in `VeraCorpus._docs`
+- Optional ANN/remote backends (sqlite-vec, FAISS/HNSW, Qdrant) if exact indexed
+  search no longer meets measured latency, concurrency, or deployment requirements
 
 ## Working notes / gotchas
 

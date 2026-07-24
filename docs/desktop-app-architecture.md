@@ -54,11 +54,33 @@ Initial actions:
 - `search`
 - `answer`
 - `convert`
+- `batch_convert`
 - `export`
 - `source`
 - `page`
+- `index_status`
+- `index_build`
+- `index_update`
 
 This keeps the app UI independent from Python internals while preserving a simple local development loop.
+
+## Active Libraries and Collection Indexes
+
+Opening a workspace folder activates it as the default Search and Ask scope. The active library is independent from the document viewer: opening a `.vera` file for review does not replace the library scope. Checking one or more archives in Explorer explicitly narrows retrieval to those files; clearing the checks restores whole-library search. Chat sessions persist the scope path so reopening a library-backed conversation restores its context.
+
+The app checks the folder's local collection index when the folder is added, activated, refreshed, changed by the watcher, or receives a newly converted archive:
+
+- **Indexed** means the index is fresh and is used automatically.
+- **Stale** means files changed after the last build.
+- **No index** means no collection index has been built yet.
+
+Missing indexes prompt for a build with recursive discovery enabled by default and optional line-separated exclusions. Stale indexes prompt for an update using their saved settings. Choosing **Search anyway** never blocks retrieval: the sidecar performs recursive fan-out search and the app keeps a slower-search banner visible. Watcher events update badges and prompts but never start a build automatically.
+
+Builds and updates use the app's blocking busy state. Their completion report includes indexed/chunk counts and lists invalid or embedding-incompatible archives that were skipped. Index publication remains atomic in `vera-doc`, so a failed build does not replace the previous valid generation and Windows readers can keep using an open generation during an update.
+
+## Batch PDF Conversion
+
+The Convert PDF view supports a single archive or an entire directory. Directory conversion can include nested folders and creates each `.vera` archive beside its source PDF using the same base filename (`proposal.pdf` becomes `proposal.vera`). Existing archives are skipped by default; overwrite must be selected explicitly. The sidecar continues after per-file failures and returns converted, skipped, and failed counts plus individual errors. Workspace folders refresh after the batch, allowing an existing collection index to become visibly stale without being rebuilt automatically. The same public `vera-doc` operation powers `vera convert <directory> --recursive`, keeping desktop and CLI behavior aligned.
 
 ## Development Commands
 
@@ -82,6 +104,6 @@ uv run --extra dev python -m pytest -q
 
 - Replace the extractive cited draft in `answer` with configurable LLM provider calls that preserve citation ids.
 - Keep Source Document PDF rendering responsive for very large source documents.
-- Add library folder persistence and recent document shortcuts.
+- Add recent document shortcuts.
 - Add richer conversion progress events from the sidecar.
 - Add settings for provider configuration and app defaults.

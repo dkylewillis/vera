@@ -386,14 +386,28 @@ button {
 }
 
 .folderGroupHead > .ghostIcon.tiny {
-  position: absolute;
-  top: 1px;
-  right: 2px;
+  flex: none;
   background: var(--bg-side);
 }
 
-.folderGroupHead > .ghostIcon.tiny:nth-last-child(2) {
-  right: 24px;
+.folderGroup.activeLibrary .folderGroupHead {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent-soft-border);
+}
+
+.folderGroup.overriddenLibrary .folderGroupHead {
+  background: transparent;
+  outline: 1px dashed var(--border-strong);
+}
+
+.folderCollapseAction {
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
 }
 
 .folderGroupToggle {
@@ -444,6 +458,56 @@ button {
   white-space: nowrap;
   font-size: 12px;
   color: var(--text);
+}
+
+.activeLibraryMark {
+  flex: none;
+  color: var(--accent-text);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.activeLibraryMark.overridden {
+  color: var(--text-faint);
+}
+
+.indexBadge {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.indexBadge.fresh {
+  color: var(--good);
+  background: var(--good-soft);
+  border-color: color-mix(in srgb, var(--good) 30%, transparent);
+}
+
+.indexBadge.stale,
+.indexBadge.missing {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, var(--bg-surface));
+  border-color: color-mix(in srgb, var(--warn) 28%, transparent);
+}
+
+.indexAction {
+  flex: none;
+  padding: 1px 4px;
+  color: var(--accent-text);
+  background: transparent;
+  border: 0;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.indexAction:hover {
+  text-decoration: underline;
 }
 
 .folderEmpty {
@@ -916,10 +980,56 @@ select option {
   align-content: start;
 }
 
+.convertModeToggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 2px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.convertModeToggle button {
+  padding: 6px 8px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 2px);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.convertModeToggle button.active {
+  color: var(--text-strong);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+}
+
 .convertGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.batchConvertReport {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  color: var(--text-muted);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+}
+
+.batchConvertReport strong {
+  color: var(--text-strong);
+  font-size: 12.5px;
+}
+
+.batchConvertError {
+  color: var(--danger);
+  overflow-wrap: anywhere;
 }
 
 /* ── Side: Info view ─────────────────────────────────── */
@@ -1093,6 +1203,32 @@ select option {
 
 .centerBanner {
   border-radius: 0;
+}
+
+.fallbackBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 10%, var(--bg-surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--warn) 25%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fallbackBanner span {
+  flex: 1;
+}
+
+.fallbackBanner button {
+  padding: 2px 8px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  border-radius: var(--radius-sm);
+  font-weight: 650;
 }
 
 /* ── Chat panel ──────────────────────────────────────── */
@@ -1636,10 +1772,22 @@ details.traceEntry[open] > summary {
 
 .askComposerWrap {
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
   width: 100%;
   flex: 0 0 auto;
   padding: 12px 24px 18px;
+}
+
+.composerScope {
+  width: min(760px, 100%);
+  margin-bottom: 5px;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .chatPanel--empty .askComposerWrap {
@@ -3124,6 +3272,70 @@ details.traceEntry[open] > summary {
 .modalFooterActions {
   display: flex;
   gap: 10px;
+}
+
+.libraryIndexModal {
+  width: min(560px, 100%);
+  max-height: min(720px, 90vh);
+}
+
+.libraryIndexModalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  overflow: auto;
+}
+
+.libraryIndexModalBody > p {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.libraryIndexModalBody textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.indexReasons {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 9%, var(--bg-surface));
+  border: 1px solid color-mix(in srgb, var(--warn) 22%, transparent);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.indexReportWarning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--warn);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.indexSkippedFile {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.indexSkippedFile strong {
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.indexSkippedFile span {
+  color: var(--text-muted);
 }
 
 

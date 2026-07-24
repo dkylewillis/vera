@@ -11,7 +11,8 @@ chunking, no embedding API calls, no vector database. See
 
 ## Quick reference
 
-All commands support `--json` for machine-readable output on stdout.
+All one-shot commands support `--json` for machine-readable output on stdout.
+`vera mcp` is a long-running stdio server and does not accept `--json`.
 
 ```bash
 # Search a document (hybrid = semantic + keyword, best default)
@@ -19,6 +20,12 @@ vera search manual.vera "stormwater detention requirements" --top-k 5 --json
 
 # Search a folder of .vera files as one corpus (results include "file")
 vera search ./library "stormwater detention requirements" --top-k 5 --json
+
+# Search nested folders directly, or build a persistent local library index
+vera search ./library "stormwater detention requirements" --recursive --json
+vera index build ./library --recursive --json
+vera index update ./library --json
+vera index status ./library --json
 
 # Include figure/table metadata near each result
 vera search manual.vera "pipe sizing chart" --json --figures
@@ -43,29 +50,35 @@ vera inspect manual.vera --json
 vera validate manual.vera --json
 
 # Create an .vera from a PDF
-vera convert manual.pdf manual.vera
+vera convert manual.pdf manual.vera --json
+
+# Batch-convert a nested PDF library beside its source files
+vera convert ./proposals --recursive --json
 ```
 
 ### Search result shape (`--json`)
 
 ```json
 {
-  "file": "manual.vera",
   "query": "stormwater detention requirements",
   "mode": "hybrid",
   "results": [
     {
-      "rank": 1,
       "chunk_id": "chunk_0042",
       "score": 0.91,
       "page_start": 117,
       "page_end": 118,
       "heading_path": "Chapter 4 > 4.2 Detention Design",
+      "source_filename": "manual.pdf",
+      "document_id": "document_0001",
       "text": "..."
     }
   ]
 }
 ```
+
+Directory searches add `file` to each result and a top-level `index` status
+object. Result order is the rank; the CLI does not emit a `rank` field.
 
 ## Rules for agents
 
@@ -79,12 +92,20 @@ vera convert manual.pdf manual.vera
 4. **Use `--context-chunks N`** when an answer needs surrounding prose — results gain
   `before_chunks` and `after_chunks` arrays with citation-ready neighboring chunks.
 5. **Use `--regions`** when a viewer needs to highlight where a chunk came from —
-   results gain a `regions` array of `{page_number, bbox, page_width, page_height}`
-   (bbox in page points, origin top-left).
-6. **Check exit codes.** `validate` returns non-zero for invalid files; `search` on a
-   missing file returns non-zero. Parse stdout as JSON only when exit code is 0.
+   results gain a `regions` array of
+   `{block_id, page_number, bbox, page_width, page_height}` (bbox in page points,
+   origin top-left).
+6. **Check exit codes.** Parse stdout as JSON on exit 0. `validate`, `index status`,
+   `eval`, and a failed `export` can also print a structured JSON report on exit 1;
+   most missing-path/runtime errors instead write an unstructured traceback to stderr.
 7. **Don't read the SQLite file directly** unless the CLI is unavailable — the schema
    is documented in the spec, but the CLI/MCP tools are the stable interface.
+
+For the complete reusable workflow, load [skills/vera/SKILL.md](skills/vera/SKILL.md).
+Its [CLI reference](skills/vera/references/cli-reference.md) documents every flag,
+JSON shape, exit code, and filesystem side effect. See
+[docs/agent-skills.md](docs/agent-skills.md) to install the skill in Hermes,
+OpenClaw, Cursor, or another Agent Skills client.
 
 ## MCP server
 
@@ -121,5 +142,14 @@ Requires the document package's `mcp` extra: `pip install vera-cli "vera-doc[mcp
 - Run tests with `pytest` (all tests must pass before committing).
 - Core document code lives in [packages/vera-doc/src/vera](packages/vera-doc/src/vera), and CLI code lives in [packages/vera-cli/src/vera_cli](packages/vera-cli/src/vera_cli); the format spec is
   [docs/vera-spec-v0.1.md](docs/vera-spec-v0.1.md) — keep code and spec in sync.
+- Keep human and agent documentation current. Any user-visible feature change
+  must update the relevant [README](README.md), human guide under
+  [docs](docs/README.md), examples, portable
+  [agent skill](skills/vera/SKILL.md), and documentation-contract tests in the
+  same change. Changes to CLI commands or flags, JSON output, exit codes, MCP
+  tools, installation requirements, or retrieval behavior must also update the
+  relevant files under
+  [skills/vera/references](skills/vera/references). Do not merge a feature whose
+  public behavior is only documented in implementation code or tests.
 - Retrieval quality is tracked with `vera eval` against the query sets in
   [examples](examples); don't regress the baselines in the README.

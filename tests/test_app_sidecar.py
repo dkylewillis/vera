@@ -1,6 +1,9 @@
 import json
 
+import pytest
+
 from test_blocks_figures import make_structured_pdf
+from test_corpus import make_topic_pdf
 from test_convert_search import make_pdf
 from vera import convert
 from vera_app.llm import ChatResponse, LlmConfig, ToolCall, ToolsUnsupportedError, VisionUnsupportedError
@@ -13,6 +16,191 @@ def _llm_payload():
         "model": "test-model",
         "base_url": "http://localhost:1234/v1",
     }
+
+
+@pytest.fixture
+def nested_app_library(tmp_path):
+    root = tmp_path / "proposals"
+    roadway = root / "transportation" / "roadway.vera"
+    roadway.parent.mkdir(parents=True)
+    roadway_pdf = roadway.with_suffix(".pdf")
+    make_topic_pdf(
+        roadway_pdf,
+        "Roadway Design",
+        "Our team delivered roadway corridor design and construction administration.",
+    )
+    convert(str(roadway_pdf), str(roadway), model="hashing")
+
+    water = root / "utilities" / "water.vera"
+    water.parent.mkdir(parents=True)
+    water_pdf = water.with_suffix(".pdf")
+    make_topic_pdf(
+        water_pdf,
+        "Water Treatment",
+        "Our team designed municipal water treatment and pumping improvements.",
+    )
+    convert(str(water_pdf), str(water), model="hashing")
+    return root
+
+
+def test_index_actions_and_recursive_folder_search(nested_app_library):
+    missing = handle({
+        "id": "status-missing",
+        "action": "index_status",
+        "path": str(nested_app_library),
+        "verify_hashes": False,
+    })
+    assert missing["ok"] is True
+    assert missing["result"]["exists"] is False
+
+    inspected = handle({
+        "id": "inspect-recursive",
+        "action": "inspect",
+        "path": str(nested_app_library),
+        "recursive": True,
+    })
+    assert inspected["ok"] is True
+    assert inspected["result"]["file_count"] == 2
+
+    fallback = handle({
+        "id": "search-recursive",
+        "action": "search",
+        "path": str(nested_app_library),
+        "paths": [str(nested_app_library)],
+        "recursive": True,
+        "query": "water treatment pumping",
+        "top_k": 1,
+    })
+    assert fallback["ok"] is True
+    assert fallback["result"][0]["file"].endswith("water.vera")
+
+    built = handle({
+        "id": "index-build",
+        "action": "index_build",
+        "path": str(nested_app_library),
+        "recursive": True,
+        "excludes": ["archive"],
+    })
+    assert built["ok"] is True
+    assert built["result"]["indexed"] == 2
+
+    fresh = handle({
+        "id": "status-fresh",
+        "action": "index_status",
+        "path": str(nested_app_library),
+    })
+    assert fresh["ok"] is True
+    assert fresh["result"]["fresh"] is True
+    assert fresh["result"]["recursive"] is True
+
+    indexed = handle({
+        "id": "search-indexed",
+        "action": "search",
+        "path": str(nested_app_library),
+        "query": "roadway corridor",
+        "top_k": 1,
+    })
+    assert indexed["ok"] is True
+    assert indexed["result"][0]["file"].endswith("roadway.vera")
+
+    water_path = nested_app_library / "utilities" / "water.vera"
+    narrowed = handle({
+        "id": "search-narrowed",
+        "action": "search",
+        "path": str(nested_app_library),
+        "paths": [str(water_path)],
+        "query": "roadway corridor",
+        "top_k": 1,
+    })
+    assert narrowed["ok"] is True
+    assert narrowed["result"][0]["file"] == str(water_path)
+
+    bridge = nested_app_library / "transportation" / "bridges" / "bridge.vera"
+    bridge.parent.mkdir(parents=True)
+    bridge_pdf = bridge.with_suffix(".pdf")
+    make_topic_pdf(
+        bridge_pdf,
+        "Bridge Inspection",
+        "Our team completed bridge inspection and rehabilitation design.",
+    )
+    convert(str(bridge_pdf), str(bridge), model="hashing")
+
+    stale = handle({
+        "id": "status-stale",
+        "action": "index_status",
+        "path": str(nested_app_library),
+        "verify_hashes": False,
+    })
+    assert stale["ok"] is True
+    assert stale["result"]["exists"] is True
+    assert stale["result"]["fresh"] is False
+
+    updated = handle({
+        "id": "index-update",
+        "action": "index_update",
+        "path": str(nested_app_library),
+    })
+    assert updated["ok"] is True
+    assert updated["result"]["operation"] == "update"
+    assert updated["result"]["indexed"] == 3
+
+
+def test_single_file_scope_still_stamps_source_path(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing")
+
+    response = handle({
+        "id": "single-search",
+        "action": "search",
+        "path": str(out),
+        "paths": [str(out)],
+        "query": "restaurant parking",
+        "top_k": 1,
+    })
+
+    assert response["ok"] is True
+    assert response["result"][0]["file"] == str(out)
+
+
+def test_batch_convert_supports_recursive_discovery_and_default_names(tmp_path):
+    root = tmp_path / "proposals"
+    root.mkdir()
+    top_pdf = root / "top-level.pdf"
+    nested_pdf = root / "transportation" / "nested-proposal.PDF"
+    nested_pdf.parent.mkdir()
+    make_pdf(top_pdf)
+    make_pdf(nested_pdf)
+
+    top_only = handle({
+        "id": "batch-top",
+        "action": "batch_convert",
+        "directory": str(root),
+        "recursive": False,
+        "model": "hashing",
+    })
+
+    assert top_only["ok"] is True
+    assert top_only["result"]["discovered"] == 1
+    assert top_only["result"]["converted"] == 1
+    assert (root / "top-level.vera").is_file()
+    assert not (nested_pdf.parent / "nested-proposal.vera").exists()
+
+    recursive = handle({
+        "id": "batch-recursive",
+        "action": "batch_convert",
+        "directory": str(root),
+        "recursive": True,
+        "model": "hashing",
+    })
+
+    assert recursive["ok"] is True
+    assert recursive["result"]["discovered"] == 2
+    assert recursive["result"]["converted"] == 1
+    assert recursive["result"]["skipped"] == 1
+    assert recursive["result"]["failed"] == 0
+    assert (nested_pdf.parent / "nested-proposal.vera").is_file()
 
 
 def test_source_action_returns_pdf_data_url(tmp_path):
