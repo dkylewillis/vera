@@ -2,7 +2,9 @@ import json
 import subprocess
 import sys
 
+import vera_cli.commands as cli_commands
 from test_convert_search import make_pdf
+from vera_cli.main import build_parser
 
 
 def test_cli_convert_inspect_search(tmp_path):
@@ -130,3 +132,94 @@ def test_cli_batch_convert_directory_recursively(tmp_path):
     repeated_report = json.loads(repeated.stdout)
     assert repeated_report["converted"] == 0
     assert repeated_report["skipped"] == 2
+
+
+def test_cli_batch_convert_reports_malformed_existing_output(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    out.write_bytes(b"not a sqlite database")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "convert",
+            str(tmp_path),
+            "--model",
+            "hashing",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+    )
+    report = json.loads(result.stdout)
+
+    assert result.returncode == 1
+    assert report["ok"] is False
+    assert report["skipped"] == 0
+    assert report["malformed"] == 1
+    assert report["malformed_existing"][0]["output"] == str(out)
+
+
+def test_cli_parses_ocr_conversion_options():
+    args = build_parser().parse_args(
+        [
+            "convert",
+            "scan.pdf",
+            "scan.vera",
+            "--ocr",
+            "force",
+            "--ocr-language",
+            "deu",
+            "--ocr-dpi",
+            "240",
+        ]
+    )
+
+    assert args.ocr_mode == "force"
+    assert args.ocr_language == "deu"
+    assert args.ocr_dpi == 240
+
+
+def test_cli_forwards_ocr_conversion_options(tmp_path, monkeypatch):
+    pdf = tmp_path / "scan.pdf"
+    output = tmp_path / "scan.vera"
+    pdf.write_bytes(b"%PDF-test-placeholder")
+    captured = {}
+
+    def fake_convert(input_path, output_path, **kwargs):
+        captured.update({"input": input_path, "output": output_path, **kwargs})
+        return output_path
+
+    monkeypatch.setattr(cli_commands, "convert", fake_convert)
+    args = build_parser().parse_args(
+        [
+            "convert",
+            str(pdf),
+            str(output),
+            "--ocr",
+            "force",
+            "--ocr-language",
+            "deu",
+            "--ocr-dpi",
+            "240",
+        ]
+    )
+
+    assert args.func(args) == 0
+    assert captured["ocr_mode"] == "force"
+    assert captured["ocr_language"] == "deu"
+    assert captured["ocr_dpi"] == 240
+
+
+def test_cli_rejects_non_positive_ocr_dpi():
+    parser = build_parser()
+
+    try:
+        parser.parse_args(["convert", "scan.pdf", "--ocr-dpi", "0"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("non-positive OCR DPI should be rejected")

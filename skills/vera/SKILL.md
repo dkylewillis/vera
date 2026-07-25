@@ -55,7 +55,9 @@ vera search "./library" "stormwater detention requirements" --top-k 5 --json
 
 Use `--recursive` for a nested, unindexed directory. A fresh local index is used
 automatically when one exists; inspect the top-level `index.used` and
-`index.reasons` fields instead of assuming the index was active.
+`index.reasons` fields instead of assuming the index was active. Also inspect
+`skipped_files`: malformed archives are excluded from results and reported
+with their paths and validation reasons.
 
 ## Choose retrieval options
 
@@ -114,7 +116,11 @@ that no usable diagnostic exists.
 `search`, `inspect`, `validate`, and `eval` are read-only. The following
 commands write or replace local files and require normal user authorization:
 
-- `convert` creates a `.vera` archive; single-file output may be replaced.
+- `convert` creates a validated `.vera` archive and publishes it atomically;
+  image-based low-text pages use selective local OCR by default. Use
+  `--ocr off` only when explicitly requested, or `--ocr force` when automatic
+  detection misses a scan. English OCR is bundled; other languages require
+  installed Tesseract language data.
 - `convert --overwrite` replaces existing batch outputs.
 - `index build` and `index update` write `.vera-index/`.
 - `export` writes the embedded source document.
@@ -129,6 +135,8 @@ request that only asks to search or explain a document.
   and a failed `export` can print useful JSON while returning 1.
 - Most missing-path and runtime failures are unstructured tracebacks on stderr.
   Do not parse stderr as JSON.
+- Directory conversion validates existing outputs before skipping them and
+  exits 1 when `malformed_existing` is nonempty.
 - `vera mcp` is a long-running stdio server and does not accept `--json`.
 - If no direct answer is found, report the queries and modes tried and describe
   the closest evidence without inventing an answer.

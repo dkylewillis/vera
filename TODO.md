@@ -42,22 +42,22 @@ parent directory must remain safe when individual conversions fail.
 
 ## Work
 
-- [ ] Make `convert()` write to a temporary sibling file, validate the completed
+- [x] Make `convert()` write to a temporary sibling file, validate the completed
       database, and atomically replace the destination only after validation.
       Delete the temporary file after any failure.
-- [ ] Treat conversion with no searchable text/chunks as a failure with a clear
+- [x] Treat conversion with no searchable text/chunks as a failure with a clear
       message that the PDF may be scanned and requires OCR.
-- [ ] In batch conversion, validate existing `.vera` outputs before classifying
+- [x] In batch conversion, validate existing `.vera` outputs before classifying
       them as `skipped_existing`; report malformed existing outputs separately.
-- [ ] Make corpus inspection and fallback search skip invalid `.vera` files
+- [x] Make corpus inspection and fallback search skip invalid `.vera` files
       rather than failing the entire library. Include file paths and validation
       reasons in inspection/search metadata.
-- [ ] Ensure library indexes retain and report skipped-file reasons without
+- [x] Ensure library indexes retain and report skipped-file reasons without
       attempting to open those files during inspection.
-- [ ] Add tests for textless scanned-PDF output, interrupted conversion,
+- [x] Add tests for textless scanned-PDF output, interrupted conversion,
       malformed existing output, mixed valid/invalid libraries, and indexed
       libraries containing skipped files.
-- [ ] Update the README, user documentation, agent skill/reference material,
+- [x] Update the README, user documentation, agent skill/reference material,
       examples, and documentation-contract tests for all changed CLI/JSON
       behavior.
 - [ ] Run the complete test suite and verify `vera index build`, `index update`,

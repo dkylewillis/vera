@@ -137,6 +137,11 @@ Missing paths, unreadable archives, unavailable embedding dependencies, and
 directories with no archives generally exit nonzero and write an error to
 stderr. Check the process exit code before parsing JSON.
 
+For a directory containing both healthy and malformed archives, search
+continues across the healthy subset and returns exit 0. Inspect the top-level
+`skipped_files` array for excluded paths and validation reasons. A directory
+with no discoverable archives is still an error.
+
 ## Search a library
 
 Pass a directory instead of a file to search multiple archives as one corpus:

@@ -12,6 +12,19 @@ vera validate "ordinance.vera"
 vera search "ordinance.vera" "minimum parking required for restaurant" --mode hybrid --top-k 5
 ```
 
+## Convert a scanned PDF
+
+Automatic mode uses native text where available and OCRs image-based low-text
+pages:
+
+```bash
+vera convert "scanned-manual.pdf" "scanned-manual.vera" --ocr auto --ocr-language eng
+vera search "scanned-manual.vera" "emergency shutdown procedure" --json --regions
+```
+
+Use `--ocr force` only when automatic detection misses a scanned page.
+English language data is bundled; other selected languages must be installed.
+
 ## Get JSON with surrounding context
 
 ```bash
@@ -67,6 +80,10 @@ vera convert "./proposals" --recursive --json
 vera index build "./proposals" --recursive --exclude "archive/**" --json
 vera search "./proposals" "termination clause" --top-k 10 --json
 ```
+
+Check `malformed_existing` after conversion and `skipped_files` after search.
+These diagnostics identify broken archives without preventing healthy
+documents in the same library from being converted, inspected, or searched.
 
 After adding or replacing documents:
 

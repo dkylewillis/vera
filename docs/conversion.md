@@ -17,8 +17,49 @@ Omit the output to create a same-named archive:
 vera convert "input.pdf"
 ```
 
-Single-file conversion replaces an existing output path. Choose a different
-output name if the existing archive must be preserved.
+Single-file conversion builds and validates a temporary sibling archive before
+atomically replacing the output path. If parsing, writing, or validation
+fails, VERA removes the temporary file and preserves any existing output.
+
+Conversion uses selective OCR by default. Native-text pages keep the fast
+PyMuPDF extraction path; image-dominant pages with little or no text are
+recognized locally with Tesseract. A PDF that still produces no chunks fails
+with a message that it may be scanned and requires OCR.
+
+## OCR
+
+Automatic OCR is the default:
+
+```bash
+vera convert "scan.pdf" "scan.vera" --ocr auto
+```
+
+OCR runs only on pages that are mostly a scanned image and have too little
+native text to search reliably. Blank pages are skipped. Mixed PDFs can
+therefore use native extraction on ordinary pages and OCR on scanned pages in
+one conversion.
+
+Controls:
+
+- `--ocr auto` selects scanned pages (default);
+- `--ocr off` never invokes OCR;
+- `--ocr force` OCRs every page, replacing native text extraction;
+- `--ocr-language eng` selects Tesseract language data;
+- `--ocr-dpi 300` controls recognition resolution.
+
+VERA bundles the official `tessdata_fast` English model and passes it directly
+to PyMuPDF's Tesseract integration. Default English OCR therefore works
+offline without installing Tesseract or configuring the system. Other
+languages are not bundled; install their `.traineddata` files and set
+`TESSDATA_PREFIX` when selecting them with `--ocr-language`. OCR failures name
+the page and language and preserve any existing destination.
+
+OCR text is stored as ordinary paragraph blocks with page bounding boxes, so
+search results and highlight regions work normally. This first OCR path targets
+scanned prose. It does not reconstruct scanned tables, forms, or complex
+multi-column reading order. Use an external layout-aware OCR tool for those
+documents; Docling is a candidate for a future optional parser if representative
+corpus testing shows that need.
 
 ## Convert a directory
 
@@ -34,7 +75,9 @@ Discover nested PDFs:
 vera convert "./proposals" --recursive
 ```
 
-Existing archives are skipped by default. Replace them explicitly:
+Existing archives are validated before they are skipped. A malformed existing
+archive is reported separately and is not silently preserved as a successful
+skip. Replace existing outputs explicitly:
 
 ```bash
 vera convert "./proposals" --recursive --overwrite
@@ -48,9 +91,11 @@ For a machine-readable batch report:
 vera convert "./proposals" --recursive --json
 ```
 
-The report distinguishes discovered, converted, skipped, and failed files.
-Batch conversion continues after an individual PDF fails and exits nonzero if
-any conversion failed.
+The report distinguishes discovered, converted, valid existing skips,
+malformed existing outputs, and conversion failures. `malformed_existing`
+entries include `input`, `output`, and validation `issues`. Batch conversion
+continues after an individual PDF fails and exits nonzero if any conversion
+failed or malformed existing output was found.
 
 ## Embedding models
 
@@ -119,7 +164,7 @@ vera convert "input.pdf" --store-original false
 An archive created this way remains searchable, but:
 
 - `vera export` cannot restore the source;
-- the current validator reports the missing original document as an issue;
+- validation reports the missing original document as a warning;
 - viewers cannot obtain the original PDF from the archive.
 
 ## Verify conversion
@@ -147,6 +192,9 @@ path = convert(
     chunk_size=500,
     overlap=75,
     store_original=True,
+    ocr_mode="auto",
+    ocr_language="eng",
+    ocr_dpi=300,
 )
 print(path)
 ```

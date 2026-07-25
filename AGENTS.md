@@ -56,6 +56,13 @@ vera convert manual.pdf manual.vera --json
 vera convert ./proposals --recursive --json
 ```
 
+Conversion selectively OCRs image-based low-text pages through PyMuPDF and
+Tesseract with bundled English data (`--ocr auto|off|force`,
+`--ocr-language`, `--ocr-dpi`) and publishes a validated temporary sibling
+atomically. PDFs with no searchable chunks after OCR fail with an OCR-specific
+message. Directory conversion validates existing outputs before skipping them
+and reports malformed archives in `malformed_existing`.
+
 ### Search result shape (`--json`)
 
 ```json
@@ -78,7 +85,9 @@ vera convert ./proposals --recursive --json
 ```
 
 Directory searches add `file` to each result and a top-level `index` status
-object. Result order is the rank; the CLI does not emit a `rank` field.
+object. They also add top-level `skipped_files` diagnostics for malformed
+archives excluded from the search. Result order is the rank; the CLI does not
+emit a `rank` field.
 
 ## Rules for agents
 

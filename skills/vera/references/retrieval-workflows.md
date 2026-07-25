@@ -201,6 +201,8 @@ Indexing writes local artifacts and should only be done when authorized.
 
 2. Search the directory normally. A fresh index is selected automatically.
 3. Inspect `index.used`; if false, read `index.reasons`.
+   In either mode, inspect `skipped_files` for malformed archives excluded
+   from retrieval.
 4. After adding, moving, replacing, or deleting archives:
 
    ```bash
@@ -232,7 +234,12 @@ vera index build "./proposals" --recursive --json
 vera search "./proposals" "termination clause" --top-k 10 --json
 ```
 
-Batch conversion skips existing outputs unless `--overwrite` is supplied.
+Batch conversion validates existing outputs before skipping them. Check
+`malformed_existing` and replace those archives intentionally with
+`--overwrite`. Automatic conversion selectively OCRs image-based low-text
+pages with bundled English language data. Other languages require external
+Tesseract data. A PDF with no searchable chunks after OCR fails with a message
+that it may require OCR; conversion preserves any existing destination.
 Never add `--overwrite` without explicit authorization.
 
 ## Evidence quality

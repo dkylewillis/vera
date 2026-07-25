@@ -29,17 +29,25 @@ def cmd_convert(args) -> int:
             chunk_size=args.chunk_size,
             overlap=args.overlap,
             store_original=str_to_bool(args.store_original),
+            ocr_mode=args.ocr_mode,
+            ocr_language=args.ocr_language,
+            ocr_dpi=args.ocr_dpi,
         )
+        unsuccessful = report["failed"] + report["malformed"]
         if args.json:
-            print(json.dumps({"ok": report["failed"] == 0, **report}))
+            print(json.dumps({"ok": unsuccessful == 0, **report}))
         else:
             print(
                 f"Found {report['discovered']} PDFs: {report['converted']} converted, "
-                f"{report['skipped']} skipped, {report['failed']} failed"
+                f"{report['skipped']} skipped, {report['malformed']} malformed, "
+                f"{report['failed']} failed"
             )
+            for entry in report["malformed_existing"]:
+                issues = "; ".join(entry["issues"])
+                print(f"Malformed {entry['output']}: {issues}", file=sys.stderr)
             for entry in report["errors"]:
                 print(f"Failed {entry['input']}: {entry['error']}", file=sys.stderr)
-        return 1 if report["failed"] else 0
+        return 1 if unsuccessful else 0
 
     output = args.output or str(input_path.with_suffix(".vera"))
     path = convert(
@@ -50,6 +58,9 @@ def cmd_convert(args) -> int:
         chunk_size=args.chunk_size,
         overlap=args.overlap,
         store_original=str_to_bool(args.store_original),
+        ocr_mode=args.ocr_mode,
+        ocr_language=args.ocr_language,
+        ocr_dpi=args.ocr_dpi,
     )
     if args.json:
         print(json.dumps({"ok": True, "output": str(path)}))
@@ -103,6 +114,7 @@ def cmd_search(args) -> int:
             response = {"query": args.query, "mode": args.mode, "results": payload}
             if isinstance(target, VeraCorpus):
                 response["index"] = {"used": target.uses_index, **target.index_status}
+                response["skipped_files"] = target.invalid_files
             print(json.dumps(response))
             return 0
         if isinstance(target, VeraCorpus):

@@ -1,8 +1,9 @@
+import importlib
 import sqlite3
 
 import pytest
 
-from vera import VeraDocument, convert
+from vera import VeraDocument, batch_convert, convert
 
 
 def make_pdf(path):
@@ -27,6 +28,15 @@ def make_context_pdf(path):
     page2.insert_text((72, 72), "Middle Target\nBeacon target language lives in this middle section.")
     page3 = doc.new_page()
     page3.insert_text((72, 72), "Closing Context\nOmega followup details come after the target section.")
+    doc.save(path)
+    doc.close()
+
+
+def make_textless_pdf(path):
+    import fitz
+
+    doc = fitz.open()
+    doc.new_page()
     doc.save(path)
     doc.close()
 
@@ -63,6 +73,84 @@ def test_convert_pdf_populates_vera_and_searches(tmp_path):
     assert hybrid
     assert hybrid[0].score >= hybrid[-1].score
     doc.close()
+
+
+def test_convert_rejects_textless_pdf_without_publishing_output(tmp_path):
+    pdf = tmp_path / "scan.pdf"
+    out = tmp_path / "scan.vera"
+    make_textless_pdf(pdf)
+
+    with pytest.raises(ValueError, match="scanned and requires OCR"):
+        convert(str(pdf), str(out), model="hashing")
+
+    assert not out.exists()
+
+
+def test_convert_failure_preserves_destination_and_removes_temporary_file(
+    tmp_path, monkeypatch
+):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    out.write_bytes(b"existing destination")
+    convert_module = importlib.import_module("vera.convert")
+
+    def fail_schema(_conn):
+        raise RuntimeError("simulated interrupted conversion")
+
+    monkeypatch.setattr(convert_module, "create_schema", fail_schema)
+
+    with pytest.raises(RuntimeError, match="simulated interrupted conversion"):
+        convert(str(pdf), str(out), model="hashing")
+
+    assert out.read_bytes() == b"existing destination"
+    assert list(tmp_path.glob(f".{out.name}.*.tmp")) == []
+
+
+def test_convert_validation_failure_is_not_published(tmp_path, monkeypatch):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    out.write_bytes(b"existing destination")
+    convert_module = importlib.import_module("vera.convert")
+    monkeypatch.setattr(
+        convert_module,
+        "validate_document",
+        lambda _conn: {"ok": False, "issues": ["simulated validation failure"]},
+    )
+
+    with pytest.raises(ValueError, match="simulated validation failure"):
+        convert(str(pdf), str(out), model="hashing")
+
+    assert out.read_bytes() == b"existing destination"
+    assert list(tmp_path.glob(f".{out.name}.*.tmp")) == []
+
+
+def test_batch_convert_reports_malformed_existing_output(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    sqlite3.connect(out).close()
+
+    report = batch_convert(str(tmp_path), model="hashing")
+
+    assert report["converted"] == 0
+    assert report["skipped"] == 0
+    assert report["malformed"] == 1
+    assert report["malformed_existing"][0]["output"] == str(out)
+    assert "Missing required table: vera_metadata" in report["malformed_existing"][0]["issues"]
+
+
+def test_batch_convert_skips_valid_output_without_original_asset(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", store_original=False)
+
+    report = batch_convert(str(tmp_path), model="hashing", store_original=False)
+
+    assert report["skipped_existing"] == [str(out)]
+    assert report["malformed_existing"] == []
 
 
 def test_hybrid_keeps_chunk_that_tops_both_modes(tmp_path):

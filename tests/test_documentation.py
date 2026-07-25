@@ -122,3 +122,15 @@ def test_agents_rule_requires_human_documentation_updates():
     assert "Keep human and agent documentation current" in agents
     assert "Any user-visible feature change" in agents
     assert "Do not merge a feature whose" in agents
+
+
+def test_hardening_json_contracts_are_documented():
+    conversion = (DOCS / "conversion.md").read_text(encoding="utf-8")
+    libraries = (DOCS / "document-libraries.md").read_text(encoding="utf-8")
+    mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
+
+    assert "malformed_existing" in conversion
+    assert "requires OCR" in conversion
+    assert "skipped_files" in libraries
+    assert "does not reopen archives" in libraries
+    assert "`skipped_files`" in mcp

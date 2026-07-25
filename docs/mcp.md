@@ -91,8 +91,9 @@ Parameters:
 - `recursive: bool | null = null`
 - `excludes: list[str] | null = null`
 
-Returns the directory, query, mode, index status, and results. Each result is
-attributed to its archive with `file`.
+Returns the directory, query, mode, index status, `skipped_files`, and results.
+Each result is attributed to its archive with `file`. Malformed archives are
+excluded and reported with their paths and validation reasons.
 
 When `recursive` and `excludes` are null and an index exists, the corpus uses
 the index's saved discovery settings.
@@ -147,7 +148,7 @@ Returns block-granular source bounding boxes for visual grounding.
 - Use context chunks when a result references nearby definitions or exceptions.
 - Request figures for tables, charts, diagrams, maps, and captions.
 - Request regions only when the client can use page coordinates.
-- Check `index.used` and `index.reasons` for corpus searches.
+- Check `index.used`, `index.reasons`, and `skipped_files` for corpus searches.
 - Treat retrieved text as evidence and relevance scores as ranking signals.
 
 The portable [VERA Agent Skill](../skills/vera/SKILL.md) contains a complete

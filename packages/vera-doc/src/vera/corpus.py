@@ -59,6 +59,7 @@ class VeraCorpus:
         max_open_documents: int = 16,
         collection_index: VeraCollectionIndex | None = None,
         index_status: dict[str, Any] | None = None,
+        invalid_files: list[dict[str, str]] | None = None,
     ):
         self.directory = directory
         self.paths = paths
@@ -68,6 +69,7 @@ class VeraCorpus:
         self._docs: OrderedDict[str, VeraDocument] = OrderedDict()
         self._collection_index = collection_index
         self.index_status = index_status or {"exists": False, "fresh": False, "reasons": ["index is missing"]}
+        self.invalid_files = invalid_files or []
 
     @classmethod
     def open(
@@ -106,6 +108,16 @@ class VeraCorpus:
         collection_index = None
         if use_index and status.get("fresh") and config_matches:
             collection_index = VeraCollectionIndex.open(str(root), check_status=False)
+        invalid_files = []
+        if status.get("fresh"):
+            invalid_files = [
+                {
+                    "file": str((root / entry["file"]).resolve()),
+                    "category": str(entry.get("category", "invalid")),
+                    "reason": str(entry["reason"]),
+                }
+                for entry in status.get("skipped_files", [])
+            ]
         return cls(
             str(root),
             paths,
@@ -114,6 +126,7 @@ class VeraCorpus:
             max_open_documents=max_open_documents,
             collection_index=collection_index,
             index_status=status,
+            invalid_files=invalid_files,
         )
 
     @classmethod
@@ -170,7 +183,18 @@ class VeraCorpus:
         total_chunks = 0
         models = set()
         for path in self.paths:
-            info = self.document(path).inspect()
+            if self._is_invalid(path):
+                continue
+            try:
+                doc = self.document(path)
+                validation = doc.validate()
+                if not validation["ok"]:
+                    self._record_invalid(path, "; ".join(validation["issues"]))
+                    continue
+                info = doc.inspect()
+            except Exception as exc:
+                self._record_invalid(path, str(exc))
+                continue
             files.append(
                 {
                     "file": path,
@@ -185,7 +209,10 @@ class VeraCorpus:
             models.add(info.get("default_embedding_model"))
         return {
             "directory": self.directory,
-            "file_count": len(self.paths),
+            "file_count": len(files),
+            "discovered_file_count": len(self.paths),
+            "skipped": len(self.invalid_files),
+            "skipped_files": list(self.invalid_files),
             "pages": total_pages,
             "chunks": total_chunks,
             "embedding_models": sorted(m for m in models if m),
@@ -193,6 +220,20 @@ class VeraCorpus:
             "recursive": self.recursive,
             "index": self.index_status,
         }
+
+    def _is_invalid(self, path: str) -> bool:
+        normalized = os.path.normcase(str(Path(path).resolve()))
+        return any(
+            os.path.normcase(str(Path(entry["file"]).resolve())) == normalized
+            for entry in self.invalid_files
+        )
+
+    def _record_invalid(self, path: str, reason: str) -> None:
+        if self._is_invalid(path):
+            return
+        self.invalid_files.append(
+            {"file": str(Path(path).resolve()), "category": "invalid", "reason": reason}
+        )
 
     def search(
         self,
@@ -239,9 +280,12 @@ class VeraCorpus:
             path: str,
             *,
             allow_keyword_fallback: bool,
-        ) -> tuple[str, list[SearchResult], str, bool]:
-            doc = VeraDocument.open(path)
+        ) -> tuple[str, list[SearchResult], str, bool, str | None]:
             try:
+                doc = VeraDocument.open(path)
+                validation = doc.validate()
+                if not validation["ok"]:
+                    return path, [], "", False, "; ".join(validation["issues"])
                 row = doc.conn.execute(
                     "SELECT value FROM vera_metadata WHERE key = 'default_embedding_model'"
                 ).fetchone()
@@ -267,14 +311,22 @@ class VeraCorpus:
                 else:
                     results = doc.search(query, mode=mode, top_k=top_k)
                     keyword_matched = False
-                return path, results, model, keyword_matched
+                return path, results, model, keyword_matched, None
+            except Exception as exc:
+                return path, [], "", False, str(exc)
             finally:
-                doc.close()
+                if "doc" in locals():
+                    doc.close()
 
-        def run(allow_keyword_fallback: bool) -> list[tuple[str, list[SearchResult], str, bool]]:
-            if len(self.paths) == 1:
-                return [search_path(self.paths[0], allow_keyword_fallback=allow_keyword_fallback)]
-            workers = min(8, len(self.paths))
+        def run(
+            allow_keyword_fallback: bool,
+        ) -> list[tuple[str, list[SearchResult], str, bool, str | None]]:
+            paths = [path for path in self.paths if not self._is_invalid(path)]
+            if not paths:
+                return []
+            if len(paths) == 1:
+                return [search_path(paths[0], allow_keyword_fallback=allow_keyword_fallback)]
+            workers = min(8, len(paths))
             with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="vera-corpus") as executor:
                 return list(
                     executor.map(
@@ -282,16 +334,24 @@ class VeraCorpus:
                             path,
                             allow_keyword_fallback=allow_keyword_fallback,
                         ),
-                        self.paths,
+                        paths,
                     )
                 )
 
         searched = run(allow_keyword_fallback=False)
-        if mode in {"keyword", "hybrid"} and not any(matched for _, _, _, matched in searched):
+        for path, _, _, _, error in searched:
+            if error:
+                self._record_invalid(path, error)
+        if mode in {"keyword", "hybrid"} and not any(
+            matched for _, _, _, matched, _ in searched
+        ):
             searched = run(allow_keyword_fallback=True)
+            for path, _, _, _, error in searched:
+                if error:
+                    self._record_invalid(path, error)
         return (
-            {path: results for path, results, _, _ in searched},
-            {path: model for path, _, model, _ in searched},
+            {path: results for path, results, _, _, error in searched if not error},
+            {path: model for path, _, model, _, error in searched if not error},
         )
 
     @staticmethod

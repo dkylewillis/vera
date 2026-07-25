@@ -100,6 +100,7 @@ def build_server():
                 "query": query,
                 "mode": mode,
                 "index": {"used": corpus.uses_index, **corpus.index_status},
+                "skipped_files": corpus.invalid_files,
                 "results": results,
             }
         finally:

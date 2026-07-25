@@ -14,9 +14,16 @@ Only `.vera` files directly inside the directory are discovered by default.
 JSON results add:
 
 - `file` on each result, identifying its `.vera` archive;
-- a top-level `index` object describing whether a collection index was used.
+- a top-level `index` object describing whether a collection index was used;
+- a top-level `skipped_files` array containing the absolute path, category, and
+  validation reason for each rejected archive.
 
 Keep citations separated by archive when comparing sources.
+
+Malformed archives do not abort folder search or inspection. Direct fallback
+search validates each discovered archive and searches the valid subset.
+`VeraCorpus.inspect()` similarly reports `discovered_file_count`, the valid
+`file_count`, `skipped`, and `skipped_files`.
 
 ## Search nested directories
 
@@ -92,7 +99,10 @@ The response reports:
 ```
 
 Treat `index.used`, not merely `index.exists`, as the indication that indexed
-search was active.
+search was active. The `index.skipped_files` array retains relative paths,
+categories, and reasons recorded when the active index was built. Inspection
+uses this manifest and does not reopen archives that the fresh index already
+rejected.
 
 ## Check and update freshness
 

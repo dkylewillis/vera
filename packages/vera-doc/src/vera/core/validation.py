@@ -68,7 +68,7 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
             conn.execute("SELECT COUNT(*) FROM assets WHERE asset_type='original_document'").fetchone()[0] > 0
         )
         if not original_document_present:
-            issues.append("Original document asset is missing")
+            warnings.append("Original document asset is missing")
 
     if "embeddings" in existing_tables:
         for row in conn.execute(

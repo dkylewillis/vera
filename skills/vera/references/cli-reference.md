@@ -29,14 +29,24 @@ Options:
 - `--overlap N` defaults to `75`.
 - `--store-original VALUE` defaults to `true`. Values `1`, `true`, `yes`, `y`,
   and `on` are true, case-insensitively; other values are false.
+- `--ocr auto|off|force` defaults to `auto`. Automatic mode OCRs only
+  image-dominant low-text pages.
+- `--ocr-language CODE` defaults to `eng` and accepts Tesseract language
+  selections such as `eng+spa`.
+- `--ocr-dpi N` defaults to `300` and must be positive.
 - `--recursive` recursively discovers PDFs in directory mode.
 - `--overwrite` replaces existing outputs in directory mode.
 - `--json` emits one JSON object.
 
 For a single PDF, omitted `OUTPUT` defaults to the input basename with a
-`.vera` suffix. The single-file conversion path replaces an existing output.
-For a directory, outputs are written beside their PDFs. Supplying `OUTPUT` with
-a directory is an error.
+`.vera` suffix. Conversion writes and validates a temporary sibling before
+atomically replacing the output. A failure preserves an existing destination
+and removes the temporary file. OCR uses PyMuPDF's local Tesseract integration
+with bundled English language data. Other selected languages require external
+Tesseract data. PDFs that yield no searchable chunks after OCR fail with an
+OCR-specific message. OCR targets scanned prose; it does not reconstruct
+scanned tables or complex page layouts. For a directory, outputs are written
+beside their PDFs. Supplying `OUTPUT` with a directory is an error.
 
 Single-file JSON:
 
@@ -51,23 +61,33 @@ Directory JSON:
 
 ```json
 {
-  "ok": true,
+  "ok": false,
   "directory": "C:/docs",
   "recursive": true,
   "overwrite": false,
-  "discovered": 3,
+  "discovered": 4,
   "converted": 2,
   "skipped": 1,
+  "malformed": 1,
   "failed": 0,
   "outputs": ["C:/docs/a.vera", "C:/docs/nested/b.vera"],
   "skipped_existing": ["C:/docs/c.vera"],
+  "malformed_existing": [
+    {
+      "input": "C:/docs/d.pdf",
+      "output": "C:/docs/d.vera",
+      "issues": ["Missing required table: vera_metadata"]
+    }
+  ],
   "errors": []
 }
 ```
 
-Each error entry has `input` and `error`. A partial batch failure prints the
-report and exits 1. Supplying a directory and an output path prints an error to
-stderr and exits 2.
+Existing outputs are validated: only valid archives appear in
+`skipped_existing`; invalid ones appear in `malformed_existing`. Each error
+entry has `input` and `error`. A conversion failure or malformed existing
+output sets `ok` false, prints the report, and exits 1. Supplying a directory
+and an output path prints an error to stderr and exits 2.
 
 ### `vera inspect FILE`
 
@@ -134,7 +154,8 @@ Single-archive JSON:
 There is no result `rank` field and no top-level `file` field for a
 single-archive search. Rank is the position in the `results` array.
 
-Directory/corpus JSON adds `file` to each result and an `index` object:
+Directory/corpus JSON adds `file` to each result, an `index` object, and
+`skipped_files` diagnostics:
 
 ```json
 {
@@ -160,12 +181,21 @@ Directory/corpus JSON adds `file` to each result and an `index` object:
     "directory": "C:/library",
     "index": "C:/library/.vera-index",
     "reasons": []
-  }
+  },
+  "skipped_files": [
+    {
+      "file": "C:/library/bad.vera",
+      "category": "invalid",
+      "reason": "Missing required table: vera_metadata"
+    }
+  ]
 }
 ```
 
 The `index` object may contain additional status fields. When `used` is false,
 search fell back to direct corpus search. Read `reasons` to explain why.
+Malformed archives are skipped instead of aborting the library; read
+`skipped_files` for absolute paths and validation reasons.
 
 With `--context-chunks N`, each result adds `before_chunks` and `after_chunks`.
 Each context object contains:
@@ -289,6 +319,7 @@ Existing index:
   "excludes": [],
   "file_count": 12,
   "skipped": 0,
+  "skipped_files": [],
   "discovered": 12
 }
 ```
@@ -428,7 +459,8 @@ exit code before deciding how to interpret output:
 - Exit 1 with structured JSON: expected negative result from `validate`,
   `index status`, `eval`, or `export` without an embedded source.
 - Exit 1 with stderr traceback: most path, dependency, or runtime failures.
-- Exit 1 after batch report: one or more directory conversions failed.
+- Exit 1 after batch report: one or more directory conversions failed or an
+  existing output was malformed.
 - Exit 2: argparse usage/type failure or an output path supplied for directory
   conversion.
 

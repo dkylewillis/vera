@@ -49,8 +49,8 @@ The report includes `ok`, `issues`, `warnings`, `counts`, `checks`, and
 issue. An invalid archive still emits the JSON report, so callers should retain
 stdout when handling exit status 1.
 
-An archive created with `--store-original false` is searchable, but the current
-validator reports the missing original source as an issue.
+An archive created with `--store-original false` is searchable. Validation
+reports the missing original source as a warning rather than an issue.
 
 ## Export the original source
 

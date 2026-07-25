@@ -49,6 +49,20 @@ The following keys **MUST** be present:
 
 `chunking_strategy`, `parser_name`, and `parser_version` are informational: readers **MUST NOT** need them to search, but writers **MUST** record them so files are self-describing (the transparency principle).
 
+Writers may additionally record these OCR provenance keys:
+
+| Key | Meaning | Example |
+|-----|---------|---------|
+| `ocr_engine` | OCR engine available to the parser | `tesseract` |
+| `ocr_mode` | Writer OCR policy | `auto` |
+| `ocr_language` | Engine-specific language selection | `eng` |
+| `ocr_dpi` | Raster resolution used for OCR | `300` |
+| `ocr_pages` | JSON array of 1-based pages actually OCR-processed | `[2, 3]` |
+
+Readers **MUST NOT** require OCR keys. Writers that perform OCR **SHOULD**
+record the engine, policy, settings, and pages processed so the archive's text
+provenance is auditable.
+
 ## 3. Required tables
 
 Every VERA file **MUST** contain these tables (writers create them exactly as below; readers SHOULD tolerate additional columns):

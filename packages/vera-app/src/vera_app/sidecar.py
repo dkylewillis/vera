@@ -895,6 +895,9 @@ def _convert(request: Request) -> dict[str, str]:
         chunk_size=int(request.get("chunk_size", 500)),
         overlap=int(request.get("overlap", 75)),
         store_original=bool(request.get("store_original", True)),
+        ocr_mode=str(request.get("ocr_mode", "auto")),
+        ocr_language=str(request.get("ocr_language", "eng")),
+        ocr_dpi=int(request.get("ocr_dpi", 300)),
     )
     return {"output": output}
 
@@ -909,6 +912,9 @@ def _batch_convert(request: Request) -> dict[str, Any]:
         chunk_size=int(request.get("chunk_size", 500)),
         overlap=int(request.get("overlap", 75)),
         store_original=bool(request.get("store_original", True)),
+        ocr_mode=str(request.get("ocr_mode", "auto")),
+        ocr_language=str(request.get("ocr_language", "eng")),
+        ocr_dpi=int(request.get("ocr_dpi", 300)),
     )
 
 

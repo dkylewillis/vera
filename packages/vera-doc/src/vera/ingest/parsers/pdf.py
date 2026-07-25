@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from collections import Counter
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 _CAPTION_RE = re.compile(
     r"^(figure|fig\.?|table|diagram|exhibit|chart|map|photo|illustration|plate|drawing)\s*[0-9]+([.:\-\u2013]|\s|$)",
@@ -19,6 +21,9 @@ _TABLE_SETTINGS = {
     "vertical_strategy": "lines",
     "horizontal_strategy": "lines",
 }
+_OCR_MODES = {"auto", "off", "force"}
+_OCR_MIN_USEFUL_CHARACTERS = 10
+_OCR_IMAGE_COVERAGE_THRESHOLD = 0.5
 
 
 @dataclass
@@ -32,7 +37,7 @@ class ParsedPage:
 @dataclass
 class ParsedBlock:
     page_number: int
-    block_type: str  # heading | paragraph | image
+    block_type: str  # heading | paragraph | image | caption | table
     text: str
     bbox: tuple[float, float, float, float] | None = None
     heading_level: int | None = None
@@ -81,28 +86,129 @@ class _RawBlock:
     image_bytes: bytes | None = None
     image_ext: str = ""
     rotated: bool = False
+    ocr: bool = False
+
+
+def _bbox_coverage(
+    bbox: tuple[float, float, float, float],
+    *,
+    page_width: float,
+    page_height: float,
+) -> float:
+    page_area = max(0.0, page_width) * max(0.0, page_height)
+    if page_area <= 0.0:
+        return 0.0
+    width = max(0.0, bbox[2] - bbox[0])
+    height = max(0.0, bbox[3] - bbox[1])
+    return min(1.0, (width * height) / page_area)
+
+
+def _page_needs_ocr(page_text: str, layout: dict[str, Any], *, width: float, height: float) -> bool:
+    useful_characters = sum(character.isalnum() for character in page_text)
+    has_large_image = any(
+        block.get("type") == 1
+        and _bbox_coverage(
+            tuple(float(value) for value in block.get("bbox", (0, 0, 0, 0))),
+            page_width=width,
+            page_height=height,
+        )
+        >= _OCR_IMAGE_COVERAGE_THRESHOLD
+        for block in layout.get("blocks", [])
+    )
+    if useful_characters < _OCR_MIN_USEFUL_CHARACTERS:
+        # Do not send genuinely blank pages through OCR. A scanned page normally
+        # appears as a large image covering most of the page.
+        return has_large_image
+    return False
+
+
+def _bundled_tessdata(language: str) -> str | None:
+    """Return bundled language data when it covers the full selection."""
+    directory = Path(__file__).resolve().parents[1] / "tessdata"
+    languages = [item.strip() for item in language.split("+") if item.strip()]
+    if languages and all((directory / f"{item}.traineddata").is_file() for item in languages):
+        return str(directory)
+    return None
+
+
+def _ocr_page_content(page, *, language: str, dpi: int) -> tuple[str, dict[str, Any]]:
+    tessdata = _bundled_tessdata(language)
+    try:
+        textpage = page.get_textpage_ocr(
+            language=language,
+            dpi=dpi,
+            full=True,
+            tessdata=tessdata,
+        )
+        return (
+            page.get_text("text", textpage=textpage) or "",
+            page.get_text("dict", textpage=textpage),
+        )
+    except Exception as exc:
+        if language == "eng" and tessdata is None:
+            requirement = "bundled English OCR data was not found; reinstall VERA"
+        elif tessdata is None:
+            requirement = (
+                f"language data for '{language}' is not bundled; install that tessdata "
+                "and configure TESSDATA_PREFIX"
+            )
+        else:
+            requirement = f"bundled language data for '{language}' could not be loaded"
+        raise RuntimeError(
+            f"OCR failed for page {page.number + 1}: {requirement}. Original error: {exc}"
+        ) from exc
 
 
 def _span_is_bold(span: dict) -> bool:
     return bool(span.get("flags", 0) & 16)
 
 
-def _collect_raw_blocks(doc) -> tuple[list[ParsedPage], list[_RawBlock], Counter]:
+def _collect_raw_blocks(
+    doc,
+    *,
+    ocr_mode: str = "auto",
+    ocr_language: str = "eng",
+    ocr_dpi: int = 300,
+) -> tuple[list[ParsedPage], list[_RawBlock], Counter, list[int]]:
     pages: list[ParsedPage] = []
     raw: list[_RawBlock] = []
     size_weights: Counter = Counter()
+    ocr_pages: list[int] = []
     for idx, page in enumerate(doc, start=1):
+        page_raw: list[_RawBlock] = []
         rect = page.rect
-        page_text = page.get_text("text") or ""
-        pages.append(ParsedPage(idx, float(rect.width), float(rect.height), page_text.strip()))
-        layout = page.get_text("dict")
-        for block in layout.get("blocks", []):
+        width = float(rect.width)
+        height = float(rect.height)
+        native_text = page.get_text("text") or ""
+        native_layout = page.get_text("dict")
+        use_ocr = ocr_mode == "force" or (
+            ocr_mode == "auto"
+            and _page_needs_ocr(native_text, native_layout, width=width, height=height)
+        )
+        if use_ocr:
+            page_text, text_layout = _ocr_page_content(
+                page,
+                language=ocr_language,
+                dpi=ocr_dpi,
+            )
+            ocr_pages.append(idx)
+        else:
+            page_text = native_text
+            text_layout = native_layout
+        pages.append(ParsedPage(idx, width, height, page_text.strip()))
+
+        # Always source images from the native PDF layout. OCR TextPage output
+        # contains recognized text and coordinates, but not the original image bytes.
+        for block in native_layout.get("blocks", []):
             bbox = tuple(float(v) for v in block.get("bbox", (0, 0, 0, 0)))
             if block.get("type") == 1:
-                raw.append(
+                page_raw.append(
                     _RawBlock(idx, "", bbox, 0.0, False, 0, block.get("image"), block.get("ext", "png"))
                 )
+        for block in text_layout.get("blocks", []):
+            if block.get("type") == 1:
                 continue
+            bbox = tuple(float(v) for v in block.get("bbox", (0, 0, 0, 0)))
             lines = block.get("lines", [])
             block_sizes: Counter = Counter()
             texts: list[str] = []
@@ -150,27 +256,69 @@ def _collect_raw_blocks(doc) -> tuple[list[ParsedPage], list[_RawBlock], Counter
             dominant = block_sizes.most_common(1)[0][0] if block_sizes else 0.0
             bold = total_chars > 0 and bold_chars / total_chars > 0.8
             rotated = len(lines) > 0 and rotated_lines == len(lines)
-            raw.append(_RawBlock(idx, text, bbox, dominant, bold, len(texts), rotated=rotated))
-    return pages, raw, size_weights
+            page_raw.append(
+                _RawBlock(
+                    idx,
+                    text,
+                    bbox,
+                    dominant,
+                    bold,
+                    len(texts),
+                    rotated=rotated,
+                    ocr=use_ocr,
+                )
+            )
+        page_raw.sort(key=lambda block: (block.bbox[1], block.bbox[0]))
+        raw.extend(page_raw)
+    return pages, raw, size_weights, ocr_pages
 
 
-def parse_pdf_structured(path: str) -> tuple[list[ParsedPage], list[ParsedBlock]]:
+def parse_pdf_structured(
+    path: str,
+    *,
+    ocr_mode: str = "auto",
+    ocr_language: str = "eng",
+    ocr_dpi: int = 300,
+    diagnostics: dict[str, Any] | None = None,
+) -> tuple[list[ParsedPage], list[ParsedBlock]]:
     """Parse a PDF into pages plus structured blocks.
 
     Detects headings via font size/weight relative to body text, keeps
     paragraphs as text blocks, and captures embedded images as image blocks.
     """
+    if ocr_mode not in _OCR_MODES:
+        raise ValueError(f"ocr_mode must be one of {sorted(_OCR_MODES)}")
+    if not ocr_language.strip():
+        raise ValueError("ocr_language must not be empty")
+    if ocr_dpi <= 0:
+        raise ValueError("ocr_dpi must be positive")
+
     fitz = _open_fitz()
     doc = fitz.open(path)
     try:
-        pages, raw, size_weights = _collect_raw_blocks(doc)
+        pages, raw, size_weights, ocr_pages = _collect_raw_blocks(
+            doc,
+            ocr_mode=ocr_mode,
+            ocr_language=ocr_language,
+            ocr_dpi=ocr_dpi,
+        )
     finally:
         doc.close()
+    if diagnostics is not None:
+        diagnostics.update(
+            {
+                "ocr_engine": "tesseract",
+                "ocr_mode": ocr_mode,
+                "ocr_language": ocr_language,
+                "ocr_dpi": ocr_dpi,
+                "ocr_pages": ocr_pages,
+            }
+        )
 
     body_size = size_weights.most_common(1)[0][0] if size_weights else 11.0
 
     def is_heading(block: _RawBlock) -> bool:
-        if block.rotated:
+        if block.rotated or block.ocr:
             return False
         if not block.text or len(block.text) > 300 or block.line_count > 3:
             return False

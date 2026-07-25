@@ -97,6 +97,7 @@ export interface LibraryIndexStatus {
   excludes?: string[];
   file_count?: number;
   skipped?: number;
+  skipped_files?: { file: string; category: string; reason: string }[];
   discovered?: number;
 }
 
@@ -129,8 +130,16 @@ export interface InspectResult {
   format_version?: string;
   default_embedding_model?: string;
   parser_name?: string;
+  ocr_engine?: string;
+  ocr_mode?: 'auto' | 'off' | 'force';
+  ocr_language?: string;
+  ocr_dpi?: string;
+  ocr_pages?: string;
   directory?: string;
   file_count?: number;
+  discovered_file_count?: number;
+  skipped?: number;
+  skipped_files?: { file: string; category: string; reason: string }[];
   embedding_models?: string[];
   recursive?: boolean;
   index?: LibraryIndexStatus;
@@ -300,9 +309,11 @@ export interface BatchConvertResult {
   discovered: number;
   converted: number;
   skipped: number;
+  malformed: number;
   failed: number;
   outputs: string[];
   skipped_existing: string[];
+  malformed_existing: { input: string; output: string; issues: string[] }[];
   errors: { input: string; error: string }[];
 }
 

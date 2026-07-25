@@ -124,13 +124,38 @@ vera index build "./library" --recursive --json
 
 ## Conversion skips files
 
-Directory conversion skips existing same-named `.vera` files by default.
-Review the batch JSON report. Use `--overwrite` only when replacing those
-archives is intentional:
+Directory conversion validates existing same-named `.vera` files before
+skipping them. Review `skipped_existing` for valid skips and
+`malformed_existing` for archives that must be repaired or replaced. Use
+`--overwrite` only when replacement is intentional:
 
 ```bash
 vera convert "./pdfs" --recursive --overwrite --json
 ```
+
+## Conversion says a PDF requires OCR
+
+VERA rejects a conversion when the parser extracts no searchable chunks. This
+commonly means the PDF contains scanned page images without a text layer.
+Automatic English OCR should recognize image-based prose pages without a
+separate installation because VERA bundles the `eng` model. Retry explicitly
+to expose OCR errors:
+
+```bash
+vera convert "scan.pdf" "scan.vera" --ocr force --ocr-language eng --ocr-dpi 300
+```
+
+If an English error says the bundled model is missing, reinstall VERA. Languages
+other than `eng` are not bundled: install the requested `.traineddata` file and
+set `TESSDATA_PREFIX` to its containing directory. `--ocr-language` accepts
+Tesseract language codes such as `deu` or `eng+spa`.
+
+An OCR pass can still produce no searchable text when the scan is blank,
+low-resolution, handwritten, or mostly diagrams. VERA's selective OCR targets
+prose and does not reconstruct scanned tables, forms, or complex multi-column
+layouts. Preprocess those files with a layout-aware OCR tool before converting.
+A failed conversion does not replace an existing destination and removes its
+temporary output.
 
 ## Conversion fails for a parser name
 

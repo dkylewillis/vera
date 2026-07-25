@@ -22,10 +22,18 @@ output = convert(
     chunk_size=500,
     overlap=75,
     store_original=True,
+    ocr_mode="auto",
+    ocr_language="eng",
+    ocr_dpi=300,
 )
 ```
 
-`convert()` returns the output path as a string.
+`convert()` returns the output path as a string. `ocr_mode` accepts `auto`,
+`off`, or `force`; automatic mode OCRs only image-dominant low-text pages.
+PyMuPDF performs recognition locally and requires installed Tesseract language
+data only for languages other than the bundled English default. Conversion
+publishes a validated temporary sibling atomically and raises `ValueError` when
+no searchable chunks are extracted.
 
 Batch conversion:
 
@@ -37,12 +45,21 @@ report = batch_convert(
     recursive=True,
     overwrite=False,
     model="hashing",
+    ocr_mode="auto",
+    ocr_language="eng",
+    ocr_dpi=300,
 )
-print(report["converted"], report["skipped"], report["failed"])
+print(
+    report["converted"],
+    report["skipped"],
+    report["malformed"],
+    report["failed"],
+)
 ```
 
 Batch conversion continues after per-file failures and returns a report with
-outputs, skipped paths, and errors.
+outputs, valid skipped paths, malformed existing-output diagnostics, and
+conversion errors.
 
 ## Open a document
 
@@ -202,7 +219,9 @@ with VeraCorpus.open(
 
 `CorpusSearchResult` extends `SearchResult` with `file`, the source archive
 path. `VeraCorpus.open()` automatically uses a fresh compatible collection
-index unless `use_index=False`.
+index unless `use_index=False`. Inspection and fallback search skip malformed
+archives; inspect `corpus.invalid_files` or the `skipped_files` field returned
+by `corpus.inspect()` for absolute paths and validation reasons.
 
 Build a corpus from explicit paths:
 

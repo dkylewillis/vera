@@ -1,4 +1,5 @@
 import json
+import importlib
 
 import pytest
 
@@ -199,8 +200,57 @@ def test_batch_convert_supports_recursive_discovery_and_default_names(tmp_path):
     assert recursive["result"]["discovered"] == 2
     assert recursive["result"]["converted"] == 1
     assert recursive["result"]["skipped"] == 1
+    assert recursive["result"]["malformed"] == 0
+    assert recursive["result"]["malformed_existing"] == []
     assert recursive["result"]["failed"] == 0
     assert (nested_pdf.parent / "nested-proposal.vera").is_file()
+
+
+def test_sidecar_forwards_ocr_options_for_single_and_batch_conversion(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    captured = {}
+
+    def fake_convert(input_path, output_path, **kwargs):
+        captured["single"] = (input_path, output_path, kwargs)
+        return output_path
+
+    def fake_batch_convert(directory, **kwargs):
+        captured["batch"] = (directory, kwargs)
+        return {"converted": 0, "failed": 0}
+
+    monkeypatch.setattr(sidecar, "convert", fake_convert)
+    monkeypatch.setattr(sidecar, "batch_convert", fake_batch_convert)
+
+    single = handle(
+        {
+            "id": "ocr-single",
+            "action": "convert",
+            "input": "scan.pdf",
+            "output": "scan.vera",
+            "ocr_mode": "force",
+            "ocr_language": "spa",
+            "ocr_dpi": 240,
+        }
+    )
+    batch = handle(
+        {
+            "id": "ocr-batch",
+            "action": "batch_convert",
+            "directory": "scans",
+            "ocr_mode": "off",
+            "ocr_language": "deu",
+            "ocr_dpi": 200,
+        }
+    )
+
+    assert single["ok"] is True
+    assert captured["single"][2]["ocr_mode"] == "force"
+    assert captured["single"][2]["ocr_language"] == "spa"
+    assert captured["single"][2]["ocr_dpi"] == 240
+    assert batch["ok"] is True
+    assert captured["batch"][1]["ocr_mode"] == "off"
+    assert captured["batch"][1]["ocr_language"] == "deu"
+    assert captured["batch"][1]["ocr_dpi"] == 200
 
 
 def test_source_action_returns_pdf_data_url(tmp_path):

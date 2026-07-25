@@ -516,6 +516,7 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
             "exists": False,
             "fresh": False,
             "reasons": ["index is missing"],
+            "skipped_files": [],
         }
     config = _load_config(root)
     if config is None:
@@ -525,6 +526,7 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
             "exists": True,
             "fresh": False,
             "reasons": ["index configuration is unreadable"],
+            "skipped_files": [],
         }
     reasons: list[str] = []
     try:
@@ -534,8 +536,14 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
             version_row = conn.execute("SELECT value FROM index_metadata WHERE key = 'index_version'").fetchone()
             if version_row is None or int(version_row["value"]) != INDEX_VERSION:
                 reasons.append("index version is unsupported")
-            indexed = {row["relative_path"]: row for row in conn.execute("SELECT * FROM files")}
-            skipped = {row["relative_path"]: row for row in conn.execute("SELECT * FROM skipped_files")}
+            indexed = {
+                row["relative_path"]: dict(row)
+                for row in conn.execute("SELECT * FROM files")
+            }
+            skipped = {
+                row["relative_path"]: dict(row)
+                for row in conn.execute("SELECT * FROM skipped_files")
+            }
             groups = list(conn.execute("SELECT * FROM vector_groups"))
             if conn.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                 reasons.append("index database integrity check failed")
@@ -588,6 +596,14 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
         "excludes": list(config.get("excludes", ())),
         "file_count": len(indexed),
         "skipped": len(skipped),
+        "skipped_files": [
+            {
+                "file": relative_path,
+                "category": row["category"],
+                "reason": row["reason"],
+            }
+            for relative_path, row in sorted(skipped.items())
+        ],
         "discovered": len(discovered),
     }
 

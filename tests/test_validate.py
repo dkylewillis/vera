@@ -59,6 +59,20 @@ def test_validate_reports_bad_embedding_dimension(tmp_path):
     assert any("Invalid embedding blob" in issue for issue in report["issues"])
 
 
+def test_validate_warns_when_original_was_intentionally_omitted(tmp_path):
+    pdf = tmp_path / "ordinance.pdf"
+    out = tmp_path / "ordinance.vera"
+    make_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", store_original=False)
+
+    doc = VeraDocument.open(str(out))
+    report = doc.validate()
+    doc.close()
+
+    assert report["ok"] is True
+    assert "Original document asset is missing" in report["warnings"]
+
+
 def test_cli_validate_outputs_pass(tmp_path):
     pdf = tmp_path / "manual.pdf"
     out = tmp_path / "manual.vera"

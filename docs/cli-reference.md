@@ -33,12 +33,20 @@ Options:
 - `--chunk-size N` (`500`)
 - `--overlap N` (`75`)
 - `--store-original VALUE` (`true`)
+- `--ocr auto|off|force` (`auto`)
+- `--ocr-language CODE` (`eng`)
+- `--ocr-dpi N` (`300`, must be positive)
 - `--recursive`
 - `--overwrite`
 - `--json`
 
-Directory conversion writes archives beside PDFs, skips existing outputs by
-default, and does not accept `OUTPUT`.
+Conversion selectively OCRs image-based low-text pages through PyMuPDF and
+Tesseract, publishes a validated temporary archive atomically, and fails when
+no searchable chunks are extracted. English language data is bundled for
+offline, zero-setup OCR; other selected languages require external Tesseract
+language data. Directory conversion writes archives beside PDFs, validates
+existing outputs before skipping them, reports malformed outputs separately,
+and does not accept `OUTPUT`.
 
 ## `vera inspect FILE`
 
@@ -62,6 +70,8 @@ Options:
 - `--json`
 
 `--figures`, `--regions`, and context fields are exposed through JSON output.
+Directory search JSON also includes `skipped_files` with paths and validation
+reasons for malformed archives that were excluded.
 
 ## `vera index build DIRECTORY`
 
@@ -83,7 +93,8 @@ Options: `--json`.
 
 ## `vera index status DIRECTORY`
 
-Report whether an index exists and is fresh.
+Report whether an index exists and is fresh, including the paths, categories,
+and reasons retained for files skipped by the active index.
 
 Options: `--json`.
 

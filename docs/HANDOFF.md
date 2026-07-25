@@ -49,10 +49,12 @@ clickable citations that scroll the viewer to the page and highlight the cited t
   mixed models; keyword/hybrid = within-file score with reciprocal-rank tiebreak
 - Per-file query embedding uses each file's recorded model (mixed-model corpora OK)
 - Unindexed fan-out searches files in parallel; per-file cosine scoring is batched with NumPy
+- Folder inspection and fallback search validate files independently, skip
+  malformed archives, and expose paths and reasons instead of aborting a mixed library
 - `corpus.regions_for()` / `figures_for()` dispatch to the right file
 - CLI: `vera search <directory> "query"`; MCP: `vera_corpus_search`
 - Tests: corpus, collection, app-sidecar, and CLI behavior is covered by the
-  corresponding test modules (201 tests total, all green)
+  corresponding test modules
 - README + AGENTS.md updated for all of the above
 
 ### Phase 2.5 — Local collection indexes (`packages/vera-doc/src/vera/collection.py`)
@@ -60,9 +62,11 @@ clickable citations that scroll the viewer to the page and highlight the cited t
 - SQLite owns the manifest, file fingerprints, source metadata, chunk references, and
   unified FTS5 index; normalized vectors live in contiguous per-model NumPy matrices
 - `vera index update` reuses persisted discovery settings; `vera index status` reports
-  missing, stale, or corrupt artifacts
+  missing, stale, or corrupt artifacts plus retained skipped-file reasons
 - `VeraCorpus.open(folder)` automatically uses a fresh index and safely falls back to
   direct fan-out when files are added, changed, moved, or removed
+- Fresh-index inspection consumes the skipped-file manifest without reopening
+  archives that index build rejected
 - Mixed embedding model groups are queried separately and rank-fused
 - The index is rebuildable and does not change the `.vera` v0.1 format
 

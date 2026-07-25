@@ -1,6 +1,7 @@
 """Tests for corpus search across a folder of .vera files."""
 
 import json
+import sqlite3
 import subprocess
 import sys
 
@@ -100,6 +101,19 @@ class TestSearch:
             assert len(regions[0]["bbox"]) == 4
             assert regions[0]["page_number"] == top.page_start
 
+    def test_fallback_search_skips_malformed_document(self, corpus_dir):
+        malformed = corpus_dir / "malformed.vera"
+        sqlite3.connect(malformed).close()
+        try:
+            with VeraCorpus.open(str(corpus_dir), use_index=False) as corpus:
+                results = corpus.search("restaurant parking space", top_k=1)
+                assert results[0].file.endswith("zoning.vera")
+                assert len(corpus.invalid_files) == 1
+                assert corpus.invalid_files[0]["file"] == str(malformed.resolve())
+                assert "Missing required table: vera_metadata" in corpus.invalid_files[0]["reason"]
+        finally:
+            malformed.unlink()
+
 
 class TestInspect:
     def test_summary(self, corpus_dir):
@@ -110,6 +124,20 @@ class TestInspect:
             assert info["chunks"] >= 2
             assert info["embedding_models"] == ["vera-hashing-384"]
             assert len(info["files"]) == 2
+
+    def test_mixed_library_reports_and_skips_invalid_files(self, corpus_dir):
+        malformed = corpus_dir / "malformed.vera"
+        sqlite3.connect(malformed).close()
+        try:
+            with VeraCorpus.open(str(corpus_dir), use_index=False) as corpus:
+                info = corpus.inspect()
+            assert info["file_count"] == 2
+            assert info["discovered_file_count"] == 3
+            assert info["skipped"] == 1
+            assert info["skipped_files"][0]["file"] == str(malformed.resolve())
+            assert "Missing required table: vera_metadata" in info["skipped_files"][0]["reason"]
+        finally:
+            malformed.unlink()
 
 
 class TestCli:

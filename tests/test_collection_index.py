@@ -155,7 +155,9 @@ class TestBuildAndSearch:
             assert corpus.search("water treatment", mode="semantic") == []
             assert corpus.search("water treatment", mode="keyword")[0].file.endswith("water.vera")
 
-    def test_invalid_files_are_reported_without_making_index_stale(self, nested_library):
+    def test_invalid_files_are_reported_without_making_index_stale(
+        self, nested_library, monkeypatch
+    ):
         invalid = nested_library / "broken.vera"
         invalid.write_text("not sqlite", encoding="utf-8")
         report = build_library_index(str(nested_library), recursive=True, excludes=["archive"])
@@ -163,6 +165,22 @@ class TestBuildAndSearch:
         status = library_index_status(str(nested_library))
         assert status["fresh"] is True
         assert status["skipped"] == 1
+        assert status["skipped_files"][0]["file"] == "broken.vera"
+        assert status["skipped_files"][0]["category"] == "invalid"
+
+        original_open = VeraDocument.open
+
+        def reject_skipped(path):
+            if Path(path).resolve() == invalid.resolve():
+                raise AssertionError("indexed skipped file should not be opened")
+            return original_open(path)
+
+        monkeypatch.setattr(VeraDocument, "open", staticmethod(reject_skipped))
+        with VeraCorpus.open(str(nested_library)) as corpus:
+            info = corpus.inspect()
+        assert info["file_count"] == 2
+        assert info["skipped"] == 1
+        assert info["skipped_files"][0]["file"] == str(invalid.resolve())
 
     def test_punctuation_only_keyword_query_returns_no_results(self, nested_library):
         build_library_index(str(nested_library), recursive=True, excludes=["archive"])

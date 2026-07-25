@@ -52,6 +52,9 @@ winning chunk IDs are resolved against their source `.vera` files.
 
 Invalid archives are recorded as skipped entries so they are visible in build
 reports without making an otherwise valid index permanently stale.
+`vera index status --json` exposes these entries in `skipped_files`, including
+their relative paths, categories, and reasons. Folder inspection uses that
+manifest when the index is fresh and does not reopen known-invalid archives.
 
 ## Performance baseline
 

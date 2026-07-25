@@ -56,6 +56,14 @@ suffix:
 vera convert "manual.pdf"
 ```
 
+VERA validates the completed archive before publishing it. Image-based pages
+with little or no native text are OCR-processed locally by default. English
+language data is bundled, so default OCR works offline without another
+installation. Selecting another language with `--ocr-language` requires its
+Tesseract data. Use `--ocr off` to disable recognition or `--ocr force` to
+process every page. A failed conversion does not replace an existing
+destination.
+
 ## Inspect and validate
 
 Inspect the archive:

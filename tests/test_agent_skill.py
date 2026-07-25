@@ -120,3 +120,13 @@ def test_quick_reference_matches_search_json_contract():
     assert '"file": "manual.vera"' not in agents
     assert '"document_id": "document_0001"' in agents
     assert "vera mcp` is a long-running stdio server and does not accept `--json`" in agents
+
+
+def test_portable_skill_documents_hardened_library_contracts():
+    skill = SKILL_FILE.read_text(encoding="utf-8")
+    reference = CLI_REFERENCE.read_text(encoding="utf-8")
+
+    assert "`malformed_existing`" in skill
+    assert "`skipped_files`" in skill
+    assert '"malformed_existing": [' in reference
+    assert '"skipped_files": [' in reference

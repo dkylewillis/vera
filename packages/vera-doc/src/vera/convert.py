@@ -5,12 +5,14 @@ import json
 import mimetypes
 import os
 import sqlite3
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .core.embeddings import get_embedder, serialize_vector
 from .core.schema import FORMAT_VERSION, create_schema
+from .core.validation import validate_document
 from .ingest.chunking import build_chunks_from_blocks
 from .ingest.parsers import ParsedBlock, parse_pdf_structured
 
@@ -21,6 +23,20 @@ def _utc_now() -> str:
 
 def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def _validate_output(path: Path) -> dict[str, Any]:
+    try:
+        conn = sqlite3.connect(path)
+        conn.row_factory = sqlite3.Row
+        try:
+            report = validate_document(conn)
+        finally:
+            conn.close()
+    except (OSError, sqlite3.Error) as exc:
+        return {"ok": False, "issues": [f"Unable to validate VERA database: {exc}"]}
+
+    return report
 
 
 def _drop_repeated_images(
@@ -54,6 +70,9 @@ def convert(
     chunk_size: int = 500,
     overlap: int = 75,
     store_original: bool = True,
+    ocr_mode: str = "auto",
+    ocr_language: str = "eng",
+    ocr_dpi: int = 300,
 ) -> str:
     source = Path(input_path)
     target = Path(output_path)
@@ -65,20 +84,38 @@ def convert(
     source_data = source.read_bytes()
     source_hash = _sha256_bytes(source_data)
     mime_type = mimetypes.guess_type(source.name)[0] or "application/pdf"
-    pages, parsed_blocks = parse_pdf_structured(str(source))
+    parse_diagnostics: dict[str, Any] = {}
+    pages, parsed_blocks = parse_pdf_structured(
+        str(source),
+        ocr_mode=ocr_mode,
+        ocr_language=ocr_language,
+        ocr_dpi=ocr_dpi,
+        diagnostics=parse_diagnostics,
+    )
     block_records: list[tuple[str, ParsedBlock]] = [
         (f"block_{idx:06d}", block) for idx, block in enumerate(parsed_blocks, start=1)
     ]
     block_records = _drop_repeated_images(block_records)
     chunks = build_chunks_from_blocks(block_records, chunk_size=chunk_size, overlap=overlap)
+    if not chunks:
+        raise ValueError(
+            "No searchable text or chunks were extracted; "
+            "the PDF may be scanned and requires OCR."
+        )
     embedder = get_embedder(model)
-    vectors = embedder.embed([c.text for c in chunks]) if chunks else []
+    vectors = embedder.embed([c.text for c in chunks])
 
-    if target.exists():
-        target.unlink()
     target.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(target)
+    file_descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+        dir=target.parent,
+    )
+    os.close(file_descriptor)
+    temporary = Path(temporary_name)
+    conn: sqlite3.Connection | None = None
     try:
+        conn = sqlite3.connect(temporary)
         create_schema(conn)
         now = _utc_now()
         doc_id = "doc_001"
@@ -96,6 +133,11 @@ def convert(
             "chunking_strategy": f"heading_block_sliding_window:{chunk_size}:{overlap}",
             "parser_name": parser,
             "parser_version": "pymupdf",
+            "ocr_engine": str(parse_diagnostics["ocr_engine"]),
+            "ocr_mode": str(parse_diagnostics["ocr_mode"]),
+            "ocr_language": str(parse_diagnostics["ocr_language"]),
+            "ocr_dpi": str(parse_diagnostics["ocr_dpi"]),
+            "ocr_pages": json.dumps(parse_diagnostics["ocr_pages"]),
         }
         conn.executemany("INSERT INTO vera_metadata(key, value) VALUES (?, ?)", metadata.items())
         conn.execute(
@@ -161,8 +203,19 @@ def convert(
                 ("asset_original_001", doc_id, "original_document", mime_type, source.name, source_data, source_hash),
             )
         conn.commit()
-    finally:
         conn.close()
+        conn = None
+
+        validation = _validate_output(temporary)
+        if not validation["ok"]:
+            issues = "; ".join(validation["issues"])
+            raise ValueError(f"Converted VERA database failed validation: {issues}")
+
+        os.replace(temporary, target)
+    finally:
+        if conn is not None:
+            conn.close()
+        temporary.unlink(missing_ok=True)
     return str(target)
 
 
@@ -176,6 +229,9 @@ def batch_convert(
     chunk_size: int = 500,
     overlap: int = 75,
     store_original: bool = True,
+    ocr_mode: str = "auto",
+    ocr_language: str = "eng",
+    ocr_dpi: int = 300,
 ) -> dict[str, Any]:
     """Convert every PDF in a directory, continuing after per-file failures."""
     root = Path(directory).resolve()
@@ -204,11 +260,22 @@ def batch_convert(
 
     outputs: list[str] = []
     skipped_existing: list[str] = []
+    malformed_existing: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
     for pdf in pdfs:
         output = pdf.with_suffix(".vera")
         if output.exists() and not overwrite:
-            skipped_existing.append(str(output))
+            validation = _validate_output(output)
+            if validation["ok"]:
+                skipped_existing.append(str(output))
+            else:
+                malformed_existing.append(
+                    {
+                        "input": str(pdf),
+                        "output": str(output),
+                        "issues": validation["issues"],
+                    }
+                )
             continue
         try:
             outputs.append(
@@ -220,6 +287,9 @@ def batch_convert(
                     chunk_size=chunk_size,
                     overlap=overlap,
                     store_original=store_original,
+                    ocr_mode=ocr_mode,
+                    ocr_language=ocr_language,
+                    ocr_dpi=ocr_dpi,
                 )
             )
         except Exception as exc:
@@ -232,8 +302,10 @@ def batch_convert(
         "discovered": len(pdfs),
         "converted": len(outputs),
         "skipped": len(skipped_existing),
+        "malformed": len(malformed_existing),
         "failed": len(errors),
         "outputs": outputs,
         "skipped_existing": skipped_existing,
+        "malformed_existing": malformed_existing,
         "errors": errors,
     }

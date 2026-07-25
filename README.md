@@ -38,6 +38,7 @@ A search result always points back to its source: filename, page range, heading 
 
 ```bash
 vera convert input.pdf output.vera
+vera convert scan.pdf scan.vera --ocr auto                 # selective local Tesseract OCR
 vera convert ./pdf-library --recursive                    # same-named .vera files beside PDFs
 vera inspect output.vera
 vera validate output.vera
@@ -84,6 +85,7 @@ with VeraCorpus.open("./library") as corpus:      # a folder of .vera files
 - **Single-file format** — a `.vera` file is a normal SQLite database with a standardized schema. No server, no vector database, no re-ingestion to open one.
 - **Three search modes** — `semantic` (brute-force cosine over stored embeddings), `keyword` (SQLite FTS5 / bm25), and `hybrid` (both score sets min-max normalized and blended equally).
 - **Structured parsing** — headings are detected from font size/weight and produce hierarchical heading paths (`Chapter 110 > Article 5 > Parking`); rotated watermark text is filtered out; chunks never span pages and map back to their source blocks via `chunk_blocks`.
+- **Selective local OCR** — image-based pages with little or no native text are recognized through PyMuPDF's Tesseract integration at 300 DPI by default. English language data is bundled for offline, zero-setup OCR. Native-text pages keep the fast existing path; `--ocr off|force`, `--ocr-language`, and `--ocr-dpi` provide explicit control.
 - **Figures and captions** — embedded images are extracted into the `assets` table; caption blocks ("Figure 3: Detention pond sizing diagram") are detected, flow into chunk text so figures are searchable, and are returned alongside figures:
 
 ```python
@@ -95,8 +97,8 @@ for fig in doc.figures_for(result, include_data=True):  # figures on the result'
 - **Pluggable embeddings** — a deterministic local hashing embedder (384-dim, zero dependencies) is the default; `--model sentence-transformers/all-MiniLM-L6-v2` enables neural embeddings via the optional `ml` extra.
 - **Visual grounding** — every chunk maps back to the page regions it came from. `doc.regions_for(result)` (or `vera search --regions`) returns page numbers and bounding boxes (page points, origin top-left) plus page dimensions, so a viewer can scroll to the page and highlight the cited text.
 - **Document access** — the original source file is stored inside the archive and comes back out intact: `doc.get_source_document()` / `vera export`. Pages (`get_page`), layout blocks with bounding boxes (`get_blocks`), and stored assets (`get_asset`) are all directly accessible for building viewers.
-- **Corpus search** — `VeraCorpus.open(folder)` (or `vera search <folder> "query"`) searches every `.vera` file in a directory as one collection and fuses the rankings; each result is attributed to its file. Add `--recursive` for an unindexed nested tree.
-- **Local library indexes** — `vera index build <folder> --recursive` creates a hidden, rebuildable SQLite/NumPy index for hundreds of documents. Searches use a fresh index automatically and fall back to direct file search when it is missing or stale; each `.vera` file remains independently portable.
+- **Corpus search** — `VeraCorpus.open(folder)` (or `vera search <folder> "query"`) searches valid `.vera` files in a directory as one collection and fuses the rankings; malformed archives are skipped and reported with their paths and reasons. Add `--recursive` for an unindexed nested tree.
+- **Local library indexes** — `vera index build <folder> --recursive` creates a hidden, rebuildable SQLite/NumPy index for hundreds of documents. Searches use a fresh index automatically and fall back to resilient direct file search when it is missing or stale; indexed skip reasons remain available without reopening rejected archives.
 - **Transparent** — every file records its parser, chunking strategy, and embedding model in `vera_metadata`.
 
 ## CLI
@@ -104,7 +106,7 @@ for fig in doc.figures_for(result, include_data=True):  # figures on the result'
 | Command | Purpose |
 | ------- | ------- |
 | `vera convert input.pdf [output.vera]` | Convert one PDF; output defaults to the same base filename |
-| `vera convert <directory> [--recursive]` | Batch-convert PDFs beside their sources (`--overwrite` replaces existing archives) |
+| `vera convert <directory> [--recursive]` | Batch-convert PDFs beside their sources; valid outputs are skipped, malformed outputs are reported, and `--overwrite` replaces existing archives |
 | `vera inspect output.vera` | Print metadata: pages, chunks, model, parser |
 | `vera validate output.vera` | Check schema, counts, and index consistency |
 | `vera search output.vera "query"` | Search a file — or a directory of `.vera` files — (`--mode semantic\|keyword\|hybrid`, `--top-k`, `--context-chunks`, `--figures`, `--regions`) |

@@ -1413,7 +1413,6 @@ function App() {
   const [viewerMode, setViewerMode] = useState<'selection' | 'document'>('document');
   const [path, setPath] = useState('');
   const [activeLibraryPath, setActiveLibraryPath] = useState('');
-  const activeLibraryPathRef = useRef('');
   const [indexStatuses, setIndexStatuses] = useState<Record<string, LibraryIndexStatus>>({});
   const [indexPrompt, setIndexPrompt] = useState<IndexPrompt | null>(null);
   const [indexReport, setIndexReport] = useState<LibraryIndexBuildReport | null>(null);
@@ -1487,6 +1486,8 @@ function App() {
     }
   });
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollThreadRef = useRef(true);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [sourcePaneWidth, setSourcePaneWidth] = useState(34);
   const [isResizingSource, setIsResizingSource] = useState(false);
   const [sidePanelWidth, setSidePanelWidth] = useState(() => {
@@ -1542,7 +1543,7 @@ function App() {
     setIndexPrompt({ path: folderPath, status: value });
   }
 
-  async function refreshIndexStatus(folderPath: string, prompt = false): Promise<LibraryIndexStatus | null> {
+  async function refreshIndexStatus(folderPath: string): Promise<LibraryIndexStatus | null> {
     try {
       const response = await window.vera.request<LibraryIndexStatus>({
         action: 'index_status',
@@ -1552,7 +1553,6 @@ function App() {
       if (!response.ok || !response.result) return null;
       const value = response.result;
       setIndexStatuses((prev) => ({ ...prev, [folderPath]: value }));
-      if (prompt) presentIndexPrompt(folderPath, value);
       return value;
     } catch {
       return null;
@@ -1593,7 +1593,7 @@ function App() {
   async function refreshFolder(folderPath: string) {
     const folder = await window.vera.listFolder(folderPath);
     if (folder) setFolders((prev) => prev.map((entry) => (entry.path === folderPath ? folder : entry)));
-    await refreshIndexStatus(folderPath, folderPath === activeLibraryPath);
+    await refreshIndexStatus(folderPath);
   }
 
   function toggleSelectedFile(filePath: string) {
@@ -1673,7 +1673,7 @@ function App() {
       setActiveLibraryPath(value);
       try { localStorage.setItem('vera.activeLibraryPath', value); } catch { /* ignore persistence errors */ }
       setSelectedFiles([]);
-      const index = await refreshIndexStatus(value, true);
+      const index = await refreshIndexStatus(value);
       updateTargetPath(value);
       const result = await call<InspectResult>({
         action: 'inspect',
@@ -1929,6 +1929,8 @@ function App() {
       ...(pendingAttachments.length ? { attachments: pendingAttachments } : {}),
     };
     const nextTurns = [...sessionTurns, userTurn];
+    shouldAutoScrollThreadRef.current = true;
+    setShowJumpToLatest(false);
     setSessionTurns(nextTurns);
     setQuery('');
     setAttachments([]);
@@ -2054,6 +2056,8 @@ function App() {
       const trace = traceMemory.get(traceKey(session.id, turn.timestamp));
       return trace ? { ...turn, trace } : turn;
     });
+    shouldAutoScrollThreadRef.current = true;
+    setShowJumpToLatest(false);
     setSessionTurns(hydratedTurns);
     // Restore the source document FIRST so any stale source is cleared before we
     // select a cited result. Selecting first would race with openTargetPath, which
@@ -2335,10 +2339,6 @@ function App() {
     setSettingsOpen(true);
   }), []);
 
-  useEffect(() => {
-    activeLibraryPathRef.current = activeLibraryPath;
-  }, [activeLibraryPath]);
-
   const folderPathsKey = folders.map((folder) => folder.path).join('\n');
 
   useEffect(() => {
@@ -2352,7 +2352,7 @@ function App() {
       if (!folder) return;
       setFolders((prev) => prev.map((entry) => (entry.path === folder.path ? folder : entry)));
     });
-    void refreshIndexStatus(folderPath, folderPath === activeLibraryPathRef.current);
+    void refreshIndexStatus(folderPath);
   }), []);
 
   useEffect(() => {
@@ -2407,12 +2407,29 @@ function App() {
     void loadModes();
   }, [loadModes]);
 
-  // Auto-scroll thread to bottom when new turns arrive.
+  // Follow streamed content only while the reader remains at the bottom. Once
+  // they scroll up, preserve their position until they explicitly jump back.
   useEffect(() => {
-    if (threadRef.current) {
-      threadRef.current.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
-    }
-  }, [sessionTurns.length]);
+    const thread = threadRef.current;
+    if (!thread || !shouldAutoScrollThreadRef.current) return;
+    thread.scrollTo({ top: thread.scrollHeight, behavior: 'auto' });
+  }, [sessionTurns.length, streamingAnswer, streamEvents, traceEvents.length, showTrace]);
+
+  function handleThreadScroll() {
+    const thread = threadRef.current;
+    if (!thread) return;
+    const nearBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight <= 80;
+    shouldAutoScrollThreadRef.current = nearBottom;
+    setShowJumpToLatest(!nearBottom);
+  }
+
+  function jumpToLatest() {
+    const thread = threadRef.current;
+    if (!thread) return;
+    shouldAutoScrollThreadRef.current = true;
+    setShowJumpToLatest(false);
+    thread.scrollTo({ top: thread.scrollHeight, behavior: 'auto' });
+  }
 
   useEffect(() => {
     if (!isResizingSource) return undefined;
@@ -2486,18 +2503,26 @@ function App() {
         {!sidebarCollapsed ? (
           <aside className="sidePanel">
             <div className="sidePanelHeader">
-              <select
-                className="sideViewSelect"
-                value={sideView}
-                onChange={(event) => openSide(event.target.value as SideView)}
-                aria-label="Sidebar view"
-              >
-                <option value="explorer">Explorer</option>
-                <option value="chats">Chats</option>
-                <option value="search">Search</option>
-                <option value="convert">Convert PDF</option>
-                <option value="info">Document Info</option>
-              </select>
+              <nav className="sideViewNav" aria-label="Sidebar views">
+                {([
+                  ['explorer', 'Explorer', Folder],
+                  ['chats', 'Chats', MessageSquareText],
+                  ['search', 'Search', Search],
+                  ['convert', 'Convert PDF', FileInput],
+                  ['info', 'Document info', Info],
+                ] as const).map(([view, label, Icon]) => (
+                  <button
+                    className={`ghostIcon sideViewButton${sideView === view ? ' active' : ''}`}
+                    key={view}
+                    onClick={() => openSide(view)}
+                    title={label}
+                    aria-label={label}
+                    aria-pressed={sideView === view}
+                  >
+                    <Icon size={15} />
+                  </button>
+                ))}
+              </nav>
               <div className="sidePanelActions">
                 {sideView === 'explorer' ? (
                   <>
@@ -2780,7 +2805,10 @@ function App() {
                   {convertMode === 'batch' && batchConvertResult ? (
                     <div className="batchConvertReport">
                       <strong>{batchConvertResult.converted} converted</strong>
-                      <span>{batchConvertResult.discovered} PDFs found · {batchConvertResult.skipped} skipped · {batchConvertResult.failed} failed</span>
+                      <span>{batchConvertResult.discovered} PDFs found · {batchConvertResult.skipped} skipped · {batchConvertResult.malformed} malformed · {batchConvertResult.failed} failed</span>
+                      {batchConvertResult.malformed_existing.map((entry) => (
+                        <span className="batchConvertError" key={entry.output} title={entry.issues.join('; ')}>{entry.output}: {entry.issues.join('; ')}</span>
+                      ))}
                       {batchConvertResult.errors.map((entry) => (
                         <span className="batchConvertError" key={entry.input} title={entry.error}>{entry.input}: {entry.error}</span>
                       ))}
@@ -2870,7 +2898,7 @@ function App() {
 
         <main className="centerPane">
           <header className="centerHeader">
-            <button className="ghostIcon" onClick={() => setSidebarCollapsed((value) => !value)} title="Toggle sidebar" aria-label="Toggle sidebar"><PanelLeftClose size={16} /></button>
+            <button className="centerNewChat" onClick={() => void newSession()} title="Start a new chat"><Plus size={14} />New chat</button>
             <span className="centerDoc" title={path}>{path ? (path.split(/[\\/]/).pop() || path) : 'No document selected'}</span>
             <span className={busyAction ? 'centerStatus busy' : 'centerStatus'}>{busyAction ? <><span className="statusDot" />{busyAction}</> : status}</span>
           </header>
@@ -2888,34 +2916,47 @@ function App() {
 
           <div className={sessionTurns.length > 0 ? 'chatPanel chatPanel--active' : 'chatPanel chatPanel--empty'}>
               {sessionTurns.length > 0 ? (
-                <div className="chatThread" ref={threadRef}>
-                  {sessionTurns.map((turn, idx) => (
-                    <ChatTurn
-                      key={idx}
-                      turn={turn}
-                      selectCitation={stableSelectCitation}
-                      selectedChunkId={selected?.chunk_id}
-                      showTrace={showTrace}
-                    />
-                  ))}
-                  {busy && (streamEvents.length > 0 || streamingAnswer) ? (
-                    <article className="chatMessage assistantMessage streamingMessage">
-                      {streamEvents.length > 0 ? (
-                        <ActivityTrace
-                          live
-                          searches={streamEvents.map((ev) => ({
-                            query: ev.query || '',
-                            mode: ev.mode,
-                            hits: ev.hits,
-                            pending: ev.event !== 'search_done',
-                          }))}
-                        />
-                      ) : null}
-                      {streamingAnswer ? (
-                        <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{streamingAnswer}</Markdown></div>
-                      ) : null}
-                      {showTrace && traceEvents.length > 0 ? <TraceView events={traceEvents} /> : null}
-                    </article>
+                <div className="chatThreadWrap">
+                  <div className="chatThread" ref={threadRef} onScroll={handleThreadScroll}>
+                    {sessionTurns.map((turn, idx) => (
+                      <ChatTurn
+                        key={idx}
+                        turn={turn}
+                        selectCitation={stableSelectCitation}
+                        selectedChunkId={selected?.chunk_id}
+                        showTrace={showTrace}
+                      />
+                    ))}
+                    {busy && (streamEvents.length > 0 || streamingAnswer) ? (
+                      <article className="chatMessage assistantMessage streamingMessage">
+                        {streamEvents.length > 0 ? (
+                          <ActivityTrace
+                            live
+                            searches={streamEvents.map((ev) => ({
+                              query: ev.query || '',
+                              mode: ev.mode,
+                              hits: ev.hits,
+                              pending: ev.event !== 'search_done',
+                            }))}
+                          />
+                        ) : null}
+                        {streamingAnswer ? (
+                          <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{streamingAnswer}</Markdown></div>
+                        ) : null}
+                        {showTrace && traceEvents.length > 0 ? <TraceView events={traceEvents} /> : null}
+                      </article>
+                    ) : null}
+                  </div>
+                  {showJumpToLatest ? (
+                    <button
+                      type="button"
+                      className="jumpToLatest"
+                      onClick={jumpToLatest}
+                      aria-label="Jump to the latest chat response"
+                    >
+                      <ChevronDown size={15} />
+                      Jump to latest
+                    </button>
                   ) : null}
                 </div>
               ) : null}

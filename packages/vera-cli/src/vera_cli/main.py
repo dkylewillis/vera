@@ -23,6 +23,13 @@ def non_negative_int(value: str) -> int:
     return parsed
 
 
+def positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="vera", description="Vector-Embedded Retrieval Archive CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -35,6 +42,15 @@ def build_parser() -> argparse.ArgumentParser:
     convert_p.add_argument("--chunk-size", type=int, default=500)
     convert_p.add_argument("--overlap", type=int, default=75)
     convert_p.add_argument("--store-original", default="true")
+    convert_p.add_argument(
+        "--ocr",
+        dest="ocr_mode",
+        choices=["auto", "off", "force"],
+        default="auto",
+        help="OCR mode: auto scans image-based pages, off disables OCR, force OCRs every page",
+    )
+    convert_p.add_argument("--ocr-language", default="eng", help="Tesseract language code")
+    convert_p.add_argument("--ocr-dpi", type=positive_int, default=300, help="OCR render resolution")
     convert_p.add_argument("--recursive", action="store_true", help="Discover PDFs recursively when input is a directory")
     convert_p.add_argument("--overwrite", action="store_true", help="Overwrite existing .vera files during directory conversion")
     convert_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
