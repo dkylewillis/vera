@@ -1,11 +1,50 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Page-1" id="XrhZETA3ub1GFt1qhfJo">
-    <mxGraphModel dx="2054" dy="743" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+    <mxGraphModel dx="2040" dy="729" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="qJ3BDbPPDKz4pdmzaI3h-1" parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;" value="" vertex="1">
-          <mxGeometry height="100" width="80" x="380" y="290" as="geometry" />
+        <mxCell id="qJ3BDbPPDKz4pdmzaI3h-1" parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;strokeColor=light-dark(#000000,#FFCC99);" value=".Vera" vertex="1">
+          <mxGeometry height="100" width="80" x="580" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-14" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="QMersOnDN2j-YuW7xHPu-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-1" parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;size=19;" value="PDF" vertex="1">
+          <mxGeometry height="80" width="60" x="30" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="80" width="330" x="150" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Metadata" vertex="1">
+          <mxGeometry height="60" width="70" x="160" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Assets" vertex="1">
+          <mxGeometry height="60" width="70" x="240" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Blocks" vertex="1">
+          <mxGeometry height="60" width="70" x="320" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Pages" vertex="1">
+          <mxGeometry height="60" width="70" x="400" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-15" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="QMersOnDN2j-YuW7xHPu-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Parse" vertex="1">
+          <mxGeometry height="100" width="80" x="160" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-16" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="QMersOnDN2j-YuW7xHPu-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Chunk" vertex="1">
+          <mxGeometry height="100" width="80" x="300" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Embed" vertex="1">
+          <mxGeometry height="100" width="80" x="440" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-17" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;" target="qJ3BDbPPDKz4pdmzaI3h-1">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
