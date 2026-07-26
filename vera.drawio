@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Page-1" id="XrhZETA3ub1GFt1qhfJo">
-    <mxGraphModel dx="1867" dy="972" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+    <mxGraphModel dx="2482" dy="1277" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -28,26 +28,27 @@
         <mxCell id="QMersOnDN2j-YuW7xHPu-207" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="QMersOnDN2j-YuW7xHPu-150">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="110.03" y="710" />
-              <mxPoint x="452.48" y="710" />
+              <mxPoint x="200.03" y="572.46" />
+              <mxPoint x="200.03" y="710" />
+              <mxPoint x="452.49" y="710" />
             </Array>
             <mxPoint x="450" y="670" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="QMersOnDN2j-YuW7xHPu-22" parent="1" style="shape=callout;whiteSpace=wrap;html=1;perimeter=calloutPerimeter;" value="User&#39;s Prompt" vertex="1">
-          <mxGeometry height="80" width="120" x="20" y="510.0000000000001" as="geometry" />
+        <mxCell id="QMersOnDN2j-YuW7xHPu-22" parent="1" style="shape=callout;whiteSpace=wrap;html=1;perimeter=calloutPerimeter;" value="&lt;br&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;Users Prompt&lt;/span&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="114.92" width="90" x="70" y="520" as="geometry" />
         </mxCell>
         <mxCell id="QMersOnDN2j-YuW7xHPu-101" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-29" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="QMersOnDN2j-YuW7xHPu-97" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="QMersOnDN2j-YuW7xHPu-29" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="LLM&lt;div&gt;Context&lt;/div&gt;" vertex="1">
-          <mxGeometry height="140" width="140" x="680" y="510" as="geometry" />
+          <mxGeometry height="140" width="110" x="680" y="510" as="geometry" />
         </mxCell>
         <mxCell id="QMersOnDN2j-YuW7xHPu-33" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-32" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="QMersOnDN2j-YuW7xHPu-29" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="QMersOnDN2j-YuW7xHPu-32" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Instructions" vertex="1">
-          <mxGeometry height="60" width="85" x="707.5" y="720" as="geometry" />
+          <mxGeometry height="60" width="85" x="692.5" y="710" as="geometry" />
         </mxCell>
         <mxCell id="QMersOnDN2j-YuW7xHPu-41" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" value="">
           <mxGeometry relative="1" as="geometry">
@@ -64,8 +65,13 @@
         <mxCell id="QMersOnDN2j-YuW7xHPu-70" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Embed" vertex="1">
           <mxGeometry height="60" width="75" x="250" y="504.91999999999996" as="geometry" />
         </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-209" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-97" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="950" y="580" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
         <mxCell id="QMersOnDN2j-YuW7xHPu-97" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;aspect=fixed;" value="LLM" vertex="1">
-          <mxGeometry height="80" width="80" x="860" y="540" as="geometry" />
+          <mxGeometry height="80" width="80" x="830" y="540" as="geometry" />
         </mxCell>
         <mxCell id="QMersOnDN2j-YuW7xHPu-110" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-108" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="QMersOnDN2j-YuW7xHPu-109" value="">
           <mxGeometry relative="1" as="geometry" />
@@ -190,6 +196,12 @@
         </mxCell>
         <mxCell id="QMersOnDN2j-YuW7xHPu-205" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-65" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.177;entryDx=0;entryDy=0;entryPerimeter=0;" target="QMersOnDN2j-YuW7xHPu-29">
           <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-210" parent="1" style="shape=callout;whiteSpace=wrap;html=1;perimeter=calloutPerimeter;" value="Response" vertex="1">
+          <mxGeometry height="80" width="120" x="950" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-211" parent="1" style="shape=actor;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="44.92" width="30" x="100" y="530" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
