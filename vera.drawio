@@ -41,8 +41,10 @@
             <mxPoint x="210" y="160" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="QMersOnDN2j-YuW7xHPu-199" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-65" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="QMersOnDN2j-YuW7xHPu-94" value="">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="QMersOnDN2j-YuW7xHPu-199" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-65" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="QMersOnDN2j-YuW7xHPu-29" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="560" y="534.9200000000001" as="targetPoint" />
+          </mxGeometry>
         </mxCell>
         <mxCell id="QMersOnDN2j-YuW7xHPu-65" parent="1" style="rhombus;whiteSpace=wrap;html=1;shapeInside=1;" value="Semantic Search" vertex="1">
           <mxGeometry height="80" width="80" x="412.5" y="494.91999999999996" as="geometry" />
@@ -52,12 +54,6 @@
         </mxCell>
         <mxCell id="QMersOnDN2j-YuW7xHPu-70" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Embed" vertex="1">
           <mxGeometry height="60" width="75" x="230" y="504.91999999999996" as="geometry" />
-        </mxCell>
-        <mxCell id="QMersOnDN2j-YuW7xHPu-198" edge="1" parent="1" source="QMersOnDN2j-YuW7xHPu-94" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="QMersOnDN2j-YuW7xHPu-29">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="QMersOnDN2j-YuW7xHPu-94" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Top K&amp;nbsp;&lt;div&gt;Chunks + Citations&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="110" x="560" y="499.91999999999996" as="geometry" />
         </mxCell>
         <mxCell id="QMersOnDN2j-YuW7xHPu-97" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;aspect=fixed;" value="LLM" vertex="1">
           <mxGeometry height="80" width="80" x="890" y="585" as="geometry" />
@@ -176,6 +172,12 @@
               <mxPoint x="360.04" y="625.04" />
             </Array>
           </mxGeometry>
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-202" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Top K Chunks + Citations" vertex="1">
+          <mxGeometry height="30" width="150" x="530" y="504.91999999999996" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-203" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Top K Chunks + Citations" vertex="1">
+          <mxGeometry height="30" width="150" x="530" y="600" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
