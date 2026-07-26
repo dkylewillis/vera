@@ -154,8 +154,8 @@ Single-archive JSON:
 There is no result `rank` field and no top-level `file` field for a
 single-archive search. Rank is the position in the `results` array.
 
-Directory/corpus JSON adds `file` to each result, an `index` object, and
-`skipped_files` diagnostics:
+Directory/corpus JSON adds `file` to each result, an `index` object,
+`skipped_files` diagnostics, and `skipped_semantic_model_groups` diagnostics:
 
 ```json
 {
@@ -188,6 +188,13 @@ Directory/corpus JSON adds `file` to each result, an `index` object, and
       "category": "invalid",
       "reason": "Missing required table: vera_metadata"
     }
+  ],
+  "skipped_semantic_model_groups": [
+    {
+      "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+      "dimension": 384,
+      "error": "ImportError: No module named 'sentence_transformers'"
+    }
   ]
 }
 ```
@@ -196,6 +203,10 @@ The `index` object may contain additional status fields. When `used` is false,
 search fell back to direct corpus search. Read `reasons` to explain why.
 Malformed archives are skipped instead of aborting the library; read
 `skipped_files` for absolute paths and validation reasons.
+For indexed semantic and hybrid searches, read
+`skipped_semantic_model_groups` for model groups omitted because their query
+embedder was unavailable or had a dimension mismatch. Hybrid keyword matches
+may still be returned when this array is non-empty.
 
 With `--context-chunks N`, each result adds `before_chunks` and `after_chunks`.
 Each context object contains:

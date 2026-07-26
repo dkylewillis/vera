@@ -32,6 +32,9 @@ The NumPy files store normalized, contiguous float32 matrices grouped by
 embedding model and dimension. Semantic queries run as one batched matrix
 operation per model group. Results from mixed models are rank-fused, then the
 winning chunk IDs are resolved against their source `.vera` files.
+If a query embedder cannot be loaded or has a different dimension,
+`skipped_semantic_model_groups` reports the omitted group and error; keyword
+search remains available.
 
 ## Lifecycle and fallback
 

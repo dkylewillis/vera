@@ -148,6 +148,26 @@ groups. The runtime must have the dependency required by every model it needs
 to query. Archives created with Sentence Transformers therefore require the
 `ml` extra at search time.
 
+If an indexed semantic or hybrid search cannot load a group's model, or the
+runtime model's dimension differs from the indexed dimension, VERA skips that
+semantic group and reports it:
+
+```json
+{
+  "skipped_semantic_model_groups": [
+    {
+      "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+      "dimension": 384,
+      "error": "ImportError: No module named 'sentence_transformers'"
+    }
+  ]
+}
+```
+
+This array is empty for keyword-only searches. Hybrid search can still return
+keyword matches, but its semantic coverage is incomplete whenever the array is
+non-empty.
+
 Corpus ranking is not identical to single-document ranking. Direct semantic
 search can merge raw cosine scores for archives sharing a model, while mixed
 models and keyword/hybrid corpus results require rank fusion. Indexed hybrid

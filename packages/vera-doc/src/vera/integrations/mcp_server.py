@@ -101,6 +101,7 @@ def build_server():
                 "mode": mode,
                 "index": {"used": corpus.uses_index, **corpus.index_status},
                 "skipped_files": corpus.invalid_files,
+                "skipped_semantic_model_groups": corpus.skipped_semantic_model_groups,
                 "results": results,
             }
         finally:

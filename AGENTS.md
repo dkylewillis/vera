@@ -86,8 +86,10 @@ and reports malformed archives in `malformed_existing`.
 
 Directory searches add `file` to each result and a top-level `index` status
 object. They also add top-level `skipped_files` diagnostics for malformed
-archives excluded from the search. Result order is the rank; the CLI does not
-emit a `rank` field.
+archives excluded from the search and `skipped_semantic_model_groups` for
+indexed model groups omitted because the query embedder was unavailable or
+dimension-incompatible. Result order is the rank; the CLI does not emit a
+`rank` field.
 
 ## Rules for agents
 

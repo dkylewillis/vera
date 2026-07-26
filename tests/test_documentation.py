@@ -132,5 +132,7 @@ def test_hardening_json_contracts_are_documented():
     assert "malformed_existing" in conversion
     assert "requires OCR" in conversion
     assert "skipped_files" in libraries
+    assert "skipped_semantic_model_groups" in libraries
     assert "does not reopen archives" in libraries
     assert "`skipped_files`" in mcp
+    assert "`skipped_semantic_model_groups`" in mcp

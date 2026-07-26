@@ -71,7 +71,11 @@ Options:
 
 `--figures`, `--regions`, and context fields are exposed through JSON output.
 Directory search JSON also includes `skipped_files` with paths and validation
-reasons for malformed archives that were excluded.
+reasons for malformed archives that were excluded. Indexed directory search
+also includes `skipped_semantic_model_groups`; each entry identifies a model
+name, indexed dimension, and loading or dimension error that prevented that
+group from participating in semantic or hybrid retrieval. Non-JSON output
+prints the same entries as warnings.
 
 ## `vera index build DIRECTORY`
 

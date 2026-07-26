@@ -70,6 +70,7 @@ class VeraCorpus:
         self._collection_index = collection_index
         self.index_status = index_status or {"exists": False, "fresh": False, "reasons": ["index is missing"]}
         self.invalid_files = invalid_files or []
+        self.skipped_semantic_model_groups: list[dict[str, Any]] = []
 
     @classmethod
     def open(
@@ -251,9 +252,14 @@ class VeraCorpus:
         if context_chunks < 0:
             raise ValueError("context_chunks must be non-negative")
         if top_k == 0:
+            self.skipped_semantic_model_groups = []
             return []
+        self.skipped_semantic_model_groups = []
         if self._collection_index is not None:
             final = self._search_index(query, mode, top_k)
+            self.skipped_semantic_model_groups = list(
+                self._collection_index.skipped_semantic_model_groups
+            )
         else:
             per_file, models = self._search_files(query, mode, top_k)
             if mode == "semantic":

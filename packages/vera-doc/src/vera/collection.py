@@ -626,6 +626,7 @@ class VeraCollectionIndex:
         self.conn = conn
         self.conn.row_factory = sqlite3.Row
         self._matrices: dict[str, np.ndarray] = {}
+        self.skipped_semantic_model_groups: list[dict[str, Any]] = []
 
     @classmethod
     def open(cls, directory: str, *, check_status: bool = True) -> "VeraCollectionIndex":
@@ -662,11 +663,28 @@ class VeraCollectionIndex:
             try:
                 embedder = get_embedder(group["model_name"])
                 if embedder.dimension != group["dimension"]:
+                    self.skipped_semantic_model_groups.append(
+                        {
+                            "model_name": str(group["model_name"]),
+                            "dimension": int(group["dimension"]),
+                            "error": (
+                                f"Runtime model dimension {embedder.dimension} does not match "
+                                f"indexed dimension {group['dimension']}"
+                            ),
+                        }
+                    )
                     continue
                 query_vector = np.asarray(embedder.embed([query])[0], dtype=np.float32)
-            except Exception:
+            except Exception as exc:
                 # Keyword search remains available when a recorded model cannot
                 # be loaded in the current environment.
+                self.skipped_semantic_model_groups.append(
+                    {
+                        "model_name": str(group["model_name"]),
+                        "dimension": int(group["dimension"]),
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
+                )
                 continue
             norm = float(np.linalg.norm(query_vector))
             if norm:
@@ -735,6 +753,7 @@ class VeraCollectionIndex:
         mode = mode.lower()
         if mode not in {"semantic", "keyword", "hybrid"}:
             raise ValueError("mode must be semantic, keyword, or hybrid")
+        self.skipped_semantic_model_groups = []
         if top_k <= 0:
             return []
         candidate_limit = max(top_k * 5, 50)

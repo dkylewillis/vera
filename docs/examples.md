@@ -81,9 +81,11 @@ vera index build "./proposals" --recursive --exclude "archive/**" --json
 vera search "./proposals" "termination clause" --top-k 10 --json
 ```
 
-Check `malformed_existing` after conversion and `skipped_files` after search.
-These diagnostics identify broken archives without preventing healthy
-documents in the same library from being converted, inspected, or searched.
+Check `malformed_existing` after conversion, then `skipped_files` and
+`skipped_semantic_model_groups` after search. These diagnostics identify broken
+archives and unavailable or incompatible semantic model groups without
+preventing healthy documents or keyword matches in the same library from being
+converted, inspected, or searched.
 
 After adding or replacing documents:
 

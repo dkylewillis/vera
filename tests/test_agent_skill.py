@@ -119,6 +119,7 @@ def test_quick_reference_matches_search_json_contract():
     assert '"rank":' not in agents
     assert '"file": "manual.vera"' not in agents
     assert '"document_id": "document_0001"' in agents
+    assert "`skipped_semantic_model_groups`" in agents
     assert "vera mcp` is a long-running stdio server and does not accept `--json`" in agents
 
 
@@ -128,5 +129,7 @@ def test_portable_skill_documents_hardened_library_contracts():
 
     assert "`malformed_existing`" in skill
     assert "`skipped_files`" in skill
+    assert "`skipped_semantic_model_groups`" in skill
     assert '"malformed_existing": [' in reference
     assert '"skipped_files": [' in reference
+    assert '"skipped_semantic_model_groups": [' in reference

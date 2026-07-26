@@ -222,6 +222,11 @@ path. `VeraCorpus.open()` automatically uses a fresh compatible collection
 index unless `use_index=False`. Inspection and fallback search skip malformed
 archives; inspect `corpus.invalid_files` or the `skipped_files` field returned
 by `corpus.inspect()` for absolute paths and validation reasons.
+After indexed semantic or hybrid search, inspect
+`corpus.skipped_semantic_model_groups`. Each entry contains `model_name`,
+`dimension`, and `error` for a semantic group omitted because its query
+embedder could not be loaded or had an incompatible dimension. The list resets
+for every search.
 
 Build a corpus from explicit paths:
 

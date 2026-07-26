@@ -115,6 +115,7 @@ def cmd_search(args) -> int:
             if isinstance(target, VeraCorpus):
                 response["index"] = {"used": target.uses_index, **target.index_status}
                 response["skipped_files"] = target.invalid_files
+                response["skipped_semantic_model_groups"] = target.skipped_semantic_model_groups
             print(json.dumps(response))
             return 0
         if isinstance(target, VeraCorpus):
@@ -123,6 +124,12 @@ def cmd_search(args) -> int:
             elif target.index_status.get("exists"):
                 reasons = "; ".join(target.index_status.get("reasons", []))
                 print(f"Index: fallback ({reasons})")
+            for group in target.skipped_semantic_model_groups:
+                print(
+                    "Warning: skipped semantic model group "
+                    f"{group['model_name']} ({group['dimension']} dimensions): "
+                    f"{group['error']}"
+                )
         for result in results:
             print(f"Score: {result.score:.4f}")
             file = getattr(result, "file", None)

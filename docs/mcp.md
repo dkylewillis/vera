@@ -91,9 +91,13 @@ Parameters:
 - `recursive: bool | null = null`
 - `excludes: list[str] | null = null`
 
-Returns the directory, query, mode, index status, `skipped_files`, and results.
-Each result is attributed to its archive with `file`. Malformed archives are
-excluded and reported with their paths and validation reasons.
+Returns the directory, query, mode, index status, `skipped_files`,
+`skipped_semantic_model_groups`, and results. Each result is attributed to its
+archive with `file`. Malformed archives are excluded and reported with their
+paths and validation reasons. For indexed semantic and hybrid searches,
+`skipped_semantic_model_groups` reports any model group omitted because its
+query embedder was unavailable or had the wrong dimension; hybrid keyword
+matches may still be returned.
 
 When `recursive` and `excludes` are null and an index exists, the corpus uses
 the index's saved discovery settings.

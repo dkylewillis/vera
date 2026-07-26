@@ -153,7 +153,36 @@ class TestBuildAndSearch:
         monkeypatch.setattr(collection, "get_embedder", unavailable)
         with VeraCorpus.open(str(nested_library)) as corpus:
             assert corpus.search("water treatment", mode="semantic") == []
+            assert corpus.skipped_semantic_model_groups == [
+                {
+                    "model_name": "vera-hashing-384",
+                    "dimension": 384,
+                    "error": "ImportError: vera-hashing-384",
+                }
+            ]
+            assert corpus.search("water treatment", mode="hybrid")[0].file.endswith("water.vera")
+            assert corpus.skipped_semantic_model_groups[0]["error"] == "ImportError: vera-hashing-384"
             assert corpus.search("water treatment", mode="keyword")[0].file.endswith("water.vera")
+            assert corpus.skipped_semantic_model_groups == []
+
+    def test_incompatible_runtime_model_dimension_is_reported(self, nested_library, monkeypatch):
+        import vera.collection as collection
+
+        build_library_index(str(nested_library), recursive=True, excludes=["archive"])
+
+        class WrongDimensionEmbedder:
+            dimension = 768
+
+        monkeypatch.setattr(collection, "get_embedder", lambda model: WrongDimensionEmbedder())
+        with VeraCorpus.open(str(nested_library)) as corpus:
+            assert corpus.search("water treatment", mode="semantic") == []
+            assert corpus.skipped_semantic_model_groups == [
+                {
+                    "model_name": "vera-hashing-384",
+                    "dimension": 384,
+                    "error": "Runtime model dimension 768 does not match indexed dimension 384",
+                }
+            ]
 
     def test_invalid_files_are_reported_without_making_index_stale(
         self, nested_library, monkeypatch
@@ -310,6 +339,7 @@ class TestCli:
         )
         assert searched["results"][0]["file"].endswith("water.vera")
         assert searched["index"]["used"] is True
+        assert searched["skipped_semantic_model_groups"] == []
         updated = self._run_json("index", "update", str(nested_library), "--json")
         assert updated["indexed"] == 2
 
@@ -349,6 +379,38 @@ async def test_mcp_recursive_corpus_search(nested_library):
     assert payload["results"][0]["file"].endswith("roadway.vera")
     assert "figures" in payload["results"][0]
     assert payload["index"]["used"] is False
+
+
+@pytest.mark.anyio
+async def test_mcp_reports_skipped_semantic_model_groups(nested_library, monkeypatch):
+    import vera.collection as collection
+    from vera.integrations.mcp_server import build_server
+
+    build_library_index(str(nested_library), recursive=True, excludes=["archive"])
+
+    def unavailable(model):
+        raise ImportError(f"{model} dependency is unavailable")
+
+    monkeypatch.setattr(collection, "get_embedder", unavailable)
+    result = await build_server().call_tool(
+        "vera_corpus_search",
+        {
+            "directory": str(nested_library),
+            "query": "water treatment",
+            "mode": "hybrid",
+            "top_k": 1,
+        },
+    )
+    content, structured = result
+    payload = structured.get("result", structured) if structured is not None else json.loads(content[0].text)
+    assert payload["results"][0]["file"].endswith("water.vera")
+    assert payload["skipped_semantic_model_groups"] == [
+        {
+            "model_name": "vera-hashing-384",
+            "dimension": 384,
+            "error": "ImportError: vera-hashing-384 dependency is unavailable",
+        }
+    ]
 
 
 @pytest.fixture

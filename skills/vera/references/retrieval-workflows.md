@@ -202,7 +202,9 @@ Indexing writes local artifacts and should only be done when authorized.
 2. Search the directory normally. A fresh index is selected automatically.
 3. Inspect `index.used`; if false, read `index.reasons`.
    In either mode, inspect `skipped_files` for malformed archives excluded
-   from retrieval.
+   from retrieval. For indexed semantic or hybrid searches, inspect
+   `skipped_semantic_model_groups`; a non-empty array means semantic coverage
+   is incomplete even if hybrid keyword matches were returned.
 4. After adding, moving, replacing, or deleting archives:
 
    ```bash

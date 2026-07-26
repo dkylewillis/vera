@@ -57,7 +57,10 @@ Use `--recursive` for a nested, unindexed directory. A fresh local index is used
 automatically when one exists; inspect the top-level `index.used` and
 `index.reasons` fields instead of assuming the index was active. Also inspect
 `skipped_files`: malformed archives are excluded from results and reported
-with their paths and validation reasons.
+with their paths and validation reasons. For indexed semantic or hybrid
+searches, also inspect `skipped_semantic_model_groups`: unavailable or
+dimension-incompatible query embedders are omitted, so semantic coverage is
+incomplete even though keyword matches may still be returned.
 
 ## Choose retrieval options
 
