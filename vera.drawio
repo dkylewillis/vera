@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Page-1" id="XrhZETA3ub1GFt1qhfJo">
-    <mxGraphModel dx="645" dy="332" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+    <mxGraphModel dx="922" dy="474" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -201,6 +201,15 @@
         </mxCell>
         <mxCell id="QMersOnDN2j-YuW7xHPu-227" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Hybrid Search" vertex="1">
           <mxGeometry height="30" width="140" x="355" y="425.00000000000006" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-233" connectable="0" parent="1" style="group" value="" vertex="1">
+          <mxGeometry height="100" width="90" x="310" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-234" parent="QMersOnDN2j-YuW7xHPu-233" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;strokeColor=light-dark(#000000,#FFCC99);" value="" vertex="1">
+          <mxGeometry height="94.44444444444444" width="79.41176470588233" x="10.588235294117647" y="5.555555555555555" as="geometry" />
+        </mxCell>
+        <mxCell id="QMersOnDN2j-YuW7xHPu-236" parent="QMersOnDN2j-YuW7xHPu-233" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value=".&lt;font style=&quot;font-size: 22px;&quot;&gt;vera&lt;/font&gt;" vertex="1">
+          <mxGeometry height="16.666666666666668" width="31.764705882352942" x="29.114705882352943" y="70.00333333333334" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
