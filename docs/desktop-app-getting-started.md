@@ -87,5 +87,17 @@ app and Python sidecar, and writes an NSIS installer into that directory.
 - **The Electron window does not open** — check the `npm run app:dev` terminal
   for a Python sidecar, TypeScript, Vite, or port error before restarting it.
 
+## Provider request errors
+
+LLM authentication, credit, rate-limit, and model errors appear in a compact,
+dismissible banner. The failed prompt is restored in the composer so it can be
+edited or retried without restarting the app. HTTP 401 and 403 errors usually
+require checking the saved API key or account permissions; HTTP 402 errors
+require provider credits or a lower-cost model.
+
+If a provider has no endpoint that supports image input, VERA retries the
+request with text only and adds a note to the assistant response explaining
+that the images were omitted.
+
 For implementation details and the sidecar protocol, see the
 [desktop app architecture](desktop-app-architecture.md).

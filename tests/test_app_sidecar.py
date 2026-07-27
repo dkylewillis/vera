@@ -535,6 +535,7 @@ def test_answer_action_falls_back_to_text_when_vision_unsupported(tmp_path, monk
     assert response["result"]["answer"].endswith("[C1]")
     # Images were stripped after the rejection, so none actually reached the model.
     assert response["result"]["images_sent"] == 0
+    assert response["result"]["vision_fallback"] is True
 
 
 

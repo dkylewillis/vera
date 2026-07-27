@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import io
 import json
+import urllib.error
 
-from vera_app.llm import LlmConfig, chat
+import pytest
+
+from vera_app.llm import LlmConfig, ProviderHttpError, VisionUnsupportedError, chat
 
 
 TOOL = {
@@ -47,6 +51,84 @@ def config(**overrides):
     }
     values.update(overrides)
     return LlmConfig(**values)
+
+
+def test_provider_http_error_uses_bounded_message(monkeypatch):
+    provider_payload = {
+        "error": {
+            "message": "This request requires more credits, or fewer max_tokens.",
+            "code": 402,
+            "metadata": {
+                "previous_errors": [{"message": "repeated provider detail"}] * 50,
+            },
+        },
+        "user_id": "provider-user-id",
+    }
+
+    def fake_urlopen(request, timeout):
+        raise urllib.error.HTTPError(
+            request.full_url,
+            402,
+            "Payment Required",
+            {},
+            io.BytesIO(json.dumps(provider_payload).encode()),
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    with pytest.raises(ProviderHttpError) as raised:
+        chat(
+            [{"role": "user", "content": "Find it"}],
+            config(
+                provider_key="openrouter",
+                model="anthropic/claude-sonnet",
+                base_url="https://openrouter.ai/api/v1",
+            ),
+        )
+
+    message = str(raised.value)
+    assert raised.value.status_code == 402
+    assert "requires more credits" in message
+    assert "Add provider credits or choose a lower-cost model." in message
+    assert "previous_errors" not in message
+    assert "provider-user-id" not in message
+    assert len(message) < 500
+
+
+def test_openrouter_404_without_image_endpoint_is_vision_unsupported(monkeypatch):
+    provider_payload = {
+        "error": {
+            "message": "No endpoints found that support image input",
+            "code": 404,
+        },
+    }
+
+    def fake_urlopen(request, timeout):
+        raise urllib.error.HTTPError(
+            request.full_url,
+            404,
+            "Not Found",
+            {},
+            io.BytesIO(json.dumps(provider_payload).encode()),
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    with pytest.raises(VisionUnsupportedError):
+        chat(
+            [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Describe this image"},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}},
+                ],
+            }],
+            config(
+                provider_key="openrouter",
+                model="z-ai/glm-5.2",
+                base_url="https://openrouter.ai/api/v1",
+            ),
+        )
 
 
 def test_gpt_56_uses_responses_and_replays_reasoning(monkeypatch):

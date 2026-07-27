@@ -84,6 +84,43 @@ class VisionUnsupportedError(RuntimeError):
     """Raised when a provider rejects image content in a message."""
 
 
+class ProviderHttpError(RuntimeError):
+    """A bounded, user-facing summary of an LLM provider HTTP failure."""
+
+    def __init__(self, status_code: int, detail: str):
+        self.status_code = status_code
+        self.provider_message = _provider_error_message(detail)
+        message = f"LLM provider request failed (HTTP {status_code}): {self.provider_message}"
+        if status_code == 402:
+            message += " Add provider credits or choose a lower-cost model."
+        elif status_code in (401, 403):
+            message += " Check the provider API key and account permissions."
+        super().__init__(message)
+
+
+def _provider_error_message(detail: str, limit: int = 320) -> str:
+    """Extract one useful message without forwarding a provider's full error envelope."""
+    message = ""
+    try:
+        payload = json.loads(detail)
+        if isinstance(payload, dict):
+            error = payload.get("error")
+            if isinstance(error, dict):
+                message = str(error.get("message") or error.get("detail") or "")
+            elif isinstance(error, str):
+                message = error
+            if not message:
+                message = str(payload.get("message") or payload.get("detail") or "")
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+    if not message:
+        message = re.sub(r"<[^>]+>", " ", detail)
+    message = " ".join(message.split()) or "The provider rejected the request."
+    if len(message) > limit:
+        message = f"{message[: limit - 1].rstrip()}…"
+    return message
+
+
 class LlmProvider(Protocol):
     def generate(self, messages: list[Message], config: LlmConfig) -> LlmResult: ...
 
@@ -505,9 +542,9 @@ class OpenAiCompatibleProvider:
                     continue
                 if exc.code in (400, 404, 422) and tools and _tools_rejected(detail):
                     raise ToolsUnsupportedError(detail) from exc
-                if exc.code in (400, 415, 422) and _has_image_content(messages) and _vision_rejected(detail):
+                if exc.code in (400, 404, 415, 422) and _has_image_content(messages) and _vision_rejected(detail):
                     raise VisionUnsupportedError(detail) from exc
-                raise RuntimeError(f"LLM provider returned HTTP {exc.code}: {detail}") from exc
+                raise ProviderHttpError(exc.code, detail) from exc
             except urllib.error.URLError as exc:
                 raise RuntimeError(f"Unable to reach LLM provider: {exc.reason}") from exc
         if response_payload is None:
@@ -654,9 +691,9 @@ class OpenAiResponsesProvider:
                     continue
                 if exc.code in (400, 404, 422) and responses_tools and _tools_rejected(detail):
                     raise ToolsUnsupportedError(detail) from exc
-                if exc.code in (400, 415, 422) and _has_image_content(messages) and _vision_rejected(detail):
+                if exc.code in (400, 404, 415, 422) and _has_image_content(messages) and _vision_rejected(detail):
                     raise VisionUnsupportedError(detail) from exc
-                raise RuntimeError(f"OpenAI Responses API returned HTTP {exc.code}: {detail}") from exc
+                raise ProviderHttpError(exc.code, detail) from exc
             except urllib.error.URLError as exc:
                 raise RuntimeError(f"Unable to reach OpenAI Responses API: {exc.reason}") from exc
         if response_payload is None:
@@ -738,7 +775,7 @@ def list_models(config: LlmConfig) -> list[str]:
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"LLM provider returned HTTP {exc.code}: {detail}") from exc
+        raise ProviderHttpError(exc.code, detail) from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Unable to reach LLM provider: {exc.reason}") from exc
 

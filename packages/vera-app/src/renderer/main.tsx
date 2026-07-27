@@ -677,7 +677,7 @@ function ActivityTrace({
     ...(citations || []).map((citation): ActivityStep => ({ kind: 'source', citation })),
     ...(citations || []).flatMap((citation): ActivityStep[] =>
       (citation.result.figures || [])
-        .filter((figure) => figure.data_url)
+        .filter((figure) => figure.data_url && figure.included_in_context)
         .map((figure): ActivityStep => ({ kind: 'image', citation, figure })),
     ),
   ];
@@ -847,6 +847,7 @@ const ChatTurn = React.memo(function ChatTurn({
         selectedChunkId={selectedChunkId}
       />
       {turn.answer_mode === 'retrieval' ? <div className="noteBanner">The active API route rejected tool calling, so VERA used a single retrieval pass instead of agentic search.</div> : null}
+      {turn.vision_fallback ? <div className="noteBanner">This model does not support image input. VERA omitted the images and retried with text only.</div> : null}
       {turn.citations && turn.citations.length ? (
         renderAnswerWithCitations(turn.content, turn.citations, selectCitation)
       ) : (
@@ -1441,7 +1442,6 @@ function App() {
   const [hoveredModelOptions, setHoveredModelOptions] = useState<{
     providerId: string;
     model: string;
-    top: number;
   } | null>(null);
   const [modelManagerOpen, setModelManagerOpen] = useState(false);
   const [modelRefreshBusyId, setModelRefreshBusyId] = useState('');
@@ -1646,7 +1646,7 @@ function App() {
     try {
       const response = await window.vera.request<T>(payload);
       if (!response.ok) {
-        setStatus(response.error || 'Request failed');
+        setStatus('Ready');
         setErrorMessage(response.error || 'Request failed');
         return null;
       }
@@ -1654,7 +1654,7 @@ function App() {
       return (response.result || null) as T | null;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Request failed';
-      setStatus(message);
+      setStatus('Ready');
       setErrorMessage(message);
       return null;
     } finally {
@@ -1999,6 +1999,7 @@ function App() {
         mode_label: result.mode_label,
         trace: turnTrace,
         images_sent: result.images_sent,
+        vision_fallback: result.vision_fallback,
         llm: result.llm,
         timestamp: now,
       };
@@ -2903,7 +2904,24 @@ function App() {
             <span className={busyAction ? 'centerStatus busy' : 'centerStatus'}>{busyAction ? <><span className="statusDot" />{busyAction}</> : status}</span>
           </header>
 
-          {errorMessage ? <div className="errorBanner centerBanner">{errorMessage}</div> : null}
+          {errorMessage ? (
+            <div className="errorBanner centerBanner" role="alert">
+              <AlertTriangle size={15} aria-hidden="true" />
+              <span className="errorBannerMessage" title={errorMessage}>{errorMessage}</span>
+              <button
+                type="button"
+                className="errorBannerDismiss"
+                aria-label="Dismiss error"
+                title="Dismiss error"
+                onClick={() => {
+                  setErrorMessage(null);
+                  setStatus('Ready');
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : null}
           {usesFallback ? (
             <div className="fallbackBanner centerBanner">
               <AlertTriangle size={15} />
@@ -3150,13 +3168,10 @@ function App() {
                                         key={`${profile.id}-${model}`}
                                         className={profile.id === activeProviderId && model === activeModel ? 'modelOption active' : 'modelOption'}
                                         onClick={() => void selectActiveModel(profile.id, model)}
-                                        onMouseEnter={(event) => {
-                                          const menu = event.currentTarget.closest<HTMLElement>('.modelPickerMenu');
-                                          const menuTop = menu?.getBoundingClientRect().top ?? 0;
+                                        onMouseEnter={() => {
                                           setHoveredModelOptions({
                                             providerId: profile.id,
                                             model,
-                                            top: event.currentTarget.getBoundingClientRect().top - menuTop,
                                           });
                                         }}
                                       >
@@ -3203,7 +3218,7 @@ function App() {
                                 ? options.reasoning_effort
                                 : 'medium';
                               return (
-                                <div className="modelOptionsFlyout" style={{ top: hoveredModelOptions.top }}>
+                                <div className="modelOptionsFlyout">
                                   <span className="modelOptionsHeading">Options</span>
                                   <label className="modelFlyoutToggle">
                                     <span>Thinking</span>
@@ -3300,8 +3315,8 @@ function App() {
             <div className="viewerHeaderActions">
               {selected ? (
                 <div className="viewerModeToggle">
-                  <button className={viewerMode === 'selection' ? 'active' : ''} onClick={() => setViewerMode('selection')} title="Show chunk debug data">Details</button>
                   <button className={viewerMode === 'document' ? 'active' : ''} onClick={() => { setViewerMode('document'); if (!sourceDocument && selectedSourcePath) void loadSourceDocument(selectedSourcePath, false); }} title="Show full document">Document</button>
+                  <button className={viewerMode === 'selection' ? 'active' : ''} onClick={() => setViewerMode('selection')} title="Show chunk debug data">Details</button>
                 </div>
               ) : null}
               <button className="ghostIcon" onClick={() => setSourcePaneWidth(sourceExpanded ? 34 : 64)} title={sourceExpanded ? 'Restore viewer' : 'Expand viewer'} aria-label={sourceExpanded ? 'Restore viewer' : 'Expand viewer'}>

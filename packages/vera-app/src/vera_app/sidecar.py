@@ -666,6 +666,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
     # off for the rest of this answer the first time it rejects an image message
     # (auto-detected — there's no per-provider "supports vision" setting).
     vision_available = True
+    vision_fallback = False
     try:
         # One extra turn beyond the search budget lets the model write its final answer.
         for turn in range(mode.max_searches + 1):
@@ -692,6 +693,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
                 # offering images again this answer.
                 _strip_image_parts(messages)
                 vision_available = False
+                vision_fallback = True
                 response = chat(
                     messages,
                     config,
@@ -792,6 +794,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
         except VisionUnsupportedError:
             # This provider also can't take image input; retry once, text-only.
             _strip_image_parts(fallback_messages)
+            vision_fallback = True
             llm_result = generate(fallback_messages, config)
         record({
             "event": "llm_response",
@@ -815,6 +818,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
             "searches": [],
             "trace": trace,
             "images_sent": images_sent,
+            "vision_fallback": vision_fallback,
             "llm": {"provider": llm_result.provider, "model": llm_result.model, "usage": llm_result.usage},
         }
 
@@ -877,6 +881,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
         "searches": tool.searches,
         "trace": trace,
         "images_sent": images_sent,
+        "vision_fallback": vision_fallback,
         "llm": {
             "provider": "openai_compatible",
             "model": last_response.model if last_response else config.model,

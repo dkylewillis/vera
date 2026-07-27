@@ -220,6 +220,7 @@ export interface ChatAnswerResult {
   searches?: { query: string; mode: string; top_k: number; hits: number }[];
   trace?: StreamEvent[];
   images_sent?: number;
+  vision_fallback?: boolean;
   llm?: {
     provider: string;
     model: string;
@@ -237,6 +238,7 @@ export interface SessionTurn {
   mode_label?: string;
   trace?: StreamEvent[];
   images_sent?: number;
+  vision_fallback?: boolean;
   llm?: { provider: string; model: string; usage?: Record<string, unknown> | null };
   timestamp: number;
 }
