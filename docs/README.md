@@ -7,6 +7,8 @@ figures, and citation metadata in one portable `.vera` file.
 
 - [Getting started](getting-started.md) — install VERA, convert a PDF, and run
   the first cited search.
+- [Run the desktop app](desktop-app-getting-started.md) — install dependencies,
+  start the development app, and create an unpacked build.
 - [Examples and recipes](examples.md) — copyable workflows for individual
   documents and document libraries.
 - [Troubleshooting](troubleshooting.md) — installation, conversion, search,
@@ -29,6 +31,7 @@ figures, and citation metadata in one portable `.vera` file.
   exhaustive JSON and exit-code contract.
 - [VERA format specification](vera-spec-v0.1.md)
 - [Collection index design and behavior](collection-index.md)
+- [Library index structure diagrams](library-index-structure.md)
 - [Portable Agent Skill](../skills/vera/SKILL.md)
 - [Agent-skill installation and authoring](agent-skills.md)
 

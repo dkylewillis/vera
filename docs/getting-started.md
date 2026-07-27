@@ -9,15 +9,20 @@ format or API changes before a stable release.
 ## Requirements
 
 - Python 3.10 or newer
+- Git
 - A local PDF
 - Windows, macOS, or Linux
 
-## Install
+## Install from source
 
-Install the CLI into your preferred Python environment:
+VERA is not currently published on PyPI, so `python -m pip install vera-cli`
+does not work yet. Clone the repository and install both workspace packages
+into your preferred Python environment:
 
 ```bash
-python -m pip install vera-cli
+git clone https://github.com/dkylewillis/vera.git
+cd vera
+python -m pip install ./packages/vera-doc ./packages/vera-cli
 ```
 
 Verify that the console script is available:
@@ -32,11 +37,12 @@ If `vera` is not on `PATH`, invoke the same CLI as a Python module:
 python -m vera_cli --help
 ```
 
-Contributors working from a repository checkout should use:
+Contributors using `uv` can instead synchronize the workspace and invoke the
+CLI as a Python module:
 
 ```bash
 uv sync --extra dev
-uv run vera --help
+uv run python -m vera_cli --help
 ```
 
 ## Convert a PDF

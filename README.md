@@ -10,29 +10,38 @@ New to VERA? Start with the
 
 ## What is VERA?
 
-```text
-   The old way (every app repeats this):       The VERA way (do it once):
+Most retrieval-augmented generation (RAG) systems store the source document,
+parsed text, metadata, embeddings, and keyword indexes in separate services.
+Applications must keep those assets synchronized and often repeat ingestion
+when a document moves to another environment. VERA packages the same retrieval
+assets with the original document in one portable, self-contained SQLite file.
 
-   PDF ─> parse ─> chunk ─> embed ─┐           PDF ──> vera convert ──> ordinance.vera
-                                   │                                       │
-                              vector DB             ┌──────────────────────┼──────────────┐
-                                   │                ▼                      ▼              ▼
-                                search           desktop app          CLI search      agents
+### Convert once
 
-   ┌─────────────────── ordinance.vera (a single SQLite file) ────────────────────┐
-   │                                                                             │
-   │   original PDF      parsed pages & blocks       chunks with citations       │
-   │   (assets)          headings / paragraphs /     "Ch 110 > Art 5 > Parking"  │
-   │                     images / captions           page 42                     │
-   │                                                                             │
-   │   embeddings        FTS5 keyword index          figures + captions          │
-   │   (float32)         (bm25)                      (extracted images)          │
-   │                                                                             │
-   └── open it anywhere: semantic, keyword, and hybrid search with no server, ───┘
-       no vector database, and no re-ingestion
-```
+During conversion, VERA extracts native PDF text and selectively OCRs
+image-based pages. It preserves page structure, headings, figures, captions,
+and source coordinates; splits the text into citation-ready chunks; creates
+embeddings and an FTS5 keyword index; and stores every artifact in the `.vera`
+archive. The completed archive is validated before it is published.
 
-A search result always points back to its source: filename, page range, heading path, score, and the figures on those pages.
+<img src="convert.png" alt="VERA conversion workflow from PDF parsing and OCR through chunking, embedding, and keyword indexing into a portable .vera archive" width="50%">
+
+### Search anywhere
+
+At search time, VERA compares the query with the stored embeddings for semantic
+matches and with the FTS5 index for keyword matches. Hybrid search normalizes
+and fuses both rankings, then returns the best chunks with their source file,
+page range, heading path, and optional figures and highlight regions. An app or
+agent can pass those grounded results to an LLM, but searching the archive
+itself requires no LLM, vector database, server, or re-ingestion.
+
+For document libraries, VERA can search a folder of archives directly or build
+a persistent local collection index for faster retrieval across hundreds of
+files. A fresh index is used automatically; if it is missing or stale, VERA
+falls back to searching the individual archives. The index is rebuildable, so
+the portable `.vera` files remain the source of truth.
+
+<img src="search.png" alt="VERA hybrid search workflow combining semantic and keyword search to provide cited context for an LLM response" width="50%">
 
 ## Quick start
 
@@ -230,7 +239,7 @@ npm run app:dev
 npm run app:dist
 ```
 
-Run these from the repo root. The desktop app uses a two-pane Ask and Source Document workspace with document opening in the native File menu, open document metrics in a bottom status bar, and a draggable Source Document divider for PDF review. Activating a folder makes the entire nested library the default Search and Ask scope while opening an individual archive only changes the viewer; checked archives temporarily narrow retrieval and clearing them restores the library. Explorer shows `Indexed`, `Stale`, and `No index` badges, prompts to build or update local collection indexes, and always allows recursive fallback search with a slower-search notice. The Convert view can process one PDF or batch-convert a directory recursively, naming each archive after its source PDF and skipping existing archives unless overwrite is enabled. The app can also inspect and validate archives, ask natural-language questions with grounded citations, view embedded source PDFs as scrollable pages with selectable text and grounded highlights, preview figures, and export the embedded source document through the sidecar protocol. The unpacked Windows build writes `VERA.exe` under `packages/vera-app/release/win-unpacked`. See [docs/desktop-app-architecture.md](docs/desktop-app-architecture.md) for the app architecture and library-index workflow.
+Run these from the repo root. See [Run the desktop app](docs/desktop-app-getting-started.md) for prerequisites, complete setup instructions, build output, and startup troubleshooting. The desktop app uses a two-pane Ask and Source Document workspace with document opening in the native File menu, open document metrics in a bottom status bar, and a draggable Source Document divider for PDF review. Activating a folder makes the entire nested library the default Search and Ask scope while opening an individual archive only changes the viewer; checked archives temporarily narrow retrieval and clearing them restores the library. Explorer shows `Indexed`, `Stale`, and `No index` badges, prompts to build or update local collection indexes, and always allows recursive fallback search with a slower-search notice. The Convert view can process one PDF or batch-convert a directory recursively, naming each archive after its source PDF and skipping existing archives unless overwrite is enabled. The app can also inspect and validate archives, ask natural-language questions with grounded citations, view embedded source PDFs as scrollable pages with selectable text and grounded highlights, preview figures, and export the embedded source document through the sidecar protocol. The unpacked Windows build writes `VERA.exe` under `packages/vera-app/release/win-unpacked`. See [docs/desktop-app-architecture.md](docs/desktop-app-architecture.md) for the app architecture and library-index workflow.
 
 ## Status
 

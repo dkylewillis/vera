@@ -36,6 +36,10 @@ If a query embedder cannot be loaded or has a different dimension,
 `skipped_semantic_model_groups` reports the omitted group and error; keyword
 search remains available.
 
+See [Library index structure](library-index-structure.md) for diagrams of the
+generation layout, SQLite relationships, vector mapping, and indexed search
+path.
+
 ## Lifecycle and fallback
 
 - `vera index build` creates a new generation in a temporary sibling directory,

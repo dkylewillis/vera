@@ -52,6 +52,7 @@ def test_documentation_index_lists_user_guides():
     index = (DOCS / "README.md").read_text(encoding="utf-8")
     guides = {
         "getting-started.md",
+        "desktop-app-getting-started.md",
         "examples.md",
         "troubleshooting.md",
         "conversion.md",
@@ -63,6 +64,7 @@ def test_documentation_index_lists_user_guides():
         "python-api.md",
         "mcp.md",
         "cli-reference.md",
+        "library-index-structure.md",
     }
     for guide in guides:
         assert f"]({guide})" in index
