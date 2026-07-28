@@ -143,6 +143,8 @@ export interface InspectResult {
   embedding_models?: string[];
   recursive?: boolean;
   index?: LibraryIndexStatus;
+  summary_source?: 'index' | 'discovery' | 'archives';
+  summary_complete?: boolean;
 }
 
 export interface ValidateResult {

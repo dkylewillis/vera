@@ -94,6 +94,18 @@ def test_index_actions_and_recursive_folder_search(nested_app_library):
     assert fresh["result"]["fresh"] is True
     assert fresh["result"]["recursive"] is True
 
+    summary = handle({
+        "id": "inspect-summary",
+        "action": "inspect",
+        "path": str(nested_app_library),
+        "summary_only": True,
+        "default_recursive": True,
+    })
+    assert summary["ok"] is True
+    assert summary["result"]["summary_source"] == "index"
+    assert summary["result"]["summary_complete"] is True
+    assert summary["result"]["file_count"] == 2
+
     indexed = handle({
         "id": "search-indexed",
         "action": "search",
@@ -144,6 +156,23 @@ def test_index_actions_and_recursive_folder_search(nested_app_library):
     assert updated["ok"] is True
     assert updated["result"]["operation"] == "update"
     assert updated["result"]["indexed"] == 3
+
+
+def test_empty_library_can_open_for_summary(tmp_path):
+    response = handle({
+        "id": "inspect-empty-library",
+        "action": "inspect",
+        "path": str(tmp_path),
+        "summary_only": True,
+        "default_recursive": True,
+        "allow_empty": True,
+    })
+
+    assert response["ok"] is True
+    assert response["result"]["directory"] == str(tmp_path.resolve())
+    assert response["result"]["file_count"] == 0
+    assert response["result"]["discovered_file_count"] == 0
+    assert response["result"]["summary_source"] == "discovery"
 
 
 def test_single_file_scope_still_stamps_source_path(tmp_path):

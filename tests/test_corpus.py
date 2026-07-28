@@ -53,6 +53,16 @@ class TestOpen:
         with pytest.raises(FileNotFoundError):
             VeraCorpus.open(str(tmp_path))
 
+    def test_empty_directory_can_open_when_explicitly_allowed(self, tmp_path):
+        with VeraCorpus.open(str(tmp_path), allow_empty=True) as corpus:
+            assert corpus.paths == []
+            summary = corpus.inspect_summary()
+        assert summary["directory"] == str(tmp_path.resolve())
+        assert summary["file_count"] == 0
+        assert summary["discovered_file_count"] == 0
+        assert summary["summary_source"] == "discovery"
+        assert summary["summary_complete"] is False
+
     def test_non_directory_raises(self, corpus_dir):
         with pytest.raises(NotADirectoryError):
             VeraCorpus.open(str(corpus_dir / "zoning.vera"))
@@ -138,6 +148,20 @@ class TestInspect:
             assert "Missing required table: vera_metadata" in info["skipped_files"][0]["reason"]
         finally:
             malformed.unlink()
+
+    def test_summary_without_index_only_discovers_files(self, corpus_dir, monkeypatch):
+        def reject_archive_open(path):
+            raise AssertionError(f"summary reopened archive: {path}")
+
+        monkeypatch.setattr("vera.corpus.VeraDocument.open", reject_archive_open)
+        with VeraCorpus.open(str(corpus_dir), use_index=False) as corpus:
+            info = corpus.inspect_summary()
+
+        assert info["summary_source"] == "discovery"
+        assert info["summary_complete"] is False
+        assert info["file_count"] == 2
+        assert info["pages"] is None
+        assert info["chunks"] is None
 
 
 class TestCli:

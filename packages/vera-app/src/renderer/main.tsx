@@ -46,6 +46,7 @@ type IndexPrompt = { path: string; status: LibraryIndexStatus };
 
 const EMPTY_REGIONS: RegionResult[] = [];
 const REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+const LARGE_LIBRARY_PROMPT_THRESHOLD = 100;
 
 function reasoningEffortLabel(effort: string): string {
   return effort === 'xhigh' ? 'Extra High' : effort.charAt(0).toUpperCase() + effort.slice(1);
@@ -1458,7 +1459,9 @@ function App() {
   const [status, setStatus] = useState('Ready');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [busyFolderPath, setBusyFolderPath] = useState('');
   const [inspect, setInspect] = useState<InspectResult | null>(null);
+  const libraryInspectCache = useRef(new Map<string, InspectResult>());
   const [validation, setValidation] = useState<ValidateResult | null>(null);
   const [convertResult, setConvertResult] = useState<ConvertResult | null>(null);
   const [batchConvertResult, setBatchConvertResult] = useState<BatchConvertResult | null>(null);
@@ -1500,8 +1503,19 @@ function App() {
   const searchScopePath = activeLibraryPath || path;
   const activeIndexStatus = activeLibraryPath ? indexStatuses[activeLibraryPath] : undefined;
   const usesFallback = Boolean(activeLibraryPath && selectedFiles.length === 0 && activeIndexStatus && !activeIndexStatus.fresh);
+  const activeLibraryIsEmpty = Boolean(
+    activeLibraryPath
+    && selectedFiles.length === 0
+    && path === activeLibraryPath
+    && inspect?.directory
+    && inspect.discovered_file_count === 0,
+  );
+  const hasSearchableScope = Boolean(searchScopePath.trim()) && !activeLibraryIsEmpty;
   const isCorpus = Boolean(
-    inspect?.directory || (path && !path.toLowerCase().endsWith('.vera')) || selectedFiles.length > 1,
+    (activeLibraryPath && path === activeLibraryPath)
+    || inspect?.directory
+    || (path && !path.toLowerCase().endsWith('.vera'))
+    || selectedFiles.length > 1,
   );
   const busy = Boolean(busyAction);
   const activeProvider = useMemo(
@@ -1573,6 +1587,7 @@ function App() {
   }
 
   function removeFolder(folderPath: string) {
+    libraryInspectCache.current.delete(folderPath);
     setFolders((prev) => {
       const next = prev.filter((entry) => entry.path !== folderPath);
       localStorage.setItem('vera.folders', JSON.stringify(next.map((entry) => entry.path)));
@@ -1591,9 +1606,18 @@ function App() {
   }
 
   async function refreshFolder(folderPath: string) {
-    const folder = await window.vera.listFolder(folderPath);
-    if (folder) setFolders((prev) => prev.map((entry) => (entry.path === folderPath ? folder : entry)));
-    await refreshIndexStatus(folderPath);
+    libraryInspectCache.current.delete(folderPath);
+    setBusyFolderPath(folderPath);
+    try {
+      const folder = await window.vera.listFolder(folderPath);
+      if (folder) setFolders((prev) => prev.map((entry) => (entry.path === folderPath ? folder : entry)));
+      await refreshIndexStatus(folderPath);
+      if (activeLibraryPath === folderPath && path === folderPath) {
+        setInspect(null);
+      }
+    } finally {
+      setBusyFolderPath('');
+    }
   }
 
   function toggleSelectedFile(filePath: string) {
@@ -1673,18 +1697,32 @@ function App() {
       setActiveLibraryPath(value);
       try { localStorage.setItem('vera.activeLibraryPath', value); } catch { /* ignore persistence errors */ }
       setSelectedFiles([]);
-      const index = await refreshIndexStatus(value);
-      updateTargetPath(value);
-      const result = await call<InspectResult>({
-        action: 'inspect',
-        path: value,
-        recursive: index?.recursive ?? true,
-        excludes: index?.excludes ?? [],
-      }, 'Opening library');
-      if (result) {
-        setInspect(result);
-        setValidation(null);
+      setPath(value);
+      setValidation(null);
+      setExportResult(null);
+      setSourceDocument(null);
+      setSourceDocumentPath('');
+      setPageResult(null);
+      const cached = libraryInspectCache.current.get(value);
+      if (cached) {
+        setInspect(cached);
+        if (cached.index) {
+          setIndexStatuses((prev) => ({ ...prev, [value]: cached.index! }));
+        }
+      } else {
+        setInspect(null);
       }
+      // Activation only sets search scope. Corpus open happens on first Search/Ask.
+      // Refresh the index badge in the background without blocking the UI.
+      void refreshIndexStatus(value).then((status) => {
+        if (
+          status
+          && !status.fresh
+          && (status.discovered ?? 0) >= LARGE_LIBRARY_PROMPT_THRESHOLD
+        ) {
+          presentIndexPrompt(value, status);
+        }
+      });
       return;
     }
     if (!options.preserveLibrary) {
@@ -1738,6 +1776,7 @@ function App() {
       ...(path === activeLibraryPath ? { recursive: activeIndexStatus?.recursive ?? true, excludes: activeIndexStatus?.excludes ?? [] } : {}),
     }, 'Inspecting');
     if (result) {
+      if (result.directory) libraryInspectCache.current.set(path, result);
       setInspect(result);
       setValidation(null);
       openSide('info');
@@ -1769,33 +1808,50 @@ function App() {
     if (!indexPrompt) return;
     const folderPath = indexPrompt.path;
     const action = indexPrompt.status.exists ? 'index_update' : 'index_build';
-    const result = await call<LibraryIndexBuildReport>({
-      action,
-      path: folderPath,
-      ...(action === 'index_build'
-        ? {
-            recursive: indexRecursive,
-            excludes: indexExcludes.split(/\r?\n/).map((value) => value.trim()).filter(Boolean),
-          }
-        : {}),
-    }, action === 'index_build' ? 'Building library index' : 'Updating library index');
-    if (!result) return;
-    dismissedIndexStates.current.delete(folderPath);
-    setIndexPrompt(null);
-    setIndexReport(result);
-    const value = await refreshIndexStatus(folderPath);
-    if (value && path === folderPath) {
-      const inspected = await call<InspectResult>({
-        action: 'inspect',
+    setBusyFolderPath(folderPath);
+    try {
+      const result = await call<LibraryIndexBuildReport>({
+        action,
         path: folderPath,
-        recursive: value.recursive ?? true,
-        excludes: value.excludes ?? [],
-      }, 'Refreshing library');
-      if (inspected) setInspect(inspected);
+        ...(action === 'index_build'
+          ? {
+              recursive: indexRecursive,
+              excludes: indexExcludes.split(/\r?\n/).map((value) => value.trim()).filter(Boolean),
+            }
+          : {}),
+      }, action === 'index_build' ? 'Building library index' : 'Updating library index');
+      if (!result) return;
+      dismissedIndexStates.current.delete(folderPath);
+      setIndexPrompt(null);
+      setIndexReport(result);
+      if (path === folderPath) {
+        const inspected = await call<InspectResult>({
+          action: 'inspect',
+          path: folderPath,
+          summary_only: true,
+          default_recursive: true,
+          allow_empty: true,
+        }, 'Refreshing library');
+        if (inspected) {
+          libraryInspectCache.current.set(folderPath, inspected);
+          setInspect(inspected);
+          if (inspected.index) {
+            setIndexStatuses((prev) => ({ ...prev, [folderPath]: inspected.index! }));
+          }
+        }
+      } else {
+        await refreshIndexStatus(folderPath);
+      }
+    } finally {
+      setBusyFolderPath('');
     }
   }
 
   async function searchTarget() {
+    if (!hasSearchableScope) {
+      setErrorMessage('This library does not contain any VERA documents yet.');
+      return;
+    }
     const result = await call<SearchResult[]>({
       action: 'search',
       path: searchScopePath,
@@ -1863,6 +1919,10 @@ function App() {
   }
 
   async function askTarget() {
+    if (!hasSearchableScope) {
+      setErrorMessage('This library does not contain any VERA documents yet.');
+      return;
+    }
     const provider = activeProvider;
     if (!provider) {
       setStatus('Choose an LLM provider');
@@ -2383,8 +2443,12 @@ function App() {
       if (canceled) return;
       const available = loaded.filter((entry): entry is WorkspaceFolderResult => entry !== null);
       setFolders(available);
-      await Promise.all(available.map((entry) => refreshIndexStatus(entry.path)));
       const savedActive = localStorage.getItem('vera.activeLibraryPath') || '';
+      await Promise.all(
+        available
+          .filter((entry) => entry.path !== savedActive)
+          .map((entry) => refreshIndexStatus(entry.path)),
+      );
       if (!canceled && available.some((entry) => entry.path === savedActive)) {
         await openTargetPath(savedActive, { asLibrary: true });
       }
@@ -2548,6 +2612,7 @@ function App() {
                     {folders.map((folder) => {
                       const folderIndex = indexStatuses[folder.path];
                       const indexLabel = folderIndex?.fresh ? 'Indexed' : folderIndex?.exists ? 'Stale' : 'No index';
+                      const folderBusy = busyFolderPath === folder.path;
                       return (
                       <section
                         className={activeLibraryPath === folder.path
@@ -2559,11 +2624,17 @@ function App() {
                           <button
                             className="folderCollapseAction"
                             onClick={() => toggleFolderCollapsed(folder.path)}
-                            title={collapsedFolders.includes(folder.path) ? 'Expand' : 'Collapse'}
+                            title={folderBusy ? busyAction || 'Working…' : collapsedFolders.includes(folder.path) ? 'Expand' : 'Collapse'}
                           >
-                            <span className="folderToggleIcon">
-                              {collapsedFolders.includes(folder.path) ? <Folder size={14} className="folderStateIcon" /> : <FolderOpen size={14} className="folderStateIcon" />}
-                              {collapsedFolders.includes(folder.path) ? <ChevronRight size={14} className="folderCaretIcon" /> : <ChevronDown size={14} className="folderCaretIcon" />}
+                            <span className={folderBusy ? 'folderToggleIcon loading' : 'folderToggleIcon'}>
+                              {folderBusy ? (
+                                <RefreshCw size={14} className="folderStateIcon spinning" aria-hidden="true" />
+                              ) : (
+                                <>
+                                  {collapsedFolders.includes(folder.path) ? <Folder size={14} className="folderStateIcon" /> : <FolderOpen size={14} className="folderStateIcon" />}
+                                  {collapsedFolders.includes(folder.path) ? <ChevronRight size={14} className="folderCaretIcon" /> : <ChevronDown size={14} className="folderCaretIcon" />}
+                                </>
+                              )}
                             </span>
                           </button>
                           <button
@@ -2664,6 +2735,7 @@ function App() {
                     <div className="searchScope">
                       <span>{selectedFiles.length > 0
                         ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
+                        : activeLibraryIsEmpty ? 'Empty library'
                         : activeLibraryPath ? 'Entire library' : path ? 'Current document' : 'No search scope'}</span>
                       {selectedFiles.length > 0 ? (
                         <button type="button" onClick={() => setSelectedFiles([])} title="Clear selection">Clear</button>
@@ -2691,7 +2763,7 @@ function App() {
                         <span>Figures</span>
                       </label>
                     </div>
-                    <button className="sidePrimary" onClick={searchTarget} disabled={!searchScopePath || !query.trim() || busy}><Search size={15} />Search</button>
+                    <button className="sidePrimary" onClick={searchTarget} disabled={!hasSearchableScope || !query.trim() || busy}><Search size={15} />Search</button>
                   </div>
                   <div className="searchResults">
                     {results.length === 0 ? (
@@ -2823,7 +2895,7 @@ function App() {
                   {path ? (
                     <>
                       <div className="infoActions">
-                        <button className="secondaryAction" onClick={inspectTarget} disabled={!path.trim() || busy}><ShieldCheck size={15} />Inspect</button>
+                        <button className="secondaryAction" onClick={inspectTarget} disabled={!path.trim() || activeLibraryIsEmpty || busy}><ShieldCheck size={15} />{isCorpus ? 'Deep inspect' : 'Inspect'}</button>
                         <button className="secondaryAction" onClick={validateTarget} disabled={!path.trim() || isCorpus || busy}><CheckCircle2 size={15} />Validate</button>
                         <button className="secondaryAction" onClick={exportSource} disabled={!path.trim() || isCorpus || busy}><Download size={15} />Export</button>
                       </div>
@@ -2833,6 +2905,7 @@ function App() {
                         <div><dt>Pages</dt><dd>{inspect?.pages ?? '-'}</dd></div>
                         <div><dt>Chunks</dt><dd>{inspect?.chunks ?? '-'}</dd></div>
                         <div><dt>Model</dt><dd>{inspect?.default_embedding_model || inspect?.embedding_models?.join(', ') || '-'}</dd></div>
+                        {isCorpus ? <div><dt>Summary</dt><dd>{inspect?.summary_source === 'index' ? 'Persistent index' : inspect?.summary_source === 'archives' ? 'Deep archive scan' : 'File discovery only'}</dd></div> : null}
                         <div><dt>Validation</dt><dd>{validation ? (validation.ok ? 'PASS' : 'FAIL') : '-'}</dd></div>
                         <div><dt>Issues</dt><dd>{validation?.issues?.length ? validation.issues.join('; ') : '0'}</dd></div>
                         <div><dt>Export</dt><dd>{exportResult?.output || '-'}</dd></div>
@@ -2982,6 +3055,7 @@ function App() {
                 <div className="composerScope">
                   {selectedFiles.length > 0
                     ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
+                    : activeLibraryIsEmpty ? 'Empty library'
                     : activeLibraryPath ? 'Entire library' : path ? 'Current document' : 'No search scope'}
                 </div>
                 <div
@@ -3060,7 +3134,7 @@ function App() {
                       }}
                       placeholder={sessionTurns.length > 0 ? 'Follow up…' : 'Ask anything'}
                     />
-                    <button className="askSendButton" onClick={askTarget} disabled={!searchScopePath.trim() || !query.trim() || busy} title="Send (Enter)">
+                    <button className="askSendButton" onClick={askTarget} disabled={!hasSearchableScope || !query.trim() || busy} title="Send (Enter)">
                       {busy ? <span className="askSpinner" /> : <Send size={16} />}
                     </button>
                   </div>

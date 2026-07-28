@@ -222,6 +222,10 @@ path. `VeraCorpus.open()` automatically uses a fresh compatible collection
 index unless `use_index=False`. Inspection and fallback search skip malformed
 archives; inspect `corpus.invalid_files` or the `skipped_files` field returned
 by `corpus.inspect()` for absolute paths and validation reasons.
+Applications that need to represent a library before it contains documents can
+pass `allow_empty=True`; the strict default raises `FileNotFoundError` when no
+archives are discovered. `corpus.inspect_summary()` reads metrics from a fresh
+index or returns discovery-only counts without validating every archive.
 After indexed semantic or hybrid search, inspect
 `corpus.skipped_semantic_model_groups`. Each entry contains `model_name`,
 `dimension`, and `error` for a semantic group omitted because its query

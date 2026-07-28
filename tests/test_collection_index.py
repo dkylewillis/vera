@@ -129,6 +129,24 @@ class TestBuildAndSearch:
             assert isinstance(result.after_chunks, list)
             assert corpus.regions_for(result)
 
+    def test_indexed_summary_does_not_reopen_archives(self, nested_library, monkeypatch):
+        build_library_index(str(nested_library), recursive=True, excludes=["archive"])
+
+        def reject_archive_open(path):
+            raise AssertionError(f"summary reopened archive: {path}")
+
+        monkeypatch.setattr(VeraDocument, "open", staticmethod(reject_archive_open))
+        with VeraCorpus.open(str(nested_library)) as corpus:
+            summary = corpus.inspect_summary()
+
+        assert summary["summary_source"] == "index"
+        assert summary["summary_complete"] is True
+        assert summary["file_count"] == 2
+        assert summary["pages"] == 2
+        assert summary["chunks"] >= 2
+        assert summary["embedding_models"] == ["vera-hashing-384"]
+        assert len(summary["files"]) == 2
+
     def test_mixed_embedding_models_are_rank_fused(self, tmp_path):
         root = tmp_path / "mixed"
         _convert_topic(root, "one.vera", "Road Design", "Roadway design project experience.", model="hashing")

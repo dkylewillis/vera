@@ -129,6 +129,7 @@ def test_agents_rule_requires_human_documentation_updates():
 def test_hardening_json_contracts_are_documented():
     conversion = (DOCS / "conversion.md").read_text(encoding="utf-8")
     libraries = (DOCS / "document-libraries.md").read_text(encoding="utf-8")
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
     mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
 
     assert "malformed_existing" in conversion
@@ -136,5 +137,11 @@ def test_hardening_json_contracts_are_documented():
     assert "skipped_files" in libraries
     assert "skipped_semantic_model_groups" in libraries
     assert "does not reopen archives" in libraries
+    assert "does not rebuild" in libraries
+    assert "summary_complete" in libraries
+    assert "Collection indexes are persistent" in desktop
+    assert "Deep inspect" in desktop
+    assert "corpus opens on the first" in desktop
+    assert "allow_empty=True" in libraries
     assert "`skipped_files`" in mcp
     assert "`skipped_semantic_model_groups`" in mcp

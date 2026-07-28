@@ -56,7 +56,13 @@ def _open_corpus(path: str, request: Request) -> VeraCorpus:
         if isinstance(excludes_value, list)
         else None
     )
-    return VeraCorpus.open(path, recursive=recursive, excludes=excludes)
+    return VeraCorpus.open(
+        path,
+        recursive=recursive,
+        excludes=excludes,
+        default_recursive=bool(request.get("default_recursive", False)),
+        allow_empty=bool(request.get("allow_empty", False)),
+    )
 
 
 def _resolve_target(request: Request):
@@ -112,7 +118,7 @@ def _inspect(request: Request) -> dict[str, Any]:
     if Path(path).is_dir():
         corpus = _open_corpus(path, request)
         try:
-            return corpus.inspect()
+            return corpus.inspect_summary() if request.get("summary_only") else corpus.inspect()
         finally:
             corpus.close()
     doc = _open_document(path)

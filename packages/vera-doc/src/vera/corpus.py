@@ -81,27 +81,23 @@ class VeraCorpus:
         excludes: list[str] | tuple[str, ...] | None = None,
         max_open_documents: int = 16,
         use_index: bool = True,
+        default_recursive: bool = False,
+        allow_empty: bool = False,
     ) -> "VeraCorpus":
         root = Path(directory).resolve()
         if not root.is_dir():
             raise NotADirectoryError(directory)
         status = library_index_status(str(root), verify_hashes=False)
-        effective_recursive = bool(status.get("recursive", False)) if recursive is None else recursive
+        effective_recursive = (
+            bool(status.get("recursive", default_recursive))
+            if recursive is None
+            else recursive
+        )
         effective_excludes = (
             tuple(status.get("excludes", ()))
             if excludes is None and status.get("exists")
             else tuple(excludes or ())
         )
-        paths = [
-            str(path)
-            for path in discover_vera_files(
-                root,
-                recursive=effective_recursive,
-                excludes=effective_excludes,
-            )
-        ]
-        if not paths:
-            raise FileNotFoundError(f"No .vera files found in {directory}")
         config_matches = (
             effective_recursive == bool(status.get("recursive", False))
             and effective_excludes == tuple(status.get("excludes", ()))
@@ -109,6 +105,23 @@ class VeraCorpus:
         collection_index = None
         if use_index and status.get("fresh") and config_matches:
             collection_index = VeraCollectionIndex.open(str(root), check_status=False)
+            paths = [
+                str((root / relative_path).resolve())
+                for relative_path in collection_index.document_paths()
+            ]
+        else:
+            paths = [
+                str(path)
+                for path in discover_vera_files(
+                    root,
+                    recursive=effective_recursive,
+                    excludes=effective_excludes,
+                )
+            ]
+        if not paths and not allow_empty:
+            if collection_index is not None:
+                collection_index.close()
+            raise FileNotFoundError(f"No .vera files found in {directory}")
         invalid_files = []
         if status.get("fresh"):
             invalid_files = [
@@ -220,6 +233,44 @@ class VeraCorpus:
             "files": files,
             "recursive": self.recursive,
             "index": self.index_status,
+            "summary_source": "archives",
+            "summary_complete": True,
+        }
+
+    def inspect_summary(self) -> dict[str, Any]:
+        """Open a library quickly without validating every archive.
+
+        A fresh collection index supplies persisted metrics from its last
+        validated build. Missing or stale indexes return discovery counts only;
+        callers can run ``inspect`` explicitly when they need a deep scan.
+        """
+        if self._collection_index is not None:
+            summary = self._collection_index.inspect_summary()
+            return {
+                "directory": self.directory,
+                **summary,
+                "discovered_file_count": len(self.paths),
+                "skipped": len(self.invalid_files),
+                "skipped_files": list(self.invalid_files),
+                "recursive": self.recursive,
+                "index": self.index_status,
+                "summary_source": "index",
+                "summary_complete": True,
+            }
+        return {
+            "directory": self.directory,
+            "file_count": len(self.paths),
+            "discovered_file_count": len(self.paths),
+            "skipped": 0,
+            "skipped_files": [],
+            "pages": None,
+            "chunks": None,
+            "embedding_models": [],
+            "files": [{"file": path} for path in self.paths],
+            "recursive": self.recursive,
+            "index": self.index_status,
+            "summary_source": "discovery",
+            "summary_complete": False,
         }
 
     def _is_invalid(self, path: str) -> bool:

@@ -45,6 +45,21 @@ to stop both processes.
 Open a PDF from the app's Convert view to create a `.vera` archive, or use the
 native File menu to open an existing archive or document library.
 
+## Large document libraries
+
+Collection indexes are persistent: the app checks their freshness when a
+library is activated but does not rebuild them automatically. Activating a
+folder only sets the Search and Ask scope; the corpus opens on the first
+query. A fresh index makes that first search fast. If an index is missing or
+stale, large libraries prompt you to build or update it. Use **Deep inspect**
+in the Info view only when you need library metrics or to revalidate every
+archive; that operation can take substantially longer for large libraries.
+
+Parent and empty folders can also be activated as libraries. Nested `.vera`
+files are discovered recursively when there is no saved index configuration.
+A folder with no `.vera` files remains active and watched; Search and Ask
+report that nothing is searchable until archives are present.
+
 ## Check or build the app
 
 Run the TypeScript checks:

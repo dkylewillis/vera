@@ -63,7 +63,9 @@ library/.vera-index/
 ```
 
 The index is a rebuildable local acceleration artifact. It does not modify the
-`.vera` files, and the archives remain independently portable.
+`.vera` files, and the archives remain independently portable. It persists
+across process and app restarts. Opening a library does not rebuild its index;
+only an explicit build or update writes a new generation.
 
 Use the same exclusion patterns while building:
 
@@ -103,6 +105,11 @@ search was active. The `index.skipped_files` array retains relative paths,
 categories, and reasons recorded when the active index was built. Inspection
 uses this manifest and does not reopen archives that the fresh index already
 rejected.
+
+`VeraCorpus.inspect_summary()` also reads file, page, chunk, and model metrics
+from a fresh index without reopening any source archives. With a missing or
+stale index it returns discovery counts and marks `summary_complete` false;
+call `VeraCorpus.inspect()` when an explicit deep validation scan is required.
 
 ## Check and update freshness
 
@@ -187,6 +194,10 @@ with VeraCorpus.open("./library", recursive=True) as corpus:
     for result in results:
         print(result.file, result.page_start, result.text[:100])
 ```
+
+`VeraCorpus.open(..., allow_empty=True)` is available to applications that
+need to represent an empty library during setup. The default remains strict
+and raises `FileNotFoundError` when discovery finds no `.vera` archives.
 
 The corpus opens source archives lazily and uses a bounded handle cache. See
 [Python API](python-api.md) and the detailed

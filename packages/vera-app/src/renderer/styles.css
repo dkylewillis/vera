@@ -446,6 +446,14 @@ button {
   opacity: 1;
 }
 
+.folderToggleIcon.loading {
+  color: var(--accent-text);
+}
+
+.folderToggleIcon.loading .folderStateIcon {
+  opacity: 1;
+}
+
 .folderGroupName {
   flex: 1;
   min-width: 0;

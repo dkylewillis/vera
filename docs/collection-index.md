@@ -50,6 +50,9 @@ path.
   explicit garbage-collection command can remove generations known to be idle.
 - `vera index update` rebuilds with the saved recursive and exclusion settings
   and reports added, changed, moved, and removed archives.
+- The index persists across app and CLI restarts. Opening a library checks its
+  freshness but does not rebuild it; rebuilds occur only through an explicit
+  build or update action.
 - `vera index status` compares the manifest with the current library and checks
   file content hashes, the SQLite database, and vector matrix shapes.
 - `vera search <root>` uses a fresh index automatically. A missing or stale
@@ -62,6 +65,10 @@ reports without making an otherwise valid index permanently stale.
 `vera index status --json` exposes these entries in `skipped_files`, including
 their relative paths, categories, and reasons. Folder inspection uses that
 manifest when the index is fresh and does not reopen known-invalid archives.
+The desktop app also reads library counts and source metadata directly from a
+fresh index when opening a folder, avoiding a full validation scan of every
+archive. Its explicit **Deep inspect** action still reopens and validates all
+archives when a current health check is needed.
 
 ## Performance baseline
 

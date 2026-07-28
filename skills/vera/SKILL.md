@@ -61,6 +61,9 @@ with their paths and validation reasons. For indexed semantic or hybrid
 searches, also inspect `skipped_semantic_model_groups`: unavailable or
 dimension-incompatible query embedders are omitted, so semantic coverage is
 incomplete even though keyword matches may still be returned.
+Collection indexes persist under `.vera-index/` across process restarts.
+Status checks and library opens do not rebuild them; use `index update`
+explicitly after the source library changes.
 
 ## Choose retrieval options
 
