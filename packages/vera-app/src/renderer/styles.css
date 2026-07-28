@@ -1443,6 +1443,23 @@ select option {
   color: #ffffff;
 }
 
+@media (prefers-color-scheme: dark) {
+  .centerPane,
+  .centerHeader {
+    background: #161616;
+  }
+
+  .userMessage {
+    background: #252525;
+    border: 1px solid #343434;
+    border-radius: 12px;
+  }
+
+  .userMessage p {
+    color: #e8e8e8;
+  }
+}
+
 .assistantMessage {
   align-self: flex-start;
   width: 86%;
@@ -1900,17 +1917,19 @@ details.traceEntry[open] > summary {
 /* ── Composer ────────────────────────────────────────── */
 
 .askComposerWrap {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto;
   align-items: center;
-  justify-content: center;
   position: relative;
   width: 100%;
   flex: 0 0 auto;
-  padding: 10px 4px 18px;
+  padding: 10px 12px 22px;
 }
 
 .composerScope {
+  grid-column: 1 / -1;
+  grid-row: 1;
   width: 100%;
   margin-bottom: 5px;
   color: var(--text-faint);
@@ -1926,6 +1945,8 @@ details.traceEntry[open] > summary {
 }
 
 .askComposer {
+  grid-column: 1 / -1;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -1981,9 +2002,11 @@ details.traceEntry[open] > summary {
 }
 
 .askComposerWrap:has(.askComposer--multiline) .composerBar > .modelPicker:nth-child(2) {
-  right: auto;
-  bottom: 39px;
-  left: 45px;
+  grid-column: 1;
+  grid-row: 2;
+  align-self: end;
+  justify-self: start;
+  margin: 0 0 5px 45px;
 }
 
 .attachRow {
@@ -2154,18 +2177,28 @@ details.traceEntry[open] > summary {
 }
 
 .composerBar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  width: 100%;
-  padding: 5px 1px 0;
+  display: contents;
+}
+
+.composerBar > .modelPicker:first-child {
+  grid-column: 1;
+  grid-row: 3;
+  justify-self: start;
+  margin: 5px 0 0 1px;
+}
+
+.composerBar > .modelPicker:first-child .modelPickerMenu {
+  right: auto;
+  left: 0;
 }
 
 .composerBar > .modelPicker:nth-child(2) {
-  position: absolute;
-  right: 43px;
-  bottom: 42px;
+  grid-column: 2;
+  grid-row: 2;
+  align-self: center;
+  justify-self: end;
+  position: relative;
+  margin-right: 43px;
   z-index: 2;
 }
 
@@ -2180,7 +2213,10 @@ details.traceEntry[open] > summary {
   align-items: center;
   gap: 6px;
   height: 30px;
-  margin-left: auto;
+  grid-column: 2;
+  grid-row: 3;
+  justify-self: end;
+  margin: 5px 1px 0 0;
   padding: 0 12px;
   color: var(--text-muted);
   background: transparent;
@@ -2242,7 +2278,8 @@ details.traceEntry[open] > summary {
 .modelPickerMenu {
   position: absolute;
   bottom: calc(100% + 8px);
-  left: 0;
+  right: 0;
+  left: auto;
   z-index: 41;
   min-width: 260px;
   overflow: visible;

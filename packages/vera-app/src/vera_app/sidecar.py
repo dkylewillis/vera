@@ -5,6 +5,7 @@ import copy
 import json
 import re
 import sys
+import threading
 import traceback
 from collections.abc import Callable
 from pathlib import Path
@@ -19,6 +20,7 @@ from vera import (
     update_library_index,
 )
 from vera.corpus import VeraCorpus
+from vera_app.cancellation import CancellationToken, CancelledError
 from vera_app.llm import (
     ChatResponse,
     LlmConfig,
@@ -607,7 +609,13 @@ def _strip_image_parts(messages: list[dict[str, Any]]) -> None:
         message["content"] = text
 
 
-def _answer(request: Request, write_event=None) -> dict[str, Any]:
+def _answer(
+    request: Request,
+    write_event=None,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
+    if cancel:
+        cancel.raise_if_cancelled()
     prompt = str(request.get("prompt", "")).strip()
     if not prompt:
         raise ValueError("prompt is required")
@@ -676,6 +684,8 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
     try:
         # One extra turn beyond the search budget lets the model write its final answer.
         for turn in range(mode.max_searches + 1):
+            if cancel:
+                cancel.raise_if_cancelled()
             force_answer = turn >= mode.max_searches or tool.chunk_count >= mode.max_chunks
             offered_tools = None if force_answer else [SEARCH_TOOL]
             record({
@@ -692,6 +702,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
                     tools=offered_tools,
                     tool_choice="auto",
                     on_delta=stream_delta,
+                    **({"cancel": cancel} if cancel else {}),
                 )
             except VisionUnsupportedError:
                 # Neutralize every image-bearing message (user attachments and/or
@@ -706,7 +717,10 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
                     tools=offered_tools,
                     tool_choice="auto",
                     on_delta=stream_delta,
+                    **({"cancel": cancel} if cancel else {}),
                 )
+            if cancel:
+                cancel.raise_if_cancelled()
             last_response = response
             record({
                 "event": "llm_response",
@@ -738,6 +752,8 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
                 assistant_msg["content"] = ""
             messages.append(assistant_msg)
             for call in response.tool_calls:
+                if cancel:
+                    cancel.raise_if_cancelled()
                 output = tool.run(call.arguments) if call.name == "search" else {"error": f"Unknown tool: {call.name}"}
                 messages.append({
                     "role": "tool",
@@ -796,12 +812,12 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
             "messages": _redact_messages_for_trace(fallback_messages),
         })
         try:
-            llm_result = generate(fallback_messages, config)
+            llm_result = generate(fallback_messages, config, **({"cancel": cancel} if cancel else {}))
         except VisionUnsupportedError:
             # This provider also can't take image input; retry once, text-only.
             _strip_image_parts(fallback_messages)
             vision_fallback = True
-            llm_result = generate(fallback_messages, config)
+            llm_result = generate(fallback_messages, config, **({"cancel": cancel} if cancel else {}))
         record({
             "event": "llm_response",
             "turn": 0,
@@ -857,6 +873,7 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
                 tools=None,
                 tool_choice="auto",
                 on_delta=stream_delta,
+                **({"cancel": cancel} if cancel else {}),
             )
             record({
                 "event": "llm_response",
@@ -869,6 +886,8 @@ def _answer(request: Request, write_event=None) -> dict[str, Any]:
             answer = nudge.content
             if nudge.model:
                 last_response = nudge
+        except CancelledError:
+            raise
         except Exception:
             pass
     if not answer:
@@ -992,8 +1011,17 @@ HANDLERS: dict[str, Handler] = {
     "list_modes": _list_modes,
 }
 
+_stdout_lock = threading.Lock()
+_inflight_lock = threading.Lock()
+_inflight_answers: dict[str, CancellationToken] = {}
 
-def handle(request: Request) -> Response:
+
+def _write_response(response: Response) -> None:
+    with _stdout_lock:
+        print(json.dumps(response), flush=True)
+
+
+def handle(request: Request, cancel: CancellationToken | None = None) -> Response:
     request_id = request.get("id")
     try:
         action = str(request.get("action", ""))
@@ -1001,18 +1029,40 @@ def handle(request: Request) -> Response:
             raise ValueError(f"Unknown action: {action}")
         if action == "answer":
             def _emit(data: dict[str, Any]) -> None:
-                print(json.dumps({**data, "id": request_id}), flush=True)
-            result = _answer(request, write_event=_emit)
+                _write_response({**data, "id": request_id})
+            result = _answer(request, write_event=_emit, cancel=cancel)
         else:
             result = HANDLERS[action](request)
         return {"id": request_id, "ok": True, "result": result}
+    except CancelledError:
+        return {
+            "id": request_id,
+            "ok": False,
+            "error": "Answer cancelled",
+            "cancelled": True,
+        }
     except Exception as exc:
+        if cancel and cancel.cancelled:
+            return {
+                "id": request_id,
+                "ok": False,
+                "error": "Answer cancelled",
+                "cancelled": True,
+            }
         return {
             "id": request_id,
             "ok": False,
             "error": str(exc),
             "traceback": traceback.format_exc(),
         }
+
+
+def _run_answer(request: Request, request_id: str, cancel: CancellationToken) -> None:
+    try:
+        _write_response(handle(request, cancel=cancel))
+    finally:
+        with _inflight_lock:
+            _inflight_answers.pop(request_id, None)
 
 
 def main() -> int:
@@ -1025,8 +1075,35 @@ def main() -> int:
         except json.JSONDecodeError as exc:
             response: Response = {"id": None, "ok": False, "error": str(exc)}
         else:
-            response = handle(request)
-        print(json.dumps(response), flush=True)
+            action = str(request.get("action", ""))
+            if action == "cancel":
+                target_id = str(request.get("target_id") or "")
+                with _inflight_lock:
+                    cancel = _inflight_answers.get(target_id)
+                if cancel:
+                    cancel.cancel()
+                response = {
+                    "id": request.get("id"),
+                    "ok": True,
+                    "result": {"target_id": target_id, "cancelled": bool(cancel)},
+                }
+            elif action == "answer":
+                request_id = str(request.get("id") or "")
+                if not request_id:
+                    response = {"id": None, "ok": False, "error": "answer requests require an id"}
+                else:
+                    cancel = CancellationToken()
+                    with _inflight_lock:
+                        _inflight_answers[request_id] = cancel
+                    threading.Thread(
+                        target=_run_answer,
+                        args=(request, request_id, cancel),
+                        daemon=True,
+                    ).start()
+                    continue
+            else:
+                response = handle(request)
+        _write_response(response)
     return 0
 
 

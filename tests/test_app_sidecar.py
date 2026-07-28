@@ -7,6 +7,7 @@ from test_blocks_figures import make_structured_pdf
 from test_corpus import make_topic_pdf
 from test_convert_search import make_pdf
 from vera import convert
+from vera_app.cancellation import CancellationToken
 from vera_app.llm import ChatResponse, LlmConfig, ToolCall, ToolsUnsupportedError, VisionUnsupportedError
 from vera_app.sidecar import handle
 
@@ -309,6 +310,38 @@ def test_answer_action_requires_llm(tmp_path):
 
     assert response["ok"] is False
     assert "model must be selected" in response["error"].lower()
+
+
+def test_answer_action_returns_structured_cancellation(tmp_path, monkeypatch):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", store_original=True)
+    cancel = CancellationToken()
+
+    def fake_chat(messages, config, tools=None, tool_choice="auto", on_delta=None, cancel=None):
+        assert cancel is not None
+        cancel.cancel()
+        return ChatResponse(
+            content="Partial answer",
+            tool_calls=[],
+            message={"role": "assistant", "content": "Partial answer"},
+            model="test-model",
+        )
+
+    monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
+
+    response = handle(
+        {"id": "cancelled", "action": "answer", "path": str(out), "prompt": "restaurant parking", "llm": _llm_payload()},
+        cancel=cancel,
+    )
+
+    assert response == {
+        "id": "cancelled",
+        "ok": False,
+        "error": "Answer cancelled",
+        "cancelled": True,
+    }
 
 
 def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):

@@ -109,16 +109,25 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 class PythonSidecar {
   private child: ChildProcessWithoutNullStreams | null = null;
-  private pending = new Map<string, { resolve: (value: SidecarResponse) => void; reject: (reason?: unknown) => void; onEvent?: (e: SidecarEvent) => void }>();
+  private pending = new Map<string, {
+    child: ChildProcessWithoutNullStreams;
+    resolve: (value: SidecarResponse) => void;
+    reject: (reason?: unknown) => void;
+    onEvent?: (e: SidecarEvent) => void;
+  }>();
   private nextId = 1;
   private stdoutBuffer = '';
 
-  request(payload: SidecarPayload, onEvent?: (e: SidecarEvent) => void): Promise<SidecarResponse> {
+  request(
+    payload: SidecarPayload,
+    onEvent?: (e: SidecarEvent) => void,
+    requestId?: string,
+  ): Promise<SidecarResponse> {
     const child = this.ensureStarted();
-    const id = String(this.nextId++);
+    const id = requestId || String(this.nextId++);
     const message: SidecarRequest = { ...payload, id };
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject, onEvent });
+      this.pending.set(id, { child, resolve, reject, onEvent });
       child.stdin.write(`${JSON.stringify(message)}\n`, (error) => {
         if (error) {
           this.pending.delete(id);
@@ -133,10 +142,19 @@ class PythonSidecar {
       this.child.kill();
       this.child = null;
     }
-    for (const entry of this.pending.values()) {
-      entry.reject(new Error('VERA sidecar stopped'));
+    this.rejectPending(new Error('VERA sidecar stopped'));
+  }
+
+  async cancelAnswer(requestId: string): Promise<void> {
+    await this.request({ action: 'cancel', target_id: requestId });
+  }
+
+  private rejectPending(reason: Error, child?: ChildProcessWithoutNullStreams): void {
+    for (const [id, entry] of this.pending) {
+      if (child && entry.child !== child) continue;
+      this.pending.delete(id);
+      entry.reject(reason);
     }
-    this.pending.clear();
   }
 
   private ensureStarted(): ChildProcessWithoutNullStreams {
@@ -160,12 +178,10 @@ class PythonSidecar {
 
     this.child.stdout.on('data', (chunk: Buffer) => this.handleStdout(chunk.toString('utf8')));
     this.child.stderr.on('data', (chunk: Buffer) => console.error(`[vera-sidecar] ${chunk.toString('utf8')}`));
-    this.child.on('exit', () => {
-      this.child = null;
-      for (const entry of this.pending.values()) {
-        entry.reject(new Error('VERA sidecar exited'));
-      }
-      this.pending.clear();
+    const child = this.child;
+    child.on('exit', () => {
+      if (this.child === child) this.child = null;
+      this.rejectPending(new Error('VERA sidecar exited'), child);
     });
 
     return this.child;
@@ -661,13 +677,14 @@ app.whenReady().then(() => {
   ipcMain.handle('vera:getSessions', async () => readSessions());
   ipcMain.handle('vera:saveSession', async (_event, session: Session) => upsertSession(session));
   ipcMain.handle('vera:deleteSession', async (_event, id: string) => deleteSession(id));
-  ipcMain.handle('vera:request', async (event, payload: SidecarPayload) => {
+  ipcMain.handle('vera:request', async (event, payload: SidecarPayload, requestId?: string) => {
     const sender = event.sender;
     const onEvent = (e: SidecarEvent) => {
       if (!sender.isDestroyed()) sender.send('vera:answerEvent', e);
     };
-    return sidecar.request(withModesDir(withStoredApiKey(payload)), onEvent);
+    return sidecar.request(withModesDir(withStoredApiKey(payload)), onEvent, requestId);
   });
+  ipcMain.handle('vera:cancelAnswer', (_event, requestId: string) => sidecar.cancelAnswer(requestId));
   ipcMain.handle('vera:listModes', async () => sidecar.request({ action: 'list_modes', modes_dir: modesDir() }));
   ipcMain.handle('vera:openModesFolder', async () => shell.openPath(modesDir()));
   ipcMain.handle('vera:getSettings', async () => readSettings());

@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import io
 import json
+import threading
+import time
 import urllib.error
 
 import pytest
 
-from vera_app.llm import LlmConfig, ProviderHttpError, VisionUnsupportedError, chat
+from vera_app.cancellation import CancellationToken, CancelledError
+from vera_app.llm import LlmConfig, ProviderHttpError, VisionUnsupportedError, _consume_stream, chat
 
 
 TOOL = {
@@ -39,6 +42,55 @@ class FakeResponse:
 
     def __iter__(self):
         return iter(self.lines)
+
+
+def test_stream_stops_before_emitting_more_deltas():
+    cancel = CancellationToken()
+    cancel.cancel()
+
+    with pytest.raises(CancelledError):
+        _consume_stream(
+            FakeResponse(lines=[b'data: {"choices":[{"delta":{"content":"late"}}]}\n']),
+            lambda _text: pytest.fail("cancelled stream emitted a delta"),
+            cancel,
+        )
+
+
+def test_stream_normalizes_response_close_race():
+    class ClosingResponse:
+        def __iter__(self):
+            raise AttributeError("'NoneType' object has no attribute 'peek'")
+
+    cancel = CancellationToken()
+    cancel.cancel()
+
+    with pytest.raises(CancelledError):
+        _consume_stream(ClosingResponse(), lambda _text: None, cancel)
+
+
+def test_request_cancels_while_waiting_for_provider_headers(monkeypatch):
+    opened = threading.Event()
+    release = threading.Event()
+    cancel = CancellationToken()
+
+    def fake_urlopen(_request, timeout):
+        opened.set()
+        release.wait(timeout)
+        return FakeResponse(payload={"choices": [{"message": {"content": "too late"}}]})
+
+    monkeypatch.setattr("vera_app.llm.urllib.request.urlopen", fake_urlopen)
+    timer = threading.Timer(0.05, cancel.cancel)
+    timer.start()
+    started = time.monotonic()
+    try:
+        with pytest.raises(CancelledError):
+            chat([{"role": "user", "content": "Find it"}], config(), cancel=cancel)
+    finally:
+        release.set()
+        timer.cancel()
+
+    assert opened.is_set()
+    assert time.monotonic() - started < 1
 
 
 def config(**overrides):

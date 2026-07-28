@@ -114,5 +114,10 @@ If a provider has no endpoint that supports image input, VERA retries the
 request with text only and adds a note to the assistant response explaining
 that the images were omitted.
 
+While an answer is generating, the send button becomes a stop button. Selecting
+it cancels only that answer, stops its active provider stream, and saves the
+user prompt plus any streamed response received so far without restarting the
+local sidecar.
+
 For implementation details and the sidecar protocol, see the
 [desktop app architecture](desktop-app-architecture.md).

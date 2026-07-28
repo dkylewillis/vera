@@ -3,7 +3,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('vera', {
   platform: process.platform,
   showMenu: (menuId: string, x: number, y: number) => ipcRenderer.invoke('vera:showMenu', menuId, x, y),
-  request: (payload: Record<string, unknown>) => ipcRenderer.invoke('vera:request', payload),
+  request: (payload: Record<string, unknown>, requestId?: string) => ipcRenderer.invoke('vera:request', payload, requestId),
+  cancelAnswer: (requestId: string) => ipcRenderer.invoke('vera:cancelAnswer', requestId),
   getSettings: () => ipcRenderer.invoke('vera:getSettings'),
   saveSettings: (settings: Record<string, unknown>) => ipcRenderer.invoke('vera:saveSettings', settings),
   saveApiKey: (providerId: string, apiKey: string) => ipcRenderer.invoke('vera:saveApiKey', providerId, apiKey),

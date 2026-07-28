@@ -32,6 +32,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Square,
   Terminal,
   Trash2,
   X,
@@ -44,6 +45,7 @@ type IndexPrompt = { path: string; status: LibraryIndexStatus };
 type FolderContextMenu = { path: string; x: number; y: number };
 
 const EMPTY_REGIONS: RegionResult[] = [];
+const EMPTY_FIGURES: FigureResult[] = [];
 const REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
 const LARGE_LIBRARY_PROMPT_THRESHOLD = 100;
 
@@ -1484,6 +1486,9 @@ function App() {
   const [streamEvents, setStreamEvents] = useState<StreamEvent[]>([]);
   const [traceEvents, setTraceEvents] = useState<StreamEvent[]>([]);
   const [streamingAnswer, setStreamingAnswer] = useState('');
+  const streamingAnswerRef = useRef('');
+  const answerCanceledRef = useRef(false);
+  const activeAnswerRequestIdRef = useRef<string | null>(null);
   const [showTrace, setShowTrace] = useState(() => {
     try {
       return localStorage.getItem('vera.showTrace') === '1';
@@ -1569,6 +1574,18 @@ function App() {
 
   const selectedSourcePath = selected?.file || path;
   const selectedTargetPage = selected?.regions?.find((region) => region.page_number)?.page_number ?? selected?.page_start ?? null;
+  // Keep these props referentially stable so PdfSourceViewer's memoization can
+  // isolate its DOM-heavy PDF tree from chat-composer keystrokes.
+  const viewerHighlights = useMemo(() => {
+    if (!selected || sourceDocumentPath !== selectedSourcePath) {
+      return { regions: EMPTY_REGIONS, figures: EMPTY_FIGURES, targetPage: null };
+    }
+    return {
+      regions: selected.regions || EMPTY_REGIONS,
+      figures: selected.figures?.filter((figure) => figure.included_in_context) || EMPTY_FIGURES,
+      targetPage: selectedTargetPage,
+    };
+  }, [selected, selectedSourcePath, selectedTargetPage, sourceDocumentPath]);
   const sourceExpanded = sourcePaneWidth >= 58;
 
   function openSide(view: SideView) {
@@ -1705,13 +1722,21 @@ function App() {
     setSourcePaneWidth(clampSourcePaneWidth((widthFromRight / bounds.width) * 100));
   }
 
-  async function call<T>(payload: Record<string, unknown>, label: string): Promise<T | null> {
+  async function call<T>(
+    payload: Record<string, unknown>,
+    label: string,
+    requestId?: string,
+  ): Promise<T | null> {
     setStatus(label);
     setBusyAction(label);
     setErrorMessage(null);
     try {
-      const response = await window.vera.request<T>(payload);
+      const response = await window.vera.request<T>(payload, requestId);
       if (!response.ok) {
+        if (response.cancelled || response.error?.includes('Answer cancelled')) {
+          setStatus('Stopped');
+          return null;
+        }
         setStatus('Ready');
         setErrorMessage(response.error || 'Request failed');
         return null;
@@ -1720,6 +1745,10 @@ function App() {
       return (response.result || null) as T | null;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Request failed';
+      if (message.includes('Answer cancelled')) {
+        setStatus('Stopped');
+        return null;
+      }
       setStatus('Ready');
       setErrorMessage(message);
       return null;
@@ -1960,6 +1989,18 @@ function App() {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
 
+  function stopAnswer() {
+    const requestId = activeAnswerRequestIdRef.current;
+    if (busyAction !== 'Asking' || !requestId) return;
+    answerCanceledRef.current = true;
+    setStatus('Stopping…');
+    void window.vera.cancelAnswer(requestId).catch((error) => {
+      answerCanceledRef.current = false;
+      setStatus('Ready');
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to stop the answer');
+    });
+  }
+
   async function askTarget() {
     if (!hasSearchableScope) {
       setErrorMessage('This library does not contain any VERA documents yet.');
@@ -2022,6 +2063,10 @@ function App() {
     }
     const priorCitations = [...priorCitationsMap.values()];
 
+    answerCanceledRef.current = false;
+    const answerRequestId = crypto.randomUUID();
+    activeAnswerRequestIdRef.current = answerRequestId;
+
     // Optimistically append the user turn to the thread.
     const pendingAttachments = attachments;
     const userTurn: SessionTurn = {
@@ -2042,10 +2087,12 @@ function App() {
     setStreamEvents([]);
     setTraceEvents([]);
     setStreamingAnswer('');
+    streamingAnswerRef.current = '';
     // Collect every trace event locally too, so it survives even if the backend
     // response doesn't echo a `trace` array (e.g. an older sidecar process).
     const collectedTrace: StreamEvent[] = [];
     const offEvents = window.vera.onAnswerEvent((ev) => {
+      if (ev.id !== answerRequestId) return;
       collectedTrace.push(ev);
       setTraceEvents((prev) => [...prev, ev]);
       if (ev.event === 'search_start') {
@@ -2060,8 +2107,11 @@ function App() {
           return [...prev, ev];
         });
       } else if (ev.event === 'answer_delta') {
-        setStreamingAnswer((prev) => prev + (ev.text ?? ''));
+        const delta = ev.text ?? '';
+        streamingAnswerRef.current += delta;
+        setStreamingAnswer((prev) => prev + delta);
       } else if (ev.event === 'answer_reset') {
+        streamingAnswerRef.current = '';
         setStreamingAnswer('');
       }
     });
@@ -2081,12 +2131,18 @@ function App() {
       ...(pendingAttachments.length
         ? { attachments: pendingAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })) }
         : {}),
-    }, 'Asking');
+    }, 'Asking', answerRequestId);
     offEvents();
+    const wasCancelled = answerCanceledRef.current;
+    const partialAnswer = streamingAnswerRef.current.trim();
+    if (activeAnswerRequestIdRef.current === answerRequestId) {
+      activeAnswerRequestIdRef.current = null;
+    }
     setStreamEvents([]);
     setTraceEvents([]);
     setStreamingAnswer('');
-    if (result) {
+    streamingAnswerRef.current = '';
+    if (result && !wasCancelled) {
       const now = Date.now();
       const sid = activeSessionId ?? `sess_${Math.random().toString(36).slice(2)}`;
       // Prefer the structured trace from the backend; fall back to the events we
@@ -2135,6 +2191,35 @@ function App() {
       const saved = await window.vera.saveSession(session);
       setSessions(saved);
     } else {
+      if (wasCancelled) {
+        const now = Date.now();
+        const sid = activeSessionId ?? `sess_${Math.random().toString(36).slice(2)}`;
+        const interruptedTurn: SessionTurn = {
+          role: 'assistant',
+          content: partialAnswer
+            ? `${partialAnswer}\n\n*Generation stopped.*`
+            : '*Generation stopped before a response was produced.*',
+          trace: collectedTrace,
+          timestamp: now,
+        };
+        if (collectedTrace.length) {
+          traceMemory.set(traceKey(sid, now), collectedTrace);
+        }
+        const withInterruptedAnswer = [...nextTurns, interruptedTurn];
+        setSessionTurns(withInterruptedAnswer);
+        const session: Session = {
+          id: sid,
+          title: withInterruptedAnswer[0]?.content.slice(0, 60) || 'New session',
+          source_path: searchScopePath,
+          turns: withInterruptedAnswer.map(stripTrace),
+          created_at: activeSessionId ? (sessions.find((s) => s.id === sid)?.created_at ?? now) : now,
+          updated_at: now,
+        };
+        if (!activeSessionId) setActiveSessionId(sid);
+        const saved = await window.vera.saveSession(session);
+        setSessions(saved);
+        return;
+      }
       // Roll back optimistic user turn on failure.
       setSessionTurns(sessionTurns);
       setQuery(query);
@@ -3191,8 +3276,14 @@ function App() {
                       }}
                       placeholder={sessionTurns.length > 0 ? 'Follow up…' : 'Ask anything'}
                     />
-                    <button className="askSendButton" onClick={askTarget} disabled={!hasSearchableScope || !query.trim() || busy} title="Send (Enter)">
-                      {busy ? <span className="askSpinner" /> : <ArrowUp size={16} strokeWidth={2.5} />}
+                    <button
+                      className="askSendButton"
+                      onClick={busyAction === 'Asking' ? stopAnswer : askTarget}
+                      disabled={busy ? busyAction !== 'Asking' : !hasSearchableScope || !query.trim()}
+                      title={busyAction === 'Asking' ? 'Stop generating' : 'Send (Enter)'}
+                      aria-label={busyAction === 'Asking' ? 'Stop generating' : 'Send'}
+                    >
+                      {busyAction === 'Asking' ? <Square size={12} fill="currentColor" /> : busy ? <span className="askSpinner" /> : <ArrowUp size={16} strokeWidth={2.5} />}
                     </button>
                   </div>
                 </div>
@@ -3530,11 +3621,9 @@ function App() {
             <div className="sourceViewer">
               <PdfSourceViewer
                 source={sourceDocument}
-                highlightRegions={selected && sourceDocumentPath === selectedSourcePath ? (selected.regions || EMPTY_REGIONS) : EMPTY_REGIONS}
-                highlightFigures={selected && sourceDocumentPath === selectedSourcePath
-                  ? (selected.figures || []).filter((figure) => figure.included_in_context)
-                  : []}
-                targetPage={selected && sourceDocumentPath === selectedSourcePath ? selectedTargetPage : null}
+                highlightRegions={viewerHighlights.regions}
+                highlightFigures={viewerHighlights.figures}
+                targetPage={viewerHighlights.targetPage}
               />
             </div>
           ) : sourceDocument ? (

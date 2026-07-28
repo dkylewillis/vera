@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import re
+import threading
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable, Protocol
+
+from .cancellation import CancellationToken, CancelledError
 
 
 # `content` is usually a plain string, but may be a list of OpenAI-style content
@@ -96,6 +100,48 @@ class ProviderHttpError(RuntimeError):
         elif status_code in (401, 403):
             message += " Check the provider API key and account permissions."
         super().__init__(message)
+
+
+def _urlopen_cancellable(
+    request: urllib.request.Request,
+    timeout: float,
+    cancel: CancellationToken | None,
+) -> Any:
+    """Open a provider connection without making cancellation wait for headers."""
+    if not cancel:
+        return urllib.request.urlopen(request, timeout=timeout)
+    cancel.raise_if_cancelled()
+    result: queue.Queue[tuple[Any | None, BaseException | None]] = queue.Queue(maxsize=1)
+
+    def open_response() -> None:
+        try:
+            response = urllib.request.urlopen(request, timeout=timeout)
+        except BaseException as exc:
+            result.put((None, exc))
+            return
+        if cancel.cancelled:
+            try:
+                response.close()
+            except Exception:
+                pass
+        result.put((response, None))
+
+    threading.Thread(target=open_response, daemon=True).start()
+    while True:
+        try:
+            response, error = result.get(timeout=0.05)
+        except queue.Empty:
+            cancel.raise_if_cancelled()
+            continue
+        if error:
+            raise error
+        if cancel.cancelled:
+            try:
+                response.close()
+            except Exception:
+                pass
+            raise CancelledError("Answer cancelled")
+        return response
 
 
 def _provider_error_message(detail: str, limit: int = 320) -> str:
@@ -214,7 +260,11 @@ def _extract_text_tool_calls(content: str) -> tuple[str, list["ToolCall"]]:
     return cleaned, calls
 
 
-def _consume_stream(response: Any, on_delta: Callable[[str], None]) -> dict[str, Any]:
+def _consume_stream(
+    response: Any,
+    on_delta: Callable[[str], None],
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
     """Read an OpenAI-compatible SSE stream into a non-streamed response payload.
 
     Accumulates content and tool-call deltas so the caller can reuse the same
@@ -225,41 +275,48 @@ def _consume_stream(response: Any, on_delta: Callable[[str], None]) -> dict[str,
     tool_calls_acc: dict[int, dict[str, Any]] = {}
     model_name = ""
     usage: dict[str, Any] | None = None
-    for raw_line in response:
-        line = raw_line.decode("utf-8", errors="replace").strip()
-        if not line or not line.startswith("data:"):
-            continue
-        data = line[len("data:"):].strip()
-        if data == "[DONE]":
-            break
-        try:
-            chunk = json.loads(data)
-        except json.JSONDecodeError:
-            continue
-        if chunk.get("model"):
-            model_name = str(chunk["model"])
-        if chunk.get("usage"):
-            usage = chunk["usage"]
-        choices = chunk.get("choices") or []
-        if not choices:
-            continue
-        delta = choices[0].get("delta") or {}
-        piece = delta.get("content")
-        if piece:
-            content_parts.append(piece)
-            on_delta(piece)
-        for raw_call in delta.get("tool_calls") or []:
-            if not isinstance(raw_call, dict):
+    try:
+        for raw_line in response:
+            if cancel:
+                cancel.raise_if_cancelled()
+            line = raw_line.decode("utf-8", errors="replace").strip()
+            if not line or not line.startswith("data:"):
                 continue
-            index = int(raw_call.get("index", 0) or 0)
-            slot = tool_calls_acc.setdefault(index, {"id": None, "name": "", "arguments": ""})
-            if raw_call.get("id"):
-                slot["id"] = raw_call["id"]
-            function = raw_call.get("function") or {}
-            if function.get("name"):
-                slot["name"] = function["name"]
-            if function.get("arguments"):
-                slot["arguments"] += function["arguments"]
+            data = line[len("data:"):].strip()
+            if data == "[DONE]":
+                break
+            try:
+                chunk = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            if chunk.get("model"):
+                model_name = str(chunk["model"])
+            if chunk.get("usage"):
+                usage = chunk["usage"]
+            choices = chunk.get("choices") or []
+            if not choices:
+                continue
+            delta = choices[0].get("delta") or {}
+            piece = delta.get("content")
+            if piece:
+                content_parts.append(piece)
+                on_delta(piece)
+            for raw_call in delta.get("tool_calls") or []:
+                if not isinstance(raw_call, dict):
+                    continue
+                index = int(raw_call.get("index", 0) or 0)
+                slot = tool_calls_acc.setdefault(index, {"id": None, "name": "", "arguments": ""})
+                if raw_call.get("id"):
+                    slot["id"] = raw_call["id"]
+                function = raw_call.get("function") or {}
+                if function.get("name"):
+                    slot["name"] = function["name"]
+                if function.get("arguments"):
+                    slot["arguments"] += function["arguments"]
+    except (AttributeError, OSError, ValueError) as exc:
+        if cancel and cancel.cancelled:
+            raise CancelledError("Answer cancelled") from exc
+        raise
 
     message: dict[str, Any] = {"role": "assistant", "content": "".join(content_parts)}
     if tool_calls_acc:
@@ -349,13 +406,19 @@ def _responses_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]]
     return converted
 
 
-def _consume_responses_stream(response: Any, on_delta: Callable[[str], None]) -> dict[str, Any]:
+def _consume_responses_stream(
+    response: Any,
+    on_delta: Callable[[str], None],
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
     final_response: dict[str, Any] | None = None
     output_items: dict[int, dict[str, Any]] = {}
     response_id = ""
     model = ""
     usage: dict[str, Any] | None = None
     for raw_line in response:
+        if cancel:
+            cancel.raise_if_cancelled()
         line = raw_line.decode("utf-8", errors="replace").strip()
         if not line or not line.startswith("data:"):
             continue
@@ -473,6 +536,7 @@ class OpenAiCompatibleProvider:
         tools: list[dict[str, Any]] | None = None,
         tool_choice: str = "auto",
         on_delta: Callable[[str], None] | None = None,
+        cancel: CancellationToken | None = None,
     ) -> ChatResponse:
         if not config.model.strip():
             raise ValueError("LLM model is required")
@@ -514,12 +578,27 @@ class OpenAiCompatibleProvider:
             return payload
 
         def post(include_temperature: bool, include_options: bool) -> dict[str, Any]:
+            if cancel:
+                cancel.raise_if_cancelled()
             body = json.dumps(build_payload(include_temperature, include_options)).encode("utf-8")
             request = urllib.request.Request(url, data=body, headers=headers, method="POST")
-            with urllib.request.urlopen(request, timeout=config.timeout) as response:
-                if stream:
-                    return _consume_stream(response, on_delta)
-                return json.loads(response.read().decode("utf-8"))
+            with _urlopen_cancellable(request, config.timeout, cancel) as response:
+                if cancel:
+                    cancel.register_response(response)
+                try:
+                    if stream:
+                        return _consume_stream(response, on_delta, cancel)
+                    payload = json.loads(response.read().decode("utf-8"))
+                    if cancel:
+                        cancel.raise_if_cancelled()
+                    return payload
+                except (AttributeError, OSError, ValueError) as exc:
+                    if cancel and cancel.cancelled:
+                        raise CancelledError("Answer cancelled") from exc
+                    raise
+                finally:
+                    if cancel:
+                        cancel.unregister_response(response)
 
         include_temperature = True
         include_options = bool(config.reasoning_effort.strip() or config.service_tier.strip())
@@ -609,8 +688,13 @@ class OpenAiCompatibleProvider:
             usage=response_payload.get("usage"),
         )
 
-    def generate(self, messages: list[Message], config: LlmConfig) -> LlmResult:
-        response = self.chat(messages, config)
+    def generate(
+        self,
+        messages: list[Message],
+        config: LlmConfig,
+        cancel: CancellationToken | None = None,
+    ) -> LlmResult:
+        response = self.chat(messages, config, cancel=cancel)
         if not response.content:
             raise RuntimeError("LLM provider returned no message content")
         return LlmResult(
@@ -633,6 +717,7 @@ class OpenAiResponsesProvider:
         tools: list[dict[str, Any]] | None = None,
         tool_choice: str = "auto",
         on_delta: Callable[[str], None] | None = None,
+        cancel: CancellationToken | None = None,
     ) -> ChatResponse:
         if not config.model.strip():
             raise ValueError("LLM model is required")
@@ -666,17 +751,31 @@ class OpenAiResponsesProvider:
 
         for _ in range(3):
             try:
+                if cancel:
+                    cancel.raise_if_cancelled()
                 request = urllib.request.Request(
                     url,
                     data=json.dumps(build_payload()).encode("utf-8"),
                     headers=headers,
                     method="POST",
                 )
-                with urllib.request.urlopen(request, timeout=config.timeout) as response:
-                    if stream:
-                        response_payload = _consume_responses_stream(response, on_delta)
-                    else:
-                        response_payload = json.loads(response.read().decode("utf-8"))
+                with _urlopen_cancellable(request, config.timeout, cancel) as response:
+                    if cancel:
+                        cancel.register_response(response)
+                    try:
+                        if stream:
+                            response_payload = _consume_responses_stream(response, on_delta, cancel)
+                        else:
+                            response_payload = json.loads(response.read().decode("utf-8"))
+                            if cancel:
+                                cancel.raise_if_cancelled()
+                    except (AttributeError, OSError, ValueError) as exc:
+                        if cancel and cancel.cancelled:
+                            raise CancelledError("Answer cancelled") from exc
+                        raise
+                    finally:
+                        if cancel:
+                            cancel.unregister_response(response)
                 break
             except urllib.error.HTTPError as exc:
                 detail = exc.read().decode("utf-8", errors="replace")
@@ -700,8 +799,13 @@ class OpenAiResponsesProvider:
             raise RuntimeError("OpenAI Responses API rejected the request after adjusting unsupported parameters.")
         return _chat_response_from_responses(response_payload, config.model)
 
-    def generate(self, messages: list[Message], config: LlmConfig) -> LlmResult:
-        response = self.chat(messages, config)
+    def generate(
+        self,
+        messages: list[Message],
+        config: LlmConfig,
+        cancel: CancellationToken | None = None,
+    ) -> LlmResult:
+        response = self.chat(messages, config, cancel=cancel)
         if not response.content:
             raise RuntimeError("LLM provider returned no message content")
         return LlmResult(
@@ -727,21 +831,26 @@ def chat(
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str = "auto",
     on_delta: Callable[[str], None] | None = None,
+    cancel: CancellationToken | None = None,
 ) -> ChatResponse:
     provider = config.provider.strip().lower()
     if provider in _SUPPORTED_PROVIDERS:
         if _uses_openai_responses(config):
-            return OpenAiResponsesProvider().chat(messages, config, tools=tools, tool_choice=tool_choice, on_delta=on_delta)
-        return OpenAiCompatibleProvider().chat(messages, config, tools=tools, tool_choice=tool_choice, on_delta=on_delta)
+            return OpenAiResponsesProvider().chat(messages, config, tools=tools, tool_choice=tool_choice, on_delta=on_delta, cancel=cancel)
+        return OpenAiCompatibleProvider().chat(messages, config, tools=tools, tool_choice=tool_choice, on_delta=on_delta, cancel=cancel)
     raise ValueError(f"Unsupported LLM provider: {config.provider}")
 
 
-def generate(messages: list[Message], config: LlmConfig) -> LlmResult:
+def generate(
+    messages: list[Message],
+    config: LlmConfig,
+    cancel: CancellationToken | None = None,
+) -> LlmResult:
     provider = config.provider.strip().lower()
     if provider in _SUPPORTED_PROVIDERS:
         if _uses_openai_responses(config):
-            return OpenAiResponsesProvider().generate(messages, config)
-        return OpenAiCompatibleProvider().generate(messages, config)
+            return OpenAiResponsesProvider().generate(messages, config, cancel=cancel)
+        return OpenAiCompatibleProvider().generate(messages, config, cancel=cancel)
     raise ValueError(f"Unsupported LLM provider: {config.provider}")
 
 

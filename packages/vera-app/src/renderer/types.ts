@@ -4,6 +4,7 @@ export interface VeraResponse<T = unknown> {
   result?: T;
   error?: string;
   traceback?: string;
+  cancelled?: boolean;
 }
 
 export type ContentPart =
@@ -25,6 +26,7 @@ export interface TraceToolCall {
 }
 
 export interface StreamEvent {
+  id: string;
   event: 'search_start' | 'search_done' | 'llm_request' | 'llm_response' | 'tool_call' | 'answer_delta' | 'answer_reset';
   turn?: number;
   query?: string;
@@ -50,7 +52,8 @@ export interface StreamEvent {
 export interface VeraApi {
   platform: string;
   showMenu(menuId: string, x: number, y: number): Promise<boolean>;
-  request<T = unknown>(payload: Record<string, unknown>): Promise<VeraResponse<T>>;
+  request<T = unknown>(payload: Record<string, unknown>, requestId?: string): Promise<VeraResponse<T>>;
+  cancelAnswer(requestId: string): Promise<void>;
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;
   saveApiKey(providerId: string, apiKey: string): Promise<CredentialResult>;
