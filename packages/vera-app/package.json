@@ -7,12 +7,16 @@
   "type": "module",
   "main": "dist-electron/electron/main.js",
   "scripts": {
-    "predev": "tsc -p tsconfig.json",
+    "predev": "npm run build:electron && npm run typecheck:renderer",
     "dev": "concurrently -k --success first \"vite --host 127.0.0.1 --strictPort\" \"wait-on http://127.0.0.1:5173 && electron .\"",
-    "build": "tsc -p tsconfig.json && vite build",
+    "build": "npm run build:electron && npm run typecheck:renderer && vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
     "build:sidecar": "uv run --project ../.. --extra app --with pyinstaller pyinstaller --noconfirm --clean --onedir --add-data ../../../vera-doc/src/vera/ingest/tessdata:vera/ingest/tessdata --name vera-sidecar --distpath build/sidecar --workpath build/pyinstaller --specpath build/pyinstaller src/vera_app/sidecar.py",
     "dist": "npm run build && npm run build:sidecar && electron-builder",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "npm run typecheck:electron && npm run typecheck:renderer",
+    "typecheck:electron": "tsc -p tsconfig.electron.json --noEmit",
+    "typecheck:renderer": "tsc -p tsconfig.renderer.json",
+    "test:unit": "vitest run",
     "start": "electron ."
   },
   "dependencies": {
@@ -33,6 +37,7 @@
     "electron-builder": "latest",
     "typescript": "latest",
     "vite": "latest",
+    "vitest": "^4.1.10",
     "wait-on": "latest"
   },
   "build": {
