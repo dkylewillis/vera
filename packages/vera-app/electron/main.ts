@@ -592,7 +592,7 @@ function configureMenu(): void {
 }
 
 function createWindow(): void {
-  const preload = fileURLToPath(new URL('./preload.js', import.meta.url));
+  const preload = fileURLToPath(new URL('./preload.cjs', import.meta.url));
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
