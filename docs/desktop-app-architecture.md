@@ -90,10 +90,16 @@ A fresh persistent index is used automatically for Search and Ask. The Info
 view's **Deep inspect** action remains available for an explicit validation
 scan and populates library metrics. Libraries with at least 100 discovered
 archives prompt to build or update an unavailable index, while smaller
-libraries leave that action in Explorer. Choosing **Search anyway** never
-blocks retrieval: the sidecar performs recursive fan-out search and the app
-keeps a slower-search banner visible. Watcher events and completed directory
-conversions update badges but never start a build automatically.
+libraries expose build, update, rescan, activate, and close actions in the
+folder row's context menu. The same menu can be opened from the keyboard with
+Shift+F10 or the Menu key, supports arrow key navigation, and closes with
+Escape. Explorer keeps the active-folder highlight without an Active text
+label, including when selected files override the library, and represents index
+state with a compact database badge: green for a fresh index and orange when an
+index is missing or stale. Choosing **Search anyway** never blocks retrieval:
+the sidecar performs recursive fan-out search and the app keeps a slower-search
+banner visible. Watcher events and completed directory conversions update badges
+but never start a build automatically.
 
 Any readable folder can remain active even before it contains a `.vera`
 archive. Search and Ask open the corpus on demand; an empty library returns a

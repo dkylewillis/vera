@@ -377,23 +377,9 @@ button {
   border-radius: var(--radius-sm);
 }
 
-.folderGroupHead:hover .ghostIcon.tiny {
-  opacity: 1;
-}
-
-.folderGroupHead > .ghostIcon.tiny {
-  flex: none;
-  background: var(--bg-side);
-}
-
 .folderGroup.activeLibrary .folderGroupHead {
   background: var(--accent-soft);
   outline: 1px solid var(--accent-soft-border);
-}
-
-.folderGroup.overriddenLibrary .folderGroupHead {
-  background: transparent;
-  outline: 1px dashed var(--border-strong);
 }
 
 .folderCollapseAction {
@@ -464,27 +450,20 @@ button {
   color: var(--text);
 }
 
-.activeLibraryMark {
-  flex: none;
-  color: var(--accent-text);
-  font-size: 9px;
-  font-weight: 750;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.activeLibraryMark.overridden {
-  color: var(--text-faint);
-}
-
 .indexBadge {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
   flex: none;
-  padding: 2px 6px;
   border: 1px solid transparent;
-  border-radius: 999px;
-  font-size: 9.5px;
+  border-radius: 4px;
+  font-size: 10px;
   font-weight: 700;
-  white-space: nowrap;
+}
+
+.indexBadge svg {
+  stroke-width: 2.5;
 }
 
 .indexBadge.fresh {
@@ -498,20 +477,6 @@ button {
   color: var(--warn);
   background: color-mix(in srgb, var(--warn) 12%, var(--bg-surface));
   border-color: color-mix(in srgb, var(--warn) 28%, transparent);
-}
-
-.indexAction {
-  flex: none;
-  padding: 1px 4px;
-  color: var(--accent-text);
-  background: transparent;
-  border: 0;
-  font-size: 9.5px;
-  font-weight: 700;
-}
-
-.indexAction:hover {
-  text-decoration: underline;
 }
 
 @container (max-width: 230px) {
@@ -533,20 +498,53 @@ button {
     padding-inline: 2px;
   }
 
-  .activeLibraryMark {
-    display: none;
-  }
-
   .indexBadge {
-    width: 10px;
-    height: 10px;
-    padding: 0;
-    font-size: 0;
+    width: 14px;
+    height: 14px;
+    font-size: 9px;
   }
+}
 
-  .folderGroupHead > .ghostIcon.tiny {
-    width: 18px;
-  }
+.folderContextMenuBackdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+}
+
+.folderContextMenu {
+  position: fixed;
+  display: grid;
+  min-width: 180px;
+  padding: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.folderContextMenu button {
+  width: 100%;
+  padding: 6px 8px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 2px);
+  text-align: left;
+  font-size: 12px;
+}
+
+.folderContextMenu button:hover {
+  background: var(--accent-soft);
+}
+
+.folderContextMenu button.danger {
+  color: var(--danger);
+}
+
+.folderContextMenuSeparator {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
 }
 
 .folderEmpty {
@@ -1906,13 +1904,14 @@ details.traceEntry[open] > summary {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  position: relative;
   width: 100%;
   flex: 0 0 auto;
-  padding: 12px 24px 18px;
+  padding: 10px 4px 18px;
 }
 
 .composerScope {
-  width: min(760px, 100%);
+  width: 100%;
   margin-bottom: 5px;
   color: var(--text-faint);
   font-size: 10.5px;
@@ -1929,26 +1928,62 @@ details.traceEntry[open] > summary {
 .askComposer {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   width: 100%;
-  max-width: 760px;
-  padding: 10px 12px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  transition: border-color 0.14s, box-shadow 0.14s;
+  max-width: none;
+  padding: 4px 8px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: none;
+  transition: border-color 0.14s, background 0.14s;
 }
 
 .askComposer:focus-within {
-  border-color: var(--accent);
-  box-shadow: var(--shadow), var(--ring);
+  background: var(--bg-surface);
+  border-color: var(--border-strong);
+  box-shadow: none;
 }
 
 .askComposer--dragging {
   border-color: var(--accent);
   border-style: dashed;
   background: var(--accent-soft);
+}
+
+.askComposer--multiline {
+  padding: 4px 8px;
+  border-radius: 12px;
+}
+
+.askComposer--multiline .askInputRow {
+  display: block;
+  position: relative;
+}
+
+.askComposer--multiline .attachButton {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  margin: 0;
+}
+
+.askComposer.askComposer--multiline .askInput {
+  display: block;
+  width: 100%;
+  padding: 2px 3px 34px;
+}
+
+.askComposer--multiline .askSendButton {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+
+.askComposerWrap:has(.askComposer--multiline) .composerBar > .modelPicker:nth-child(2) {
+  right: auto;
+  bottom: 39px;
+  left: 45px;
 }
 
 .attachRow {
@@ -2015,8 +2050,19 @@ details.traceEntry[open] > summary {
 
 .attachButton {
   flex-shrink: 0;
-  align-self: flex-end;
-  margin-bottom: 5px;
+  align-self: center;
+  width: 26px;
+  height: 26px;
+  margin: 0 1px 0 0;
+  color: var(--text-muted);
+  background: var(--bg-surface-3);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+
+.attachButton svg {
+  width: 14px;
+  height: 14px;
 }
 
 .userAttachments {
@@ -2036,15 +2082,15 @@ details.traceEntry[open] > summary {
 
 .askInputRow {
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
 }
 
 .askComposer .askInput {
   flex: 1;
   min-width: 0;
   max-height: 200px;
-  padding: 5px 4px;
+  padding: 5px 175px 5px 3px;
   border: 0;
   background: transparent;
   font-size: 14.5px;
@@ -2065,18 +2111,23 @@ details.traceEntry[open] > summary {
 .askSendButton {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
-  color: #ffffff;
-  background: var(--accent);
+  color: var(--bg-activity);
+  background: var(--text-strong);
   border: 0;
   border-radius: 50%;
   transition: background 0.14s, transform 0.1s;
 }
 
+.askSendButton svg {
+  width: 14px;
+  height: 14px;
+}
+
 .askSendButton:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: var(--text);
 }
 
 .askSendButton:active:not(:disabled) {
@@ -2084,7 +2135,8 @@ details.traceEntry[open] > summary {
 }
 
 .askSendButton:disabled {
-  background: var(--border-strong);
+  color: var(--text-faint);
+  background: var(--bg-surface-3);
   cursor: default;
 }
 
@@ -2105,6 +2157,22 @@ details.traceEntry[open] > summary {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-height: 30px;
+  width: 100%;
+  padding: 5px 1px 0;
+}
+
+.composerBar > .modelPicker:nth-child(2) {
+  position: absolute;
+  right: 43px;
+  bottom: 42px;
+  z-index: 2;
+}
+
+.composerBar > .modelPicker:nth-child(2) .modelPickerButton {
+  height: 30px;
+  padding: 0 7px;
+  font-size: 13px;
 }
 
 .composerToggle {
@@ -2115,9 +2183,9 @@ details.traceEntry[open] > summary {
   margin-left: auto;
   padding: 0 12px;
   color: var(--text-muted);
-  background: var(--bg-surface-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 600;
   transition: border-color 0.12s, color 0.12s, background 0.12s;
@@ -2146,9 +2214,9 @@ details.traceEntry[open] > summary {
   height: 30px;
   padding: 0 10px;
   color: var(--text-muted);
-  background: var(--bg-surface-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 600;
   transition: border-color 0.12s, color 0.12s;

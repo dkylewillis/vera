@@ -6,6 +6,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import {
   AlertTriangle,
+  ArrowUp,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -28,12 +29,9 @@ import {
   Pencil,
   Plus,
   RefreshCw,
-  RotateCw,
   Search,
-  Send,
   Settings,
   ShieldCheck,
-  Sparkles,
   Terminal,
   Trash2,
   X,
@@ -43,6 +41,7 @@ import './styles.css';
 
 type SideView = 'explorer' | 'chats' | 'search' | 'convert' | 'info';
 type IndexPrompt = { path: string; status: LibraryIndexStatus };
+type FolderContextMenu = { path: string; x: number; y: number };
 
 const EMPTY_REGIONS: RegionResult[] = [];
 const REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
@@ -1416,6 +1415,9 @@ function App() {
   const [path, setPath] = useState('');
   const [activeLibraryPath, setActiveLibraryPath] = useState('');
   const [indexStatuses, setIndexStatuses] = useState<Record<string, LibraryIndexStatus>>({});
+  const [folderContextMenu, setFolderContextMenu] = useState<FolderContextMenu | null>(null);
+  const folderContextMenuFirstActionRef = useRef<HTMLButtonElement | null>(null);
+  const folderContextMenuTriggerRef = useRef<HTMLElement | null>(null);
   const [indexPrompt, setIndexPrompt] = useState<IndexPrompt | null>(null);
   const [indexReport, setIndexReport] = useState<LibraryIndexBuildReport | null>(null);
   const [indexRecursive, setIndexRecursive] = useState(true);
@@ -1424,6 +1426,7 @@ function App() {
   const [pdfPath, setPdfPath] = useState('');
   const [outputPath, setOutputPath] = useState('');
   const [query, setQuery] = useState('');
+  const [composerMultiline, setComposerMultiline] = useState(false);
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
@@ -1488,6 +1491,36 @@ function App() {
       return false;
     }
   });
+
+  useEffect(() => {
+    if (!folderContextMenu) return;
+    folderContextMenuFirstActionRef.current?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setFolderContextMenu(null);
+        folderContextMenuTriggerRef.current?.focus();
+        return;
+      }
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+
+      const menu = document.querySelector('.folderContextMenu');
+      const actions = [...(menu?.querySelectorAll<HTMLButtonElement>('button') ?? [])];
+      if (actions.length === 0) return;
+      event.preventDefault();
+      const current = document.activeElement;
+      const currentIndex = actions.indexOf(current as HTMLButtonElement);
+      const nextIndex = event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? actions.length - 1
+          : (currentIndex + (event.key === 'ArrowDown' ? 1 : -1) + actions.length) % actions.length;
+      actions[nextIndex].focus();
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [folderContextMenu]);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollThreadRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -1630,6 +1663,15 @@ function App() {
     setCollapsedFolders((prev) =>
       prev.includes(folderPath) ? prev.filter((p) => p !== folderPath) : [...prev, folderPath],
     );
+  }
+
+  function showFolderContextMenu(folderPath: string, x: number, y: number) {
+    folderContextMenuTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setFolderContextMenu({
+      path: folderPath,
+      x: Math.max(8, Math.min(x, window.innerWidth - 190)),
+      y: Math.max(8, Math.min(y, window.innerHeight - 180)),
+    });
   }
 
   function openEntry(entry: FolderEntry) {
@@ -1993,6 +2035,7 @@ function App() {
     setShowJumpToLatest(false);
     setSessionTurns(nextTurns);
     setQuery('');
+    setComposerMultiline(false);
     setAttachments([]);
 
     // Set up streaming event listener before firing the request.
@@ -2106,6 +2149,7 @@ function App() {
     setResults([]);
     setSelected(null);
     setQuery('');
+    setComposerMultiline(false);
     setAttachments([]);
   }
 
@@ -2611,16 +2655,22 @@ function App() {
                   <div className="explorerTree">
                     {folders.map((folder) => {
                       const folderIndex = indexStatuses[folder.path];
-                      const indexLabel = folderIndex?.fresh ? 'Indexed' : folderIndex?.exists ? 'Stale' : 'No index';
                       const folderBusy = busyFolderPath === folder.path;
                       return (
                       <section
                         className={activeLibraryPath === folder.path
-                          ? selectedFiles.length > 0 ? 'folderGroup overriddenLibrary' : 'folderGroup activeLibrary'
+                          ? selectedFiles.length > 0 ? 'folderGroup' : 'folderGroup activeLibrary'
                           : 'folderGroup'}
                         key={folder.path}
                       >
-                        <div className="folderGroupHead" title={folder.path}>
+                        <div
+                          className="folderGroupHead"
+                          title={folder.path}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            showFolderContextMenu(folder.path, event.clientX, event.clientY);
+                          }}
+                        >
                           <button
                             className="folderCollapseAction"
                             onClick={() => toggleFolderCollapsed(folder.path)}
@@ -2640,28 +2690,25 @@ function App() {
                           <button
                             className="folderGroupToggle"
                             onClick={() => void openTargetPath(folder.path, { asLibrary: true })}
+                            onKeyDown={(event) => {
+                              if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+                              event.preventDefault();
+                              const bounds = event.currentTarget.getBoundingClientRect();
+                              showFolderContextMenu(folder.path, bounds.left, bounds.bottom);
+                            }}
                             title="Use this folder as the active library"
+                            aria-haspopup="menu"
+                            aria-expanded={folderContextMenu?.path === folder.path}
                           >
                             <span className="folderGroupName">{folder.name}</span>
-                            {activeLibraryPath === folder.path ? (
-                              <span className={selectedFiles.length > 0 ? 'activeLibraryMark overridden' : 'activeLibraryMark'}>
-                                {selectedFiles.length > 0 ? 'Overridden' : 'Active'}
-                              </span>
-                            ) : null}
                           </button>
                           <span
                             className={`indexBadge ${folderIndex?.fresh ? 'fresh' : folderIndex?.exists ? 'stale' : 'missing'}`}
-                            title={folderIndex?.fresh ? 'Library index is current' : folderIndex?.reasons.join('; ')}
+                            title={folderIndex?.fresh ? 'Indexed' : folderIndex?.exists ? `Index needs updating: ${folderIndex.reasons.join('; ')}` : 'No index'}
+                            aria-label={`Index status: ${folderIndex?.fresh ? 'indexed' : folderIndex?.exists ? 'needs updating' : 'no index'}`}
                           >
-                            {indexLabel}
+                            <Database size={11} aria-hidden="true" />
                           </span>
-                          {!folderIndex?.fresh ? (
-                            <button className="indexAction" onClick={() => void manageLibraryIndex(folder.path)}>
-                              {folderIndex?.exists ? 'Update' : 'Build'}
-                            </button>
-                          ) : null}
-                          <button className="ghostIcon tiny visible" onClick={() => void refreshFolder(folder.path)} title="Refresh"><RotateCw size={12} /></button>
-                          <button className="ghostIcon tiny visible" onClick={() => removeFolder(folder.path)} title="Close folder"><X size={12} /></button>
                         </div>
                         {collapsedFolders.includes(folder.path) ? null : folder.entries.length === 0 ? (
                           <p className="folderEmpty">No .vera or .pdf files</p>
@@ -3059,7 +3106,7 @@ function App() {
                     : activeLibraryPath ? 'Entire library' : path ? 'Current document' : 'No search scope'}
                 </div>
                 <div
-                  className={isDraggingFiles ? 'askComposer askComposer--dragging' : 'askComposer'}
+                  className={`askComposer${isDraggingFiles ? ' askComposer--dragging' : ''}${composerMultiline ? ' askComposer--multiline' : ''}`}
                   onDragOver={(event) => {
                     if (!event.dataTransfer.types.includes('Files')) return;
                     event.preventDefault();
@@ -3125,7 +3172,17 @@ function App() {
                       className="askInput"
                       value={query}
                       rows={1}
-                      onChange={(event) => setQuery(event.target.value)}
+                      onChange={(event) => {
+                        const textarea = event.currentTarget;
+                        setQuery(event.target.value);
+                        if (!textarea.value) {
+                          setComposerMultiline(false);
+                          return;
+                        }
+                        requestAnimationFrame(() => {
+                          setComposerMultiline(textarea.scrollHeight > 40);
+                        });
+                      }}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' && !event.shiftKey) {
                           event.preventDefault();
@@ -3135,10 +3192,11 @@ function App() {
                       placeholder={sessionTurns.length > 0 ? 'Follow up…' : 'Ask anything'}
                     />
                     <button className="askSendButton" onClick={askTarget} disabled={!hasSearchableScope || !query.trim() || busy} title="Send (Enter)">
-                      {busy ? <span className="askSpinner" /> : <Send size={16} />}
+                      {busy ? <span className="askSpinner" /> : <ArrowUp size={16} strokeWidth={2.5} />}
                     </button>
                   </div>
-                  <div className="composerBar">
+                </div>
+                <div className="composerBar">
                     <div className="modelPicker">
                       <button
                         type="button"
@@ -3208,7 +3266,6 @@ function App() {
                           }
                         }}
                       >
-                        <Sparkles size={14} />
                         <span>
                           {activeProvider && activeModel
                             ? `${activeModel}${activeModelOptions.reasoning_effort ? ` · ${reasoningEffortLabel(activeModelOptions.reasoning_effort)}` : ''}${activeModelOptions.fast ? ' · Fast' : ''}`
@@ -3355,7 +3412,6 @@ function App() {
                       <span>Trace</span>
                     </button>
                   </div>
-                </div>
               </div>
             </div>
         </main>
@@ -3501,6 +3557,56 @@ function App() {
         <span>Files: {inspect?.file_count ?? '-'}</span>
         <span>Model: {inspect?.default_embedding_model || inspect?.embedding_models?.join(', ') || '-'}</span>
       </footer>
+      {folderContextMenu ? (
+        <div className="folderContextMenuBackdrop" onClick={() => setFolderContextMenu(null)}>
+          <div
+            className="folderContextMenu"
+            role="menu"
+            style={{ left: folderContextMenu.x, top: folderContextMenu.y }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              ref={folderContextMenuFirstActionRef}
+              role="menuitem"
+              onClick={() => {
+                void openTargetPath(folderContextMenu.path, { asLibrary: true });
+                setFolderContextMenu(null);
+              }}
+            >
+              Use as active library
+            </button>
+            <button
+              role="menuitem"
+              onClick={() => {
+                void manageLibraryIndex(folderContextMenu.path);
+                setFolderContextMenu(null);
+              }}
+            >
+              {indexStatuses[folderContextMenu.path]?.exists ? 'Update index' : 'Build index'}
+            </button>
+            <button
+              role="menuitem"
+              onClick={() => {
+                void refreshFolder(folderContextMenu.path);
+                setFolderContextMenu(null);
+              }}
+            >
+              Rescan folder
+            </button>
+            <div className="folderContextMenuSeparator" role="separator" />
+            <button
+              className="danger"
+              role="menuitem"
+              onClick={() => {
+                removeFolder(folderContextMenu.path);
+                setFolderContextMenu(null);
+              }}
+            >
+              Close folder
+            </button>
+          </div>
+        </div>
+      ) : null}
       {modelManagerOpen ? (
         <ModelManager
           providers={providers}
