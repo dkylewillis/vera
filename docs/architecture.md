@@ -92,8 +92,10 @@ Dependencies should move in one direction:
 ```text
 vera-cli  -> vera-doc
 vera-app  -> vera-doc
-vera-mcp  -> vera-doc
 ```
+
+The MCP server is an optional integration inside `vera-doc`, not a separate
+package.
 
 `vera-doc` should not import from `vera-cli` or `vera-app`.
 

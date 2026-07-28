@@ -108,8 +108,6 @@ function App() {
   const [modelManagerOpen, setModelManagerOpen] = useState(false);
   const [modelRefreshBusyId, setModelRefreshBusyId] = useState('');
   const [modelRefreshMessage, setModelRefreshMessage] = useState('');
-  const [convertModel, setConvertModel] = useState('hashing');
-  const [convertParser, setConvertParser] = useState('pymupdf');
   const [convertMode, setConvertMode] = useState<'single' | 'batch'>('single');
   const [batchDirectory, setBatchDirectory] = useState('');
   const [batchRecursive, setBatchRecursive] = useState(true);
@@ -1137,8 +1135,8 @@ function App() {
       action: 'convert',
       input: pdfPath,
       output,
-      model: convertModel,
-      parser: convertParser,
+      model: 'hashing',
+      parser: 'pymupdf',
       chunk_size: chunkSize,
       overlap,
       store_original: storeOriginal,
@@ -1167,8 +1165,8 @@ function App() {
       directory,
       recursive: batchRecursive,
       overwrite: batchOverwrite,
-      model: convertModel,
-      parser: convertParser,
+      model: 'hashing',
+      parser: 'pymupdf',
       chunk_size: chunkSize,
       overlap,
       store_original: storeOriginal,
@@ -1733,21 +1731,8 @@ function App() {
                       <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Existing archives are skipped unless overwrite is enabled.</p>
                     </>
                   )}
+                  <p className="sideMuted">Conversions use the PyMuPDF parser and local hashing embeddings.</p>
                   <div className="convertGrid">
-                    <label className="miniField">
-                      <span>Parser</span>
-                      <select value={convertParser} onChange={(event) => setConvertParser(event.target.value)}>
-                        <option value="pymupdf">PyMuPDF</option>
-                        <option value="docling">Docling</option>
-                      </select>
-                    </label>
-                    <label className="miniField">
-                      <span>Model</span>
-                      <select value={convertModel} onChange={(event) => setConvertModel(event.target.value)}>
-                        <option value="hashing">Hashing</option>
-                        <option value="openai">OpenAI</option>
-                      </select>
-                    </label>
                     <label className="miniField">
                       <span>Chunk Size</span>
                       <input className="numberInput" type="number" min={100} max={3000} step={50} value={chunkSize} onChange={(event) => setChunkSize(Number(event.target.value))} />

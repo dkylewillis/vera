@@ -20,25 +20,25 @@
     "start": "electron ."
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "lucide-react": "latest",
-    "pdfjs-dist": "^6.0.227",
-    "react": "latest",
-    "react-dom": "latest",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "lucide-react": "1.21.0",
+    "pdfjs-dist": "6.0.227",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "concurrently": "latest",
-    "electron": "latest",
-    "electron-builder": "latest",
-    "typescript": "latest",
-    "vite": "latest",
-    "vitest": "^4.1.10",
-    "wait-on": "latest"
+    "@types/node": "26.0.0",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "concurrently": "10.0.4",
+    "electron": "42.4.1",
+    "electron-builder": "26.15.3",
+    "typescript": "6.0.3",
+    "vite": "8.0.16",
+    "vitest": "4.1.10",
+    "wait-on": "9.0.10"
   },
   "build": {
     "appId": "dev.vera.desktop",

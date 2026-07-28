@@ -143,6 +143,8 @@ def test_hardening_json_contracts_are_documented():
     assert "Deep inspect" in desktop
     assert "corpus opens on the first" in desktop
     assert "indexing runs in the background" in desktop
+    assert "PyMuPDF parser" in desktop
+    assert "local hashing embeddings" in desktop
     assert "allow_empty=True" in libraries
     assert "`skipped_files`" in mcp
     assert "`skipped_semantic_model_groups`" in mcp
