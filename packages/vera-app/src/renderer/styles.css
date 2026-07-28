@@ -456,14 +456,36 @@ button {
   width: 16px;
   height: 16px;
   flex: none;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: 4px;
+  background: transparent;
   font-size: 10px;
   font-weight: 700;
 }
 
+.indexBadge:disabled {
+  opacity: 1;
+}
+
+.indexBadge:not(:disabled) {
+  cursor: pointer;
+}
+
 .indexBadge svg {
   stroke-width: 2.5;
+}
+
+.indexBadge.indexing {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-border);
+}
+
+.indexBadge.checking {
+  color: var(--text-faint);
+  background: var(--bg-surface);
+  border-color: var(--border);
 }
 
 .indexBadge.fresh {
@@ -473,7 +495,8 @@ button {
 }
 
 .indexBadge.stale,
-.indexBadge.missing {
+.indexBadge.missing,
+.indexBadge.warning {
   color: var(--warn);
   background: color-mix(in srgb, var(--warn) 12%, var(--bg-surface));
   border-color: color-mix(in srgb, var(--warn) 28%, transparent);

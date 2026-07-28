@@ -1,5 +1,7 @@
+import io
 import json
 import importlib
+import threading
 
 import pytest
 
@@ -157,6 +159,47 @@ def test_index_actions_and_recursive_folder_search(nested_app_library):
     assert updated["ok"] is True
     assert updated["result"]["operation"] == "update"
     assert updated["result"]["indexed"] == 3
+
+
+def test_index_build_does_not_block_other_sidecar_requests(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    index_started = threading.Event()
+    release_index = threading.Event()
+    index_finished = threading.Event()
+    all_responses = threading.Event()
+    responses = []
+    observed = {"ping_while_indexing": False}
+
+    def fake_handle(request, cancel=None):
+        if request["action"] == "index_build":
+            index_started.set()
+            release_index.wait(timeout=1)
+            index_finished.set()
+        elif request["action"] == "ping":
+            observed["ping_while_indexing"] = index_started.is_set() and not index_finished.is_set()
+            release_index.set()
+        return {"id": request["id"], "ok": True, "result": request["action"]}
+
+    def capture_response(response):
+        responses.append(response)
+        if len(responses) == 2:
+            all_responses.set()
+
+    monkeypatch.setattr(sidecar, "handle", fake_handle)
+    monkeypatch.setattr(sidecar, "_write_response", capture_response)
+    monkeypatch.setattr(
+        sidecar.sys,
+        "stdin",
+        io.StringIO(
+            '{"id":"index","action":"index_build","path":"library"}\n'
+            '{"id":"ping","action":"ping"}\n'
+        ),
+    )
+
+    assert sidecar.main() == 0
+    assert all_responses.wait(timeout=1)
+    assert observed["ping_while_indexing"] is True
+    assert {response["id"] for response in responses} == {"index", "ping"}
 
 
 def test_empty_library_can_open_for_summary(tmp_path):

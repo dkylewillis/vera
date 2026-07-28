@@ -96,7 +96,9 @@ Shift+F10 or the Menu key, supports arrow key navigation, and closes with
 Escape. Explorer keeps the active-folder highlight without an Active text
 label, including when selected files override the library, and represents index
 state with a compact database badge: green for a fresh index and orange when an
-index is missing or stale. Choosing **Search anyway** never blocks retrieval:
+index is missing or stale. A blue spinning badge means a build or update is
+running in the background; after completion, a warning badge opens the report
+when archives were skipped. Choosing **Search anyway** never blocks retrieval:
 the sidecar performs recursive fan-out search and the app keeps a slower-search
 banner visible. Watcher events and completed directory conversions update badges
 but never start a build automatically.
@@ -106,7 +108,14 @@ archive. Search and Ask open the corpus on demand; an empty library returns a
 clear error instead of leaving the folder inactive. Other `VeraCorpus.open`
 callers retain the strict non-empty default unless they pass `allow_empty`.
 
-Builds and updates use the app's blocking busy state. Their completion report includes indexed/chunk counts and lists invalid or embedding-incompatible archives that were skipped. Index publication remains atomic in `vera-doc`, so a failed build does not replace the previous valid generation and Windows readers can keep using an open generation during an update.
+Builds and updates run on a sidecar worker thread without using the app's global
+busy state, so document browsing, Search, and Ask remain available. The folder
+badge carries progress and completion state instead of leaving a modal open.
+Selecting a completed badge opens the latest report, including indexed/chunk
+counts and invalid or embedding-incompatible archives that were skipped. Index
+publication remains atomic in `vera-doc`, so concurrent searches use the
+previous valid generation until the new generation is published, and a failed
+build does not replace it.
 
 ## Batch PDF Conversion
 

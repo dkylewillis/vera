@@ -1324,7 +1324,6 @@ function LibraryIndexModal({
   report,
   recursive,
   excludes,
-  busy,
   onRecursiveChange,
   onExcludesChange,
   onConfirm,
@@ -1334,7 +1333,6 @@ function LibraryIndexModal({
   report: LibraryIndexBuildReport | null;
   recursive: boolean;
   excludes: string;
-  busy: boolean;
   onRecursiveChange: (value: boolean) => void;
   onExcludesChange: (value: string) => void;
   onConfirm: () => void;
@@ -1343,11 +1341,11 @@ function LibraryIndexModal({
   if (!prompt && !report) return null;
   const isUpdate = Boolean(prompt?.status.exists);
   return (
-    <div className="modalBackdrop" onClick={busy ? undefined : onDismiss}>
+    <div className="modalBackdrop" onClick={onDismiss}>
       <div className="modal libraryIndexModal" onClick={(event) => event.stopPropagation()}>
         <header className="modalHeader">
           <h2><Database size={18} />{report ? 'Library index ready' : isUpdate ? 'Update library index?' : 'Build library index?'}</h2>
-          <button className="iconAction" onClick={onDismiss} disabled={busy} title="Close"><X size={17} /></button>
+          <button className="iconAction" onClick={onDismiss} title="Close"><X size={17} /></button>
         </header>
         <div className="libraryIndexModalBody">
           {report ? (
@@ -1395,9 +1393,8 @@ function LibraryIndexModal({
         <footer className="modalFooter">
           <span className="modalMessage">{report?.skipped ? 'Skipped archives are listed above.' : ''}</span>
           <div className="modalFooterActions">
-            {!report ? <button className="secondaryAction" onClick={onDismiss} disabled={busy}>Search anyway</button> : null}
-            <button className="primaryAction" onClick={report ? onDismiss : onConfirm} disabled={busy}>
-              {busy ? <RefreshCw className="spinning" size={15} /> : null}
+            {!report ? <button className="secondaryAction" onClick={onDismiss}>Search anyway</button> : null}
+            <button className="primaryAction" onClick={report ? onDismiss : onConfirm}>
               {report ? 'Done' : isUpdate ? 'Update index' : 'Build index'}
             </button>
           </div>
@@ -1406,6 +1403,153 @@ function LibraryIndexModal({
     </div>
   );
 }
+
+const ChatComposer = React.memo(function ChatComposer({
+  attachments,
+  busy,
+  busyAction,
+  hasSearchableScope,
+  hasPreviousTurns,
+  resetVersion,
+  restoredDraft,
+  onAddAttachments,
+  onRemoveAttachment,
+  onAsk,
+  onStopAnswer,
+}: {
+  attachments: ChatAttachment[];
+  busy: boolean;
+  busyAction: string | null;
+  hasSearchableScope: boolean;
+  hasPreviousTurns: boolean;
+  resetVersion: number;
+  restoredDraft: { version: number; text: string };
+  onAddAttachments: (files: FileList | File[]) => Promise<void>;
+  onRemoveAttachment: (id: string) => void;
+  onAsk: (prompt: string, onAccepted: () => void) => Promise<void>;
+  onStopAnswer: () => void;
+}) {
+  const [draft, setDraft] = useState('');
+  const [multiline, setMultiline] = useState(false);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDraft('');
+    setMultiline(false);
+  }, [resetVersion]);
+
+  useEffect(() => {
+    setDraft(restoredDraft.text);
+    setMultiline(false);
+  }, [restoredDraft]);
+
+  function updateMultiline(textarea: HTMLTextAreaElement) {
+    const nextMultiline = Boolean(textarea.value) && textarea.scrollHeight > 40;
+    setMultiline((current) => current === nextMultiline ? current : nextMultiline);
+  }
+
+  function submitDraft() {
+    const prompt = draft;
+    void onAsk(prompt, () => {
+      setDraft('');
+      setMultiline(false);
+    });
+  }
+
+  return (
+    <div
+      className={`askComposer${isDraggingFiles ? ' askComposer--dragging' : ''}${multiline ? ' askComposer--multiline' : ''}`}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        setIsDraggingFiles(true);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+        setIsDraggingFiles(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setIsDraggingFiles(false);
+        if (event.dataTransfer.files.length) void onAddAttachments(event.dataTransfer.files);
+      }}
+    >
+      <input
+        ref={attachmentInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(event) => {
+          if (event.target.files?.length) void onAddAttachments(event.target.files);
+          event.target.value = '';
+        }}
+      />
+      {attachments.length ? (
+        <div className="attachRow">
+          {attachments.map((att) => (
+            <span className="attachChip" key={att.id} title={att.name}>
+              <img className="attachChipThumb" src={att.data_url} alt="" />
+              <span className="attachChipName">{att.name}</span>
+              <button
+                type="button"
+                className="attachChipRemove"
+                onClick={() => onRemoveAttachment(att.id)}
+                aria-label={`Remove ${att.name}`}
+                title="Remove"
+              >
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {isDraggingFiles ? (
+        <div className="attachDropHint">
+          <ImageIcon size={16} />
+          <span>Drop images to attach</span>
+        </div>
+      ) : null}
+      <div className="askInputRow">
+        <button
+          type="button"
+          className="ghostIcon attachButton"
+          onClick={() => attachmentInputRef.current?.click()}
+          title="Attach images"
+          aria-label="Attach images"
+        >
+          <Plus size={16} />
+        </button>
+        <textarea
+          className="askInput"
+          value={draft}
+          rows={1}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            updateMultiline(event.currentTarget);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault();
+              submitDraft();
+            }
+          }}
+          placeholder={hasPreviousTurns ? 'Follow up…' : 'Ask anything'}
+        />
+        <button
+          className="askSendButton"
+          onClick={busyAction === 'Asking' ? onStopAnswer : submitDraft}
+          disabled={busy ? busyAction !== 'Asking' : !hasSearchableScope || !draft.trim()}
+          title={busyAction === 'Asking' ? 'Stop generating' : 'Send (Enter)'}
+          aria-label={busyAction === 'Asking' ? 'Stop generating' : 'Send'}
+        >
+          {busyAction === 'Asking' ? <Square size={12} fill="currentColor" /> : busy ? <span className="askSpinner" /> : <ArrowUp size={16} strokeWidth={2.5} />}
+        </button>
+      </div>
+    </div>
+  );
+});
 
 function App() {
   const customTitlebar = Boolean(window.vera.platform && window.vera.platform !== 'darwin');
@@ -1417,6 +1561,9 @@ function App() {
   const [path, setPath] = useState('');
   const [activeLibraryPath, setActiveLibraryPath] = useState('');
   const [indexStatuses, setIndexStatuses] = useState<Record<string, LibraryIndexStatus>>({});
+  const [indexStatusChecking, setIndexStatusChecking] = useState<Record<string, boolean>>({});
+  const [indexingFolders, setIndexingFolders] = useState<Record<string, 'build' | 'update'>>({});
+  const [indexReports, setIndexReports] = useState<Record<string, LibraryIndexBuildReport>>({});
   const [folderContextMenu, setFolderContextMenu] = useState<FolderContextMenu | null>(null);
   const folderContextMenuFirstActionRef = useRef<HTMLButtonElement | null>(null);
   const folderContextMenuTriggerRef = useRef<HTMLElement | null>(null);
@@ -1427,11 +1574,10 @@ function App() {
   const dismissedIndexStates = useRef(new Map<string, string>());
   const [pdfPath, setPdfPath] = useState('');
   const [outputPath, setOutputPath] = useState('');
-  const [query, setQuery] = useState('');
-  const [composerMultiline, setComposerMultiline] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [composerResetVersion, setComposerResetVersion] = useState(0);
+  const [composerRestoredDraft, setComposerRestoredDraft] = useState({ version: 0, text: '' });
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
-  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState('hybrid');
   const [topK, setTopK] = useState(8);
   const [contextChunks, setContextChunks] = useState(0);
@@ -1598,7 +1744,7 @@ function App() {
   }
 
   function presentIndexPrompt(folderPath: string, value: LibraryIndexStatus, force = false) {
-    if (value.fresh) return;
+    if (value.fresh || indexingFolders[folderPath]) return;
     const key = indexStateKey(value);
     if (!force && dismissedIndexStates.current.get(folderPath) === key) return;
     setIndexRecursive(value.exists ? Boolean(value.recursive) : true);
@@ -1608,6 +1754,7 @@ function App() {
   }
 
   async function refreshIndexStatus(folderPath: string): Promise<LibraryIndexStatus | null> {
+    setIndexStatusChecking((prev) => ({ ...prev, [folderPath]: true }));
     try {
       const response = await window.vera.request<LibraryIndexStatus>({
         action: 'index_status',
@@ -1616,10 +1763,24 @@ function App() {
       });
       if (!response.ok || !response.result) return null;
       const value = response.result;
-      setIndexStatuses((prev) => ({ ...prev, [folderPath]: value }));
+      setIndexStatuses((prev) => {
+        const next = { ...prev, [folderPath]: value };
+        try {
+          localStorage.setItem('vera.indexStatuses', JSON.stringify(next));
+        } catch {
+          // Index-state caching only improves startup feedback.
+        }
+        return next;
+      });
       return value;
     } catch {
       return null;
+    } finally {
+      setIndexStatusChecking((prev) => {
+        const next = { ...prev };
+        delete next[folderPath];
+        return next;
+      });
     }
   }
 
@@ -1651,6 +1812,11 @@ function App() {
     setIndexStatuses((prev) => {
       const next = { ...prev };
       delete next[folderPath];
+      try {
+        localStorage.setItem('vera.indexStatuses', JSON.stringify(next));
+      } catch {
+        // Index-state caching only improves startup feedback.
+      }
       return next;
     });
   }
@@ -1871,6 +2037,10 @@ function App() {
   }
 
   async function manageLibraryIndex(folderPath: string) {
+    if (indexingFolders[folderPath]) {
+      setStatus('Library indexing is already in progress');
+      return;
+    }
     const value = indexStatuses[folderPath] ?? await refreshIndexStatus(folderPath);
     if (value) presentIndexPrompt(folderPath, value, true);
   }
@@ -1878,43 +2048,70 @@ function App() {
   async function confirmIndexAction() {
     if (!indexPrompt) return;
     const folderPath = indexPrompt.path;
+    if (indexingFolders[folderPath]) return;
     const action = indexPrompt.status.exists ? 'index_update' : 'index_build';
-    setBusyFolderPath(folderPath);
+    const actionLabel = action === 'index_build' ? 'Building' : 'Updating';
+    const excludes = indexExcludes.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    setIndexPrompt(null);
+    setIndexReport(null);
+    setIndexReports((prev) => {
+      const next = { ...prev };
+      delete next[folderPath];
+      return next;
+    });
+    setIndexingFolders((prev) => ({ ...prev, [folderPath]: action === 'index_build' ? 'build' : 'update' }));
+    setStatus(`${actionLabel} library index in the background`);
+    setErrorMessage(null);
     try {
-      const result = await call<LibraryIndexBuildReport>({
+      const response = await window.vera.request<LibraryIndexBuildReport>({
         action,
         path: folderPath,
         ...(action === 'index_build'
           ? {
               recursive: indexRecursive,
-              excludes: indexExcludes.split(/\r?\n/).map((value) => value.trim()).filter(Boolean),
+              excludes,
             }
           : {}),
-      }, action === 'index_build' ? 'Building library index' : 'Updating library index');
-      if (!result) return;
+      });
+      if (!response.ok || !response.result) {
+        throw new Error(response.error || 'Library indexing failed');
+      }
+      const result = response.result;
       dismissedIndexStates.current.delete(folderPath);
-      setIndexPrompt(null);
-      setIndexReport(result);
-      if (path === folderPath) {
-        const inspected = await call<InspectResult>({
+      setIndexReports((prev) => ({ ...prev, [folderPath]: result }));
+      libraryInspectCache.current.delete(folderPath);
+      const [refreshed, inspectedResponse] = await Promise.all([
+        refreshIndexStatus(folderPath),
+        window.vera.request<InspectResult>({
           action: 'inspect',
           path: folderPath,
           summary_only: true,
           default_recursive: true,
           allow_empty: true,
-        }, 'Refreshing library');
-        if (inspected) {
-          libraryInspectCache.current.set(folderPath, inspected);
-          setInspect(inspected);
-          if (inspected.index) {
-            setIndexStatuses((prev) => ({ ...prev, [folderPath]: inspected.index! }));
-          }
-        }
-      } else {
-        await refreshIndexStatus(folderPath);
+        }),
+      ]);
+      if (inspectedResponse.ok && inspectedResponse.result) {
+        const inspected = inspectedResponse.result;
+        if (refreshed) inspected.index = refreshed;
+        libraryInspectCache.current.set(folderPath, inspected);
+        setInspect((current) => (
+          current?.directory === folderPath || current?.file === folderPath ? inspected : current
+        ));
       }
+      setStatus(
+        result.skipped
+          ? `Library index ready · ${result.skipped} skipped · select the index badge for details`
+          : `Library index ready · ${result.indexed} archives · ${result.chunks.toLocaleString()} chunks`,
+      );
+    } catch (error) {
+      setStatus('Library indexing failed');
+      setErrorMessage(error instanceof Error ? error.message : 'Library indexing failed');
     } finally {
-      setBusyFolderPath('');
+      setIndexingFolders((prev) => {
+        const next = { ...prev };
+        delete next[folderPath];
+        return next;
+      });
     }
   }
 
@@ -1930,7 +2127,7 @@ function App() {
       ...(activeLibraryPath && selectedFiles.length === 0
         ? { recursive: activeIndexStatus?.fresh ? activeIndexStatus.recursive ?? true : true, excludes: activeIndexStatus?.excludes ?? [] }
         : {}),
-      query,
+      query: searchQuery,
       mode,
       top_k: topK,
       context_chunks: contextChunks,
@@ -2001,7 +2198,7 @@ function App() {
     });
   }
 
-  async function askTarget() {
+  async function askTarget(prompt: string, onAccepted: () => void) {
     if (!hasSearchableScope) {
       setErrorMessage('This library does not contain any VERA documents yet.');
       return;
@@ -2044,6 +2241,7 @@ function App() {
     };
     if (modelOptions.reasoning_effort) llm.reasoning_effort = modelOptions.reasoning_effort;
     if (modelOptions.fast) llm.service_tier = 'priority';
+    onAccepted();
 
     // Build conversation history from prior turns for multi-turn context.
     const history = sessionTurns.map((t) => ({ role: t.role, content: t.content }));
@@ -2071,7 +2269,7 @@ function App() {
     const pendingAttachments = attachments;
     const userTurn: SessionTurn = {
       role: 'user',
-      content: query,
+      content: prompt,
       timestamp: Date.now(),
       ...(pendingAttachments.length ? { attachments: pendingAttachments } : {}),
     };
@@ -2079,8 +2277,6 @@ function App() {
     shouldAutoScrollThreadRef.current = true;
     setShowJumpToLatest(false);
     setSessionTurns(nextTurns);
-    setQuery('');
-    setComposerMultiline(false);
     setAttachments([]);
 
     // Set up streaming event listener before firing the request.
@@ -2123,7 +2319,7 @@ function App() {
       ...(activeLibraryPath && selectedFiles.length === 0
         ? { recursive: activeIndexStatus?.fresh ? activeIndexStatus.recursive ?? true : true, excludes: activeIndexStatus?.excludes ?? [] }
         : {}),
-      prompt: query,
+      prompt,
       mode_id: activeModeId || activeMode?.id || '',
       history,
       prior_citations: priorCitations,
@@ -2222,7 +2418,7 @@ function App() {
       }
       // Roll back optimistic user turn on failure.
       setSessionTurns(sessionTurns);
-      setQuery(query);
+      setComposerRestoredDraft((previous) => ({ version: previous.version + 1, text: prompt }));
       setAttachments(pendingAttachments);
     }
   }
@@ -2233,8 +2429,8 @@ function App() {
     setActiveSessionId(null);
     setResults([]);
     setSelected(null);
-    setQuery('');
-    setComposerMultiline(false);
+    setSearchQuery('');
+    setComposerResetVersion((version) => version + 1);
     setAttachments([]);
   }
 
@@ -2571,6 +2767,26 @@ function App() {
       const loaded = await Promise.all(saved.map((dir) => window.vera.listFolder(dir)));
       if (canceled) return;
       const available = loaded.filter((entry): entry is WorkspaceFolderResult => entry !== null);
+      try {
+        const cached = JSON.parse(localStorage.getItem('vera.indexStatuses') || '{}') as Record<string, LibraryIndexStatus>;
+        if (cached && typeof cached === 'object') {
+          const availablePaths = new Set(available.map((entry) => entry.path));
+          setIndexStatuses(
+            Object.fromEntries(
+              Object.entries(cached).filter(([folderPath, status]) => (
+                availablePaths.has(folderPath)
+                && status
+                && typeof status === 'object'
+                && typeof status.exists === 'boolean'
+                && typeof status.fresh === 'boolean'
+                && Array.isArray(status.reasons)
+              )),
+            ),
+          );
+        }
+      } catch {
+        // A missing or outdated cache is safe to ignore.
+      }
       setFolders(available);
       const savedActive = localStorage.getItem('vera.activeLibraryPath') || '';
       await Promise.all(
@@ -2740,7 +2956,30 @@ function App() {
                   <div className="explorerTree">
                     {folders.map((folder) => {
                       const folderIndex = indexStatuses[folder.path];
+                      const folderIndexChecking = Boolean(indexStatusChecking[folder.path]);
                       const folderBusy = busyFolderPath === folder.path;
+                      const folderIndexing = indexingFolders[folder.path];
+                      const folderIndexReport = indexReports[folder.path];
+                      const indexBadgeClass = folderIndexing
+                        ? 'indexing'
+                        : folderIndexChecking && !folderIndex
+                          ? 'checking'
+                        : folderIndexReport?.skipped
+                          ? 'warning'
+                          : folderIndex?.fresh
+                            ? 'fresh'
+                            : folderIndex?.exists ? 'stale' : 'missing';
+                      const indexBadgeTitle = folderIndexing
+                        ? `${folderIndexing === 'build' ? 'Building' : 'Updating'} library index in the background`
+                        : folderIndexChecking && !folderIndex
+                          ? 'Checking index status…'
+                        : folderIndexReport?.skipped
+                          ? `Indexed with ${folderIndexReport.skipped} skipped archive(s). Select for details.`
+                          : folderIndex?.fresh
+                            ? `${folderIndexReport ? 'Indexed. Select for the latest build report.' : 'Indexed'}${folderIndexChecking ? ' Verifying current folder state…' : ''}`
+                            : folderIndex?.exists
+                              ? `Index needs updating: ${folderIndex.reasons.join('; ')}${folderIndexChecking ? ' Verifying current folder state…' : ''}`
+                              : 'No index';
                       return (
                       <section
                         className={activeLibraryPath === folder.path
@@ -2787,13 +3026,26 @@ function App() {
                           >
                             <span className="folderGroupName">{folder.name}</span>
                           </button>
-                          <span
-                            className={`indexBadge ${folderIndex?.fresh ? 'fresh' : folderIndex?.exists ? 'stale' : 'missing'}`}
-                            title={folderIndex?.fresh ? 'Indexed' : folderIndex?.exists ? `Index needs updating: ${folderIndex.reasons.join('; ')}` : 'No index'}
-                            aria-label={`Index status: ${folderIndex?.fresh ? 'indexed' : folderIndex?.exists ? 'needs updating' : 'no index'}`}
+                          <button
+                            type="button"
+                            className={`indexBadge ${indexBadgeClass}`}
+                            title={indexBadgeTitle}
+                            aria-label={`Index status: ${folderIndexing ? 'indexing' : folderIndexChecking && !folderIndex ? 'checking' : folderIndexReport?.skipped ? `indexed with ${folderIndexReport.skipped} skipped` : folderIndex?.fresh ? 'indexed' : folderIndex?.exists ? 'needs updating' : 'no index'}`}
+                            disabled={Boolean(folderIndexing) || !folderIndexReport}
+                            onClick={() => {
+                              if (!folderIndexReport) return;
+                              setIndexPrompt(null);
+                              setIndexReport(folderIndexReport);
+                            }}
                           >
-                            <Database size={11} aria-hidden="true" />
-                          </span>
+                            {folderIndexing
+                              ? <RefreshCw size={11} className="spinning" aria-hidden="true" />
+                              : folderIndexChecking && !folderIndex
+                                ? <RefreshCw size={11} className="spinning" aria-hidden="true" />
+                              : folderIndexReport?.skipped
+                                ? <AlertTriangle size={11} aria-hidden="true" />
+                                : <Database size={11} aria-hidden="true" />}
+                          </button>
                         </div>
                         {collapsedFolders.includes(folder.path) ? null : folder.entries.length === 0 ? (
                           <p className="folderEmpty">No .vera or .pdf files</p>
@@ -2853,9 +3105,9 @@ function App() {
                   <div className="searchBox">
                     <textarea
                       className="searchInput"
-                      value={query}
+                      value={searchQuery}
                       rows={3}
-                      onChange={(event) => setQuery(event.target.value)}
+                      onChange={(event) => setSearchQuery(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                           event.preventDefault();
@@ -2895,7 +3147,7 @@ function App() {
                         <span>Figures</span>
                       </label>
                     </div>
-                    <button className="sidePrimary" onClick={searchTarget} disabled={!hasSearchableScope || !query.trim() || busy}><Search size={15} />Search</button>
+                    <button className="sidePrimary" onClick={searchTarget} disabled={!hasSearchableScope || !searchQuery.trim() || busy}><Search size={15} />Search</button>
                   </div>
                   <div className="searchResults">
                     {results.length === 0 ? (
@@ -3190,103 +3442,19 @@ function App() {
                     : activeLibraryIsEmpty ? 'Empty library'
                     : activeLibraryPath ? 'Entire library' : path ? 'Current document' : 'No search scope'}
                 </div>
-                <div
-                  className={`askComposer${isDraggingFiles ? ' askComposer--dragging' : ''}${composerMultiline ? ' askComposer--multiline' : ''}`}
-                  onDragOver={(event) => {
-                    if (!event.dataTransfer.types.includes('Files')) return;
-                    event.preventDefault();
-                    setIsDraggingFiles(true);
-                  }}
-                  onDragLeave={(event) => {
-                    if (event.currentTarget.contains(event.relatedTarget as Node)) return;
-                    setIsDraggingFiles(false);
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    setIsDraggingFiles(false);
-                    if (event.dataTransfer.files.length) void addAttachmentFiles(event.dataTransfer.files);
-                  }}
-                >
-                  <input
-                    ref={attachmentInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    style={{ display: 'none' }}
-                    onChange={(event) => {
-                      if (event.target.files?.length) void addAttachmentFiles(event.target.files);
-                      event.target.value = '';
-                    }}
-                  />
-                  {attachments.length ? (
-                    <div className="attachRow">
-                      {attachments.map((att) => (
-                        <span className="attachChip" key={att.id} title={att.name}>
-                          <img className="attachChipThumb" src={att.data_url} alt="" />
-                          <span className="attachChipName">{att.name}</span>
-                          <button
-                            type="button"
-                            className="attachChipRemove"
-                            onClick={() => removeAttachment(att.id)}
-                            aria-label={`Remove ${att.name}`}
-                            title="Remove"
-                          >
-                            <X size={11} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                  {isDraggingFiles ? (
-                    <div className="attachDropHint">
-                      <ImageIcon size={16} />
-                      <span>Drop images to attach</span>
-                    </div>
-                  ) : null}
-                  <div className="askInputRow">
-                    <button
-                      type="button"
-                      className="ghostIcon attachButton"
-                      onClick={() => attachmentInputRef.current?.click()}
-                      title="Attach images"
-                      aria-label="Attach images"
-                    >
-                      <Plus size={16} />
-                    </button>
-                    <textarea
-                      className="askInput"
-                      value={query}
-                      rows={1}
-                      onChange={(event) => {
-                        const textarea = event.currentTarget;
-                        setQuery(event.target.value);
-                        if (!textarea.value) {
-                          setComposerMultiline(false);
-                          return;
-                        }
-                        requestAnimationFrame(() => {
-                          setComposerMultiline(textarea.scrollHeight > 40);
-                        });
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && !event.shiftKey) {
-                          event.preventDefault();
-                          void askTarget();
-                        }
-                      }}
-                      placeholder={sessionTurns.length > 0 ? 'Follow up…' : 'Ask anything'}
-                    />
-                    <button
-                      className="askSendButton"
-                      onClick={busyAction === 'Asking' ? stopAnswer : askTarget}
-                      disabled={busy ? busyAction !== 'Asking' : !hasSearchableScope || !query.trim()}
-                      title={busyAction === 'Asking' ? 'Stop generating' : 'Send (Enter)'}
-                      aria-label={busyAction === 'Asking' ? 'Stop generating' : 'Send'}
-                    >
-                      {busyAction === 'Asking' ? <Square size={12} fill="currentColor" /> : busy ? <span className="askSpinner" /> : <ArrowUp size={16} strokeWidth={2.5} />}
-                    </button>
-                  </div>
-                </div>
+                <ChatComposer
+                  attachments={attachments}
+                  busy={busy}
+                  busyAction={busyAction}
+                  hasSearchableScope={hasSearchableScope}
+                  hasPreviousTurns={sessionTurns.length > 0}
+                  resetVersion={composerResetVersion}
+                  restoredDraft={composerRestoredDraft}
+                  onAddAttachments={addAttachmentFiles}
+                  onRemoveAttachment={removeAttachment}
+                  onAsk={askTarget}
+                  onStopAnswer={stopAnswer}
+                />
                 <div className="composerBar">
                     <div className="modelPicker">
                       <button
@@ -3666,12 +3834,15 @@ function App() {
             </button>
             <button
               role="menuitem"
+              disabled={Boolean(indexingFolders[folderContextMenu.path])}
               onClick={() => {
                 void manageLibraryIndex(folderContextMenu.path);
                 setFolderContextMenu(null);
               }}
             >
-              {indexStatuses[folderContextMenu.path]?.exists ? 'Update index' : 'Build index'}
+              {indexingFolders[folderContextMenu.path]
+                ? 'Indexing…'
+                : indexStatuses[folderContextMenu.path]?.exists ? 'Update index' : 'Build index'}
             </button>
             <button
               role="menuitem"
@@ -3726,7 +3897,6 @@ function App() {
         report={indexReport}
         recursive={indexRecursive}
         excludes={indexExcludes}
-        busy={busy}
         onRecursiveChange={setIndexRecursive}
         onExcludesChange={setIndexExcludes}
         onConfirm={() => void confirmIndexAction()}

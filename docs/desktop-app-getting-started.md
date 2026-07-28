@@ -55,6 +55,16 @@ stale, large libraries prompt you to build or update it. Use **Deep inspect**
 in the Info view only when you need library metrics or to revalidate every
 archive; that operation can take substantially longer for large libraries.
 
+After you confirm a build or update, indexing runs in the background and the
+folder's index badge spins until it finishes. You can continue browsing and
+using Search or Ask while the existing index, or recursive fallback search,
+remains available. A completed warning badge means some archives were skipped;
+select it to review the latest indexing report.
+
+On startup, folders show their last verified badge state while VERA checks the
+current filesystem in the background. A neutral spinner is shown when there is
+no saved status yet, rather than treating the folder as unindexed.
+
 Parent and empty folders can also be activated as libraries. Nested `.vera`
 files are discovered recursively when there is no saved index configuration.
 A folder with no `.vera` files remains active and watched; Search and Ask

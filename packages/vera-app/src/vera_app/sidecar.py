@@ -1065,6 +1065,10 @@ def _run_answer(request: Request, request_id: str, cancel: CancellationToken) ->
             _inflight_answers.pop(request_id, None)
 
 
+def _run_background_request(request: Request) -> None:
+    _write_response(handle(request))
+
+
 def main() -> int:
     for line in sys.stdin:
         line = line.strip()
@@ -1087,19 +1091,25 @@ def main() -> int:
                     "ok": True,
                     "result": {"target_id": target_id, "cancelled": bool(cancel)},
                 }
-            elif action == "answer":
+            elif action in {"answer", "index_build", "index_update"}:
                 request_id = str(request.get("id") or "")
                 if not request_id:
-                    response = {"id": None, "ok": False, "error": "answer requests require an id"}
+                    response = {
+                        "id": None,
+                        "ok": False,
+                        "error": f"{action} requests require an id",
+                    }
                 else:
-                    cancel = CancellationToken()
-                    with _inflight_lock:
-                        _inflight_answers[request_id] = cancel
-                    threading.Thread(
-                        target=_run_answer,
-                        args=(request, request_id, cancel),
-                        daemon=True,
-                    ).start()
+                    if action == "answer":
+                        cancel = CancellationToken()
+                        with _inflight_lock:
+                            _inflight_answers[request_id] = cancel
+                        target = _run_answer
+                        args = (request, request_id, cancel)
+                    else:
+                        target = _run_background_request
+                        args = (request,)
+                    threading.Thread(target=target, args=args, daemon=True).start()
                     continue
             else:
                 response = handle(request)
