@@ -3,6 +3,13 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import { basename, delimiter, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type {
+  AppSettings,
+  CredentialResult,
+  ProviderProfile,
+  Session,
+} from '../src/shared/contracts.js';
+import { parseSidecarJsonLine } from './sidecar-json.js';
 
 interface FolderEntry {
   path: string;
@@ -47,57 +54,8 @@ interface SidecarEvent {
   [key: string]: unknown;
 }
 
-interface SessionTurn {
-  role: 'user' | 'assistant';
-  content: string;
-  citations?: unknown[];
-  searches?: unknown[];
-  answer_mode?: string;
-  mode_label?: string;
-  llm?: { provider: string; model: string; usage?: unknown };
-  timestamp: number;
-}
-
-interface Session {
-  id: string;
-  title: string;
-  source_path: string;
-  turns: SessionTurn[];
-  created_at: number;
-  updated_at: number;
-}
-
 interface SessionStore {
   sessions: Session[];
-}
-
-interface ProviderProfile {
-  id: string;
-  preset_key?: string;
-  label: string;
-  provider: string;
-  base_url: string;
-  api_key_env: string;
-  auth_type: string;
-  temperature: number;
-  models: string[];
-  available_models?: string[];
-  models_refreshed_at?: number;
-  model_options?: Record<string, { reasoning_effort?: string; fast?: boolean }>;
-  has_api_key?: boolean;
-}
-
-interface AppSettings {
-  providers: ProviderProfile[];
-  active_provider_id: string;
-  active_model: string;
-  active_mode_id: string;
-}
-
-interface CredentialResult {
-  ok: boolean;
-  has_api_key: boolean;
-  error?: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -195,7 +153,12 @@ class PythonSidecar {
       if (!line.trim()) {
         continue;
       }
-      const response = JSON.parse(line) as SidecarResponse & { event?: string };
+      const parsed = parseSidecarJsonLine(line);
+      if (!parsed.ok) {
+        console.error(`[vera-sidecar] Ignoring invalid stdout line (${parsed.error}): ${line}`);
+        continue;
+      }
+      const response = parsed.payload as unknown as SidecarResponse & { event?: string };
       if (!response.id) {
         continue;
       }
@@ -629,7 +592,7 @@ function configureMenu(): void {
 }
 
 function createWindow(): void {
-  const preload = fileURLToPath(new URL('./preload.js', import.meta.url));
+  const preload = fileURLToPath(new URL('./preload.cjs', import.meta.url));
   const win = new BrowserWindow({
     width: 1280,
     height: 820,

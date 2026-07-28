@@ -50,8 +50,10 @@ Owns:
 ```text
 vera-cli  -> vera-doc
 vera-app  -> vera-doc
-vera-mcp  -> vera-doc
 ```
+
+The MCP server is an optional integration inside `vera-doc`, not a separate
+workspace package.
 
 The core document package must not import from CLI or app packages.
 

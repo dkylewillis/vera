@@ -1,3 +1,5 @@
+import type { AppSettings, Session, StreamEvent } from '../src/shared/contracts.js';
+
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('vera', {
@@ -6,11 +8,11 @@ contextBridge.exposeInMainWorld('vera', {
   request: (payload: Record<string, unknown>, requestId?: string) => ipcRenderer.invoke('vera:request', payload, requestId),
   cancelAnswer: (requestId: string) => ipcRenderer.invoke('vera:cancelAnswer', requestId),
   getSettings: () => ipcRenderer.invoke('vera:getSettings'),
-  saveSettings: (settings: Record<string, unknown>) => ipcRenderer.invoke('vera:saveSettings', settings),
+  saveSettings: (settings: AppSettings) => ipcRenderer.invoke('vera:saveSettings', settings),
   saveApiKey: (providerId: string, apiKey: string) => ipcRenderer.invoke('vera:saveApiKey', providerId, apiKey),
   clearApiKey: (providerId: string) => ipcRenderer.invoke('vera:clearApiKey', providerId),
   getSessions: () => ipcRenderer.invoke('vera:getSessions'),
-  saveSession: (session: Record<string, unknown>) => ipcRenderer.invoke('vera:saveSession', session),
+  saveSession: (session: Session) => ipcRenderer.invoke('vera:saveSession', session),
   deleteSession: (id: string) => ipcRenderer.invoke('vera:deleteSession', id),
   listModes: () => ipcRenderer.invoke('vera:listModes'),
   openModesFolder: () => ipcRenderer.invoke('vera:openModesFolder'),
@@ -36,8 +38,8 @@ contextBridge.exposeInMainWorld('vera', {
     ipcRenderer.on('vera:folderChanged', listener);
     return () => ipcRenderer.removeListener('vera:folderChanged', listener);
   },
-  onAnswerEvent: (callback: (data: Record<string, unknown>) => void) => {
-    const listener = (_event: unknown, data: Record<string, unknown>) => callback(data);
+  onAnswerEvent: (callback: (data: StreamEvent) => void) => {
+    const listener = (_event: unknown, data: StreamEvent) => callback(data);
     ipcRenderer.on('vera:answerEvent', listener);
     return () => ipcRenderer.removeListener('vera:answerEvent', listener);
   },
