@@ -44,9 +44,9 @@ to stop both processes.
 
 Open a PDF from the app's Convert view to create a `.vera` archive, or use the
 native File menu to open an existing archive or document library.
-Desktop conversions use the supported PyMuPDF parser and deterministic local
-hashing embeddings. Use the CLI when you need a Sentence Transformers model or
-explicit OCR controls.
+Desktop conversions use the supported PyMuPDF parser and deterministic
+local hashing embeddings. Use the CLI when you need a Sentence Transformers
+model or explicit OCR controls.
 
 ## Large document libraries
 
