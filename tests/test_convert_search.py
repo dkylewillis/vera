@@ -153,6 +153,24 @@ def test_batch_convert_skips_valid_output_without_original_asset(tmp_path):
     assert report["malformed_existing"] == []
 
 
+def test_batch_convert_reports_progress_for_each_discovered_pdf(tmp_path):
+    first_pdf = tmp_path / "first.pdf"
+    second_pdf = tmp_path / "second.pdf"
+    make_pdf(first_pdf)
+    make_pdf(second_pdf)
+    progress = []
+
+    batch_convert(
+        str(tmp_path),
+        model="hashing",
+        progress=lambda completed, total, input_path: progress.append((completed, total, input_path)),
+    )
+
+    assert progress[0] == (0, 2, "")
+    assert [entry[:2] for entry in progress[1:]] == [(1, 2), (2, 2)]
+    assert [entry[2] for entry in progress[1:]] == [str(first_pdf), str(second_pdf)]
+
+
 def test_hybrid_keeps_chunk_that_tops_both_modes(tmp_path):
     """Regression: a chunk ranked #1 by both semantic and keyword search must
     rank #1 in hybrid. The old fusion buried dual-mode winners behind chunks

@@ -1272,6 +1272,7 @@ select option {
   padding: 9px 14px;
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 8px;
   color: var(--danger);
   background: var(--danger-soft);
@@ -1294,6 +1295,38 @@ select option {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.providerErrorDetails {
+  flex: 1 0 100%;
+  order: 3;
+  min-width: 0;
+  font-weight: 400;
+}
+
+.providerErrorDetails summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.providerErrorDetails pre {
+  max-height: 180px;
+  margin: 6px 0 0;
+  padding: 8px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg-surface) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 24%, transparent);
+  border-radius: 4px;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.failedTrace {
+  flex: 1 0 100%;
+  order: 3;
+  min-width: 0;
 }
 
 .errorBannerDismiss {
@@ -1760,6 +1793,16 @@ select option {
 
 .streamingMessage {
   min-height: 32px;
+}
+
+.responseStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* ── LLM trace (debug) ───────────────────────────────── */

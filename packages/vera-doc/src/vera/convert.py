@@ -8,6 +8,7 @@ import sqlite3
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from .core.embeddings import get_embedder, serialize_vector
@@ -232,6 +233,7 @@ def batch_convert(
     ocr_mode: str = "auto",
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
+    progress: Callable[[int, int, str], None] | None = None,
 ) -> dict[str, Any]:
     """Convert every PDF in a directory, continuing after per-file failures."""
     root = Path(directory).resolve()
@@ -262,7 +264,10 @@ def batch_convert(
     skipped_existing: list[str] = []
     malformed_existing: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
-    for pdf in pdfs:
+    total = len(pdfs)
+    if progress:
+        progress(0, total, "")
+    for completed, pdf in enumerate(pdfs, start=1):
         output = pdf.with_suffix(".vera")
         if output.exists() and not overwrite:
             validation = _validate_output(output)
@@ -276,6 +281,8 @@ def batch_convert(
                         "issues": validation["issues"],
                     }
                 )
+            if progress:
+                progress(completed, total, str(pdf))
             continue
         try:
             outputs.append(
@@ -294,6 +301,9 @@ def batch_convert(
             )
         except Exception as exc:
             errors.append({"input": str(pdf), "error": str(exc)})
+        finally:
+            if progress:
+                progress(completed, total, str(pdf))
 
     return {
         "directory": str(root),

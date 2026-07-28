@@ -24,6 +24,7 @@ from vera_app.cancellation import CancellationToken, CancelledError
 from vera_app.llm import (
     ChatResponse,
     LlmConfig,
+    ProviderHttpError,
     ToolsUnsupportedError,
     VisionUnsupportedError,
     chat,
@@ -916,7 +917,9 @@ def _answer(
 
 
 
-def _convert(request: Request) -> dict[str, str]:
+def _convert(request: Request, write_event=None) -> dict[str, str]:
+    if write_event:
+        write_event({"event": "conversion_progress", "completed": 0, "total": 1})
     output = convert(
         str(request["input"]),
         str(request["output"]),
@@ -929,10 +932,23 @@ def _convert(request: Request) -> dict[str, str]:
         ocr_language=str(request.get("ocr_language", "eng")),
         ocr_dpi=int(request.get("ocr_dpi", 300)),
     )
+    if write_event:
+        write_event({"event": "conversion_progress", "completed": 1, "total": 1})
     return {"output": output}
 
 
-def _batch_convert(request: Request) -> dict[str, Any]:
+def _batch_convert(request: Request, write_event=None) -> dict[str, Any]:
+    def report_progress(completed: int, total: int, input_path: str) -> None:
+        if write_event:
+            write_event(
+                {
+                    "event": "conversion_progress",
+                    "completed": completed,
+                    "total": total,
+                    "input": input_path,
+                }
+            )
+
     return batch_convert(
         str(request["directory"]),
         recursive=bool(request.get("recursive", True)),
@@ -945,6 +961,7 @@ def _batch_convert(request: Request) -> dict[str, Any]:
         ocr_mode=str(request.get("ocr_mode", "auto")),
         ocr_language=str(request.get("ocr_language", "eng")),
         ocr_dpi=int(request.get("ocr_dpi", 300)),
+        progress=report_progress,
     )
 
 
@@ -1031,6 +1048,10 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
             result = _answer(request, write_event=_emit, cancel=cancel)
+        elif action in {"convert", "batch_convert"}:
+            def _emit(data: dict[str, Any]) -> None:
+                _write_response({**data, "id": request_id})
+            result = HANDLERS[action](request, write_event=_emit)
         else:
             result = HANDLERS[action](request)
         return {"id": request_id, "ok": True, "result": result}
@@ -1049,12 +1070,15 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
                 "error": "Answer cancelled",
                 "cancelled": True,
             }
-        return {
+        response: Response = {
             "id": request_id,
             "ok": False,
             "error": str(exc),
             "traceback": traceback.format_exc(),
         }
+        if isinstance(exc, ProviderHttpError):
+            response["provider_error_detail"] = exc.raw_detail
+        return response
 
 
 def _run_answer(request: Request, request_id: str, cancel: CancellationToken) -> None:
@@ -1091,7 +1115,7 @@ def main() -> int:
                     "ok": True,
                     "result": {"target_id": target_id, "cancelled": bool(cancel)},
                 }
-            elif action in {"answer", "index_build", "index_update"}:
+            elif action in {"answer", "convert", "batch_convert", "index_build", "index_update"}:
                 request_id = str(request.get("id") or "")
                 if not request_id:
                     response = {

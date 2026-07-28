@@ -30,6 +30,7 @@ export interface VeraResponse<T = unknown> {
   result?: T;
   error?: string;
   traceback?: string;
+  provider_error_detail?: string;
   cancelled?: boolean;
 }
 

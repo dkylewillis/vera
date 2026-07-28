@@ -31,6 +31,7 @@ export const ChatComposer = React.memo(function ChatComposer({
   const [multiline, setMultiline] = useState(false);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const inputUnavailable = !hasSearchableScope || (busy && busyAction !== 'Asking');
 
   useEffect(() => {
     setDraft('');
@@ -48,6 +49,7 @@ export const ChatComposer = React.memo(function ChatComposer({
   }
 
   function submitDraft() {
+    if (busy || !hasSearchableScope) return;
     const prompt = draft;
     void onAsk(prompt, () => {
       setDraft('');
@@ -70,7 +72,7 @@ export const ChatComposer = React.memo(function ChatComposer({
       onDrop={(event) => {
         event.preventDefault();
         setIsDraggingFiles(false);
-        if (event.dataTransfer.files.length) void onAddAttachments(event.dataTransfer.files);
+        if (!inputUnavailable && event.dataTransfer.files.length) void onAddAttachments(event.dataTransfer.files);
       }}
     >
       <input
@@ -78,6 +80,7 @@ export const ChatComposer = React.memo(function ChatComposer({
         type="file"
         accept="image/*"
         multiple
+        disabled={inputUnavailable}
         style={{ display: 'none' }}
         onChange={(event) => {
           if (event.target.files?.length) void onAddAttachments(event.target.files);
@@ -116,6 +119,7 @@ export const ChatComposer = React.memo(function ChatComposer({
           onClick={() => attachmentInputRef.current?.click()}
           title="Attach images"
           aria-label="Attach images"
+          disabled={inputUnavailable}
         >
           <Plus size={16} />
         </button>
@@ -123,6 +127,7 @@ export const ChatComposer = React.memo(function ChatComposer({
           className="askInput"
           value={draft}
           rows={1}
+          disabled={inputUnavailable}
           onChange={(event) => {
             setDraft(event.target.value);
             updateMultiline(event.currentTarget);
@@ -133,7 +138,7 @@ export const ChatComposer = React.memo(function ChatComposer({
               submitDraft();
             }
           }}
-          placeholder={hasPreviousTurns ? 'Follow up…' : 'Ask anything'}
+          placeholder={!hasSearchableScope ? 'Select a document or library to ask' : hasPreviousTurns ? 'Follow up…' : 'Ask anything'}
         />
         <button
           className="askSendButton"
@@ -142,7 +147,7 @@ export const ChatComposer = React.memo(function ChatComposer({
           title={busyAction === 'Asking' ? 'Stop generating' : 'Send (Enter)'}
           aria-label={busyAction === 'Asking' ? 'Stop generating' : 'Send'}
         >
-          {busyAction === 'Asking' ? <Square size={12} fill="currentColor" /> : busy ? <span className="askSpinner" /> : <ArrowUp size={16} strokeWidth={2.5} />}
+          {busyAction === 'Asking' ? <Square size={10} fill="currentColor" /> : <ArrowUp size={16} strokeWidth={2.5} />}
         </button>
       </div>
     </div>

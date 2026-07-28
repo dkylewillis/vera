@@ -46,6 +46,7 @@ interface SidecarResponse {
   result?: unknown;
   error?: string;
   traceback?: string;
+  provider_error_detail?: string;
 }
 
 interface SidecarEvent {

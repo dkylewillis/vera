@@ -10,7 +10,7 @@ from test_corpus import make_topic_pdf
 from test_convert_search import make_pdf
 from vera import convert
 from vera_app.cancellation import CancellationToken
-from vera_app.llm import ChatResponse, LlmConfig, ToolCall, ToolsUnsupportedError, VisionUnsupportedError
+from vera_app.llm import ChatResponse, LlmConfig, ProviderHttpError, ToolCall, ToolsUnsupportedError, VisionUnsupportedError
 from vera_app.sidecar import handle
 
 
@@ -202,6 +202,56 @@ def test_index_build_does_not_block_other_sidecar_requests(monkeypatch):
     assert {response["id"] for response in responses} == {"index", "ping"}
 
 
+@pytest.mark.parametrize(
+    ("action", "request"),
+    [
+        ("convert", '{"id":"convert","action":"convert","input":"manual.pdf","output":"manual.vera"}'),
+        ("batch_convert", '{"id":"batch","action":"batch_convert","directory":"library"}'),
+    ],
+)
+def test_conversion_actions_do_not_block_other_sidecar_requests(monkeypatch, action, request):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    conversion_started = threading.Event()
+    release_conversion = threading.Event()
+    conversion_finished = threading.Event()
+    all_responses = threading.Event()
+    responses = []
+    observed = {"ping_while_converting": False}
+
+    def fake_handle(incoming_request, cancel=None):
+        if incoming_request["action"] == action:
+            conversion_started.set()
+            release_conversion.wait(timeout=1)
+            conversion_finished.set()
+        elif incoming_request["action"] == "ping":
+            observed["ping_while_converting"] = (
+                conversion_started.is_set() and not conversion_finished.is_set()
+            )
+            release_conversion.set()
+        return {"id": incoming_request["id"], "ok": True, "result": incoming_request["action"]}
+
+    def capture_response(response):
+        responses.append(response)
+        if len(responses) == 2:
+            all_responses.set()
+
+    monkeypatch.setattr(sidecar, "handle", fake_handle)
+    monkeypatch.setattr(sidecar, "_write_response", capture_response)
+    monkeypatch.setattr(
+        sidecar.sys,
+        "stdin",
+        io.StringIO(f"{request}\n" '{"id":"ping","action":"ping"}\n'),
+    )
+
+    assert sidecar.main() == 0
+    assert all_responses.wait(timeout=1)
+    assert observed["ping_while_converting"] is True
+    assert {response["id"] for response in responses} == {
+        "convert" if action == "convert" else "batch",
+        "ping",
+    }
+
+
 def test_empty_library_can_open_for_summary(tmp_path):
     response = handle({
         "id": "inspect-empty-library",
@@ -353,6 +403,22 @@ def test_answer_action_requires_llm(tmp_path):
 
     assert response["ok"] is False
     assert "model must be selected" in response["error"].lower()
+
+
+def test_provider_http_error_includes_raw_detail_for_debugging(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    raw_detail = '{"error":{"message":"context window exceeded","code":"context_length_exceeded"}}'
+
+    def fail_answer(*args, **kwargs):
+        raise ProviderHttpError(400, raw_detail)
+
+    monkeypatch.setattr(sidecar, "_answer", fail_answer)
+
+    response = sidecar.handle({"id": "provider-error", "action": "answer"})
+
+    assert response["ok"] is False
+    assert response["error"] == "LLM provider request failed (HTTP 400): context window exceeded"
+    assert response["provider_error_detail"] == raw_detail
 
 
 def test_answer_action_returns_structured_cancellation(tmp_path, monkeypatch):

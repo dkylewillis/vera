@@ -19,6 +19,31 @@ from .cancellation import CancellationToken, CancelledError
 Message = dict[str, Any]
 
 
+def _sanitize_unicode(value: Any) -> Any:
+    """Replace invalid UTF-16 surrogate code points before sending JSON.
+
+    PDF extraction and pasted text can contain lone UTF-16 surrogates. Python's
+    default JSON encoder escapes them, but OpenAI-compatible providers correctly
+    reject the resulting invalid Unicode payload.
+    """
+    if isinstance(value, str):
+        return re.sub(r"[\ud800-\udfff]", "\ufffd", value)
+    if isinstance(value, list):
+        return [_sanitize_unicode(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_sanitize_unicode(item) for item in value)
+    if isinstance(value, dict):
+        return {
+            _sanitize_unicode(key) if isinstance(key, str) else key: _sanitize_unicode(item)
+            for key, item in value.items()
+        }
+    return value
+
+
+def _encode_json_payload(payload: dict[str, Any]) -> bytes:
+    return json.dumps(_sanitize_unicode(payload), ensure_ascii=False).encode("utf-8")
+
+
 @dataclass(frozen=True)
 class LlmConfig:
     provider: str = "none"
@@ -93,6 +118,7 @@ class ProviderHttpError(RuntimeError):
 
     def __init__(self, status_code: int, detail: str):
         self.status_code = status_code
+        self.raw_detail = detail
         self.provider_message = _provider_error_message(detail)
         message = f"LLM provider request failed (HTTP {status_code}): {self.provider_message}"
         if status_code == 402:
@@ -580,7 +606,7 @@ class OpenAiCompatibleProvider:
         def post(include_temperature: bool, include_options: bool) -> dict[str, Any]:
             if cancel:
                 cancel.raise_if_cancelled()
-            body = json.dumps(build_payload(include_temperature, include_options)).encode("utf-8")
+            body = _encode_json_payload(build_payload(include_temperature, include_options))
             request = urllib.request.Request(url, data=body, headers=headers, method="POST")
             with _urlopen_cancellable(request, config.timeout, cancel) as response:
                 if cancel:
@@ -755,7 +781,7 @@ class OpenAiResponsesProvider:
                     cancel.raise_if_cancelled()
                 request = urllib.request.Request(
                     url,
-                    data=json.dumps(build_payload()).encode("utf-8"),
+                    data=_encode_json_payload(build_payload()),
                     headers=headers,
                     method="POST",
                 )

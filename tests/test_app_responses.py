@@ -9,7 +9,7 @@ import urllib.error
 import pytest
 
 from vera_app.cancellation import CancellationToken, CancelledError
-from vera_app.llm import LlmConfig, ProviderHttpError, VisionUnsupportedError, _consume_stream, chat
+from vera_app.llm import LlmConfig, ProviderHttpError, VisionUnsupportedError, _consume_stream, _encode_json_payload, chat
 
 
 TOOL = {
@@ -103,6 +103,23 @@ def config(**overrides):
     }
     values.update(overrides)
     return LlmConfig(**values)
+
+
+def test_json_payload_replaces_unpaired_utf16_surrogates():
+    payload = {
+        "input": [
+            {
+                "content": [
+                    {"type": "input_text", "text": "Extracted text \ud800 continues"},
+                ],
+            },
+        ],
+    }
+
+    encoded = _encode_json_payload(payload)
+
+    assert b"\xed\xa0\x80" not in encoded
+    assert json.loads(encoded)["input"][0]["content"][0]["text"] == "Extracted text \ufffd continues"
 
 
 def test_provider_http_error_uses_bounded_message(monkeypatch):

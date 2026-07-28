@@ -117,6 +117,7 @@ function App() {
   const [storeOriginal, setStoreOriginal] = useState(true);
   const [status, setStatus] = useState('Ready');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [providerErrorDetail, setProviderErrorDetail] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [busyFolderPath, setBusyFolderPath] = useState('');
   const [inspect, setInspect] = useState<InspectResult | null>(null);
@@ -124,6 +125,9 @@ function App() {
   const [validation, setValidation] = useState<ValidateResult | null>(null);
   const [convertResult, setConvertResult] = useState<ConvertResult | null>(null);
   const [batchConvertResult, setBatchConvertResult] = useState<BatchConvertResult | null>(null);
+  const [conversionInProgress, setConversionInProgress] = useState(false);
+  const [conversionStatus, setConversionStatus] = useState<string | null>(null);
+  const [conversionError, setConversionError] = useState<string | null>(null);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [sourceDocument, setSourceDocument] = useState<SourceDocumentResult | null>(null);
   const [sourceDocumentPath, setSourceDocumentPath] = useState('');
@@ -139,7 +143,9 @@ function App() {
   const [sessionTurns, setSessionTurns] = useState<SessionTurn[]>([]);
   const [streamEvents, setStreamEvents] = useState<StreamEvent[]>([]);
   const [traceEvents, setTraceEvents] = useState<StreamEvent[]>([]);
+  const [failedTraceEvents, setFailedTraceEvents] = useState<StreamEvent[]>([]);
   const [streamingAnswer, setStreamingAnswer] = useState('');
+  const [responseStatus, setResponseStatus] = useState('Thinking');
   const streamingAnswerRef = useRef('');
   const answerCanceledRef = useRef(false);
   const activeAnswerRequestIdRef = useRef<string | null>(null);
@@ -210,6 +216,7 @@ function App() {
     || selectedFiles.length > 1,
   );
   const busy = Boolean(busyAction);
+  const chatBusy = busyAction === 'Asking';
   const activeProvider = useMemo(
     () => providers.find((profile) => profile.id === activeProviderId) ?? null,
     [providers, activeProviderId],
@@ -404,6 +411,7 @@ function App() {
     setStatus(label);
     setBusyAction(label);
     setErrorMessage(null);
+    setProviderErrorDetail(null);
     try {
       const response = await window.vera.request<T>(payload, requestId);
       if (!response.ok) {
@@ -413,6 +421,7 @@ function App() {
         }
         setStatus('Ready');
         setErrorMessage(response.error || 'Request failed');
+        setProviderErrorDetail(response.provider_error_detail || null);
         return null;
       }
       setStatus('Ready');
@@ -425,6 +434,7 @@ function App() {
       }
       setStatus('Ready');
       setErrorMessage(message);
+      setProviderErrorDetail(null);
       return null;
     } finally {
       setBusyAction(null);
@@ -707,6 +717,7 @@ function App() {
   }
 
   async function askTarget(prompt: string, onAccepted: () => void) {
+    if (conversionInProgress) return;
     if (!hasSearchableScope) {
       setErrorMessage('This library does not contain any VERA documents yet.');
       return;
@@ -790,7 +801,9 @@ function App() {
     // Set up streaming event listener before firing the request.
     setStreamEvents([]);
     setTraceEvents([]);
+    setFailedTraceEvents([]);
     setStreamingAnswer('');
+    setResponseStatus('Thinking');
     streamingAnswerRef.current = '';
     // Collect every trace event locally too, so it survives even if the backend
     // response doesn't echo a `trace` array (e.g. an older sidecar process).
@@ -799,9 +812,15 @@ function App() {
       if (ev.id !== answerRequestId) return;
       collectedTrace.push(ev);
       setTraceEvents((prev) => [...prev, ev]);
-      if (ev.event === 'search_start') {
+      if (ev.event === 'llm_request') {
+        setResponseStatus('Asking');
+      } else if (ev.event === 'tool_call') {
+        setResponseStatus('Retrieving');
+      } else if (ev.event === 'search_start') {
+        setResponseStatus('Searching');
         setStreamEvents((prev) => [...prev, ev]);
       } else if (ev.event === 'search_done') {
+        setResponseStatus('Retrieving');
         setStreamEvents((prev) => {
           const revIdx = [...prev].reverse().findIndex((e) => e.event === 'search_start' && e.query === ev.query);
           if (revIdx >= 0) {
@@ -811,6 +830,7 @@ function App() {
           return [...prev, ev];
         });
       } else if (ev.event === 'answer_delta') {
+        setResponseStatus('Thinking');
         const delta = ev.text ?? '';
         streamingAnswerRef.current += delta;
         setStreamingAnswer((prev) => prev + delta);
@@ -845,6 +865,7 @@ function App() {
     setStreamEvents([]);
     setTraceEvents([]);
     setStreamingAnswer('');
+    setResponseStatus('Thinking');
     streamingAnswerRef.current = '';
     if (result && !wasCancelled) {
       const now = Date.now();
@@ -925,6 +946,7 @@ function App() {
         return;
       }
       // Roll back optimistic user turn on failure.
+      setFailedTraceEvents(collectedTrace);
       setSessionTurns(sessionTurns);
       setComposerRestoredDraft((previous) => ({ version: previous.version + 1, text: prompt }));
       setAttachments(pendingAttachments);
@@ -1126,22 +1148,34 @@ function App() {
   async function convertPdf() {
     const output = outputPath.trim() || defaultVeraPath(pdfPath);
     if (!output) {
-      setStatus('Choose an output path');
-      setErrorMessage('Choose an output path');
+      setConversionError('Choose an output path.');
       return;
     }
     setOutputPath(output);
-    const result = await call<ConvertResult>({
-      action: 'convert',
-      input: pdfPath,
-      output,
-      model: 'hashing',
-      parser: 'pymupdf',
-      chunk_size: chunkSize,
-      overlap,
-      store_original: storeOriginal,
-    }, 'Converting PDF');
-    if (result) {
+    setConversionInProgress(true);
+    setConversionStatus('Converting PDF…');
+    setConversionError(null);
+    setConvertResult(null);
+    const conversionRequestId = crypto.randomUUID();
+    const offProgress = window.vera.onAnswerEvent((event) => {
+      if (event.id !== conversionRequestId || event.event !== 'conversion_progress') return;
+      setConversionStatus(`Converting PDF… ${event.completed ?? 0} of ${event.total ?? 1}`);
+    });
+    try {
+      const response = await window.vera.request<ConvertResult>({
+        action: 'convert',
+        input: pdfPath,
+        output,
+        model: 'hashing',
+        parser: 'pymupdf',
+        chunk_size: chunkSize,
+        overlap,
+        store_original: storeOriginal,
+      }, conversionRequestId);
+      if (!response.ok || !response.result) {
+        throw new Error(response.error || 'PDF conversion failed');
+      }
+      const result = response.result;
       setConvertResult(result);
       await Promise.all(
         folders
@@ -1149,36 +1183,65 @@ function App() {
           .map((folder) => refreshFolder(folder.path)),
       );
       updateTargetPath(result.output);
-      openSide('info');
+    } catch (error) {
+      setConversionError(error instanceof Error ? error.message : 'PDF conversion failed');
+    } finally {
+      offProgress();
+      setConversionInProgress(false);
+      setConversionStatus(null);
     }
   }
 
   async function batchConvertPdfs() {
     const directory = batchDirectory.trim();
     if (!directory) {
-      setStatus('Choose a PDF directory');
-      setErrorMessage('Choose the directory containing the PDFs to convert.');
+      setConversionError('Choose the directory containing the PDFs to convert.');
       return;
     }
-    const result = await call<BatchConvertResult>({
-      action: 'batch_convert',
-      directory,
-      recursive: batchRecursive,
-      overwrite: batchOverwrite,
-      model: 'hashing',
-      parser: 'pymupdf',
-      chunk_size: chunkSize,
-      overlap,
-      store_original: storeOriginal,
-    }, 'Converting PDF directory');
-    if (!result) return;
-    setBatchConvertResult(result);
-    setConvertResult(null);
-    await Promise.all(
-      folders
-        .filter((folder) => isPathInsideFolder(result.directory, folder.path))
-        .map((folder) => refreshFolder(folder.path)),
-    );
+    setConversionInProgress(true);
+    setConversionStatus('Converting PDF directory…');
+    setConversionError(null);
+    setBatchConvertResult(null);
+    const conversionRequestId = crypto.randomUUID();
+    const offProgress = window.vera.onAnswerEvent((event) => {
+      if (event.id !== conversionRequestId || event.event !== 'conversion_progress') return;
+      const total = event.total ?? 0;
+      setConversionStatus(
+        total
+          ? `Converting PDFs… ${event.completed ?? 0} of ${total}`
+          : 'No PDFs found to convert.',
+      );
+    });
+    try {
+      const response = await window.vera.request<BatchConvertResult>({
+        action: 'batch_convert',
+        directory,
+        recursive: batchRecursive,
+        overwrite: batchOverwrite,
+        model: 'hashing',
+        parser: 'pymupdf',
+        chunk_size: chunkSize,
+        overlap,
+        store_original: storeOriginal,
+      }, conversionRequestId);
+      if (!response.ok || !response.result) {
+        throw new Error(response.error || 'PDF directory conversion failed');
+      }
+      const result = response.result;
+      setBatchConvertResult(result);
+      setConvertResult(null);
+      await Promise.all(
+        folders
+          .filter((folder) => isPathInsideFolder(result.directory, folder.path))
+          .map((folder) => refreshFolder(folder.path)),
+      );
+    } catch (error) {
+      setConversionError(error instanceof Error ? error.message : 'PDF directory conversion failed');
+    } finally {
+      offProgress();
+      setConversionInProgress(false);
+      setConversionStatus(null);
+    }
   }
 
   async function exportSource() {
@@ -1700,7 +1763,7 @@ function App() {
                           />
                         </div>
                       </label>
-                      <button className="secondaryAction" onClick={choosePdf} disabled={busy}><FolderOpen size={16} />Choose PDF</button>
+                      <button className="secondaryAction" onClick={choosePdf} disabled={busy || conversionInProgress}><FolderOpen size={16} />Choose PDF</button>
                       <label className="field">
                         <span>Output</span>
                         <div className="pathInput">
@@ -1708,7 +1771,7 @@ function App() {
                           <input value={outputPath} onChange={(event) => setOutputPath(event.target.value)} placeholder="C:\\docs\\manual.vera" />
                         </div>
                       </label>
-                      <button className="secondaryAction" onClick={chooseOutput} disabled={busy}><FolderOpen size={16} />Save As</button>
+                      <button className="secondaryAction" onClick={chooseOutput} disabled={busy || conversionInProgress}><FolderOpen size={16} />Save As</button>
                     </>
                   ) : (
                     <>
@@ -1719,7 +1782,7 @@ function App() {
                           <input value={batchDirectory} onChange={(event) => setBatchDirectory(event.target.value)} placeholder="C:\\proposals" />
                         </div>
                       </label>
-                      <button className="secondaryAction" onClick={chooseBatchDirectory} disabled={busy}><FolderOpen size={16} />Choose Directory</button>
+                      <button className="secondaryAction" onClick={chooseBatchDirectory} disabled={busy || conversionInProgress}><FolderOpen size={16} />Choose Directory</button>
                       <label className="miniCheck">
                         <input type="checkbox" checked={batchRecursive} onChange={(event) => setBatchRecursive(event.target.checked)} />
                         <span>Include PDFs in nested folders</span>
@@ -1749,10 +1812,14 @@ function App() {
                   <button
                     className="sidePrimary"
                     onClick={convertMode === 'single' ? convertPdf : batchConvertPdfs}
-                    disabled={convertMode === 'single' ? !pdfPath.trim() || busy : !batchDirectory.trim() || busy}
+                    disabled={convertMode === 'single'
+                      ? !pdfPath.trim() || busy || conversionInProgress
+                      : !batchDirectory.trim() || busy || conversionInProgress}
                   >
-                    <RefreshCw size={16} />{convertMode === 'single' ? 'Convert' : 'Convert Directory'}
+                    <RefreshCw size={16} className={conversionInProgress ? 'spinning' : undefined} />
+                    {conversionInProgress ? conversionStatus : convertMode === 'single' ? 'Convert' : 'Convert Directory'}
                   </button>
+                  {conversionError ? <p className="sideMuted" role="alert">{conversionError}</p> : null}
                   {convertMode === 'single' && convertResult ? <p className="sideMuted">Created {convertResult.output}</p> : null}
                   {convertMode === 'batch' && batchConvertResult ? (
                     <div className="batchConvertReport">
@@ -1853,13 +1920,24 @@ function App() {
           <header className="centerHeader">
             <button className="centerNewChat" onClick={() => void newSession()} title="Start a new chat"><Plus size={14} />New chat</button>
             <span className="centerDoc" title={path}>{path ? (path.split(/[\\/]/).pop() || path) : 'No document selected'}</span>
-            <span className={busyAction ? 'centerStatus busy' : 'centerStatus'}>{busyAction ? <><span className="statusDot" />{busyAction}</> : status}</span>
+            <span className="centerStatus">{busyAction === 'Asking' ? 'Ready' : status}</span>
           </header>
 
           {errorMessage ? (
             <div className="errorBanner centerBanner" role="alert">
               <AlertTriangle size={15} aria-hidden="true" />
               <span className="errorBannerMessage" title={errorMessage}>{errorMessage}</span>
+              {showTrace && providerErrorDetail ? (
+                <details className="providerErrorDetails">
+                  <summary>Provider error details</summary>
+                  <pre>{providerErrorDetail}</pre>
+                </details>
+              ) : null}
+              {showTrace && failedTraceEvents.length ? (
+                <div className="failedTrace">
+                  <TraceView events={failedTraceEvents} />
+                </div>
+              ) : null}
               <button
                 type="button"
                 className="errorBannerDismiss"
@@ -1867,6 +1945,8 @@ function App() {
                 title="Dismiss error"
                 onClick={() => {
                   setErrorMessage(null);
+                  setProviderErrorDetail(null);
+                  setFailedTraceEvents([]);
                   setStatus('Ready');
                 }}
               >
@@ -1897,7 +1977,7 @@ function App() {
                         showTrace={showTrace}
                       />
                     ))}
-                    {busy && (streamEvents.length > 0 || streamingAnswer) ? (
+                    {chatBusy ? (
                       <article className="chatMessage assistantMessage streamingMessage">
                         {streamEvents.length > 0 ? (
                           <ActivityTrace
@@ -1914,6 +1994,7 @@ function App() {
                           <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{streamingAnswer}</Markdown></div>
                         ) : null}
                         {showTrace && traceEvents.length > 0 ? <TraceView events={traceEvents} /> : null}
+                        <div className="responseStatus"><span className="statusDot" />{responseStatus}</div>
                       </article>
                     ) : null}
                   </div>
@@ -1932,14 +2013,16 @@ function App() {
               ) : null}
               <div className="askComposerWrap">
                 <div className="composerScope">
-                  {selectedFiles.length > 0
-                    ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
-                    : activeLibraryIsEmpty ? 'Empty library'
-                    : activeLibraryPath ? 'Entire library' : path ? 'Current document' : 'No search scope'}
+                  {conversionInProgress
+                    ? 'Chat unavailable while the conversion completes.'
+                    : selectedFiles.length > 0
+                      ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
+                      : activeLibraryIsEmpty ? 'Empty library'
+                      : activeLibraryPath ? 'Entire library' : path ? 'Current document' : 'No search scope'}
                 </div>
                 <ChatComposer
                   attachments={attachments}
-                  busy={busy}
+                  busy={chatBusy || conversionInProgress}
                   busyAction={busyAction}
                   hasSearchableScope={hasSearchableScope}
                   hasPreviousTurns={sessionTurns.length > 0}
