@@ -1,0 +1,30 @@
+import type { SourceDocumentResult } from '../types';
+
+export function formatPages(start: number | null, end: number | null): string {
+  if (start === null && end === null) return '-';
+  if (start === end || end === null) return String(start);
+  if (start === null) return String(end);
+  return `${start}-${end}`;
+}
+
+export function formatBox(box: number[] | undefined): string {
+  if (!box?.length) return '-';
+  return box.map((value) => Math.round(value)).join(', ');
+}
+
+export function defaultVeraPath(pdf: string): string {
+  const trimmed = pdf.trim();
+  if (!trimmed) return '';
+  return trimmed.toLowerCase().endsWith('.pdf') ? `${trimmed.slice(0, -4)}.vera` : `${trimmed}.vera`;
+}
+
+export function isPathInsideFolder(filePath: string, folderPath: string): boolean {
+  const file = filePath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const folder = folderPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  return file === folder || file.startsWith(`${folder}/`);
+}
+
+export function isPdfSource(source: SourceDocumentResult | null): boolean {
+  if (!source) return false;
+  return source.mime_type === 'application/pdf' || source.filename.toLowerCase().endsWith('.pdf');
+}
