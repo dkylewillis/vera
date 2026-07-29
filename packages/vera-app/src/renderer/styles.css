@@ -1116,6 +1116,50 @@ select option {
   gap: 10px;
 }
 
+.convertActions {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.convertActions .sidePrimary {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.convertStop {
+  flex: 0 0 auto;
+  height: 36px;
+  padding-inline: 12px;
+  white-space: nowrap;
+}
+
+.conversionStatusText {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.conversionCurrentFile {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--text-muted);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
 .batchConvertReport {
   display: grid;
   gap: 4px;
@@ -1134,6 +1178,11 @@ select option {
 
 .batchConvertError {
   color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.batchConvertSkipped {
+  color: var(--text-muted);
   overflow-wrap: anywhere;
 }
 

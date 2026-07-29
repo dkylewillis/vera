@@ -24,6 +24,8 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  SkipForward,
+  Square,
   Terminal,
   Trash2,
   X,
@@ -147,7 +149,11 @@ function App() {
   const [batchConvertResult, setBatchConvertResult] = useState<BatchConvertResult | null>(null);
   const [conversionInProgress, setConversionInProgress] = useState(false);
   const [conversionStatus, setConversionStatus] = useState<string | null>(null);
+  const [conversionCurrentFile, setConversionCurrentFile] = useState<string | null>(null);
   const [conversionError, setConversionError] = useState<string | null>(null);
+  const conversionRequestIdRef = useRef<string | null>(null);
+  const conversionCanceledRef = useRef(false);
+  const conversionInterruptRef = useRef<'stop' | 'skip' | null>(null);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [sourceDocument, setSourceDocument] = useState<SourceDocumentResult | null>(null);
   const [sourceDocumentPath, setSourceDocumentPath] = useState('');
@@ -1245,6 +1251,82 @@ function App() {
     await persistSettings({ providers, active_provider_id: activeProviderId, active_model: activeModel, active_mode_id: modeId });
   }
 
+  function stopConversion() {
+    const requestId = conversionRequestIdRef.current;
+    if (!conversionInProgress || !requestId) return;
+    conversionCanceledRef.current = true;
+    conversionInterruptRef.current = 'stop';
+    setConversionStatus('Stopping…');
+    void window.vera.cancelAnswer(requestId).then((result) => {
+      if (result && 'cancelled' in result && !result.cancelled) {
+        conversionCanceledRef.current = false;
+        conversionInterruptRef.current = null;
+        setConversionStatus('Converting…');
+        setConversionError('Unable to stop conversion (request was not found). Restart the app if this persists.');
+      }
+    }).catch((error) => {
+      conversionCanceledRef.current = false;
+      conversionInterruptRef.current = null;
+      setConversionStatus('Converting…');
+      setConversionError(error instanceof Error ? error.message : 'Unable to stop conversion');
+    });
+  }
+
+  function skipCurrentConversion() {
+    const requestId = conversionRequestIdRef.current;
+    if (!conversionInProgress || !requestId || convertMode !== 'batch') return;
+    if (conversionInterruptRef.current === 'stop') return;
+    conversionInterruptRef.current = 'skip';
+    setConversionStatus('Skipping…');
+    void window.vera.skipConversion(requestId).then((result) => {
+      if (!result.skipped) {
+        conversionInterruptRef.current = null;
+        setConversionStatus('Converting…');
+        setConversionError('Unable to skip file (request was not found). Restart the app if this persists.');
+      }
+    }).catch((error) => {
+      conversionInterruptRef.current = null;
+      setConversionStatus('Converting…');
+      setConversionError(error instanceof Error ? error.message : 'Unable to skip file');
+    });
+  }
+
+  function applyConversionProgress(event: StreamEvent, mode: 'single' | 'batch') {
+    // Keep "Stopping…" visible until the request ends.
+    if (conversionInterruptRef.current === 'stop') return;
+    // After skip is acknowledged, the next progress event means we moved on.
+    if (conversionInterruptRef.current === 'skip') {
+      conversionInterruptRef.current = null;
+    }
+    const total = event.total ?? 0;
+    const completed = event.completed ?? 0;
+    const currentFile = event.input?.trim() || null;
+    if (event.phase === 'discovering') {
+      setConversionStatus('Discovering PDFs…');
+      if (currentFile) setConversionCurrentFile(currentFile);
+      return;
+    }
+    if (currentFile) setConversionCurrentFile(currentFile);
+    if (!total) {
+      setConversionStatus(mode === 'batch' ? 'No PDFs found to convert.' : 'Converting…');
+      return;
+    }
+    if (completed >= total) {
+      setConversionStatus(mode === 'batch' ? `Converted ${completed} of ${total}` : 'Converted');
+      return;
+    }
+    const current = completed + 1;
+    setConversionStatus(`${current} of ${total}`);
+  }
+
+  async function refreshFoldersForPath(target: string) {
+    await Promise.all(
+      folders
+        .filter((folder) => isPathInsideFolder(target, folder.path))
+        .map((folder) => refreshFolder(folder.path)),
+    );
+  }
+
   async function convertPdf() {
     const output = outputPath.trim() || defaultVeraPath(pdfPath);
     if (!output) {
@@ -1252,14 +1334,18 @@ function App() {
       return;
     }
     setOutputPath(output);
+    conversionCanceledRef.current = false;
+    conversionInterruptRef.current = null;
     setConversionInProgress(true);
-    setConversionStatus('Converting PDF…');
+    setConversionStatus('Starting…');
+    setConversionCurrentFile(pdfPath.trim() || null);
     setConversionError(null);
     setConvertResult(null);
     const conversionRequestId = crypto.randomUUID();
+    conversionRequestIdRef.current = conversionRequestId;
     const offProgress = window.vera.onAnswerEvent((event) => {
       if (event.id !== conversionRequestId || event.event !== 'conversion_progress') return;
-      setConversionStatus(`Converting PDF… ${event.completed ?? 0} of ${event.total ?? 1}`);
+      applyConversionProgress(event, 'single');
     });
     try {
       const response = await window.vera.request<ConvertResult>({
@@ -1272,23 +1358,36 @@ function App() {
         overlap,
         store_original: storeOriginal,
       }, conversionRequestId);
+      if (response.cancelled || response.error?.includes('cancelled')) {
+        await refreshFoldersForPath(output);
+        setConversionError(null);
+        return;
+      }
       if (!response.ok || !response.result) {
         throw new Error(response.error || 'PDF conversion failed');
       }
       const result = response.result;
       setConvertResult(result);
-      await Promise.all(
-        folders
-          .filter((folder) => isPathInsideFolder(result.output, folder.path))
-          .map((folder) => refreshFolder(folder.path)),
-      );
+      await refreshFoldersForPath(result.output);
       updateTargetPath(result.output);
     } catch (error) {
-      setConversionError(error instanceof Error ? error.message : 'PDF conversion failed');
+      const message = error instanceof Error ? error.message : 'PDF conversion failed';
+      if (conversionCanceledRef.current || message.toLowerCase().includes('cancelled')) {
+        await refreshFoldersForPath(output);
+        setConversionError(null);
+        return;
+      }
+      setConversionError(message);
     } finally {
       offProgress();
+      if (conversionRequestIdRef.current === conversionRequestId) {
+        conversionRequestIdRef.current = null;
+      }
       setConversionInProgress(false);
       setConversionStatus(null);
+      setConversionCurrentFile(null);
+      conversionCanceledRef.current = false;
+      conversionInterruptRef.current = null;
     }
   }
 
@@ -1298,19 +1397,18 @@ function App() {
       setConversionError('Choose the directory containing the PDFs to convert.');
       return;
     }
+    conversionCanceledRef.current = false;
+    conversionInterruptRef.current = null;
     setConversionInProgress(true);
-    setConversionStatus('Converting PDF directory…');
+    setConversionStatus('Starting…');
+    setConversionCurrentFile(null);
     setConversionError(null);
     setBatchConvertResult(null);
     const conversionRequestId = crypto.randomUUID();
+    conversionRequestIdRef.current = conversionRequestId;
     const offProgress = window.vera.onAnswerEvent((event) => {
       if (event.id !== conversionRequestId || event.event !== 'conversion_progress') return;
-      const total = event.total ?? 0;
-      setConversionStatus(
-        total
-          ? `Converting PDFs… ${event.completed ?? 0} of ${total}`
-          : 'No PDFs found to convert.',
-      );
+      applyConversionProgress(event, 'batch');
     });
     try {
       const response = await window.vera.request<BatchConvertResult>({
@@ -1324,23 +1422,36 @@ function App() {
         overlap,
         store_original: storeOriginal,
       }, conversionRequestId);
+      if (response.cancelled || response.error?.includes('cancelled')) {
+        await refreshFoldersForPath(directory);
+        setConversionError(null);
+        return;
+      }
       if (!response.ok || !response.result) {
         throw new Error(response.error || 'PDF directory conversion failed');
       }
       const result = response.result;
       setBatchConvertResult(result);
       setConvertResult(null);
-      await Promise.all(
-        folders
-          .filter((folder) => isPathInsideFolder(result.directory, folder.path))
-          .map((folder) => refreshFolder(folder.path)),
-      );
+      await refreshFoldersForPath(result.directory);
     } catch (error) {
-      setConversionError(error instanceof Error ? error.message : 'PDF directory conversion failed');
+      const message = error instanceof Error ? error.message : 'PDF directory conversion failed';
+      if (conversionCanceledRef.current || message.toLowerCase().includes('cancelled')) {
+        await refreshFoldersForPath(directory);
+        setConversionError(null);
+        return;
+      }
+      setConversionError(message);
     } finally {
       offProgress();
+      if (conversionRequestIdRef.current === conversionRequestId) {
+        conversionRequestIdRef.current = null;
+      }
       setConversionInProgress(false);
       setConversionStatus(null);
+      setConversionCurrentFile(null);
+      conversionCanceledRef.current = false;
+      conversionInterruptRef.current = null;
     }
   }
 
@@ -1939,24 +2050,71 @@ function App() {
                     <input type="checkbox" checked={storeOriginal} onChange={(event) => setStoreOriginal(event.target.checked)} />
                     <span>Store original PDF</span>
                   </label>
-                  <button
-                    className="sidePrimary"
-                    onClick={convertMode === 'single' ? convertPdf : batchConvertPdfs}
-                    disabled={convertMode === 'single'
-                      ? !pdfPath.trim() || busy || conversionInProgress
-                      : !batchDirectory.trim() || busy || conversionInProgress}
-                  >
-                    <RefreshCw size={16} className={conversionInProgress ? 'spinning' : undefined} />
-                    {conversionInProgress ? conversionStatus : convertMode === 'single' ? 'Convert' : 'Convert Directory'}
-                  </button>
+                  <div className="convertActions">
+                    <button
+                      className="sidePrimary"
+                      onClick={convertMode === 'single' ? convertPdf : batchConvertPdfs}
+                      disabled={convertMode === 'single'
+                        ? !pdfPath.trim() || busy || conversionInProgress
+                        : !batchDirectory.trim() || busy || conversionInProgress}
+                    >
+                      <RefreshCw size={16} className={conversionInProgress ? 'spinning' : undefined} />
+                      {conversionInProgress
+                        ? 'Converting…'
+                        : convertMode === 'single'
+                          ? 'Convert'
+                          : 'Convert Directory'}
+                    </button>
+                    {conversionInProgress && convertMode === 'batch' ? (
+                      <button
+                        type="button"
+                        className="secondaryAction convertStop"
+                        onClick={skipCurrentConversion}
+                        disabled={conversionStatus === 'Stopping…'}
+                        title="Skip current file and continue"
+                        aria-label="Skip current file"
+                      >
+                        <SkipForward size={14} />
+                        Skip
+                      </button>
+                    ) : null}
+                    {conversionInProgress ? (
+                      <button
+                        type="button"
+                        className="secondaryAction convertStop"
+                        onClick={stopConversion}
+                        disabled={conversionStatus === 'Stopping…'}
+                        title="Stop conversion"
+                        aria-label="Stop conversion"
+                      >
+                        <Square size={12} fill="currentColor" />
+                        Stop
+                      </button>
+                    ) : null}
+                  </div>
+                  {conversionInProgress && conversionStatus ? (
+                    <p className="conversionStatusText">{conversionStatus}</p>
+                  ) : null}
+                  {conversionInProgress && conversionCurrentFile ? (
+                    <p className="conversionCurrentFile" title={conversionCurrentFile}>
+                      {conversionCurrentFile}
+                    </p>
+                  ) : null}
                   {conversionError ? <p className="sideMuted" role="alert">{conversionError}</p> : null}
                   {convertMode === 'single' && convertResult ? <p className="sideMuted">Created {convertResult.output}</p> : null}
                   {convertMode === 'batch' && batchConvertResult ? (
                     <div className="batchConvertReport">
                       <strong>{batchConvertResult.converted} converted</strong>
-                      <span>{batchConvertResult.discovered} PDFs found · {batchConvertResult.skipped} skipped · {batchConvertResult.malformed} malformed · {batchConvertResult.failed} failed</span>
+                      <span>
+                        {batchConvertResult.discovered} PDFs found · {batchConvertResult.skipped} skipped
+                        {batchConvertResult.user_skipped ? ` · ${batchConvertResult.user_skipped} user-skipped` : ''}
+                        {' · '}{batchConvertResult.malformed} malformed · {batchConvertResult.failed} failed
+                      </span>
                       {batchConvertResult.malformed_existing.map((entry) => (
                         <span className="batchConvertError" key={entry.output} title={entry.issues.join('; ')}>{entry.output}: {entry.issues.join('; ')}</span>
+                      ))}
+                      {(batchConvertResult.skipped_by_user || []).map((filePath) => (
+                        <span className="batchConvertSkipped" key={filePath} title="Skipped by user">{filePath}: skipped</span>
                       ))}
                       {batchConvertResult.errors.map((entry) => (
                         <span className="batchConvertError" key={entry.input} title={entry.error}>{entry.input}: {entry.error}</span>

@@ -41,7 +41,8 @@ best hit, and re-searches automatically skip passages you already retrieved.
 
 ## Answer rules
 - Lead with the conclusion; be concise.
-- Attach the citation id (e.g. `[C1]`) immediately after every claim it supports.
+- Attach the citation id (e.g. [C1]) immediately after every claim it supports.
+  Write ids as plain text — never inside backticks or other code formatting.
 - If the evidence is incomplete after searching, say what is missing instead of guessing.
 - If sources conflict, state the conflict and cite both sides.
 - Never cite a source you did not retrieve.

@@ -37,6 +37,7 @@ export interface StreamEvent {
   completed?: number;
   total?: number;
   input?: string;
+  phase?: string;
 }
 
 export interface FigureResult {

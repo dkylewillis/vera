@@ -166,9 +166,97 @@ def test_batch_convert_reports_progress_for_each_discovered_pdf(tmp_path):
         progress=lambda completed, total, input_path: progress.append((completed, total, input_path)),
     )
 
-    assert progress[0] == (0, 2, "")
-    assert [entry[:2] for entry in progress[1:]] == [(1, 2), (2, 2)]
-    assert [entry[2] for entry in progress[1:]] == [str(first_pdf), str(second_pdf)]
+    assert progress == [
+        (0, 2, str(first_pdf)),
+        (1, 2, str(second_pdf)),
+        (2, 2, str(second_pdf)),
+    ]
+
+
+def test_batch_convert_stops_when_cancelled(tmp_path, monkeypatch):
+    first_pdf = tmp_path / "first.pdf"
+    second_pdf = tmp_path / "second.pdf"
+    make_pdf(first_pdf)
+    make_pdf(second_pdf)
+
+    class Token:
+        def __init__(self):
+            self.cancelled = False
+
+        def raise_if_cancelled(self):
+            if self.cancelled:
+                raise RuntimeError("Conversion cancelled")
+
+        def raise_if_interrupted(self):
+            self.raise_if_cancelled()
+
+    cancel = Token()
+    convert_mod = importlib.import_module("vera.convert")
+    real_convert = convert_mod.convert
+
+    def convert_once(input_path, output_path, **kwargs):
+        kwargs = dict(kwargs)
+        kwargs.pop("cancel", None)
+        output = real_convert(input_path, output_path, **kwargs)
+        cancel.cancelled = True
+        return output
+
+    monkeypatch.setattr(convert_mod, "convert", convert_once)
+
+    with pytest.raises(RuntimeError, match="Conversion cancelled"):
+        batch_convert(str(tmp_path), model="hashing", cancel=cancel)
+
+    assert (tmp_path / "first.vera").is_file()
+    assert not (tmp_path / "second.vera").exists()
+
+
+def test_batch_convert_skips_current_file_and_continues(tmp_path, monkeypatch):
+    first_pdf = tmp_path / "first.pdf"
+    second_pdf = tmp_path / "second.pdf"
+    make_pdf(first_pdf)
+    make_pdf(second_pdf)
+
+    class Token:
+        def __init__(self):
+            self.cancelled = False
+            self.skip_requested = False
+
+        def raise_if_cancelled(self):
+            if self.cancelled:
+                raise RuntimeError("Conversion cancelled")
+
+        def raise_if_interrupted(self):
+            self.raise_if_cancelled()
+            if self.skip_requested:
+                raise RuntimeError("File skipped")
+
+        def clear_skip(self):
+            self.skip_requested = False
+
+    cancel = Token()
+    convert_mod = importlib.import_module("vera.convert")
+    real_convert = convert_mod.convert
+    calls = {"n": 0}
+
+    def convert_with_skip(input_path, output_path, **kwargs):
+        calls["n"] += 1
+        kwargs = dict(kwargs)
+        kwargs.pop("cancel", None)
+        if calls["n"] == 1:
+            cancel.skip_requested = True
+            cancel.raise_if_interrupted()
+        return real_convert(input_path, output_path, **kwargs)
+
+    monkeypatch.setattr(convert_mod, "convert", convert_with_skip)
+
+    report = batch_convert(str(tmp_path), model="hashing", cancel=cancel)
+
+    assert report["converted"] == 1
+    assert report["user_skipped"] == 1
+    assert report["skipped_by_user"] == [str(first_pdf)]
+    assert report["failed"] == 0
+    assert not (tmp_path / "first.vera").exists()
+    assert (tmp_path / "second.vera").is_file()
 
 
 def test_hybrid_keeps_chunk_that_tops_both_modes(tmp_path):

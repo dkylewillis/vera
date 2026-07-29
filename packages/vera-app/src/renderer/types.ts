@@ -38,7 +38,8 @@ export interface VeraApi {
   platform: string;
   showMenu(menuId: string, x: number, y: number): Promise<boolean>;
   request<T = unknown>(payload: Record<string, unknown>, requestId?: string): Promise<VeraResponse<T>>;
-  cancelAnswer(requestId: string): Promise<void>;
+  cancelAnswer(requestId: string): Promise<{ cancelled: boolean } | void>;
+  skipConversion(requestId: string): Promise<{ skipped: boolean }>;
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;
   saveApiKey(providerId: string, apiKey: string): Promise<CredentialResult>;
@@ -190,10 +191,12 @@ export interface BatchConvertResult {
   discovered: number;
   converted: number;
   skipped: number;
+  user_skipped?: number;
   malformed: number;
   failed: number;
   outputs: string[];
   skipped_existing: string[];
+  skipped_by_user?: string[];
   malformed_existing: { input: string; output: string; issues: string[] }[];
   errors: { input: string; error: string }[];
 }

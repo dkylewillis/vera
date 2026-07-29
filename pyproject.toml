@@ -17,6 +17,8 @@ dev = ["pytest>=8", "reportlab>=4", "mcp>=1.0"]
 ml = ["sentence-transformers>=2.7"]
 app = ["vera-app"]
 mcp = ["mcp>=1.0"]
+# Build-only: PyInstaller for packages/vera-app `build:sidecar`.
+sidecar = ["pyinstaller>=6"]
 
 [tool.uv.workspace]
 members = [

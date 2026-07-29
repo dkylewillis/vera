@@ -5,6 +5,11 @@ import type { ChatCitationResult, SessionTurn } from '../types';
 import { ActivityTrace } from './activity/ActivityTrace';
 import { TraceView } from './activity/TraceView';
 
+// A code span holding nothing but `[C#]` markers (optionally comma/semicolon
+// separated). Models routinely imitate the prompt's `[C1]` example verbatim,
+// backticks included, which would otherwise render as an inert code span.
+const CITATION_ONLY_CODE = /^\s*\[C\d+\](\s*[,;]?\s*\[C\d+\])*\s*$/;
+
 function renderAnswerWithCitations(
   answerText: string,
   citations: ChatCitationResult[],
@@ -30,9 +35,11 @@ function renderAnswerWithCitations(
       });
     });
 
+  // `node` is react-markdown's hast node; it must be dropped rather than spread,
+  // or it lands on the DOM element as node="[object Object]".
   const withCitations =
     (Tag: keyof React.JSX.IntrinsicElements) =>
-    ({ children, ...props }: { children?: ReactNode }) =>
+    ({ children, node: _node, ...props }: { children?: ReactNode; node?: unknown }) =>
       React.createElement(Tag, props, injectCitations(children));
 
   return (
@@ -53,9 +60,18 @@ function renderAnswerWithCitations(
           strong: withCitations('strong'),
           em: withCitations('em'),
           blockquote: withCitations('blockquote'),
-          a: ({ children, ...props }) => (
+          a: ({ children, node: _node, ...props }) => (
             <a {...props} target="_blank" rel="noreferrer">{injectCitations(children)}</a>
           ),
+          code: ({ children, className, node: _node, ...props }) => {
+            const text = typeof children === 'string' ? children : null;
+            // `className` marks a fenced block's language, so a bare marker-only
+            // span is safe to unwrap without touching real code.
+            if (text && !className && CITATION_ONLY_CODE.test(text)) {
+              return <>{injectCitations(text)}</>;
+            }
+            return <code className={className} {...props}>{children}</code>;
+          },
         }}
       >
         {answerText}

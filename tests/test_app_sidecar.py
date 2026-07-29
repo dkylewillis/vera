@@ -1,6 +1,7 @@
 import io
 import json
 import importlib
+import queue
 import threading
 
 import pytest
@@ -20,6 +21,25 @@ def _llm_payload():
         "model": "test-model",
         "base_url": "http://localhost:1234/v1",
     }
+
+
+class _ScriptedStdin:
+    """stdin stand-in that lets tests push lines after a request is in flight."""
+
+    def __init__(self):
+        self._lines: queue.Queue[str | None] = queue.Queue()
+
+    def push(self, line: str | None) -> None:
+        self._lines.put(line)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self) -> str:
+        line = self._lines.get()
+        if line is None:
+            raise StopIteration
+        return line
 
 
 @pytest.fixture
@@ -203,13 +223,13 @@ def test_index_build_does_not_block_other_sidecar_requests(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("action", "request"),
+    ("action", "request_line"),
     [
         ("convert", '{"id":"convert","action":"convert","input":"manual.pdf","output":"manual.vera"}'),
         ("batch_convert", '{"id":"batch","action":"batch_convert","directory":"library"}'),
     ],
 )
-def test_conversion_actions_do_not_block_other_sidecar_requests(monkeypatch, action, request):
+def test_conversion_actions_do_not_block_other_sidecar_requests(monkeypatch, action, request_line):
     sidecar = importlib.import_module("vera_app.sidecar")
     conversion_started = threading.Event()
     release_conversion = threading.Event()
@@ -240,7 +260,7 @@ def test_conversion_actions_do_not_block_other_sidecar_requests(monkeypatch, act
     monkeypatch.setattr(
         sidecar.sys,
         "stdin",
-        io.StringIO(f"{request}\n" '{"id":"ping","action":"ping"}\n'),
+        io.StringIO(f"{request_line}\n" '{"id":"ping","action":"ping"}\n'),
     )
 
     assert sidecar.main() == 0
@@ -451,6 +471,150 @@ def test_answer_action_returns_structured_cancellation(tmp_path, monkeypatch):
         "error": "Answer cancelled",
         "cancelled": True,
     }
+
+
+def test_conversion_actions_can_be_cancelled(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    conversion_started = threading.Event()
+    control_acked = threading.Event()
+    release_conversion = threading.Event()
+    all_responses = threading.Event()
+    responses = []
+    stdin = _ScriptedStdin()
+
+    def fake_batch_convert(directory, **kwargs):
+        cancel = kwargs.get("cancel")
+        assert cancel is not None
+        conversion_started.set()
+        assert release_conversion.wait(timeout=2)
+        cancel.raise_if_cancelled()
+        return {"converted": 1}
+
+    def capture_response(response):
+        # Progress events share the request id but are not final responses.
+        if "event" in response and "ok" not in response:
+            return
+        responses.append(response)
+        if response.get("id") in {"cancel", "skip"}:
+            control_acked.set()
+        if len(responses) >= 2:
+            all_responses.set()
+
+    monkeypatch.setattr(sidecar, "batch_convert", fake_batch_convert)
+    monkeypatch.setattr(sidecar, "_write_response", capture_response)
+    monkeypatch.setattr(sidecar.sys, "stdin", stdin)
+
+    thread = threading.Thread(target=sidecar.main, daemon=True)
+    thread.start()
+    stdin.push('{"id":"batch","action":"batch_convert","directory":"library"}\n')
+    assert conversion_started.wait(timeout=2)
+    stdin.push('{"id":"cancel","action":"cancel","target_id":"batch"}\n')
+    assert control_acked.wait(timeout=2)
+    release_conversion.set()
+    stdin.push(None)
+    thread.join(timeout=2)
+    assert all_responses.wait(timeout=2)
+
+    cancel_response = next(item for item in responses if item.get("id") == "cancel")
+    batch_response = next(item for item in responses if item.get("id") == "batch")
+    assert cancel_response["ok"] is True
+    assert cancel_response["result"]["cancelled"] is True
+    assert batch_response == {
+        "id": "batch",
+        "ok": False,
+        "error": "Answer cancelled",
+        "cancelled": True,
+    }
+
+
+def test_convert_action_returns_structured_cancellation(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    cancel = CancellationToken()
+    cancel.cancel()
+
+    def fake_convert(*args, **kwargs):
+        assert kwargs.get("cancel") is cancel
+        cancel.raise_if_cancelled()
+
+    monkeypatch.setattr(sidecar, "convert", fake_convert)
+
+    response = sidecar.handle(
+        {
+            "id": "convert-cancelled",
+            "action": "convert",
+            "input": "manual.pdf",
+            "output": "manual.vera",
+        },
+        cancel=cancel,
+    )
+
+    assert response == {
+        "id": "convert-cancelled",
+        "ok": False,
+        "error": "Answer cancelled",
+        "cancelled": True,
+    }
+
+
+def test_batch_convert_skip_request_continues_remaining_files(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    conversion_started = threading.Event()
+    control_acked = threading.Event()
+    release_conversion = threading.Event()
+    all_responses = threading.Event()
+    responses = []
+    seen_skip = {"value": False}
+    stdin = _ScriptedStdin()
+
+    def fake_batch_convert(directory, **kwargs):
+        cancel = kwargs.get("cancel")
+        assert cancel is not None
+        conversion_started.set()
+        assert release_conversion.wait(timeout=2)
+        try:
+            cancel.raise_if_interrupted()
+        except Exception:
+            seen_skip["value"] = cancel.skip_requested
+            cancel.clear_skip()
+            return {
+                "converted": 1,
+                "user_skipped": 1,
+                "skipped_by_user": ["slow.pdf"],
+                "failed": 0,
+            }
+        return {"converted": 2, "user_skipped": 0, "skipped_by_user": [], "failed": 0}
+
+    def capture_response(response):
+        if "event" in response and "ok" not in response:
+            return
+        responses.append(response)
+        if response.get("id") in {"cancel", "skip"}:
+            control_acked.set()
+        if len(responses) >= 2:
+            all_responses.set()
+
+    monkeypatch.setattr(sidecar, "batch_convert", fake_batch_convert)
+    monkeypatch.setattr(sidecar, "_write_response", capture_response)
+    monkeypatch.setattr(sidecar.sys, "stdin", stdin)
+
+    thread = threading.Thread(target=sidecar.main, daemon=True)
+    thread.start()
+    stdin.push('{"id":"batch","action":"batch_convert","directory":"library"}\n')
+    assert conversion_started.wait(timeout=2)
+    stdin.push('{"id":"skip","action":"skip","target_id":"batch"}\n')
+    assert control_acked.wait(timeout=2)
+    release_conversion.set()
+    stdin.push(None)
+    thread.join(timeout=2)
+    assert all_responses.wait(timeout=2)
+
+    skip_response = next(item for item in responses if item.get("id") == "skip")
+    batch_response = next(item for item in responses if item.get("id") == "batch")
+    assert skip_response["ok"] is True
+    assert skip_response["result"]["skipped"] is True
+    assert seen_skip["value"] is True
+    assert batch_response["ok"] is True
+    assert batch_response["result"]["user_skipped"] == 1
 
 
 def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):

@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('vera', {
   showMenu: (menuId: string, x: number, y: number) => ipcRenderer.invoke('vera:showMenu', menuId, x, y),
   request: (payload: Record<string, unknown>, requestId?: string) => ipcRenderer.invoke('vera:request', payload, requestId),
   cancelAnswer: (requestId: string) => ipcRenderer.invoke('vera:cancelAnswer', requestId),
+  skipConversion: (requestId: string) => ipcRenderer.invoke('vera:skipConversion', requestId),
   getSettings: () => ipcRenderer.invoke('vera:getSettings'),
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke('vera:saveSettings', settings),
   saveApiKey: (providerId: string, apiKey: string) => ipcRenderer.invoke('vera:saveApiKey', providerId, apiKey),

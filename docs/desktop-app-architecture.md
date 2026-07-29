@@ -119,7 +119,7 @@ build does not replace it.
 
 ## Batch PDF Conversion
 
-The Convert PDF view supports a single archive or an entire directory. Directory conversion can include nested folders and creates each `.vera` archive beside its source PDF using the same base filename (`proposal.pdf` becomes `proposal.vera`). Existing archives are validated before they are skipped; malformed outputs are reported separately, and overwrite must be selected explicitly. Conversion uses selective PyMuPDF/Tesseract OCR for image-based low-text pages with English language data bundled into both `vera-doc` and the packaged sidecar. It publishes a validated temporary sibling atomically, preserves an existing destination after failure, and rejects PDFs with no searchable text after OCR with an OCR-specific message. Sidecar `convert` and `batch_convert` requests accept optional `ocr_mode`, `ocr_language`, and `ocr_dpi` fields and otherwise use `auto`, `eng`, and `300`. The sidecar continues after per-file failures and returns converted, skipped, malformed, and failed counts plus individual diagnostics. Workspace folders refresh after the batch, allowing an existing collection index to become visibly stale without being rebuilt automatically. The same public `vera-doc` operation powers `vera convert <directory> --recursive`, keeping desktop and CLI behavior aligned.
+The Convert PDF view supports a single archive or an entire directory. Directory conversion can include nested folders and creates each `.vera` archive beside its source PDF using the same base filename (`proposal.pdf` becomes `proposal.vera`). Existing archives are validated before they are skipped; malformed outputs are reported separately, and overwrite must be selected explicitly. Conversion uses selective PyMuPDF/Tesseract OCR for image-based low-text pages with English language data bundled into both `vera-doc` and the packaged sidecar. It publishes a validated temporary sibling atomically, preserves an existing destination after failure, and rejects PDFs with no searchable text after OCR with an OCR-specific message. Sidecar `convert` and `batch_convert` requests accept optional `ocr_mode`, `ocr_language`, and `ocr_dpi` fields and otherwise use `auto`, `eng`, and `300`. The sidecar continues after per-file failures and returns converted, skipped, malformed, and failed counts plus individual diagnostics. During directory conversion the UI shows the current file path and offers **Skip** (continue with the next PDF) and **Stop** (abort the batch). Workspace folders refresh after the batch, allowing an existing collection index to become visibly stale without being rebuilt automatically. The same public `vera-doc` operation powers `vera convert <directory> --recursive`, keeping desktop and CLI behavior aligned.
 
 ## Development Commands
 
@@ -132,6 +132,13 @@ npm run app:typecheck
 npm run app:build
 npm run app:dist
 ```
+
+`npm run app:dist` packages the Python sidecar through
+`packages/vera-app/scripts/build-sidecar.cjs`, which runs PyInstaller with the
+project virtualenv when it is available (honoring `VERA_SIDECAR_PYTHON`) and
+otherwise falls back to `uv run --extra app --extra sidecar`. Bundled Tesseract
+English data is passed as an absolute path so the build works from any
+directory.
 
 From the repo root:
 

@@ -1,0 +1,16 @@
+﻿# Packaging/output trees are watched aggressively on Windows and can
+# lock electron-builder's win-unpacked.tmp -> win-unpacked rename.
+release/
+**/release/
+build/
+**/build/
+dist/
+**/dist/
+dist-electron/
+**/dist-electron/
+node_modules/
+**/node_modules/
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/

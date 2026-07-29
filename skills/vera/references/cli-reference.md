@@ -68,10 +68,12 @@ Directory JSON:
   "discovered": 4,
   "converted": 2,
   "skipped": 1,
+  "user_skipped": 0,
   "malformed": 1,
   "failed": 0,
   "outputs": ["C:/docs/a.vera", "C:/docs/nested/b.vera"],
   "skipped_existing": ["C:/docs/c.vera"],
+  "skipped_by_user": [],
   "malformed_existing": [
     {
       "input": "C:/docs/d.pdf",
@@ -84,9 +86,11 @@ Directory JSON:
 ```
 
 Existing outputs are validated: only valid archives appear in
-`skipped_existing`; invalid ones appear in `malformed_existing`. Each error
-entry has `input` and `error`. A conversion failure or malformed existing
-output sets `ok` false, prints the report, and exits 1. Supplying a directory
+`skipped_existing`; invalid ones appear in `malformed_existing`.
+`skipped_by_user` / `user_skipped` are reserved for interactive skip
+requests (desktop app); CLI runs leave them empty. Each error entry has
+`input` and `error`. A conversion failure or malformed existing output
+sets `ok` false, prints the report, and exits 1. Supplying a directory
 and an output path prints an error to stderr and exits 2.
 
 ### `vera inspect FILE`

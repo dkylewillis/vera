@@ -62,6 +62,33 @@ def _drop_repeated_images(
     return kept
 
 
+def _raise_if_cancelled(cancel: Any | None) -> None:
+    if cancel is None:
+        return
+    interrupted = getattr(cancel, "raise_if_interrupted", None)
+    if callable(interrupted):
+        interrupted()
+        return
+    cancel.raise_if_cancelled()
+
+
+def _consume_user_skip(cancel: Any | None, exc: BaseException) -> bool:
+    """Clear a one-shot skip request if `exc` represents skipping the current file."""
+    if cancel is None:
+        return False
+    if getattr(cancel, "cancelled", False):
+        return False
+    is_skip = type(exc).__name__ == "SkipCurrentError" or bool(
+        getattr(cancel, "skip_requested", False)
+    )
+    if not is_skip:
+        return False
+    clear = getattr(cancel, "clear_skip", None)
+    if callable(clear):
+        clear()
+    return True
+
+
 def convert(
     input_path: str,
     output_path: str,
@@ -74,6 +101,7 @@ def convert(
     ocr_mode: str = "auto",
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
+    cancel: Any | None = None,
 ) -> str:
     source = Path(input_path)
     target = Path(output_path)
@@ -82,6 +110,7 @@ def convert(
     if parser != "pymupdf":
         raise ValueError("v0.1 currently supports parser='pymupdf'")
 
+    _raise_if_cancelled(cancel)
     source_data = source.read_bytes()
     source_hash = _sha256_bytes(source_data)
     mime_type = mimetypes.guess_type(source.name)[0] or "application/pdf"
@@ -92,7 +121,9 @@ def convert(
         ocr_language=ocr_language,
         ocr_dpi=ocr_dpi,
         diagnostics=parse_diagnostics,
+        cancel=cancel,
     )
+    _raise_if_cancelled(cancel)
     block_records: list[tuple[str, ParsedBlock]] = [
         (f"block_{idx:06d}", block) for idx, block in enumerate(parsed_blocks, start=1)
     ]
@@ -103,8 +134,10 @@ def convert(
             "No searchable text or chunks were extracted; "
             "the PDF may be scanned and requires OCR."
         )
+    _raise_if_cancelled(cancel)
     embedder = get_embedder(model)
     vectors = embedder.embed([c.text for c in chunks])
+    _raise_if_cancelled(cancel)
 
     target.parent.mkdir(parents=True, exist_ok=True)
     file_descriptor, temporary_name = tempfile.mkstemp(
@@ -234,6 +267,7 @@ def batch_convert(
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
     progress: Callable[[int, int, str], None] | None = None,
+    cancel: Any | None = None,
 ) -> dict[str, Any]:
     """Convert every PDF in a directory, continuing after per-file failures."""
     root = Path(directory).resolve()
@@ -243,6 +277,7 @@ def batch_convert(
     pdfs: list[Path] = []
     if recursive:
         for current, directories, filenames in os.walk(root, followlinks=False):
+            _raise_if_cancelled(cancel)
             directories[:] = sorted(
                 name
                 for name in directories
@@ -254,6 +289,7 @@ def batch_convert(
                 if Path(name).suffix.lower() == ".pdf"
             )
     else:
+        _raise_if_cancelled(cancel)
         pdfs = sorted(
             path
             for path in root.iterdir()
@@ -262,29 +298,32 @@ def batch_convert(
 
     outputs: list[str] = []
     skipped_existing: list[str] = []
+    skipped_by_user: list[str] = []
     malformed_existing: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
     total = len(pdfs)
-    if progress:
-        progress(0, total, "")
-    for completed, pdf in enumerate(pdfs, start=1):
-        output = pdf.with_suffix(".vera")
-        if output.exists() and not overwrite:
-            validation = _validate_output(output)
-            if validation["ok"]:
-                skipped_existing.append(str(output))
-            else:
-                malformed_existing.append(
-                    {
-                        "input": str(pdf),
-                        "output": str(output),
-                        "issues": validation["issues"],
-                    }
-                )
-            if progress:
-                progress(completed, total, str(pdf))
-            continue
+    if progress and not pdfs:
+        progress(0, 0, "")
+    for index, pdf in enumerate(pdfs):
         try:
+            _raise_if_cancelled(cancel)
+            if progress:
+                # completed = files finished so far; input = file about to convert
+                progress(index, total, str(pdf))
+            output = pdf.with_suffix(".vera")
+            if output.exists() and not overwrite:
+                validation = _validate_output(output)
+                if validation["ok"]:
+                    skipped_existing.append(str(output))
+                else:
+                    malformed_existing.append(
+                        {
+                            "input": str(pdf),
+                            "output": str(output),
+                            "issues": validation["issues"],
+                        }
+                    )
+                continue
             outputs.append(
                 convert(
                     str(pdf),
@@ -297,13 +336,19 @@ def batch_convert(
                     ocr_mode=ocr_mode,
                     ocr_language=ocr_language,
                     ocr_dpi=ocr_dpi,
+                    cancel=cancel,
                 )
             )
         except Exception as exc:
+            if cancel is not None and getattr(cancel, "cancelled", False):
+                raise
+            if _consume_user_skip(cancel, exc):
+                skipped_by_user.append(str(pdf))
+                continue
             errors.append({"input": str(pdf), "error": str(exc)})
-        finally:
-            if progress:
-                progress(completed, total, str(pdf))
+
+    if progress and pdfs:
+        progress(total, total, str(pdfs[-1]))
 
     return {
         "directory": str(root),
@@ -312,10 +357,12 @@ def batch_convert(
         "discovered": len(pdfs),
         "converted": len(outputs),
         "skipped": len(skipped_existing),
+        "user_skipped": len(skipped_by_user),
         "malformed": len(malformed_existing),
         "failed": len(errors),
         "outputs": outputs,
         "skipped_existing": skipped_existing,
+        "skipped_by_user": skipped_by_user,
         "malformed_existing": malformed_existing,
         "errors": errors,
     }
