@@ -10,7 +10,6 @@ import {
   Download,
   Database,
   FileInput,
-  FileSearch,
   FileText,
   Folder,
   FolderOpen,
@@ -36,6 +35,7 @@ import { ChatTurn } from './components/ChatTurn';
 import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexModal';
 import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { ModelManager, ProviderManager } from './components/ProviderManagers';
+import { VeraIcon } from './components/VeraIcon';
 import { EMPTY_FIGURES, EMPTY_REGIONS } from './lib/constants';
 import { defaultVeraPath, formatBox, formatPages, isPathInsideFolder, isPdfSource } from './lib/formatting';
 import { filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from './lib/providers';
@@ -1558,7 +1558,7 @@ function App() {
     <div className={customTitlebar ? 'appShell appShell--customTitlebar' : 'appShell'}>
       {customTitlebar ? (
         <header className="appTitlebar">
-          <span className="appTitlebarLogo" title="VERA"><FileSearch size={14} /></span>
+          <span className="appTitlebarLogo" title="VERA"><VeraIcon size={14} /></span>
           <nav className="appMenu" aria-label="Application menu">
             {[
               ['fileMenu', 'File'],
@@ -1608,7 +1608,7 @@ function App() {
                 {sideView === 'explorer' ? (
                   <>
                     <button className="ghostIcon" onClick={() => void addFolder()} title="Open folder"><FolderOpen size={15} /></button>
-                    <button className="ghostIcon" onClick={async () => { const f = await window.vera.pickArchive(); if (f) void openTargetPath(f); }} title="Open .vera file"><FileSearch size={15} /></button>
+                    <button className="ghostIcon" onClick={async () => { const f = await window.vera.pickArchive(); if (f) void openTargetPath(f); }} title="Open .vera file"><VeraIcon size={15} /></button>
                   </>
                 ) : null}
                 <button className="ghostIcon" onClick={() => setSettingsOpen(true)} title="LLM Providers" aria-label="LLM Providers"><Settings size={15} /></button>
@@ -1768,7 +1768,7 @@ function App() {
                                 }}
                                 title={entry.relativePath}
                               >
-                                {entry.type === 'vera' ? <FileSearch size={14} className="fileRowIcon vera" /> : <FileText size={14} className="fileRowIcon pdf" />}
+                                {entry.type === 'vera' ? <VeraIcon size={14} className="fileRowIcon vera" /> : <FileText size={14} className="fileRowIcon pdf" />}
                                 <span className="fileRowName">{entry.relativePath}</span>
                               </button>
                             </div>
@@ -1897,7 +1897,7 @@ function App() {
                       <label className="field">
                         <span>Output</span>
                         <div className="pathInput">
-                          <FileSearch size={16} />
+                          <VeraIcon size={16} />
                           <input value={outputPath} onChange={(event) => setOutputPath(event.target.value)} placeholder="C:\\docs\\manual.vera" />
                         </div>
                       </label>
@@ -2530,7 +2530,7 @@ function App() {
             </div>
           ) : (
             <div className="emptyState">
-              <FileSearch size={30} />
+              <VeraIcon size={30} />
               <p>Select a citation or open a document to preview it here.</p>
             </div>
           )}
