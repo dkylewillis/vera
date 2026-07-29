@@ -218,6 +218,14 @@ button {
   grid-template-columns: var(--side-panel-width, var(--side-width)) 1px minmax(420px, 1fr) 1px minmax(340px, var(--source-pane-width, 34%));
 }
 
+.appBody--viewerCollapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.appBody--viewerCollapsed:has(> .sidePanel) {
+  grid-template-columns: var(--side-panel-width, var(--side-width)) 1px minmax(0, 1fr);
+}
+
 /* ── Side panel ──────────────────────────────────────── */
 
 .sidePanel {
@@ -356,6 +364,42 @@ button {
   display: grid;
   gap: 4px;
   min-width: 0;
+}
+
+.explorerFileFilter {
+  display: flex;
+  gap: 2px;
+  align-self: start;
+  margin: 3px 7px 7px;
+}
+
+.explorerFileFilter button {
+  min-width: 0;
+  padding: 3px 5px 4px;
+  color: var(--text-faint);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 2px 2px 0 0;
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.explorerFileFilter button:hover {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-faint) 8%, transparent);
+}
+
+.explorerFileFilter button.active {
+  color: var(--accent-text);
+  background: transparent;
+  border-bottom-color: var(--accent);
+  box-shadow: none;
+}
+
+.explorerFileFilter button:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
 }
 
 .folderGroup {
@@ -617,6 +661,7 @@ button {
   flex-shrink: 0;
   width: 13px;
   height: 13px;
+  margin: 0;
   accent-color: var(--accent);
   cursor: pointer;
 }
@@ -1791,6 +1836,52 @@ select option {
   animation: pulse 1.4s ease-in-out infinite;
 }
 
+.activityScope {
+  align-items: center;
+}
+
+.activityScope details {
+  min-width: 0;
+}
+
+.activityScope summary {
+  overflow: hidden;
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activityScope summary::-webkit-details-marker {
+  display: none;
+}
+
+.activityScope summary::after {
+  content: ' ▸';
+  color: var(--text-faint);
+}
+
+.activityScope details[open] summary::after {
+  content: ' ▾';
+}
+
+.activityScope ul {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activityScope li {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .streamingMessage {
   min-height: 32px;
 }
@@ -2003,6 +2094,52 @@ details.traceEntry[open] > summary {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.composerScopeDocuments {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.composerScopeDocuments summary {
+  overflow: hidden;
+  cursor: pointer;
+  list-style: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composerScopeDocuments summary::-webkit-details-marker {
+  display: none;
+}
+
+.composerScopeDocuments summary::after {
+  content: ' ▸';
+}
+
+.composerScopeDocuments[open] summary::after {
+  content: ' ▾';
+}
+
+.composerScopeDocuments ul {
+  display: grid;
+  gap: 2px;
+  max-height: 92px;
+  margin: 4px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  text-transform: none;
+}
+
+.composerScopeDocuments li {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chatPanel--empty .askComposerWrap {

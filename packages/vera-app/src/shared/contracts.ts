@@ -101,6 +101,7 @@ export interface SessionTurn {
   citations?: ChatCitationResult[];
   attachments?: ChatAttachment[];
   searches?: { query: string; mode: string; top_k: number; hits: number }[];
+  selected_paths?: string[];
   answer_mode?: 'retrieval' | 'agent';
   mode_label?: string;
   trace?: StreamEvent[];
@@ -114,6 +115,7 @@ export interface Session {
   id: string;
   title: string;
   source_path: string;
+  selected_paths?: string[];
   turns: SessionTurn[];
   created_at: number;
   updated_at: number;

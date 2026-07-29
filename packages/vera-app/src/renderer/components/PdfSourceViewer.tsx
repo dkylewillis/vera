@@ -22,7 +22,7 @@ function regionStyle(region: RegionResult): CSSProperties {
 
 const PDF_ZOOM_MIN = 0.75;
 const PDF_ZOOM_MAX = 2.5;
-const PDF_ZOOM_DEFAULT = 1.25;
+const PDF_ZOOM_DEFAULT = 1;
 const PDF_ZOOM_STEP = 0.25;
 
 function clampPdfZoom(value: number): number {

@@ -1,9 +1,10 @@
-import { FileText, Image as ImageIcon, Search } from 'lucide-react';
+import { FileText, Image as ImageIcon, ListChecks, Search } from 'lucide-react';
 import type { ChatCitationResult, FigureResult } from '../../types';
 
 export type ActivitySearchItem = { query: string; mode?: string; hits?: number; pending?: boolean };
 
 type ActivityStep =
+  | { kind: 'scope'; paths: string[] }
   | { kind: 'search'; item: ActivitySearchItem }
   | { kind: 'source'; citation: ChatCitationResult }
   | { kind: 'image'; citation: ChatCitationResult; figure: FigureResult };
@@ -17,6 +18,21 @@ function ActivityStepRow({
   onSelectCitation?: (citation: ChatCitationResult) => void;
   selected?: boolean;
 }) {
+  if (step.kind === 'scope') {
+    return (
+      <li className="activityItem activityScope">
+        <ListChecks size={12} className="activityIcon" />
+        <details>
+          <summary>Limited search to {step.paths.length} selected document{step.paths.length === 1 ? '' : 's'}</summary>
+          <ul>
+            {step.paths.map((path) => (
+              <li key={path} title={path}>{path.split(/[\\/]/).pop() || path}</li>
+            ))}
+          </ul>
+        </details>
+      </li>
+    );
+  }
   if (step.kind === 'search') {
     const { item } = step;
     return (
@@ -80,17 +96,20 @@ function ActivityStepRow({
 export function ActivityTrace({
   searches,
   citations,
+  selectedPaths,
   selectCitation,
   selectedChunkId,
   live,
 }: {
   searches?: ActivitySearchItem[];
   citations?: ChatCitationResult[];
+  selectedPaths?: string[];
   selectCitation?: (citation: ChatCitationResult) => void;
   selectedChunkId?: string;
   live?: boolean;
 }) {
   const steps: ActivityStep[] = [
+    ...(selectedPaths?.length ? [{ kind: 'scope' as const, paths: selectedPaths }] : []),
     ...(searches || []).map((item): ActivityStep => ({ kind: 'search', item })),
     ...(citations || []).map((citation): ActivityStep => ({ kind: 'source', citation })),
     ...(citations || []).flatMap((citation): ActivityStep[] =>
@@ -108,7 +127,7 @@ export function ActivityTrace({
           key={i}
           step={step}
           onSelectCitation={selectCitation}
-          selected={step.kind !== 'search' && step.citation.result.chunk_id === selectedChunkId}
+          selected={(step.kind === 'source' || step.kind === 'image') && step.citation.result.chunk_id === selectedChunkId}
         />
       ))}
     </ul>
@@ -121,7 +140,9 @@ export function ActivityTrace({
   const searchCount = searches?.length || 0;
   const sourceCount = citations?.length || 0;
   const imageCount = steps.filter((step) => step.kind === 'image').length;
+  const selectedCount = selectedPaths?.length || 0;
   const summaryParts: string[] = [];
+  if (selectedCount) summaryParts.push(`${selectedCount} selected document${selectedCount === 1 ? '' : 's'}`);
   if (searchCount) summaryParts.push(`Searched ${searchCount} ${searchCount === 1 ? 'query' : 'queries'}`);
   if (sourceCount) summaryParts.push(`reviewed ${sourceCount} ${sourceCount === 1 ? 'source' : 'sources'}`);
   if (imageCount) summaryParts.push(`viewed ${imageCount} ${imageCount === 1 ? 'image' : 'images'}`);

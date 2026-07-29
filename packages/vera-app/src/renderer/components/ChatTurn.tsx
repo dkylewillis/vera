@@ -101,6 +101,7 @@ export const ChatTurn = React.memo(function ChatTurn({
       <ActivityTrace
         searches={turn.searches}
         citations={turn.citations}
+        selectedPaths={turn.selected_paths}
         selectCitation={selectCitation}
         selectedChunkId={selectedChunkId}
       />

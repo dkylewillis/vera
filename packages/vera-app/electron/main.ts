@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
-import { basename, delimiter, join, resolve } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
+import { basename, delimiter, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type {
   AppSettings,
@@ -459,6 +459,51 @@ function listFolder(dir: string): WorkspaceFolderResult | null {
   return { path: dir, name: basename(dir) || dir, entries };
 }
 
+function isWorkspaceFile(filePath: string, folderPath: string): boolean {
+  if (typeof filePath !== 'string' || typeof folderPath !== 'string') return false;
+  const file = resolve(filePath);
+  const folder = resolve(folderPath);
+  const relativePath = relative(folder, file);
+  const lower = file.toLowerCase();
+  return Boolean(relativePath)
+    && !relativePath.startsWith('..')
+    && !isAbsolute(relativePath)
+    && (lower.endsWith('.vera') || lower.endsWith('.pdf'));
+}
+
+async function trashWorkspaceFile(filePath: string, folderPath: string): Promise<'trashed' | 'deleted' | 'cancelled'> {
+  if (!isWorkspaceFile(filePath, folderPath) || !existsSync(filePath) || !statSync(filePath).isFile()) {
+    throw new Error('This file is no longer available in the open folder.');
+  }
+  const confirmation = await dialog.showMessageBox({
+    type: 'warning',
+    buttons: ['Cancel', 'Move to Recycle Bin'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+    message: `Move "${basename(filePath)}" to the Recycle Bin?`,
+    detail: 'The file will be removed from this library.',
+  });
+  if (confirmation.response !== 1) return 'cancelled';
+  try {
+    await shell.trashItem(filePath);
+    return 'trashed';
+  } catch {
+    const permanentConfirmation = await dialog.showMessageBox({
+      type: 'warning',
+      buttons: ['Cancel', 'Delete permanently'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+      message: 'The Recycle Bin is unavailable for this location.',
+      detail: `This may be a removable drive. Permanently delete "${basename(filePath)}" instead?`,
+    });
+    if (permanentConfirmation.response !== 1) return 'cancelled';
+    unlinkSync(filePath);
+    return 'deleted';
+  }
+}
+
 const folderWatchers = new Map<string, FolderWatcher>();
 const folderChangeTimers = new Map<string, NodeJS.Timeout>();
 
@@ -658,6 +703,7 @@ app.whenReady().then(() => {
   ipcMain.handle('vera:pickArchive', async () => pickArchivePath());
   ipcMain.handle('vera:pickFolder', async () => pickFolderPath());
   ipcMain.handle('vera:listFolder', async (_event, dir: string) => listFolder(dir));
+  ipcMain.handle('vera:trashWorkspaceFile', async (_event, filePath: string, folderPath: string) => trashWorkspaceFile(filePath, folderPath));
   ipcMain.handle('vera:setWatchedFolders', async (_event, paths: string[]) => {
     setWatchedFolders(Array.isArray(paths) ? paths : []);
   });

@@ -8,8 +8,10 @@ export function LibraryIndexModal({
   report,
   recursive,
   excludes,
+  suppressPrompt,
   onRecursiveChange,
   onExcludesChange,
+  onSuppressPromptChange,
   onConfirm,
   onDismiss,
 }: {
@@ -17,8 +19,10 @@ export function LibraryIndexModal({
   report: LibraryIndexBuildReport | null;
   recursive: boolean;
   excludes: string;
+  suppressPrompt: boolean;
   onRecursiveChange: (value: boolean) => void;
   onExcludesChange: (value: string) => void;
+  onSuppressPromptChange: (value: boolean) => void;
   onConfirm: () => void;
   onDismiss: () => void;
 }) {
@@ -52,7 +56,7 @@ export function LibraryIndexModal({
               <p>
                 {isUpdate
                   ? 'This library changed after its index was built. Update it for fast whole-library search.'
-                  : 'Build a local index for fast whole-library search. You can still search recursively without one.'}
+                  : 'Build a local index for fast whole-library search. Searching this library recursively without a current index may be slower.'}
               </p>
               {prompt?.status.reasons.length ? (
                 <div className="indexReasons">{prompt.status.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
@@ -77,7 +81,15 @@ export function LibraryIndexModal({
         <footer className="modalFooter">
           <span className="modalMessage">{report?.skipped ? 'Skipped archives are listed above.' : ''}</span>
           <div className="modalFooterActions">
-            {!report ? <button className="secondaryAction" onClick={onDismiss}>Search anyway</button> : null}
+            {!report ? (
+              <>
+                <label className="miniCheck">
+                  <input type="checkbox" checked={suppressPrompt} onChange={(event) => onSuppressPromptChange(event.target.checked)} />
+                  <span>Don&apos;t ask again</span>
+                </label>
+                <button className="secondaryAction" onClick={onDismiss}>Search anyway</button>
+              </>
+            ) : null}
             <button className="primaryAction" onClick={report ? onDismiss : onConfirm}>
               {report ? 'Done' : isUpdate ? 'Update index' : 'Build index'}
             </button>

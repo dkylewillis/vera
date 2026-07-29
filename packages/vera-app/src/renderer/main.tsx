@@ -36,7 +36,7 @@ import { ChatTurn } from './components/ChatTurn';
 import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexModal';
 import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { ModelManager, ProviderManager } from './components/ProviderManagers';
-import { EMPTY_FIGURES, EMPTY_REGIONS, LARGE_LIBRARY_PROMPT_THRESHOLD } from './lib/constants';
+import { EMPTY_FIGURES, EMPTY_REGIONS } from './lib/constants';
 import { defaultVeraPath, formatBox, formatPages, isPathInsideFolder, isPdfSource } from './lib/formatting';
 import { filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from './lib/providers';
 import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ConvertResult, ExportResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
@@ -44,6 +44,8 @@ import './styles.css';
 
 type SideView = 'explorer' | 'chats' | 'search' | 'convert' | 'info';
 type FolderContextMenu = { path: string; x: number; y: number };
+type EntryContextMenu = { entry: FolderEntry; folderPath: string; x: number; y: number };
+type ExplorerFileFilter = 'all' | FolderEntry['type'];
 
 // In-memory store for LLM traces. Traces are large (full prompt/response dumps),
 // so we keep them only for the lifetime of this app window instead of writing them
@@ -53,6 +55,10 @@ const traceMemory = new Map<string, StreamEvent[]>();
 
 function traceKey(sessionId: string, timestamp: number): string {
   return `${sessionId}:${timestamp}`;
+}
+
+function fileName(filePath: string): string {
+  return filePath.split(/[\\/]/).pop() || filePath;
 }
 
 function stripTrace(turn: SessionTurn): SessionTurn {
@@ -77,11 +83,25 @@ function App() {
   const [folderContextMenu, setFolderContextMenu] = useState<FolderContextMenu | null>(null);
   const folderContextMenuFirstActionRef = useRef<HTMLButtonElement | null>(null);
   const folderContextMenuTriggerRef = useRef<HTMLElement | null>(null);
+  const [entryContextMenu, setEntryContextMenu] = useState<EntryContextMenu | null>(null);
+  const entryContextMenuActionRef = useRef<HTMLButtonElement | null>(null);
+  const entryContextMenuTriggerRef = useRef<HTMLElement | null>(null);
   const [indexPrompt, setIndexPrompt] = useState<IndexPrompt | null>(null);
   const [indexReport, setIndexReport] = useState<LibraryIndexBuildReport | null>(null);
   const [indexRecursive, setIndexRecursive] = useState(true);
   const [indexExcludes, setIndexExcludes] = useState('');
   const dismissedIndexStates = useRef(new Map<string, string>());
+  const suppressedIndexPrompts = useRef(new Set<string>(
+    (() => {
+      try {
+        const stored = JSON.parse(localStorage.getItem('vera.suppressedIndexPrompts') || '[]');
+        return Array.isArray(stored) ? stored.filter((path): path is string => typeof path === 'string') : [];
+      } catch {
+        return [];
+      }
+    })(),
+  ));
+  const [suppressIndexPrompt, setSuppressIndexPrompt] = useState(false);
   const [pdfPath, setPdfPath] = useState('');
   const [outputPath, setOutputPath] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -137,6 +157,7 @@ function App() {
   const [selected, setSelected] = useState<SearchResult | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [collapsedFolders, setCollapsedFolders] = useState<string[]>([]);
+  const [explorerFileFilter, setExplorerFileFilter] = useState<ExplorerFileFilter>('vera');
   const [chatAnswer, setChatAnswer] = useState<ChatAnswerResult | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -186,10 +207,25 @@ function App() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [folderContextMenu]);
+
+  useEffect(() => {
+    if (!entryContextMenu) return;
+    entryContextMenuActionRef.current?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      setEntryContextMenu(null);
+      entryContextMenuTriggerRef.current?.focus();
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [entryContextMenu]);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollThreadRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [sourcePaneWidth, setSourcePaneWidth] = useState(34);
+  const [viewerCollapsed, setViewerCollapsed] = useState(false);
   const [isResizingSource, setIsResizingSource] = useState(false);
   const [sidePanelWidth, setSidePanelWidth] = useState(() => {
     const stored = Number(localStorage.getItem('vera.sidePanelWidth'));
@@ -200,7 +236,6 @@ function App() {
 
   const searchScopePath = activeLibraryPath || path;
   const activeIndexStatus = activeLibraryPath ? indexStatuses[activeLibraryPath] : undefined;
-  const usesFallback = Boolean(activeLibraryPath && selectedFiles.length === 0 && activeIndexStatus && !activeIndexStatus.fresh);
   const activeLibraryIsEmpty = Boolean(
     activeLibraryPath
     && selectedFiles.length === 0
@@ -261,11 +296,29 @@ function App() {
   function presentIndexPrompt(folderPath: string, value: LibraryIndexStatus, force = false) {
     if (value.fresh || indexingFolders[folderPath]) return;
     const key = indexStateKey(value);
-    if (!force && dismissedIndexStates.current.get(folderPath) === key) return;
+    if (!force && (suppressedIndexPrompts.current.has(folderPath) || dismissedIndexStates.current.get(folderPath) === key)) return;
     setIndexRecursive(value.exists ? Boolean(value.recursive) : true);
     setIndexExcludes(value.excludes?.join('\n') ?? '');
+    setSuppressIndexPrompt(suppressedIndexPrompts.current.has(folderPath));
     setIndexReport(null);
     setIndexPrompt({ path: folderPath, status: value });
+  }
+
+  function persistSuppressedIndexPrompts() {
+    try {
+      localStorage.setItem('vera.suppressedIndexPrompts', JSON.stringify([...suppressedIndexPrompts.current]));
+    } catch {
+      // Prompt preferences are a convenience and may be unavailable in restricted storage.
+    }
+  }
+
+  async function promptForIndexBeforeQuery(): Promise<boolean> {
+    if (!activeLibraryPath || selectedFiles.length > 0) return false;
+    const value = activeIndexStatus ?? await refreshIndexStatus(activeLibraryPath);
+    if (!value || value.fresh || suppressedIndexPrompts.current.has(activeLibraryPath)) return false;
+    if (indexPrompt || dismissedIndexStates.current.get(activeLibraryPath) === indexStateKey(value)) return false;
+    presentIndexPrompt(activeLibraryPath, value);
+    return true;
   }
 
   async function refreshIndexStatus(folderPath: string): Promise<LibraryIndexStatus | null> {
@@ -372,6 +425,16 @@ function App() {
     });
   }
 
+  function showEntryContextMenu(entry: FolderEntry, folderPath: string, x: number, y: number) {
+    entryContextMenuTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setEntryContextMenu({
+      entry,
+      folderPath,
+      x: Math.max(8, Math.min(x, window.innerWidth - 210)),
+      y: Math.max(8, Math.min(y, window.innerHeight - 80)),
+    });
+  }
+
   function openEntry(entry: FolderEntry) {
     if (entry.type === 'vera') {
       void openTargetPath(entry.path, { preserveLibrary: true });
@@ -379,6 +442,31 @@ function App() {
       setPdfPath(entry.path);
       if (!outputPath.trim()) setOutputPath(defaultVeraPath(entry.path));
       openSide('convert');
+    }
+  }
+
+  async function previewSourceDocument(entry: FolderEntry) {
+    if (entry.type !== 'vera') return;
+    setSelected(null);
+    setViewerMode('document');
+    setViewerCollapsed(false);
+    await openTargetPath(entry.path, { preserveLibrary: true });
+    await loadSourceDocument(entry.path);
+  }
+
+  async function trashEntry(entry: FolderEntry, folderPath: string) {
+    try {
+      const result = await window.vera.trashWorkspaceFile(entry.path, folderPath);
+      if (result === 'cancelled') return;
+      setSelectedFiles((files) => files.filter((file) => file !== entry.path));
+      if (path === entry.path) updateTargetPath(activeLibraryPath || '');
+      await refreshFolder(folderPath);
+      setStatus(result === 'trashed'
+        ? `Moved ${entry.name} to the Recycle Bin`
+        : `Permanently deleted ${entry.name}`);
+    } catch (error) {
+      setStatus('Unable to move file to the Recycle Bin');
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to move file to the Recycle Bin');
     }
   }
 
@@ -468,16 +556,8 @@ function App() {
         setInspect(null);
       }
       // Activation only sets search scope. Corpus open happens on first Search/Ask.
-      // Refresh the index badge in the background without blocking the UI.
-      void refreshIndexStatus(value).then((status) => {
-        if (
-          status
-          && !status.fresh
-          && (status.discovered ?? 0) >= LARGE_LIBRARY_PROMPT_THRESHOLD
-        ) {
-          presentIndexPrompt(value, status);
-        }
-      });
+      // Querying a library with a missing or stale index prompts for an index then.
+      void refreshIndexStatus(value);
       return;
     }
     if (!options.preserveLibrary) {
@@ -549,9 +629,14 @@ function App() {
   function dismissIndexPrompt() {
     if (indexPrompt) {
       dismissedIndexStates.current.set(indexPrompt.path, indexStateKey(indexPrompt.status));
+      if (suppressIndexPrompt) {
+        suppressedIndexPrompts.current.add(indexPrompt.path);
+        persistSuppressedIndexPrompts();
+      }
     }
     setIndexPrompt(null);
     setIndexReport(null);
+    setSuppressIndexPrompt(false);
   }
 
   async function manageLibraryIndex(folderPath: string) {
@@ -638,6 +723,7 @@ function App() {
       setErrorMessage('This library does not contain any VERA documents yet.');
       return;
     }
+    if (await promptForIndexBeforeQuery()) return;
     const result = await call<SearchResult[]>({
       action: 'search',
       path: searchScopePath,
@@ -748,6 +834,7 @@ function App() {
       setSettingsOpen(true);
       return;
     }
+    if (await promptForIndexBeforeQuery()) return;
     const modelOptions = provider.model_options?.[model] ?? {};
     const llm: Record<string, unknown> = {
       provider: provider.provider,
@@ -879,6 +966,7 @@ function App() {
         content: result.answer,
         citations: result.citations,
         searches: result.searches,
+        ...(selectedFiles.length ? { selected_paths: selectedFiles } : {}),
         answer_mode: result.answer_mode,
         mode_label: result.mode_label,
         trace: turnTrace,
@@ -908,6 +996,7 @@ function App() {
         id: sid,
         title,
         source_path: searchScopePath,
+        ...(selectedFiles.length ? { selected_paths: selectedFiles } : {}),
         turns: withAssistant.map(stripTrace),
         created_at: activeSessionId ? (sessions.find((s) => s.id === sid)?.created_at ?? now) : now,
         updated_at: now,
@@ -924,6 +1013,7 @@ function App() {
           content: partialAnswer
             ? `${partialAnswer}\n\n*Generation stopped.*`
             : '*Generation stopped before a response was produced.*',
+          ...(selectedFiles.length ? { selected_paths: selectedFiles } : {}),
           trace: collectedTrace,
           timestamp: now,
         };
@@ -936,6 +1026,7 @@ function App() {
           id: sid,
           title: withInterruptedAnswer[0]?.content.slice(0, 60) || 'New session',
           source_path: searchScopePath,
+          ...(selectedFiles.length ? { selected_paths: selectedFiles } : {}),
           turns: withInterruptedAnswer.map(stripTrace),
           created_at: activeSessionId ? (sessions.find((s) => s.id === sid)?.created_at ?? now) : now,
           updated_at: now,
@@ -981,6 +1072,15 @@ function App() {
     const sessionPath = session.source_path;
     if (sessionPath && sessionPath !== path) {
       await openTargetPath(sessionPath);
+    }
+    const storedSelection = session.selected_paths ?? [];
+    const availablePaths = new Set(folders.flatMap((folder) => folder.entries.map((entry) => entry.path)));
+    const restoredSelection = availablePaths.size
+      ? storedSelection.filter((filePath) => availablePaths.has(filePath))
+      : storedSelection;
+    setSelectedFiles(restoredSelection);
+    if (storedSelection.length > restoredSelection.length) {
+      setStatus(`Restored ${restoredSelection.length} selected document${restoredSelection.length === 1 ? '' : 's'}; ${storedSelection.length - restoredSelection.length} unavailable`);
     }
     // Restore the last cited result for source pane. Use the session's path (not the
     // possibly-stale `path` closure) as the single-document fallback; corpus results
@@ -1480,7 +1580,7 @@ function App() {
           </nav>
         </header>
       ) : null}
-      <div className="appBody" ref={workspaceRef} style={{ '--source-pane-width': `${sourcePaneWidth}%`, '--side-panel-width': `${sidePanelWidth}px` } as CSSProperties}>
+      <div className={`appBody${viewerCollapsed ? ' appBody--viewerCollapsed' : ''}`} ref={workspaceRef} style={{ '--source-pane-width': `${sourcePaneWidth}%`, '--side-panel-width': `${sidePanelWidth}px` } as CSSProperties}>
         {!sidebarCollapsed ? (
           <aside className="sidePanel">
             <div className="sidePanelHeader">
@@ -1524,8 +1624,29 @@ function App() {
                     <button className="sidePrimary" onClick={() => void addFolder()}><FolderOpen size={15} />Open Folder</button>
                   </div>
                 ) : (
-                  <div className="explorerTree">
-                    {folders.map((folder) => {
+                  <>
+                    <div className="explorerFileFilter" role="group" aria-label="Filter explorer files">
+                      {([
+                        ['all', 'All'],
+                        ['vera', 'VERA'],
+                        ['pdf', 'PDFs'],
+                      ] as const).map(([filter, label]) => (
+                        <button
+                          type="button"
+                          key={filter}
+                          className={explorerFileFilter === filter ? 'active' : ''}
+                          onClick={() => setExplorerFileFilter(filter)}
+                          aria-pressed={explorerFileFilter === filter}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="explorerTree">
+                      {folders.map((folder) => {
+                      const visibleEntries = explorerFileFilter === 'all'
+                        ? folder.entries
+                        : folder.entries.filter((entry) => entry.type === explorerFileFilter);
                       const folderIndex = indexStatuses[folder.path];
                       const folderIndexChecking = Boolean(indexStatusChecking[folder.path]);
                       const folderBusy = busyFolderPath === folder.path;
@@ -1618,10 +1739,14 @@ function App() {
                                 : <Database size={11} aria-hidden="true" />}
                           </button>
                         </div>
-                        {collapsedFolders.includes(folder.path) ? null : folder.entries.length === 0 ? (
-                          <p className="folderEmpty">No .vera or .pdf files</p>
+                        {collapsedFolders.includes(folder.path) ? null : visibleEntries.length === 0 ? (
+                          <p className="folderEmpty">
+                            {explorerFileFilter === 'all'
+                              ? 'No .vera or .pdf files'
+                              : `No .${explorerFileFilter} files`}
+                          </p>
                         ) : (
-                          folder.entries.map((entry) => (
+                          visibleEntries.map((entry) => (
                             <div key={entry.path} className="fileRowWrap">
                               {entry.type === 'vera' ? (
                                 <input
@@ -1637,6 +1762,10 @@ function App() {
                               <button
                                 className={path === entry.path || pdfPath === entry.path ? 'fileRow active' : 'fileRow'}
                                 onClick={() => openEntry(entry)}
+                                onContextMenu={(event) => {
+                                  event.preventDefault();
+                                  showEntryContextMenu(entry, folder.path, event.clientX, event.clientY);
+                                }}
                                 title={entry.relativePath}
                               >
                                 {entry.type === 'vera' ? <FileSearch size={14} className="fileRowIcon vera" /> : <FileText size={14} className="fileRowIcon pdf" />}
@@ -1647,8 +1776,9 @@ function App() {
                         )}
                       </section>
                       );
-                    })}
-                  </div>
+                      })}
+                    </div>
+                  </>
                 )
               ) : null}
 
@@ -1921,6 +2051,17 @@ function App() {
             <button className="centerNewChat" onClick={() => void newSession()} title="Start a new chat"><Plus size={14} />New chat</button>
             <span className="centerDoc" title={path}>{path ? (path.split(/[\\/]/).pop() || path) : 'No document selected'}</span>
             <span className="centerStatus">{busyAction === 'Asking' ? 'Ready' : status}</span>
+            {viewerCollapsed ? (
+              <button
+                type="button"
+                className="ghostIcon"
+                onClick={() => setViewerCollapsed(false)}
+                title="Open document viewer"
+                aria-label="Open document viewer"
+              >
+                <Maximize2 size={15} />
+              </button>
+            ) : null}
           </header>
 
           {errorMessage ? (
@@ -1954,16 +2095,6 @@ function App() {
               </button>
             </div>
           ) : null}
-          {usesFallback ? (
-            <div className="fallbackBanner centerBanner">
-              <AlertTriangle size={15} />
-              <span>Searching this library recursively without a current index may be slower.</span>
-              <button type="button" onClick={() => void manageLibraryIndex(activeLibraryPath)}>
-                {activeIndexStatus?.exists ? 'Update index' : 'Build index'}
-              </button>
-            </div>
-          ) : null}
-
           <div className={sessionTurns.length > 0 ? 'chatPanel chatPanel--active' : 'chatPanel chatPanel--empty'}>
               {sessionTurns.length > 0 ? (
                 <div className="chatThreadWrap">
@@ -2016,7 +2147,16 @@ function App() {
                   {conversionInProgress
                     ? 'Chat unavailable while the conversion completes.'
                     : selectedFiles.length > 0
-                      ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
+                      ? (
+                        <details className="composerScopeDocuments">
+                          <summary>{selectedFiles.length} selected document{selectedFiles.length === 1 ? '' : 's'}</summary>
+                          <ul>
+                            {selectedFiles.map((filePath) => (
+                              <li key={filePath} title={filePath}>{fileName(filePath)}</li>
+                            ))}
+                          </ul>
+                        </details>
+                      )
                       : activeLibraryIsEmpty ? 'Empty library'
                       : activeLibraryPath ? 'Entire library' : path ? 'Current document' : 'No search scope'}
                 </div>
@@ -2253,6 +2393,8 @@ function App() {
             </div>
         </main>
 
+        {!viewerCollapsed ? (
+          <>
         <div
           className={isResizingSource ? 'paneDivider resizing' : 'paneDivider'}
           role="separator"
@@ -2288,6 +2430,15 @@ function App() {
               ) : null}
               <button className="ghostIcon" onClick={() => setSourcePaneWidth(sourceExpanded ? 34 : 64)} title={sourceExpanded ? 'Restore viewer' : 'Expand viewer'} aria-label={sourceExpanded ? 'Restore viewer' : 'Expand viewer'}>
                 {sourceExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+              </button>
+              <button
+                type="button"
+                className="ghostIcon"
+                onClick={() => setViewerCollapsed(true)}
+                title="Close document viewer"
+                aria-label="Close document viewer"
+              >
+                <X size={15} />
               </button>
             </div>
           </div>
@@ -2384,6 +2535,8 @@ function App() {
             </div>
           )}
         </aside>
+          </>
+        ) : null}
       </div>
       <footer className="statusbar">
         <span className="statusPath">{path || 'No file open'}</span>
@@ -2445,6 +2598,41 @@ function App() {
           </div>
         </div>
       ) : null}
+      {entryContextMenu ? (
+        <div className="folderContextMenuBackdrop" onClick={() => setEntryContextMenu(null)}>
+          <div
+            className="folderContextMenu"
+            role="menu"
+            style={{ left: entryContextMenu.x, top: entryContextMenu.y }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {entryContextMenu.entry.type === 'vera' ? (
+              <button
+                ref={entryContextMenuActionRef}
+                role="menuitem"
+                onClick={() => {
+                  void previewSourceDocument(entryContextMenu.entry);
+                  setEntryContextMenu(null);
+                }}
+              >
+                Preview embedded source
+              </button>
+            ) : null}
+            {entryContextMenu.entry.type === 'vera' ? <div className="folderContextMenuSeparator" role="separator" /> : null}
+            <button
+              ref={entryContextMenu.entry.type === 'vera' ? undefined : entryContextMenuActionRef}
+              className="danger"
+              role="menuitem"
+              onClick={() => {
+                void trashEntry(entryContextMenu.entry, entryContextMenu.folderPath);
+                setEntryContextMenu(null);
+              }}
+            >
+              Move to Recycle Bin
+            </button>
+          </div>
+        </div>
+      ) : null}
       {modelManagerOpen ? (
         <ModelManager
           providers={providers}
@@ -2475,8 +2663,10 @@ function App() {
         report={indexReport}
         recursive={indexRecursive}
         excludes={indexExcludes}
+        suppressPrompt={suppressIndexPrompt}
         onRecursiveChange={setIndexRecursive}
         onExcludesChange={setIndexExcludes}
+        onSuppressPromptChange={setSuppressIndexPrompt}
         onConfirm={() => void confirmIndexAction()}
         onDismiss={dismissIndexPrompt}
       />
