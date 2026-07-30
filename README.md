@@ -20,9 +20,9 @@ the same citation-ready retrieval layer.
 · [Use VERA from the CLI or an AI agent](#for-cli-and-ai-agent-users)
 · [Read the documentation](docs/README.md)
 
-<!-- TODO(assets): uncomment when captured — see docs/assets/readme/README.md
+TODO(assets): uncomment when captured — see docs/assets/readme/README.md
 <img src="docs/assets/readme/hero-grounded-answer.png" alt="VERA desktop app showing an Ask answer beside the source PDF with a cited passage highlighted" width="85%">
--->
+
 
 <!-- TODO(assets): 20–30s feature tour video — upload to a GitHub Release or
 external host, then add: [Watch the feature tour](VIDEO_URL) -->
