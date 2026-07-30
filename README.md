@@ -1,6 +1,5 @@
 # .vera
 
-[![CI](https://github.com/dkylewillis/vera/actions/workflows/ci.yml/badge.svg)](https://github.com/dkylewillis/vera/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/dkylewillis/vera)](https://github.com/dkylewillis/vera/releases/latest)
 [![License](https://img.shields.io/github/license/dkylewillis/vera)](LICENSE)
 
