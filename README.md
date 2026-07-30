@@ -23,7 +23,7 @@ the same citation-ready retrieval layer.
 
 
 <!-- TODO(assets): 20–30s feature tour video — upload to a GitHub Release or
-external host, then add: [Watch the feature tour](VIDEO_URL) -->
+external host, then add: [Watch the feature tour](https://github.com/dkylewillis/vera/releases/latest) -->
 
 ## Try it in five minutes
 
@@ -50,10 +50,8 @@ key. You only connect a model provider when you want AI answers.
 5. **Ask and verify.** Ask a question, then select a citation to see the
    highlighted supporting text in the source document.
 
-<!-- TODO(assets): uncomment when captured — see docs/assets/readme/README.md
-<img src="docs/assets/readme/convert-single-pdf.png" alt="Convert PDF view converting a single PDF into a .vera archive" width="45%">
-<img src="docs/assets/readme/provider-setup.png" alt="LLM Providers dialog with a provider, API key field, and enabled models" width="45%">
--->
+<!-- TODO(assets): 20–30s feature tour video — upload to a GitHub Release or
+external host, then add: [Watch the feature tour](VIDEO_URL) -->
 
 The desktop app converts with local hashing embeddings; the model provider is
 only used for Ask responses. Use the CLI when you need a Sentence Transformers
@@ -91,9 +89,13 @@ real-world regulatory queries at MRR 0.900 — tracked continuously with
   export the original PDF back out at any time.
 
 <!-- TODO(assets): uncomment when captured — see docs/assets/readme/README.md
-<img src="docs/assets/readme/library-indexing.png" alt="Document library with index status badges and a background index build" width="45%">
-<img src="docs/assets/readme/citation-in-source.png" alt="Answer citation opened in the source document viewer with the passage highlighted" width="45%">
--->
+<img src="docs/assets/readme/convert-single-pdf.png" alt="Convert PDF view converting a single PDF into a .vera archive" width="45%">
+<img src="docs/assets/readme/provider-setup.png" alt="LLM Providers dialog with a provider, API key field, and enabled models" width="45%"> -->
+
+The desktop app converts with local hashing embeddings; the model provider is
+only used for Ask responses. Use the CLI when you need a Sentence Transformers
+embedding model or explicit OCR control. For the complete walkthrough and
+troubleshooting, see [Run the desktop app](docs/desktop-app-getting-started.md).
 
 ## For CLI and AI agent users
 
@@ -122,6 +124,8 @@ text, figure metadata, or page coordinates.
 - [Install the VERA Agent Skill](docs/agent-skills.md)
 - [Use the Python API](docs/python-api.md)
 - [Agent quick reference](AGENTS.md)
+- [VERA Agent Skill package (SKILL.md)](skills/vera/SKILL.md)
+- [VERA Agent Skill CLI reference](skills/vera/references/cli-reference.md)
 
 ## Documentation
 
@@ -129,7 +133,7 @@ text, figure metadata, or page coordinates.
 - [Convert documents](docs/conversion.md)
 - [Search documents](docs/searching.md)
 - [Search and index document libraries](docs/document-libraries.md)
-- [Work with figures and source regions](docs/figures-and-regions.md)
+- [Work with figures and highlight regions](docs/figures-and-regions.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [VERA format specification](docs/vera-spec-v0.1.md)
 - [Contributing and architecture](docs/architecture.md)
