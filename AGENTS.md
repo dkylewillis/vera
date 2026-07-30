@@ -164,3 +164,32 @@ Requires the document package's `mcp` extra: `pip install vera-cli "vera-doc[mcp
   public behavior is only documented in implementation code or tests.
 - Retrieval quality is tracked with `vera eval` against the query sets in
   [examples](examples); don't regress the baselines in the README.
+
+## Cursor Cloud specific instructions
+
+The startup update script already runs `uv sync --extra dev --extra ml --extra app --extra mcp`
+and `npm --prefix packages/vera-app install`, so dependencies are ready. Notes below are
+non-obvious caveats for this environment; standard commands live in the sections above,
+[README.md](README.md), and [docs/desktop-app-getting-started.md](docs/desktop-app-getting-started.md).
+
+- `uv` installs to `~/.local/bin`, which is not on `PATH` for non-interactive shells. It is
+  added to `~/.bashrc` (so interactive shells work); otherwise invoke it as
+  `~/.local/bin/uv` or `export PATH="$HOME/.local/bin:$PATH"`. The uv venv lives at
+  `/workspace/.venv`.
+- Standard checks: `uv run --extra dev python -m pytest -q` (or `npm test`) for Python,
+  `npm run app:typecheck` and `npm --prefix packages/vera-app run test:unit` for the app.
+- Desktop app on Linux: the root `npm run app:dev` script hardcodes `npm.cmd` and only works
+  on Windows. On Linux run the app directly: `npm --prefix packages/vera-app run dev`. Electron
+  spawns the Python sidecar as `python -m vera_app.sidecar`, so set
+  `VERA_APP_PYTHON=/workspace/.venv/bin/python` (the venv Python has numpy/pymupdf/pdfplumber);
+  otherwise the sidecar fails to import its deps. In the cloud VM also set `DISPLAY=:1` and
+  `ELECTRON_DISABLE_SANDBOX=1`. The dbus/GLib warnings Electron prints in the container are
+  harmless.
+- The desktop app's "Ask"/chat feature requires configuring an external or local LLM provider
+  (OpenAI/OpenRouter/Ollama/LM Studio) — there is no offline/extractive answer mode, so Ask is
+  blocked without a provider/API key. For fully offline testing use the left-sidebar **Search**
+  view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
+  **Convert PDF** view; both run entirely through the sidecar with no LLM.
+- MCP server (optional): `uv run --extra mcp vera mcp` (long-running stdio; no `--json`).
+- There are no PDFs in the repo; generate one with the `reportlab` dev dependency when you need
+  a sample to `vera convert`.
