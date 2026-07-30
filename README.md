@@ -51,7 +51,7 @@ key. You only connect a model provider when you want AI answers.
    highlighted supporting text in the source document.
 
 <!-- TODO(assets): 20–30s feature tour video — upload to a GitHub Release or
-external host, then add: [Watch the feature tour](VIDEO_URL) -->
+external host, then add: [Watch the feature tour](https://github.com/dkylewillis/vera/releases/latest) -->
 
 The desktop app converts with local hashing embeddings; the model provider is
 only used for Ask responses. Use the CLI when you need a Sentence Transformers
