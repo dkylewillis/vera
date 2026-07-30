@@ -43,6 +43,7 @@
   "build": {
     "appId": "dev.vera.desktop",
     "productName": "VERA",
+    "icon": "assets/icon.ico",
     "directories": {
       "output": "release"
     },

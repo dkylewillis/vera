@@ -1,252 +1,148 @@
-# VERA — Vector-Embedded Retrieval Archive
+# .vera
 
-VERA is a Vector-Embedded Retrieval Archive: one SQLite `.vera` file that carries a document **and** everything needed to search it — parsed structure, chunks, embeddings, keyword index, figures, and citation metadata.
+[![Latest release](https://img.shields.io/github/v/release/dkylewillis/vera)](https://github.com/dkylewillis/vera/releases/latest)
+[![License](https://img.shields.io/github/license/dkylewillis/vera)](LICENSE)
 
-Tagline: **Convert once. Search anywhere.**
+**A different approach to RAG.**
 
-New to VERA? Start with the
-[documentation guide](docs/README.md) or the
-[installation and first-search tutorial](docs/getting-started.md).
+**VERA** stands for **Vector-Embedded Retrieval Archive**. A `.vera` file is a
+portable RAG archive: a self-contained SQLite file that packages the original
+document with its extracted text, chunks, embeddings, keyword index, figures,
+and citation metadata. Move it, share it, or search it locally—without
+re-ingestion, a vector database, or a retrieval service.
 
-## What is VERA?
+The VERA desktop app helps people create, organize, search, and ask questions
+over `.vera` archives. The CLI and MCP server give AI agents and applications
+the same citation-ready retrieval layer.
 
-Most retrieval-augmented generation (RAG) systems store the source document,
-parsed text, metadata, embeddings, and keyword indexes in separate services.
-Applications must keep those assets synchronized and often repeat ingestion
-when a document moves to another environment. VERA packages the same retrieval
-assets with the original document in one portable, self-contained SQLite file.
+[Download VERA for Windows](https://github.com/dkylewillis/vera/releases/latest)
+· [Use VERA from the CLI or an AI agent](#for-cli-and-ai-agent-users)
+· [Read the documentation](docs/README.md)
 
-### Convert once
+<img src="docs/assets/readme/hero-grounded-answer.png" alt="VERA desktop app showing an Ask answer beside the source PDF with a cited passage highlighted" width="85%">
 
-During conversion, VERA extracts native PDF text and selectively OCRs
-image-based pages. It preserves page structure, headings, figures, captions,
-and source coordinates; splits the text into citation-ready chunks; creates
-embeddings and an FTS5 keyword index; and stores every artifact in the `.vera`
-archive. The completed archive is validated before it is published.
 
-<img src="convert.png" alt="VERA conversion workflow from PDF parsing and OCR through chunking, embedding, and keyword indexing into a portable .vera archive" width="50%">
+<!-- TODO(assets): 20–30s feature tour video — upload to a GitHub Release or
+external host, then add: [Watch the feature tour](https://github.com/dkylewillis/vera/releases/latest) -->
 
-### Search anywhere
+## Try it in five minutes
 
-At search time, VERA compares the query with the stored embeddings for semantic
-matches and with the FTS5 index for keyword matches. Hybrid search normalizes
-and fuses both rankings, then returns the best chunks with their source file,
-page range, heading path, and optional figures and highlight regions. An app or
-agent can pass those grounded results to an LLM, but searching the archive
-itself requires no LLM, vector database, server, or re-ingestion.
+Converting and searching documents is fully local and needs no account or API
+key. You only connect a model provider when you want AI answers.
 
-For document libraries, VERA can search a folder of archives directly or build
-a persistent local collection index for faster retrieval across hundreds of
-files. A fresh index is used automatically; if it is missing or stale, VERA
-falls back to searching the individual archives. The index is rebuildable, so
-the portable `.vera` files remain the source of truth.
+1. **Install VERA.** Download the `VERA Setup` installer from the
+   [latest Windows release](https://github.com/dkylewillis/vera/releases/latest)
+   and run it.
+2. **Convert your documents.**
+   - **One PDF** — open **Convert PDF**, choose **Single PDF**, pick a PDF,
+      and select **Convert**. VERA writes a portable `.vera` archive beside
+      it.
+   - **Entire library** — choose **PDF Directory** to batch-convert a folder
+      of PDFs, then use **File > Open Folder** to activate it. On your first
+      Search or Ask, VERA shows **Build library index?** — select
+      **Build index** to make the library fast.
+3. **Connect a model.** Go to **File > LLM Providers**, select a provider,
+   paste your **API Key**, select **Save Key**, then **Save & Close**. Keys
+   are stored encrypted on your machine. Local **Ollama** and **LM Studio**
+   servers work too — no key needed.
+4. **Search.** Open **Search** and query your documents. Hybrid retrieval
+   (semantic + keyword) works entirely offline.
+5. **Ask and verify.** Ask a question, then select a citation to see the
+   highlighted supporting text in the source document.
 
-<img src="search.png" alt="VERA hybrid search workflow combining semantic and keyword search to provide cited context for an LLM response" width="50%">
+<!-- TODO(assets): 20–30s feature tour video — upload to a GitHub Release or
+external host, then add: [Watch the feature tour](https://github.com/dkylewillis/vera/releases/latest) -->
 
-## Quick start
+The desktop app converts with local hashing embeddings; the model provider is
+only used for Ask responses. Use the CLI when you need a Sentence Transformers
+embedding model or explicit OCR control. For the complete walkthrough and
+troubleshooting, see [Run the desktop app](docs/desktop-app-getting-started.md).
+
+## How it works
+
+During conversion, VERA extracts native PDF text, selectively OCRs image-based
+pages, preserves headings, figures, and page coordinates, then stores chunks,
+embeddings, and a keyword index in one validated `.vera` file:
+
+<img src="convert.png" alt="VERA conversion workflow from PDF parsing and OCR through chunking, embedding, and keyword indexing into a portable .vera archive" width="60%">
+
+At search time, hybrid retrieval fuses semantic and keyword rankings and
+returns chunks with their source file, page range, and heading path — grounded
+context for a person or an LLM, with no retrieval service required:
+
+<img src="search.png" alt="VERA hybrid search workflow combining semantic and keyword search to provide cited context for an LLM response" width="60%">
+
+On a 1,038-page stormwater manual (2,442 chunks), hybrid search hits 9/10
+real-world regulatory queries at MRR 0.900 — tracked continuously with
+[`vera eval`](docs/evaluation.md).
+
+## What VERA gives you
+
+- **Portable document archives** — each `.vera` file is self-contained;
+  copy it anywhere and it stays searchable.
+- **Grounded answers** — follow citations to the page, heading, and
+  highlighted source text.
+- **Libraries that stay fast** — a persistent local index makes searching
+  hundreds or even thousands of documents possible; update it as documents
+  change.
+- **Source-first review** — inspect pages and figures, validate archives, and
+  export the original PDF back out at any time.
+
+<!-- TODO(assets): uncomment when captured — see docs/assets/readme/README.md
+<img src="docs/assets/readme/convert-single-pdf.png" alt="Convert PDF view converting a single PDF into a .vera archive" width="45%">
+<img src="docs/assets/readme/provider-setup.png" alt="LLM Providers dialog with a provider, API key field, and enabled models" width="45%"> -->
+
+The desktop app converts with local hashing embeddings; the model provider is
+only used for Ask responses. Use the CLI when you need a Sentence Transformers
+embedding model or explicit OCR control. For the complete walkthrough and
+troubleshooting, see [Run the desktop app](docs/desktop-app-getting-started.md).
+
+## For CLI and AI agent users
+
+VERA also provides a CLI, Python library, MCP server, and portable Agent Skill
+for workflows that need structured, citation-ready retrieval.
 
 ```bash
+# Convert a PDF to a portable retrieval archive.
 vera convert input.pdf output.vera
-vera convert scan.pdf scan.vera --ocr auto                 # selective local Tesseract OCR
-vera convert ./pdf-library --recursive                    # same-named .vera files beside PDFs
-vera inspect output.vera
-vera validate output.vera
-vera search output.vera "stream buffer requirements" --mode hybrid
-vera search ./library "stream buffer requirements"   # search a folder of .vera files
-vera index build ./library --recursive                # accelerate a nested library
-vera export output.vera original.pdf                 # get the source document back out
+
+# Build a persistent local index for a document library.
+vera index build ./library --recursive
+
+# Return grounded results for an application or agent.
+vera search ./library "What are the detention requirements?" --top-k 5 --json
 ```
 
-Python:
+The default hybrid search combines semantic and keyword retrieval. Every result
+includes its source filename, page range, and heading path. Add
+`--context-chunks`, `--figures`, or `--regions` when the agent needs nearby
+text, figure metadata, or page coordinates.
 
-```python
-from vera import convert, VeraDocument
+- [CLI quick start and recipes](docs/getting-started.md)
+- [CLI reference](docs/cli-reference.md)
+- [Connect an MCP client](docs/mcp.md)
+- [Install the VERA Agent Skill](docs/agent-skills.md)
+- [Use the Python API](docs/python-api.md)
+- [Agent quick reference](AGENTS.md)
+- [VERA Agent Skill package (SKILL.md)](skills/vera/SKILL.md)
+- [VERA Agent Skill CLI reference](skills/vera/references/cli-reference.md)
 
-convert("input.pdf", "output.vera")
+## Documentation
 
-doc = VeraDocument.open("output.vera")
-results = doc.search("when is detention required", mode="hybrid", top_k=5)
-for r in results:
-    print(r.score, r.page_start, r.heading_path)
-    print(r.text)
+- [Desktop app guide](docs/desktop-app-getting-started.md)
+- [Convert documents](docs/conversion.md)
+- [Search documents](docs/searching.md)
+- [Search and index document libraries](docs/document-libraries.md)
+- [Work with figures and highlight regions](docs/figures-and-regions.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [VERA format specification](docs/vera-spec-v0.1.md)
+- [Contributing and architecture](docs/architecture.md)
 
-# Visual grounding: where on the page did this chunk come from?
-for region in doc.regions_for(results[0]):
-    print(region["page_number"], region["bbox"])  # [x0, y0, x1, y1] in page points
+## Status and support
 
-# The original PDF is stored inside the .vera file
-source = doc.get_source_document()                # filename, mime_type, data, hash
-doc.export_source_document("original.pdf")
-```
+VERA is an experimental v0.1 project. The desktop installer is available from
+[GitHub Releases](https://github.com/dkylewillis/vera/releases) and currently
+targets Windows. The `.vera` schema and format may change before a stable
+release.
 
-Search many documents at once:
-
-```python
-from vera import VeraCorpus
-
-with VeraCorpus.open("./library") as corpus:      # a folder of .vera files
-    for r in corpus.search("when is detention required", top_k=5):
-        print(r.file, r.page_start, r.text[:80])  # each result knows its file
-```
-
-## Features
-
-- **Single-file format** — a `.vera` file is a normal SQLite database with a standardized schema. No server, no vector database, no re-ingestion to open one.
-- **Three search modes** — `semantic` (brute-force cosine over stored embeddings), `keyword` (SQLite FTS5 / bm25), and `hybrid` (both score sets min-max normalized and blended equally).
-- **Structured parsing** — headings are detected from font size/weight and produce hierarchical heading paths (`Chapter 110 > Article 5 > Parking`); rotated watermark text is filtered out; chunks never span pages and map back to their source blocks via `chunk_blocks`.
-- **Selective local OCR** — image-based pages with little or no native text are recognized through PyMuPDF's Tesseract integration at 300 DPI by default. English language data is bundled for offline, zero-setup OCR. Native-text pages keep the fast existing path; `--ocr off|force`, `--ocr-language`, and `--ocr-dpi` provide explicit control.
-- **Figures and captions** — embedded images are extracted into the `assets` table; caption blocks ("Figure 3: Detention pond sizing diagram") are detected, flow into chunk text so figures are searchable, and are returned alongside figures:
-
-```python
-result = doc.search("detention pond sizing", top_k=1)[0]
-for fig in doc.figures_for(result, include_data=True):  # figures on the result's pages
-    print(fig["page_number"], fig["caption"])           # caption text or None
-```
-
-- **Pluggable embeddings** — a deterministic local hashing embedder (384-dim, zero dependencies) is the default; `--model sentence-transformers/all-MiniLM-L6-v2` enables neural embeddings via the optional `ml` extra.
-- **Visual grounding** — every chunk maps back to the page regions it came from. `doc.regions_for(result)` (or `vera search --regions`) returns page numbers and bounding boxes (page points, origin top-left) plus page dimensions, so a viewer can scroll to the page and highlight the cited text.
-- **Document access** — the original source file is stored inside the archive and comes back out intact: `doc.get_source_document()` / `vera export`. Pages (`get_page`), layout blocks with bounding boxes (`get_blocks`), and stored assets (`get_asset`) are all directly accessible for building viewers.
-- **Corpus search** — `VeraCorpus.open(folder)` (or `vera search <folder> "query"`) searches valid `.vera` files in a directory as one collection and fuses the rankings; malformed archives are skipped and reported with their paths and reasons. Add `--recursive` for an unindexed nested tree.
-- **Local library indexes** — `vera index build <folder> --recursive` creates a hidden, rebuildable SQLite/NumPy index for hundreds of documents. Searches use a fresh index automatically and fall back to resilient direct file search when it is missing or stale; indexed skip reasons remain available without reopening rejected archives.
-- **Transparent** — every file records its parser, chunking strategy, and embedding model in `vera_metadata`.
-
-## CLI
-
-| Command | Purpose |
-| ------- | ------- |
-| `vera convert input.pdf [output.vera]` | Convert one PDF; output defaults to the same base filename |
-| `vera convert <directory> [--recursive]` | Batch-convert PDFs beside their sources; valid outputs are skipped, malformed outputs are reported, and `--overwrite` replaces existing archives |
-| `vera inspect output.vera` | Print metadata: pages, chunks, model, parser |
-| `vera validate output.vera` | Check schema, counts, and index consistency |
-| `vera search output.vera "query"` | Search a file — or a directory of `.vera` files — (`--mode semantic\|keyword\|hybrid`, `--top-k`, `--context-chunks`, `--figures`, `--regions`) |
-| `vera index build <directory> [--recursive]` | Build a local collection index (`--exclude` is repeatable) |
-| `vera index update <directory>` | Rebuild an index with its saved discovery settings |
-| `vera index status <directory>` | Report whether an index is fresh or why it is stale |
-| `vera export output.vera [path]` | Write the original source document back out of the archive |
-| `vera eval output.vera queries.json` | Measure retrieval quality against an expected-answer query set |
-| `vera mcp` | Run the MCP server (stdio) exposing VERA tools to AI agents |
-
-Every one-shot command accepts `--json` for machine-readable output. `vera mcp`
-is a long-running stdio protocol server and does not accept `--json`.
-
-## Using VERA with AI agents
-
-VERA was built to give agents grounded, citation-ready context from large documents without a retrieval service. Agents can call the CLI directly with structured output and meaningful exit codes (`validate`, `index status`, and `eval` can emit a JSON report while exiting non-zero for a negative result):
-
-```bash
-vera search ordinance.vera "when is detention required" --top-k 5 --json --figures --context-chunks 1
-```
-
-```json
-{
-  "query": "when is detention required",
-  "mode": "hybrid",
-  "results": [
-    {
-      "chunk_id": "chunk_000412",
-      "score": 0.93,
-      "text": "Stream channel protection shall be provided by...",
-      "page_start": 120,
-      "page_end": 120,
-      "heading_path": "4. Implementing Stormwater Management > ...",
-      "source_filename": "ordinance.pdf",
-      "before_chunks": [{"chunk_id": "chunk_000411", "text": "...", "page_start": 119, "page_end": 119}],
-      "after_chunks": [{"chunk_id": "chunk_000413", "text": "...", "page_start": 121, "page_end": 121}],
-      "figures": [
-        {"page_number": 120, "caption": "Figure 4-1: Detention sizing", "asset_id": "asset_block_000371", "...": "..."}
-      ]
-    }
-  ]
-}
-```
-
-Every result carries its citation (source file, page, heading path), so agent answers can point back to the exact location in the source document. `--figures` adds metadata and captions for images on the result's pages, and `--context-chunks N` adds N chunks before and after each result as `before_chunks` and `after_chunks`. Add `--regions` and each result also carries a `regions` array — the page numbers and bounding boxes (`[x0, y0, x1, y1]` in page points, origin top-left, with page dimensions) of the blocks the chunk came from — so a viewer can scroll to the citation and highlight it. Point `vera search` at a directory instead of a file and the agent searches every `.vera` file in it as one corpus, with each result attributed to its `file`. Indexed corpus JSON reports any unavailable or dimension-incompatible query embedders in `skipped_semantic_model_groups`; keyword retrieval remains available for those groups. For nested libraries, use `vera index build <directory> --recursive` once; subsequent CLI and MCP searches automatically reuse that discovery setting. Run `vera index update` after adding, replacing, moving, or deleting proposals.
-
-### MCP server
-
-VERA also ships a [Model Context Protocol](https://modelcontextprotocol.io/) server so MCP-capable agents can use VERA as native tools — `vera_search`, `vera_corpus_search`, `vera_inspect`, `vera_validate`, `vera_figures`, `vera_get_page`, and `vera_get_chunk_regions`. Install the `mcp` extra and point your client at `vera mcp`:
-
-```bash
-pip install vera-cli "vera-doc[mcp]"
-```
-
-Example VS Code configuration (`.vscode/mcp.json`):
-
-```json
-{
-  "servers": {
-    "vera": {
-      "command": "uv",
-      "args": ["run", "--extra", "mcp", "vera", "mcp"]
-    }
-  }
-}
-```
-
-See [AGENTS.md](AGENTS.md) for the quick reference, the portable
-[VERA Agent Skill](skills/vera/SKILL.md) for reusable agent instructions, its
-[CLI contract](skills/vera/references/cli-reference.md) for exact JSON and exit
-behavior, and [docs/agent-skills.md](docs/agent-skills.md) for installation
-across Hermes, OpenClaw, Cursor, and other Agent Skills clients.
-
-## Testing & retrieval evaluation
-
-Run the automated suite (also run in CI on Ubuntu/Windows × Python 3.10/3.12):
-
-```bash
-uv run --extra dev python -m pytest -q
-```
-
-Measure retrieval quality against an expected-answer query set:
-
-```bash
-uv run python -m vera_cli eval output.vera queries.json --mode all --top-k 5
-```
-
-Query files are JSON (or YAML with pyyaml installed) lists of cases:
-
-```json
-[
-  {"query": "restaurant parking", "expected_pages": [42, 43], "expected_terms": ["parking"]}
-]
-```
-
-The command reports hit rate and MRR per search mode and exits non-zero on any miss — handy for CI regression checks. Example sets in [examples/](examples/):
-
-- [examples/docling-queries.json](examples/docling-queries.json) — technical paper, lexical queries
-- [examples/docling-paraphrase-queries.json](examples/docling-paraphrase-queries.json) — zero vocabulary overlap, stresses semantic search
-- [examples/gsmm-queries.json](examples/gsmm-queries.json) — 1,038-page stormwater manual, real-world regulatory queries
-
-Current baseline on the stormwater manual (2,442 chunks, hashing embedder): hybrid and keyword both hit 9/10 at MRR 0.900.
-
-Measure corpus fan-out versus indexed search on generated proposal-like documents:
-
-```bash
-uv run python benchmarks/benchmark_corpus.py --documents 100 --chunks 100 --runs 5
-```
-
-See [docs/collection-index.md](docs/collection-index.md) for the artifact layout,
-fallback behavior, measured baseline, and criteria for future sqlite-vec, FAISS,
-HNSW, or Qdrant adapters.
-
-## VERA Desktop App
-
-The app package is an Electron desktop shell with a React UI and a Python sidecar that calls `vera-doc` directly:
-
-```bash
-npm run app:install
-npm run app:dev
-npm run app:dist
-```
-
-Run these from the repo root. See [Run the desktop app](docs/desktop-app-getting-started.md) for prerequisites, complete setup instructions, build output, and startup troubleshooting. The desktop app uses a two-pane Ask and Source Document workspace with document opening in the native File menu, open document metrics in a bottom status bar, and a draggable Source Document divider for PDF review. Activating a folder instantly sets the default Search and Ask scope without opening the corpus; the first query opens it. Opening an individual archive only changes the viewer; checked archives temporarily narrow retrieval and clearing them restores the library. Parent and empty folders can remain active as scopes. Explorer shows `Indexed`, `Stale`, and `No index` badges, then prompts the first Search or Ask against a missing or stale index to build or update it; users can opt out of future prompts for that library. Index builds run in the background with progress on the folder badge, leaving browsing, Search, and Ask available; skipped-archive reports can be reopened from the completed badge. Collection indexes persist across restarts and make the first Search or Ask fast when fresh; **Deep inspect** remains available for an explicit full scan and library metrics. The Convert view uses PyMuPDF and local hashing embeddings to process one PDF or batch-convert a directory recursively, naming each archive after its source PDF and skipping existing archives unless overwrite is enabled. The app can also inspect and validate archives, ask natural-language questions with grounded citations, cancel an in-progress answer from the composer, view embedded source PDFs as scrollable pages with selectable text and grounded highlights, preview figures, and export the embedded source document through the sidecar protocol. The unpacked Windows build writes `VERA.exe` under `packages/vera-app/release/win-unpacked`. See [docs/desktop-app-architecture.md](docs/desktop-app-architecture.md) for the app architecture and library-index workflow.
-
-## Status
-
-VERA is v0.1 and experimental. The schema and format may change. See [docs/vera-spec-v0.1.md](docs/vera-spec-v0.1.md) for the format specification.
-
-See [docs/architecture.md](docs/architecture.md) for the project boundaries between the core document engine, CLI, and desktop app layer.
-
-## License
-
-Apache-2.0 — see [LICENSE](LICENSE).
+VERA is licensed under [Apache-2.0](LICENSE).
