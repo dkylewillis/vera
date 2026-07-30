@@ -104,8 +104,16 @@ class PythonSidecar {
     this.rejectPending(new Error('VERA sidecar stopped'));
   }
 
-  async cancelAnswer(requestId: string): Promise<void> {
-    await this.request({ action: 'cancel', target_id: requestId });
+  async cancelAnswer(requestId: string): Promise<{ cancelled: boolean }> {
+    const response = await this.request({ action: 'cancel', target_id: requestId });
+    const result = (response.result || {}) as { cancelled?: boolean };
+    return { cancelled: Boolean(result.cancelled) };
+  }
+
+  async skipConversion(requestId: string): Promise<{ skipped: boolean }> {
+    const response = await this.request({ action: 'skip', target_id: requestId });
+    const result = (response.result || {}) as { skipped?: boolean };
+    return { skipped: Boolean(result.skipped) };
   }
 
   private rejectPending(reason: Error, child?: ChildProcessWithoutNullStreams): void {
@@ -694,6 +702,7 @@ app.whenReady().then(() => {
     return sidecar.request(withModesDir(withStoredApiKey(payload)), onEvent, requestId);
   });
   ipcMain.handle('vera:cancelAnswer', (_event, requestId: string) => sidecar.cancelAnswer(requestId));
+  ipcMain.handle('vera:skipConversion', (_event, requestId: string) => sidecar.skipConversion(requestId));
   ipcMain.handle('vera:listModes', async () => sidecar.request({ action: 'list_modes', modes_dir: modesDir() }));
   ipcMain.handle('vera:openModesFolder', async () => shell.openPath(modesDir()));
   ipcMain.handle('vera:getSettings', async () => readSettings());

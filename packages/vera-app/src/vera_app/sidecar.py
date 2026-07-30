@@ -20,7 +20,7 @@ from vera import (
     update_library_index,
 )
 from vera.corpus import VeraCorpus
-from vera_app.cancellation import CancellationToken, CancelledError
+from vera_app.cancellation import CancellationToken, CancelledError, SkipCurrentError
 from vera_app.llm import (
     ChatResponse,
     LlmConfig,
@@ -40,6 +40,7 @@ Handler = Callable[[Request], Any]
 DEFAULT_RAG_INSTRUCTIONS = """You are VERA, a grounded document assistant.
 Use only the cited evidence supplied in this prompt when answering.
 Attach citation ids such as [C1] immediately after each claim they support.
+Write citation ids as plain text — never inside backticks or other code formatting.
 If the evidence is incomplete, say what is missing instead of guessing.
 If cited evidence conflicts, describe the conflict and cite both sides.
 Do not cite sources that are not present in the evidence list.
@@ -917,11 +918,23 @@ def _answer(
 
 
 
-def _convert(request: Request, write_event=None) -> dict[str, str]:
+def _convert(
+    request: Request,
+    write_event=None,
+    cancel: CancellationToken | None = None,
+) -> dict[str, str]:
+    input_path = str(request["input"])
     if write_event:
-        write_event({"event": "conversion_progress", "completed": 0, "total": 1})
+        write_event(
+            {
+                "event": "conversion_progress",
+                "completed": 0,
+                "total": 1,
+                "input": input_path,
+            }
+        )
     output = convert(
-        str(request["input"]),
+        input_path,
         str(request["output"]),
         model=str(request.get("model", "hashing")),
         parser=str(request.get("parser", "pymupdf")),
@@ -931,14 +944,28 @@ def _convert(request: Request, write_event=None) -> dict[str, str]:
         ocr_mode=str(request.get("ocr_mode", "auto")),
         ocr_language=str(request.get("ocr_language", "eng")),
         ocr_dpi=int(request.get("ocr_dpi", 300)),
+        cancel=cancel,
     )
     if write_event:
-        write_event({"event": "conversion_progress", "completed": 1, "total": 1})
+        write_event(
+            {
+                "event": "conversion_progress",
+                "completed": 1,
+                "total": 1,
+                "input": input_path,
+            }
+        )
     return {"output": output}
 
 
-def _batch_convert(request: Request, write_event=None) -> dict[str, Any]:
+def _batch_convert(
+    request: Request,
+    write_event=None,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
     def report_progress(completed: int, total: int, input_path: str) -> None:
+        if cancel:
+            cancel.raise_if_interrupted()
         if write_event:
             write_event(
                 {
@@ -948,6 +975,19 @@ def _batch_convert(request: Request, write_event=None) -> dict[str, Any]:
                     "input": input_path,
                 }
             )
+
+    if write_event:
+        write_event(
+            {
+                "event": "conversion_progress",
+                "completed": 0,
+                "total": 0,
+                "input": str(request["directory"]),
+                "phase": "discovering",
+            }
+        )
+    if cancel:
+        cancel.raise_if_interrupted()
 
     return batch_convert(
         str(request["directory"]),
@@ -962,6 +1002,7 @@ def _batch_convert(request: Request, write_event=None) -> dict[str, Any]:
         ocr_language=str(request.get("ocr_language", "eng")),
         ocr_dpi=int(request.get("ocr_dpi", 300)),
         progress=report_progress,
+        cancel=cancel,
     )
 
 
@@ -1030,7 +1071,7 @@ HANDLERS: dict[str, Handler] = {
 
 _stdout_lock = threading.Lock()
 _inflight_lock = threading.Lock()
-_inflight_answers: dict[str, CancellationToken] = {}
+_inflight_requests: dict[str, CancellationToken] = {}
 
 
 def _write_response(response: Response) -> None:
@@ -1038,10 +1079,18 @@ def _write_response(response: Response) -> None:
         print(json.dumps(response), flush=True)
 
 
+def _cancelled_error_message(action: str, exc: BaseException | None = None) -> str:
+    if exc and str(exc):
+        return str(exc)
+    if action in {"convert", "batch_convert"}:
+        return "Conversion cancelled"
+    return "Answer cancelled"
+
+
 def handle(request: Request, cancel: CancellationToken | None = None) -> Response:
     request_id = request.get("id")
+    action = str(request.get("action", ""))
     try:
-        action = str(request.get("action", ""))
         if action not in HANDLERS:
             raise ValueError(f"Unknown action: {action}")
         if action == "answer":
@@ -1051,15 +1100,23 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
         elif action in {"convert", "batch_convert"}:
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
-            result = HANDLERS[action](request, write_event=_emit)
+            result = HANDLERS[action](request, write_event=_emit, cancel=cancel)
         else:
             result = HANDLERS[action](request)
         return {"id": request_id, "ok": True, "result": result}
-    except CancelledError:
+    except CancelledError as exc:
         return {
             "id": request_id,
             "ok": False,
-            "error": "Answer cancelled",
+            "error": _cancelled_error_message(action, exc),
+            "cancelled": True,
+        }
+    except SkipCurrentError as exc:
+        # Single-file convert has nothing to continue; treat skip like cancel.
+        return {
+            "id": request_id,
+            "ok": False,
+            "error": str(exc) or "File skipped",
             "cancelled": True,
         }
     except Exception as exc:
@@ -1067,7 +1124,7 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
             return {
                 "id": request_id,
                 "ok": False,
-                "error": "Answer cancelled",
+                "error": _cancelled_error_message(action, exc if isinstance(exc, CancelledError) else None),
                 "cancelled": True,
             }
         response: Response = {
@@ -1081,12 +1138,16 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
         return response
 
 
-def _run_answer(request: Request, request_id: str, cancel: CancellationToken) -> None:
+def _run_cancellable_request(
+    request: Request,
+    request_id: str,
+    cancel: CancellationToken,
+) -> None:
     try:
         _write_response(handle(request, cancel=cancel))
     finally:
         with _inflight_lock:
-            _inflight_answers.pop(request_id, None)
+            _inflight_requests.pop(request_id, None)
 
 
 def _run_background_request(request: Request) -> None:
@@ -1107,13 +1168,24 @@ def main() -> int:
             if action == "cancel":
                 target_id = str(request.get("target_id") or "")
                 with _inflight_lock:
-                    cancel = _inflight_answers.get(target_id)
+                    cancel = _inflight_requests.get(target_id)
                 if cancel:
                     cancel.cancel()
                 response = {
                     "id": request.get("id"),
                     "ok": True,
                     "result": {"target_id": target_id, "cancelled": bool(cancel)},
+                }
+            elif action == "skip":
+                target_id = str(request.get("target_id") or "")
+                with _inflight_lock:
+                    cancel = _inflight_requests.get(target_id)
+                if cancel:
+                    cancel.skip()
+                response = {
+                    "id": request.get("id"),
+                    "ok": True,
+                    "result": {"target_id": target_id, "skipped": bool(cancel)},
                 }
             elif action in {"answer", "convert", "batch_convert", "index_build", "index_update"}:
                 request_id = str(request.get("id") or "")
@@ -1124,12 +1196,12 @@ def main() -> int:
                         "error": f"{action} requests require an id",
                     }
                 else:
-                    if action == "answer":
+                    if action in {"answer", "convert", "batch_convert"}:
                         cancel = CancellationToken()
                         with _inflight_lock:
-                            _inflight_answers[request_id] = cancel
-                        target = _run_answer
-                        args = (request, request_id, cancel)
+                            _inflight_requests[request_id] = cancel
+                        target = _run_cancellable_request
+                        args: tuple[Any, ...] = (request, request_id, cancel)
                     else:
                         target = _run_background_request
                         args = (request,)

@@ -163,38 +163,57 @@ def _span_is_bold(span: dict) -> bool:
     return bool(span.get("flags", 0) & 16)
 
 
+def _raise_if_cancelled(cancel: Any | None) -> None:
+    if cancel is None:
+        return
+    interrupted = getattr(cancel, "raise_if_interrupted", None)
+    if callable(interrupted):
+        interrupted()
+        return
+    raise_if_cancelled = getattr(cancel, "raise_if_cancelled", None)
+    if callable(raise_if_cancelled):
+        raise_if_cancelled()
+
+
 def _collect_raw_blocks(
     doc,
     *,
     ocr_mode: str = "auto",
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
+    cancel: Any | None = None,
 ) -> tuple[list[ParsedPage], list[_RawBlock], Counter, list[int]]:
     pages: list[ParsedPage] = []
     raw: list[_RawBlock] = []
     size_weights: Counter = Counter()
     ocr_pages: list[int] = []
     for idx, page in enumerate(doc, start=1):
+        _raise_if_cancelled(cancel)
         page_raw: list[_RawBlock] = []
-        rect = page.rect
-        width = float(rect.width)
-        height = float(rect.height)
-        native_text = page.get_text("text") or ""
-        native_layout = page.get_text("dict")
-        use_ocr = ocr_mode == "force" or (
-            ocr_mode == "auto"
-            and _page_needs_ocr(native_text, native_layout, width=width, height=height)
-        )
-        if use_ocr:
-            page_text, text_layout = _ocr_page_content(
-                page,
-                language=ocr_language,
-                dpi=ocr_dpi,
+        try:
+            rect = page.rect
+            width = float(rect.width)
+            height = float(rect.height)
+            native_text = page.get_text("text") or ""
+            native_layout = page.get_text("dict")
+            use_ocr = ocr_mode == "force" or (
+                ocr_mode == "auto"
+                and _page_needs_ocr(native_text, native_layout, width=width, height=height)
             )
-            ocr_pages.append(idx)
-        else:
-            page_text = native_text
-            text_layout = native_layout
+            if use_ocr:
+                page_text, text_layout = _ocr_page_content(
+                    page,
+                    language=ocr_language,
+                    dpi=ocr_dpi,
+                )
+                ocr_pages.append(idx)
+            else:
+                page_text = native_text
+                text_layout = native_layout
+        except Exception:
+            # Closing the document from another thread (stop/skip) surfaces here.
+            _raise_if_cancelled(cancel)
+            raise
         pages.append(ParsedPage(idx, width, height, page_text.strip()))
 
         # Always source images from the native PDF layout. OCR TextPage output
@@ -280,6 +299,7 @@ def parse_pdf_structured(
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
     diagnostics: dict[str, Any] | None = None,
+    cancel: Any | None = None,
 ) -> tuple[list[ParsedPage], list[ParsedBlock]]:
     """Parse a PDF into pages plus structured blocks.
 
@@ -295,15 +315,31 @@ def parse_pdf_structured(
 
     fitz = _open_fitz()
     doc = fitz.open(path)
+    register = getattr(cancel, "register_response", None) if cancel is not None else None
+    unregister = getattr(cancel, "unregister_response", None) if cancel is not None else None
     try:
+        if callable(register):
+            register(doc)
         pages, raw, size_weights, ocr_pages = _collect_raw_blocks(
             doc,
             ocr_mode=ocr_mode,
             ocr_language=ocr_language,
             ocr_dpi=ocr_dpi,
+            cancel=cancel,
         )
+    except Exception:
+        _raise_if_cancelled(cancel)
+        raise
     finally:
-        doc.close()
+        if callable(unregister):
+            try:
+                unregister(doc)
+            except Exception:
+                pass
+        try:
+            doc.close()
+        except Exception:
+            pass
     if diagnostics is not None:
         diagnostics.update(
             {

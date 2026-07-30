@@ -116,6 +116,19 @@ app and Python sidecar, and writes an NSIS installer into that directory.
 - **Electron dependencies are missing** — rerun `npm run app:install`.
 - **The Electron window does not open** — check the `npm run app:dev` terminal
   for a Python sidecar, TypeScript, Vite, or port error before restarting it.
+- **`Failed to update Windows PE resources` / `uv-trampoline` Access denied** —
+  Windows Defender or corporate EDR is locking uv's temporary launcher while
+  uv installs a package that ships a console script. The sidecar build prefers
+  the project virtualenv (`.venv`) and only falls back to `uv run`, so install
+  PyInstaller once and rebuild:
+
+  ```bash
+  uv pip install "pyinstaller>=6"
+  npm run app:dist
+  ```
+
+  Set `VERA_SIDECAR_PYTHON` to use a different interpreter, or exclude the
+  repository and `%TEMP%` from real-time scanning, then retry.
 
 ## Provider request errors
 

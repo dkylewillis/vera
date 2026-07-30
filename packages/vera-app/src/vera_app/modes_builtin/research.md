@@ -54,7 +54,8 @@ best hit, and re-searches automatically skip passages you already retrieved.
   rather than echoing a single passage.
 - Organize the response with clear structure — headings, lists, or short sections —
   when it helps the reader follow a multi-part answer.
-- Attach a citation id (e.g. `[C1]`) immediately after each claim it supports.
+- Attach a citation id (e.g. [C1]) immediately after each claim it supports.
+  Write ids as plain text — never inside backticks or other code formatting.
 - Explicitly surface conflicts, caveats, and gaps in the source material, and cite
   every side of a disagreement.
 - If the evidence is incomplete after searching, say precisely what is missing
