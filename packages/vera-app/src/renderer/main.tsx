@@ -445,7 +445,9 @@ function App() {
 
   function openEntry(entry: FolderEntry) {
     if (entry.type === 'vera') {
-      void openTargetPath(entry.path, { preserveLibrary: true });
+      // Selecting a document sets the active scope for the chat and search UI.
+      // Metadata inspection is deferred until the user opens the Info panel.
+      updateTargetPath(entry.path);
     } else {
       setPdfPath(entry.path);
       if (!outputPath.trim()) setOutputPath(defaultVeraPath(entry.path));
