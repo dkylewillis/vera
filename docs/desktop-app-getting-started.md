@@ -1,8 +1,15 @@
 # Run the desktop app
 
 VERA's desktop app is an Electron application with a React interface and a
-local Python sidecar. It currently runs from a repository checkout; there is
-not yet a published installer or package-manager release.
+local Python sidecar. Windows users can install the packaged app from
+[GitHub Releases](https://github.com/dkylewillis/vera/releases). The remaining
+sections describe running and packaging it from a repository checkout.
+
+## Install the Windows app
+
+Download the `VERA Setup <version>.exe` installer from the
+[latest GitHub Release](https://github.com/dkylewillis/vera/releases), run it,
+and then open VERA from the Start menu.
 
 ## Requirements
 
