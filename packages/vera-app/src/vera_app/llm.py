@@ -261,6 +261,13 @@ _TEXT_TOOL_CALL_RE = re.compile(
     re.DOTALL,
 )
 _TEXT_TOOL_LEFTOVER_RE = re.compile(r"</?functions\.[A-Za-z0-9_]+\b[^>\n]*/?>?")
+_XML_TOOL_CALL_RE = re.compile(r"<tool_call>(?P<body>.*?)</tool_call>", re.DOTALL | re.IGNORECASE)
+_XML_TOOL_ARG_RE = re.compile(
+    r"<arg_key>\s*(?P<key>.*?)\s*</arg_key>\s*"
+    r"<arg_value>(?P<value>.*?)</arg_value>",
+    re.DOTALL | re.IGNORECASE,
+)
+_XML_TOOL_MARKUP_RE = re.compile(r"</?(?:tool_call|arg_key|arg_value)\b[^>]*>", re.IGNORECASE)
 
 
 def _extract_text_tool_calls(content: str) -> tuple[str, list["ToolCall"]]:
@@ -283,6 +290,35 @@ def _extract_text_tool_calls(content: str) -> tuple[str, list["ToolCall"]]:
         calls.append(ToolCall(id=f"text_call_{index}", name=name, arguments=arguments))
     cleaned = _TEXT_TOOL_CALL_RE.sub("", content)
     cleaned = _TEXT_TOOL_LEFTOVER_RE.sub("", cleaned).strip()
+    return cleaned, calls
+
+
+def _extract_xml_tool_calls(content: str) -> tuple[str, list["ToolCall"]]:
+    """Pull XML-ish `<tool_call>NAME<arg_key>...` calls from model text."""
+    if "<tool_call" not in content.lower():
+        return content, []
+    calls: list[ToolCall] = []
+    for index, match in enumerate(_XML_TOOL_CALL_RE.finditer(content)):
+        body = match.group("body")
+        name_match = re.match(r"\s*([A-Za-z0-9_]+)", body)
+        if not name_match:
+            continue
+        arguments: dict[str, Any] = {}
+        for arg_match in _XML_TOOL_ARG_RE.finditer(body):
+            key = arg_match.group("key").strip()
+            value = arg_match.group("value").strip()
+            if not key:
+                continue
+            # Preserve ordinary text, while accepting JSON scalars/objects for
+            # providers that serialize argument values inside the XML tags.
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                parsed = value
+            arguments[key] = parsed
+        calls.append(ToolCall(id=f"xml_call_{index}", name=name_match.group(1), arguments=arguments))
+    cleaned = _XML_TOOL_CALL_RE.sub("", content)
+    cleaned = _XML_TOOL_MARKUP_RE.sub("", cleaned).strip()
     return cleaned, calls
 
 
@@ -685,6 +721,8 @@ class OpenAiCompatibleProvider:
         # them and the raw markup never reaches the user.
         if not tool_calls and content:
             cleaned, text_calls = _extract_text_tool_calls(content)
+            if not text_calls:
+                cleaned, text_calls = _extract_xml_tool_calls(content)
             if text_calls:
                 content = cleaned
                 tool_calls = text_calls

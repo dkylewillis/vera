@@ -9,7 +9,15 @@ import urllib.error
 import pytest
 
 from vera_app.cancellation import CancellationToken, CancelledError
-from vera_app.llm import LlmConfig, ProviderHttpError, VisionUnsupportedError, _consume_stream, _encode_json_payload, chat
+from vera_app.llm import (
+    LlmConfig,
+    ProviderHttpError,
+    VisionUnsupportedError,
+    _consume_stream,
+    _encode_json_payload,
+    _extract_xml_tool_calls,
+    chat,
+)
 
 
 TOOL = {
@@ -24,6 +32,24 @@ TOOL = {
         },
     },
 }
+
+
+def test_extracts_xml_tool_calls():
+    content = (
+        "<tool_call>search<arg_key>query</arg_key><arg_value>first query</arg_value>"
+        "<arg_key>mode</arg_key><arg_value>keyword</arg_value>"
+        "<arg_key>top_k</arg_key><arg_value>10</arg_value></tool_call>"
+        "<tool_call>search<arg_key>query</arg_key><arg_value>second query</arg_value>"
+        "<arg_key>mode</arg_key><arg_value>keyword</arg_value>"
+        "<arg_key>top_k</arg_key><arg_value>10</arg_value></tool_call>"
+    )
+
+    cleaned, calls = _extract_xml_tool_calls(content)
+
+    assert cleaned == ""
+    assert [call.name for call in calls] == ["search", "search"]
+    assert calls[0].arguments == {"query": "first query", "mode": "keyword", "top_k": 10}
+    assert calls[1].arguments["query"] == "second query"
 
 
 class FakeResponse:

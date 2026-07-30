@@ -1316,19 +1316,6 @@ select option {
   background: var(--bg-surface-3);
 }
 
-.centerDoc {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-muted);
-  font-size: 12.5px;
-  padding-left: 6px;
-  border-left: 1px solid var(--border);
-  margin-left: 4px;
-}
-
 .centerStatus {
   display: inline-flex;
   align-items: center;

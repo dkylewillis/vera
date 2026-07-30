@@ -249,7 +249,9 @@ function App() {
     && inspect?.directory
     && inspect.discovered_file_count === 0,
   );
-  const hasSearchableScope = Boolean(searchScopePath.trim()) && !activeLibraryIsEmpty;
+  // Explicit checkbox selections are a valid scope even when the active library
+  // inspection is empty or a document/folder has not been opened in the viewer.
+  const hasSearchableScope = selectedFiles.length > 0 || (Boolean(searchScopePath.trim()) && !activeLibraryIsEmpty);
   const isCorpus = Boolean(
     (activeLibraryPath && path === activeLibraryPath)
     || inspect?.directory
@@ -2207,7 +2209,6 @@ function App() {
         <main className="centerPane">
           <header className="centerHeader">
             <button className="centerNewChat" onClick={() => void newSession()} title="Start a new chat"><Plus size={14} />New chat</button>
-            <span className="centerDoc" title={path}>{path ? (path.split(/[\\/]/).pop() || path) : 'No document selected'}</span>
             <span className="centerStatus">{busyAction === 'Asking' ? 'Ready' : status}</span>
             {viewerCollapsed ? (
               <button
