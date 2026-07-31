@@ -23,10 +23,19 @@ function citation(id: string): ChatCitationResult {
 
 // The activity trace renders its own markup (including `<code>` pills), so assert
 // against the answer body only.
-function renderAnswer(content: string, citations: ChatCitationResult[] = [citation('C1')]) {
+function renderAnswer(
+  content: string,
+  citations: ChatCitationResult[] = [citation('C1')],
+  linkableCitations?: ChatCitationResult[],
+) {
   const turn: SessionTurn = { role: 'assistant', content, citations, timestamp: 0 };
   const html = renderToStaticMarkup(
-    <ChatTurn turn={turn} selectCitation={() => {}} showTrace={false} />,
+    <ChatTurn
+      turn={turn}
+      linkableCitations={linkableCitations}
+      selectCitation={() => {}}
+      showTrace={false}
+    />,
   );
   return html.slice(html.indexOf('<div class="markdownBody">'));
 }
@@ -34,6 +43,12 @@ function renderAnswer(content: string, citations: ChatCitationResult[] = [citati
 describe('ChatTurn citation markers', () => {
   it('links a plain marker', () => {
     expect(renderAnswer('Sized for the 25-year storm. [C1]')).toContain(
+      '<button class="inlineCitation">[C1]</button>',
+    );
+  });
+
+  it('links a marker reused from an earlier turn without a new search', () => {
+    expect(renderAnswer('The earlier result still applies. [C1]', [], [citation('C1')])).toContain(
       '<button class="inlineCitation">[C1]</button>',
     );
   });

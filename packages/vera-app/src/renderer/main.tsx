@@ -1669,6 +1669,20 @@ function App() {
     try { localStorage.setItem('vera.sidePanelWidth', String(sidePanelWidth)); } catch { /* ignore persistence errors */ }
   }, [sidePanelWidth]);
 
+  // The sidecar only returns citations retrieved during the current request.
+  // Keep prior full citation payloads available to link a follow-up answer that
+  // reuses a stable `[C#]` marker without performing another search.
+  const linkableCitations = useMemo(() => {
+    const citationsById = new Map<string, ChatCitationResult>();
+    for (const turn of sessionTurns) {
+      if (turn.role !== 'assistant') continue;
+      for (const citation of turn.citations ?? []) {
+        if (!citationsById.has(citation.id)) citationsById.set(citation.id, citation);
+      }
+    }
+    return [...citationsById.values()];
+  }, [sessionTurns]);
+
   return (
     <div className={customTitlebar ? 'appShell appShell--customTitlebar' : 'appShell'}>
       {customTitlebar ? (
@@ -2264,6 +2278,7 @@ function App() {
                       <ChatTurn
                         key={idx}
                         turn={turn}
+                        linkableCitations={linkableCitations}
                         selectCitation={stableSelectCitation}
                         selectedChunkId={selected?.chunk_id}
                         showTrace={showTrace}

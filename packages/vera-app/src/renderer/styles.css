@@ -1467,7 +1467,9 @@ select option {
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  /* Picker menus open above the composer, so they must be able to escape this
+     flex item in shorter, non-maximized windows. */
+  overflow: visible;
 }
 
 .chatPanel--empty {
@@ -1501,6 +1503,7 @@ select option {
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
 }
 
 .chatThread {
@@ -2530,7 +2533,7 @@ details.traceEntry[open] > summary {
 }
 
 .modelPickerMenuScroll {
-  max-height: 275px;
+  max-height: min(275px, calc(100dvh - 96px));
   overflow-y: auto;
 }
 
@@ -2632,7 +2635,10 @@ details.traceEntry[open] > summary {
 .modelOptionsFlyout {
   position: absolute;
   bottom: 0;
-  left: calc(100% - 1px);
+  /* The model picker sits at the right of the composer. Open its flyout back
+     into the center pane rather than beneath the source-document viewer. */
+  right: calc(100% - 1px);
+  left: auto;
   z-index: 2;
   width: 210px;
   max-height: calc(100vh - 96px);
