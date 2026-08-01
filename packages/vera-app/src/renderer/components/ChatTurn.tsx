@@ -86,11 +86,15 @@ function renderAnswerWithCitations(
 // every past turn whenever unrelated App state changes, e.g. each composer keystroke.
 export const ChatTurn = React.memo(function ChatTurn({
   turn,
+  linkableCitations,
   selectCitation,
   selectedChunkId,
   showTrace,
 }: {
   turn: SessionTurn;
+  // Includes citations retrieved by earlier turns so a follow-up can link a
+  // reused `[C#]` marker without claiming it retrieved sources again.
+  linkableCitations?: ChatCitationResult[];
   selectCitation: (citation: ChatCitationResult) => void;
   selectedChunkId?: string;
   showTrace: boolean;
@@ -123,8 +127,8 @@ export const ChatTurn = React.memo(function ChatTurn({
       />
       {turn.answer_mode === 'retrieval' ? <div className="noteBanner">The active API route rejected tool calling, so VERA used a single retrieval pass instead of agentic search.</div> : null}
       {turn.vision_fallback ? <div className="noteBanner">This model does not support image input. VERA omitted the images and retried with text only.</div> : null}
-      {turn.citations && turn.citations.length ? (
-        renderAnswerWithCitations(turn.content, turn.citations, selectCitation)
+      {(linkableCitations?.length || turn.citations?.length) ? (
+        renderAnswerWithCitations(turn.content, linkableCitations ?? turn.citations ?? [], selectCitation)
       ) : (
         <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{turn.content}</Markdown></div>
       )}
