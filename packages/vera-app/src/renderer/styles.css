@@ -1086,8 +1086,9 @@ select option {
 }
 
 .convertModeToggle {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
   padding: 2px;
   background: var(--bg-surface-2);
   border: 1px solid var(--border);
@@ -1095,6 +1096,8 @@ select option {
 }
 
 .convertModeToggle button {
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 6px 8px;
   color: var(--text-muted);
   background: transparent;
@@ -1108,6 +1111,55 @@ select option {
   color: var(--text-strong);
   background: var(--bg-surface);
   box-shadow: var(--shadow-sm);
+}
+
+.selectedPdfList {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.selectedPdfList .fieldLabel {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.selectedPdfList ul {
+  display: grid;
+  gap: 2px;
+  max-height: 160px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+}
+
+.selectedPdfList li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 4px 4px 8px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.selectedPdfList li + li {
+  border-top: 1px solid var(--border-faint);
+}
+
+.selectedPdfList li span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .convertGrid {
@@ -1923,6 +1975,18 @@ select option {
 
 .streamingMessage {
   min-height: 32px;
+}
+
+.activityItem--status {
+  align-items: center;
+  font-weight: 600;
+}
+
+.activityStatusDot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  margin: 0 2.5px;
 }
 
 .responseStatus {

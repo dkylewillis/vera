@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { AppSettings, ProviderProfile } from '../types';
 import {
+  defaultEnabledModels,
   emptyProvider,
   filterDiscoveredModels,
   newProviderId,
@@ -124,6 +125,7 @@ export function ProviderManager({
   const [selectedId, setSelectedId] = useState<string>(providers[0]?.id ?? '');
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [modelInput, setModelInput] = useState('');
+  const [modelFilter, setModelFilter] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -131,13 +133,14 @@ export function ProviderManager({
   const selected = list.find((profile) => profile.id === selectedId) ?? null;
   const selectedPreset = selected ? providerPresetFor(selected) : null;
   const enabledModels = new Set(selected?.models ?? []);
+  const normalizedModelFilter = modelFilter.trim().toLowerCase();
   const modelOptions = Array.from(new Set([
     ...(selected?.models ?? []),
     ...(selected?.available_models ?? []),
     ...availableModels,
-  ])).sort((a, b) =>
-    a.localeCompare(b),
-  );
+  ]))
+    .filter((model) => !normalizedModelFilter || model.toLowerCase().includes(normalizedModelFilter))
+    .sort((a, b) => a.localeCompare(b));
 
   function settingsPayload(overrides?: Partial<AppSettings>): AppSettings {
     const nextList = overrides?.providers ?? list;
@@ -288,7 +291,7 @@ export function ProviderManager({
       updateSelected({
         available_models: models,
         models_refreshed_at: Date.now(),
-        models: selected.models.length === 0 ? models : selected.models,
+        models: selected.models.length === 0 ? defaultEnabledModels(selected, models) : selected.models,
       });
       setMessage(models.length ? `Found ${models.length} models` : 'No models returned');
     } finally {
@@ -316,7 +319,7 @@ export function ProviderManager({
                 key={profile.id}
                 type="button"
                 className={profile.id === selectedId ? 'providerRow selected' : 'providerRow'}
-                onClick={() => { setSelectedId(profile.id); setApiKeyInput(''); setModelInput(''); setAvailableModels([]); }}
+                onClick={() => { setSelectedId(profile.id); setApiKeyInput(''); setModelInput(''); setModelFilter(''); setAvailableModels([]); }}
               >
                 <span className="providerRowName">
                   {providerDisplayName(profile)}
@@ -367,6 +370,12 @@ export function ProviderManager({
                     <span>Models <em>{selected.models.length} enabled</em></span>
                     <button type="button" className="secondaryAction compactAction" onClick={fetchModels} disabled={busy || !selected.base_url.trim()}><ListChecks size={14} />Refresh models</button>
                   </div>
+                  {(selected.available_models?.length || availableModels.length || selected.models.length) ? (
+                    <div className="modelManagerSearch">
+                      <Search size={14} />
+                      <input value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} placeholder="Search models" />
+                    </div>
+                  ) : null}
                   {modelOptions.length ? (
                     <div className="modelChecklist">
                       {modelOptions.map((model) => (
@@ -377,7 +386,11 @@ export function ProviderManager({
                       ))}
                     </div>
                   ) : (
-                    <p className="mutedText">No models found yet. Refresh the provider or add a model ID.</p>
+                    <p className="mutedText">
+                      {normalizedModelFilter
+                        ? 'No matching models.'
+                        : 'No models found yet. Refresh the provider or add a model ID.'}
+                    </p>
                   )}
                   <div className="modelAddRow">
                     <input

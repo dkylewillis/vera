@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import base64
 import copy
+import hashlib
 import json
 import re
 import sys
+import tempfile
 import threading
 import traceback
 from collections.abc import Callable
@@ -12,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from vera import (
+    AttachmentRecord,
     VeraDocument,
     build_library_index,
     library_index_status,
@@ -1007,13 +1010,26 @@ def _batch_convert(
                 }
             )
 
+    raw_paths = request.get("paths")
+    paths: list[str] | None = None
+    if isinstance(raw_paths, list):
+        paths = [str(item) for item in raw_paths if str(item).strip()]
+        if not paths:
+            paths = None
+
+    directory = request.get("directory")
+    progress_label = (
+        f"{len(paths)} selected PDF{'s' if len(paths) != 1 else ''}"
+        if paths is not None
+        else str(directory or "")
+    )
     if write_event:
         write_event(
             {
                 "event": "conversion_progress",
                 "completed": 0,
                 "total": 0,
-                "input": str(request["directory"]),
+                "input": progress_label,
                 "phase": "discovering",
             }
         )
@@ -1021,7 +1037,8 @@ def _batch_convert(
         cancel.raise_if_interrupted()
 
     return batch_convert(
-        str(request["directory"]),
+        None if paths is not None else str(directory),
+        paths=paths,
         recursive=bool(request.get("recursive", True)),
         overwrite=bool(request.get("overwrite", False)),
         model=str(request.get("model", "hashing")),
@@ -1055,17 +1072,79 @@ def _export(request: Request) -> dict[str, Any]:
         doc.close()
 
 
+def _source_cache_dir(request: Request) -> Path:
+    """Return the directory used to materialize embedded source documents.
+
+    Electron passes a stable userData cache dir so the main process can serve
+    files over a privileged ``vera-source:`` protocol without shipping PDF
+    bytes through the JSON-Lines IPC channel (which freezes the UI on large
+    documents). Tests and other callers fall back to the system temp dir.
+    """
+    configured = request.get("cache_dir")
+    if isinstance(configured, str) and configured.strip():
+        return Path(configured)
+    return Path(tempfile.gettempdir()) / "vera-source-cache"
+
+
+def _materialize_source_cache(source: AttachmentRecord, cache_dir: Path) -> Path:
+    """Write source bytes to a hash-keyed cache file; reuse when unchanged."""
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    digest = str(source.checksum or hashlib.sha256(source.data).hexdigest())
+    suffix = Path(source.filename or "source.bin").suffix or ".bin"
+    # Keep the digest filesystem-safe (checksums are typically hex already).
+    safe_digest = re.sub(r"[^A-Za-z0-9._-]", "_", digest)
+    cache_path = cache_dir / f"{safe_digest}{suffix}"
+    if cache_path.is_file() and cache_path.stat().st_size == len(source.data):
+        return cache_path
+    tmp_path = cache_path.with_name(f"{cache_path.name}.{threading.get_ident()}.tmp")
+    try:
+        tmp_path.write_bytes(source.data)
+        tmp_path.replace(cache_path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+    return cache_path
+
+
+def _source_from_pdf(path: Path, cache_dir: Path) -> dict[str, Any]:
+    """Materialize a filesystem PDF into the source cache for the document viewer."""
+    if not path.is_file():
+        raise FileNotFoundError(f"PDF not found: {path}")
+    data = path.read_bytes()
+    if not data.startswith(b"%PDF"):
+        raise ValueError(f"Not a PDF file: {path}")
+    source = AttachmentRecord(
+        id="source_pdf",
+        data=data,
+        media_type="application/pdf",
+        filename=path.name,
+    )
+    cache_path = _materialize_source_cache(source, cache_dir)
+    return {
+        "filename": source.filename,
+        "mime_type": source.media_type,
+        "hash": source.checksum,
+        "size": len(source.data),
+        "cache_path": str(cache_path),
+    }
+
+
 def _source(request: Request) -> dict[str, Any]:
-    doc = _open_document(str(request["path"]))
+    path = Path(str(request["path"]))
+    cache_dir = _source_cache_dir(request)
+    if path.suffix.lower() == ".pdf":
+        return _source_from_pdf(path, cache_dir)
+    doc = _open_document(str(path))
     try:
         source = get_source_document(doc)
         mime_type = source.media_type or "application/octet-stream"
+        cache_path = _materialize_source_cache(source, cache_dir)
         return {
             "filename": source.filename,
             "mime_type": mime_type,
             "hash": source.checksum,
             "size": len(source.data),
-            "data_url": f"data:{mime_type};base64,{base64.b64encode(source.data).decode('ascii')}",
+            "cache_path": str(cache_path),
         }
     finally:
         doc.close()
@@ -1231,7 +1310,14 @@ def main() -> int:
                     "ok": True,
                     "result": {"target_id": target_id, "skipped": bool(cancel)},
                 }
-            elif action in {"answer", "convert", "batch_convert", "index_build", "index_update"}:
+            elif action in {
+                "answer",
+                "convert",
+                "batch_convert",
+                "index_build",
+                "index_update",
+                "source",
+            }:
                 request_id = str(request.get("id") or "")
                 if not request_id:
                     response = {

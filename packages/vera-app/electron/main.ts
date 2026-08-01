@@ -1,8 +1,8 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, safeStorage, shell } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
-import { basename, delimiter, isAbsolute, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { basename, delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
   AppSettings,
   CredentialResult,
@@ -65,6 +65,51 @@ const DEFAULT_SETTINGS: AppSettings = {
   active_model: '',
   active_mode_id: '',
 };
+
+// Serve materialized source PDFs without shipping base64 through JSON IPC.
+// Must be registered before app.ready so fetch()/PDF.js can use the scheme.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'vera-source',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      bypassCSP: true,
+      corsEnabled: true,
+    },
+  },
+]);
+
+function sourceCacheDir(): string {
+  return join(app.getPath('userData'), 'source-cache');
+}
+
+function isPathInsideDir(filePath: string, dirPath: string): boolean {
+  const resolvedFile = resolve(filePath);
+  const resolvedDir = resolve(dirPath);
+  const rel = relative(resolvedDir, resolvedFile);
+  return rel !== '' && !rel.startsWith(`..${sep}`) && !rel.startsWith('..') && !isAbsolute(rel);
+}
+
+function toSourceViewerResult(result: Record<string, unknown>): Record<string, unknown> {
+  const cachePath = typeof result.cache_path === 'string' ? result.cache_path : '';
+  if (!cachePath) {
+    return result;
+  }
+  const resolved = resolve(cachePath);
+  const root = resolve(sourceCacheDir());
+  if (!isPathInsideDir(resolved, root)) {
+    throw new Error('Source cache path escaped the cache directory');
+  }
+  const rel = relative(root, resolved).split(/[/\\]/).map(encodeURIComponent).join('/');
+  const { cache_path: _cachePath, ...rest } = result;
+  return {
+    ...rest,
+    url: `vera-source://cache/${rel}`,
+  };
+}
 
 class PythonSidecar {
   private child: ChildProcessWithoutNullStreams | null = null;
@@ -483,6 +528,22 @@ function isWorkspaceFile(filePath: string, folderPath: string): boolean {
     && (lower.endsWith('.vera') || lower.endsWith('.pdf'));
 }
 
+async function showInFolder(targetPath: string): Promise<void> {
+  if (typeof targetPath !== 'string' || !targetPath.trim()) {
+    throw new Error('Path is required');
+  }
+  const resolved = resolve(targetPath);
+  if (!existsSync(resolved)) {
+    throw new Error('This path is no longer available.');
+  }
+  if (statSync(resolved).isDirectory()) {
+    const error = await shell.openPath(resolved);
+    if (error) throw new Error(error);
+    return;
+  }
+  shell.showItemInFolder(resolved);
+}
+
 async function trashWorkspaceFile(filePath: string, folderPath: string): Promise<'trashed' | 'deleted' | 'cancelled'> {
   if (!isWorkspaceFile(filePath, folderPath) || !existsSync(filePath) || !statSync(filePath).isFile()) {
     throw new Error('This file is no longer available in the open folder.');
@@ -684,6 +745,28 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   configureMenu();
+  mkdirSync(sourceCacheDir(), { recursive: true });
+  protocol.handle('vera-source', (request) => {
+    try {
+      const parsed = new URL(request.url);
+      if (parsed.hostname !== 'cache') {
+        return new Response('Not found', { status: 404 });
+      }
+      const relativePath = decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
+      if (!relativePath || relativePath.includes('\0')) {
+        return new Response('Not found', { status: 404 });
+      }
+      const root = resolve(sourceCacheDir());
+      const filePath = resolve(root, relativePath);
+      if (!isPathInsideDir(filePath, root) || !existsSync(filePath) || !statSync(filePath).isFile()) {
+        return new Response('Not found', { status: 404 });
+      }
+      return net.fetch(pathToFileURL(filePath).href);
+    } catch (error) {
+      console.error('[vera-source] Failed to serve cached source document', error);
+      return new Response('Not found', { status: 404 });
+    }
+  });
   ipcMain.handle('vera:showMenu', (event, menuId: string, x: number, y: number) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const item = Menu.getApplicationMenu()?.getMenuItemById(menuId);
@@ -703,7 +786,32 @@ app.whenReady().then(() => {
     const onEvent = (e: SidecarEvent) => {
       if (!sender.isDestroyed()) sender.send('vera:answerEvent', e);
     };
-    return sidecar.request(withModesDir(withStoredApiKey(payload)), onEvent, requestId);
+    const prepared = withModesDir(withStoredApiKey(payload));
+    const request = prepared.action === 'source'
+      ? { ...prepared, cache_dir: sourceCacheDir() }
+      : prepared;
+    const response = await sidecar.request(request, onEvent, requestId);
+    if (
+      response.ok
+      && request.action === 'source'
+      && response.result
+      && typeof response.result === 'object'
+    ) {
+      try {
+        return {
+          ...response,
+          result: toSourceViewerResult(response.result as Record<string, unknown>),
+        };
+      } catch (error) {
+        return {
+          ...response,
+          ok: false,
+          result: undefined,
+          error: error instanceof Error ? error.message : 'Unable to prepare source document',
+        };
+      }
+    }
+    return response;
   });
   ipcMain.handle('vera:cancelAnswer', (_event, requestId: string) => sidecar.cancelAnswer(requestId));
   ipcMain.handle('vera:skipConversion', (_event, requestId: string) => sidecar.skipConversion(requestId));
@@ -716,6 +824,7 @@ app.whenReady().then(() => {
   ipcMain.handle('vera:pickArchive', async () => pickArchivePath());
   ipcMain.handle('vera:pickFolder', async () => pickFolderPath());
   ipcMain.handle('vera:listFolder', async (_event, dir: string) => listFolder(dir));
+  ipcMain.handle('vera:showInFolder', async (_event, targetPath: string) => showInFolder(targetPath));
   ipcMain.handle('vera:trashWorkspaceFile', async (_event, filePath: string, folderPath: string) => trashWorkspaceFile(filePath, folderPath));
   ipcMain.handle('vera:setWatchedFolders', async (_event, paths: string[]) => {
     setWatchedFolders(Array.isArray(paths) ? paths : []);

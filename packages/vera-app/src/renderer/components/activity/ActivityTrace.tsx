@@ -100,6 +100,7 @@ export function ActivityTrace({
   selectCitation,
   selectedChunkId,
   live,
+  status,
 }: {
   searches?: ActivitySearchItem[];
   citations?: ChatCitationResult[];
@@ -107,6 +108,8 @@ export function ActivityTrace({
   selectCitation?: (citation: ChatCitationResult) => void;
   selectedChunkId?: string;
   live?: boolean;
+  /** Live response status (Searching / Asking / …) rendered as the next activity row. */
+  status?: string;
 }) {
   const steps: ActivityStep[] = [
     ...(selectedPaths?.length ? [{ kind: 'scope' as const, paths: selectedPaths }] : []),
@@ -118,7 +121,8 @@ export function ActivityTrace({
         .map((figure): ActivityStep => ({ kind: 'image', citation, figure })),
     ),
   ];
-  if (!steps.length) return null;
+  const statusLabel = status?.trim() || '';
+  if (!steps.length && !statusLabel) return null;
 
   const list = (
     <ul className="activityList">
@@ -130,6 +134,12 @@ export function ActivityTrace({
           selected={(step.kind === 'source' || step.kind === 'image') && step.citation.result.chunk_id === selectedChunkId}
         />
       ))}
+      {statusLabel ? (
+        <li className="activityItem activityItem--pending activityItem--status">
+          <span className="statusDot activityStatusDot" aria-hidden="true" />
+          <span className="activityText">{statusLabel}</span>
+        </li>
+      ) : null}
     </ul>
   );
 

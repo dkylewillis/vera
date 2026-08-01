@@ -52,6 +52,7 @@ export interface VeraApi {
   pickArchive(): Promise<string | null>;
   pickFolder(): Promise<string | null>;
   listFolder(dir: string): Promise<WorkspaceFolderResult | null>;
+  showInFolder(targetPath: string): Promise<void>;
   trashWorkspaceFile(filePath: string, folderPath: string): Promise<'trashed' | 'deleted' | 'cancelled'>;
   setWatchedFolders(paths: string[]): Promise<void>;
   pickPdf(): Promise<string | null>;
@@ -213,7 +214,8 @@ export interface SourceDocumentResult {
   mime_type: string;
   hash: string;
   size: number;
-  data_url: string;
+  /** Privileged app URL for the cached source bytes (not a base64 data URL). */
+  url: string;
 }
 
 export interface PageResult {

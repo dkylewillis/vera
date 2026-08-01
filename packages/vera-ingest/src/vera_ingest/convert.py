@@ -7,7 +7,7 @@ import os
 import sqlite3
 import tempfile
 from pathlib import Path
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from vera import (
@@ -334,51 +334,40 @@ def convert(
     return str(target)
 
 
-def batch_convert(
-    directory: str,
+def _resolve_batch_pdfs(
+    directory: str | None,
     *,
-    recursive: bool = False,
-    overwrite: bool = False,
-    model: str = "hashing",
-    parser: str = "pymupdf",
-    chunk_size: int = 500,
-    overlap: int = 75,
-    store_original: bool = True,
-    ocr_mode: str = "auto",
-    ocr_language: str = "eng",
-    ocr_dpi: int = 300,
-    progress: Callable[[int, int, str], None] | None = None,
-    cancel: Any | None = None,
-) -> dict[str, Any]:
-    """Convert every PDF in a directory, continuing after per-file failures.
+    paths: Sequence[str] | None,
+    recursive: bool,
+    cancel: Any | None,
+) -> tuple[Path, list[Path]]:
+    """Return ``(report_root, pdfs)`` for directory discovery or an explicit list."""
+    if paths is not None:
+        if not paths:
+            raise ValueError("paths must not be empty when provided")
+        pdfs: list[Path] = []
+        for raw in paths:
+            _raise_if_cancelled(cancel)
+            path = Path(raw).expanduser().resolve()
+            if not path.is_file():
+                raise FileNotFoundError(f"PDF not found: {path}")
+            if path.suffix.lower() != ".pdf":
+                raise ValueError(f"Not a PDF file: {path}")
+            pdfs.append(path)
+        try:
+            root = Path(os.path.commonpath([str(path.parent) for path in pdfs]))
+        except ValueError:
+            # Different drives on Windows — fall back to the first parent.
+            root = pdfs[0].parent
+        return root, pdfs
 
-    Args:
-        directory: Root directory to scan for PDFs.
-        recursive: When ``True``, scan subdirectories.
-        overwrite: When ``True``, replace existing ``.vera`` outputs.
-        model: Embedding model name passed to :func:`convert`.
-        parser: PDF parser backend passed to :func:`convert`.
-        chunk_size: Target chunk size passed to :func:`convert`.
-        overlap: Chunk overlap passed to :func:`convert`.
-        store_original: Whether to embed originals passed to :func:`convert`.
-        ocr_mode: OCR mode passed to :func:`convert`.
-        ocr_language: OCR language passed to :func:`convert`.
-        ocr_dpi: OCR DPI passed to :func:`convert`.
-        progress: Optional ``(current, total, filename)`` callback.
-        cancel: Optional cancellation token.
-
-    Returns:
-        A report dict with ``converted``, ``skipped``, ``failed``, and related
-        fields.
-
-    Raises:
-        NotADirectoryError: When ``directory`` is not a directory.
-    """
-    root = Path(directory).resolve()
+    if directory is None or not str(directory).strip():
+        raise ValueError("directory is required when paths is not provided")
+    root = Path(directory).expanduser().resolve()
     if not root.is_dir():
         raise NotADirectoryError(str(root))
 
-    pdfs: list[Path] = []
+    pdfs = []
     if recursive:
         for current, directories, filenames in os.walk(root, followlinks=False):
             _raise_if_cancelled(cancel)
@@ -399,6 +388,61 @@ def batch_convert(
             for path in root.iterdir()
             if path.is_file() and path.suffix.lower() == ".pdf"
         )
+    return root, pdfs
+
+
+def batch_convert(
+    directory: str | None = None,
+    *,
+    paths: Sequence[str] | None = None,
+    recursive: bool = False,
+    overwrite: bool = False,
+    model: str = "hashing",
+    parser: str = "pymupdf",
+    chunk_size: int = 500,
+    overlap: int = 75,
+    store_original: bool = True,
+    ocr_mode: str = "auto",
+    ocr_language: str = "eng",
+    ocr_dpi: int = 300,
+    progress: Callable[[int, int, str], None] | None = None,
+    cancel: Any | None = None,
+) -> dict[str, Any]:
+    """Convert PDFs from a directory scan or an explicit path list.
+
+    Args:
+        directory: Root directory to scan for PDFs when ``paths`` is omitted.
+        paths: Explicit PDF file paths to convert. When set, directory discovery
+            is skipped and ``recursive`` is ignored.
+        recursive: When ``True``, scan subdirectories (directory mode only).
+        overwrite: When ``True``, replace existing ``.vera`` outputs.
+        model: Embedding model name passed to :func:`convert`.
+        parser: PDF parser backend passed to :func:`convert`.
+        chunk_size: Target chunk size passed to :func:`convert`.
+        overlap: Chunk overlap passed to :func:`convert`.
+        store_original: Whether to embed originals passed to :func:`convert`.
+        ocr_mode: OCR mode passed to :func:`convert`.
+        ocr_language: OCR language passed to :func:`convert`.
+        ocr_dpi: OCR DPI passed to :func:`convert`.
+        progress: Optional ``(current, total, filename)`` callback.
+        cancel: Optional cancellation token.
+
+    Returns:
+        A report dict with ``converted``, ``skipped``, ``failed``, and related
+        fields. ``directory`` is the scan root, or the common parent of
+        ``paths``.
+
+    Raises:
+        NotADirectoryError: When ``directory`` is not a directory.
+        FileNotFoundError: When a path in ``paths`` is missing.
+        ValueError: When neither ``directory`` nor ``paths`` is usable.
+    """
+    root, pdfs = _resolve_batch_pdfs(
+        directory,
+        paths=paths,
+        recursive=recursive,
+        cancel=cancel,
+    )
 
     outputs: list[str] = []
     skipped_existing: list[str] = []
@@ -456,7 +500,7 @@ def batch_convert(
 
     return {
         "directory": str(root),
-        "recursive": recursive,
+        "recursive": False if paths is not None else recursive,
         "overwrite": overwrite,
         "discovered": len(pdfs),
         "converted": len(outputs),

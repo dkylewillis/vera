@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('vera', {
   pickArchive: () => ipcRenderer.invoke('vera:pickArchive'),
   pickFolder: () => ipcRenderer.invoke('vera:pickFolder'),
   listFolder: (dir: string) => ipcRenderer.invoke('vera:listFolder', dir),
+  showInFolder: (targetPath: string) => ipcRenderer.invoke('vera:showInFolder', targetPath),
   trashWorkspaceFile: (filePath: string, folderPath: string) => ipcRenderer.invoke('vera:trashWorkspaceFile', filePath, folderPath),
   setWatchedFolders: (paths: string[]) => ipcRenderer.invoke('vera:setWatchedFolders', paths),
   pickPdf: () => ipcRenderer.invoke('vera:pickPdf'),

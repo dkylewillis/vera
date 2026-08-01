@@ -122,14 +122,24 @@ function PdfSourceViewerImpl({
       setRendering(true);
       try {
         // Re-use cached PDFDocument across highlight/scale changes for the same file.
-        if (!pdfRef.current || renderedSourceRef.current !== source.data_url) {
-          const bytes = await fetch(source.data_url).then((r) => r.arrayBuffer());
-          if (canceled) return;
-          pdfRef.current = await pdfjsLib.getDocument({
-            data: new Uint8Array(bytes),
+        // Source bytes arrive via a privileged vera-source:// URL (file-backed cache),
+        // not a giant base64 data URL through IPC.
+        if (!pdfRef.current || renderedSourceRef.current !== source.url) {
+          if (pdfRef.current) {
+            void pdfRef.current.loadingTask.destroy();
+            pdfRef.current = null;
+          }
+          const loadingTask = pdfjsLib.getDocument({
+            url: source.url,
             useWorkerFetch: false,
-          }).promise;
-          renderedSourceRef.current = source.data_url;
+          });
+          pdfRef.current = await loadingTask.promise;
+          if (canceled) {
+            void loadingTask.destroy();
+            pdfRef.current = null;
+            return;
+          }
+          renderedSourceRef.current = source.url;
         }
         const pdf = pdfRef.current;
         if (!pdf || canceled) return;
@@ -148,6 +158,7 @@ function PdfSourceViewerImpl({
         const defaultH = Math.floor(defaultViewport.height);
 
         // Build placeholder shells for every page — no rendering yet.
+        // Yield periodically so very large page counts don't hitch the UI thread.
         const shells: HTMLElement[] = [];
         for (let i = 1; i <= pdf.numPages; i++) {
           const shell = document.createElement('article');
@@ -162,6 +173,12 @@ function PdfSourceViewerImpl({
           shell.append(label, surface);
           container.append(shell);
           shells.push(shell);
+          if (i % 40 === 0) {
+            await new Promise<void>((resolve) => {
+              requestAnimationFrame(() => resolve());
+            });
+            if (canceled) return;
+          }
         }
 
         // Renders a single page into its already-appended shell.
@@ -249,7 +266,16 @@ function PdfSourceViewerImpl({
       observer?.disconnect();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [highlightKey, scale, source.data_url]); // targetPage intentionally excluded
+  }, [highlightKey, scale, source.url]); // targetPage intentionally excluded
+
+  // Release the PDF.js document when the viewer unmounts or the source changes.
+  useEffect(() => () => {
+    if (pdfRef.current) {
+      void pdfRef.current.loadingTask.destroy();
+      pdfRef.current = null;
+      renderedSourceRef.current = '';
+    }
+  }, [source.url]);
 
   return (
     <div className={`${compact ? 'pdfViewer compact' : 'pdfViewer'}${showHighlights ? '' : ' pdfViewer--hideHighlights'}`}>

@@ -3,6 +3,7 @@ import json
 import importlib
 import queue
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -349,6 +350,32 @@ def test_batch_convert_supports_recursive_discovery_and_default_names(tmp_path):
     assert (nested_pdf.parent / "nested-proposal.vera").is_file()
 
 
+def test_batch_convert_paths_converts_only_selected_pdfs(tmp_path):
+    root = tmp_path / "library"
+    root.mkdir()
+    first = root / "first.pdf"
+    second = root / "second.pdf"
+    ignored = root / "ignored.pdf"
+    make_pdf(first)
+    make_pdf(second)
+    make_pdf(ignored)
+
+    response = handle({
+        "id": "batch-paths",
+        "action": "batch_convert",
+        "paths": [str(first), str(second)],
+        "model": "hashing",
+    })
+
+    assert response["ok"] is True
+    assert response["result"]["discovered"] == 2
+    assert response["result"]["converted"] == 2
+    assert response["result"]["recursive"] is False
+    assert (root / "first.vera").is_file()
+    assert (root / "second.vera").is_file()
+    assert not (root / "ignored.vera").exists()
+
+
 def test_sidecar_forwards_ocr_options_for_single_and_batch_conversion(monkeypatch):
     sidecar = importlib.import_module("vera_app.sidecar")
     captured = {}
@@ -396,13 +423,19 @@ def test_sidecar_forwards_ocr_options_for_single_and_batch_conversion(monkeypatc
     assert captured["batch"][1]["ocr_dpi"] == 200
 
 
-def test_source_action_returns_pdf_data_url(tmp_path):
+def test_source_action_materializes_cache_file(tmp_path):
     pdf = tmp_path / "manual.pdf"
     out = tmp_path / "manual.vera"
+    cache_dir = tmp_path / "source-cache"
     make_pdf(pdf)
     convert(str(pdf), str(out), model="hashing", store_original=True)
 
-    response = handle({"id": "1", "action": "source", "path": str(out)})
+    response = handle({
+        "id": "1",
+        "action": "source",
+        "path": str(out),
+        "cache_dir": str(cache_dir),
+    })
 
     assert response["ok"] is True
     result = response["result"]
@@ -410,7 +443,55 @@ def test_source_action_returns_pdf_data_url(tmp_path):
     assert result["mime_type"] == "application/pdf"
     assert result["size"] > 0
     assert result["hash"]
-    assert result["data_url"].startswith("data:application/pdf;base64,")
+    assert "data_url" not in result
+    cache_path = Path(result["cache_path"])
+    assert cache_path.is_file()
+    assert cache_path.resolve().parent == cache_dir.resolve()
+    assert cache_path.stat().st_size == result["size"]
+    assert cache_path.read_bytes().startswith(b"%PDF")
+
+    # Second load reuses the same hash-keyed cache file.
+    again = handle({
+        "id": "2",
+        "action": "source",
+        "path": str(out),
+        "cache_dir": str(cache_dir),
+    })
+    assert again["ok"] is True
+    assert again["result"]["cache_path"] == result["cache_path"]
+
+
+def test_source_action_loads_filesystem_pdf(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    cache_dir = tmp_path / "source-cache"
+    make_pdf(pdf)
+
+    response = handle({
+        "id": "1",
+        "action": "source",
+        "path": str(pdf),
+        "cache_dir": str(cache_dir),
+    })
+
+    assert response["ok"] is True
+    result = response["result"]
+    assert result["filename"] == "manual.pdf"
+    assert result["mime_type"] == "application/pdf"
+    assert result["size"] == pdf.stat().st_size
+    assert result["hash"]
+    cache_path = Path(result["cache_path"])
+    assert cache_path.is_file()
+    assert cache_path.resolve().parent == cache_dir.resolve()
+    assert cache_path.read_bytes() == pdf.read_bytes()
+
+    again = handle({
+        "id": "2",
+        "action": "source",
+        "path": str(pdf),
+        "cache_dir": str(cache_dir),
+    })
+    assert again["ok"] is True
+    assert again["result"]["cache_path"] == result["cache_path"]
 
 
 def test_answer_action_requires_llm(tmp_path):

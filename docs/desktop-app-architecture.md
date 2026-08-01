@@ -90,13 +90,22 @@ A fresh persistent index is used automatically for Search and Ask. The Info
 view's **Deep inspect** action remains available for an explicit validation
 scan and populates library metrics. Libraries with at least 100 discovered
 archives prompt to build or update an unavailable index, while smaller
-libraries expose build, update, rescan, activate, and close actions in the
-folder row's context menu. The same menu can be opened from the keyboard with
-Shift+F10 or the Menu key, supports arrow key navigation, and closes with
-Escape. Explorer keeps the active-folder highlight without an Active text
-label, including when selected files override the library, and represents index
-state with a compact database badge: green for a fresh index and orange when an
-index is missing or stale. A blue spinning badge means a build or update is
+libraries expose build, update, rescan, show-in-system-folder, activate, and
+close actions in the folder row's context menu. File rows offer show-in-system-
+folder (and preview/trash where applicable). Clicking a PDF selects it and
+seeds Convert defaults without switching to the Convert view; Ctrl/Cmd+click
+toggles additional PDFs into a conversion multi-select (separate from `.vera`
+search-scope checkboxes). Double-click or right-click **View in document
+viewer** loads that PDF in the source pane; when multiple PDFs are selected,
+right-click also offers **Convert selected**. `.vera` rows keep **Preview
+embedded source** for the archive's stored original. The same menus can be
+opened from the keyboard with Shift+F10 or the Menu key, support arrow key
+navigation, and close with Escape. Show-in-folder opens a library directory in
+the OS file manager, or reveals a selected `.vera`/`.pdf` file in its parent
+folder. Explorer keeps the active-folder highlight without an Active text
+label, including when selected files override the library, and represents
+index state with a compact database badge: green for a fresh index and orange
+when an index is missing or stale. A blue spinning badge means a build or update is
 running in the background; after completion, a warning badge opens the report
 when archives were skipped. Choosing **Search anyway** never blocks retrieval:
 the sidecar performs recursive fan-out search and the app keeps a slower-search
@@ -119,7 +128,32 @@ build does not replace it.
 
 ## Batch PDF Conversion
 
-The Convert PDF view supports a single archive or an entire directory. Directory conversion can include nested folders and creates each `.vera` archive beside its source PDF using the same base filename (`proposal.pdf` becomes `proposal.vera`). Existing archives are validated before they are skipped; malformed outputs are reported separately, and overwrite must be selected explicitly. Conversion uses selective PyMuPDF/Tesseract OCR for image-based low-text pages with English language data bundled into both `vera-doc` and the packaged sidecar. It publishes a validated temporary sibling atomically, preserves an existing destination after failure, and rejects PDFs with no searchable text after OCR with an OCR-specific message. Sidecar `convert` and `batch_convert` requests accept optional `ocr_mode`, `ocr_language`, and `ocr_dpi` fields and otherwise use `auto`, `eng`, and `300`. The sidecar continues after per-file failures and returns converted, skipped, malformed, and failed counts plus individual diagnostics. During directory conversion the UI shows the current file path and offers **Skip** (continue with the next PDF) and **Stop** (abort the batch). Workspace folders refresh after the batch, allowing an existing collection index to become visibly stale without being rebuilt automatically. The same public `vera-doc` operation powers `vera convert <directory> --recursive`, keeping desktop and CLI behavior aligned.
+The Convert PDF view supports a single archive, an Explorer multi-selection of
+PDFs, or an entire directory. Opening the view (or switching Single PDF /
+Selected / PDF Directory) prefills paths from the latest Explorer selection: a
+PDF or `.vera` seeds single-file conversion, a non-empty PDF multi-select opens
+**Selected**, and a folder or active library seeds directory conversion.
+Directory conversion can include nested folders. Selected and directory modes
+create each `.vera` archive beside its source PDF using the same base filename
+(`proposal.pdf` becomes `proposal.vera`). Existing archives are validated
+before they are skipped; malformed outputs are reported separately, and
+overwrite must be selected explicitly. Conversion uses selective
+PyMuPDF/Tesseract OCR for image-based low-text pages with English language data
+bundled into both `vera-doc` and the packaged sidecar. It publishes a validated
+temporary sibling atomically, preserves an existing destination after failure,
+and rejects PDFs with no searchable text after OCR with an OCR-specific
+message. Sidecar `convert` and `batch_convert` requests accept optional
+`ocr_mode`, `ocr_language`, and `ocr_dpi` fields and otherwise use `auto`,
+`eng`, and `300`. `batch_convert` also accepts an explicit `paths` list of PDF
+files; when present, directory discovery is skipped. The sidecar continues
+after per-file failures and returns converted, skipped, malformed, and failed
+counts plus individual diagnostics. During multi-file conversion the UI shows
+the current file path and offers **Skip** (continue with the next PDF) and
+**Stop** (abort the batch). Workspace folders refresh after the batch, allowing
+an existing collection index to become visibly stale without being rebuilt
+automatically. The same public `vera-doc` operation powers
+`vera convert <directory> --recursive`, keeping desktop and CLI behavior
+aligned.
 
 ## Development Commands
 
@@ -146,10 +180,20 @@ From the repo root:
 uv run --extra dev python -m pytest -q
 ```
 
+## Source Document Viewer
+
+The `source` sidecar action accepts either a `.vera` archive or a filesystem
+`.pdf`. Archives materialize the embedded source attachment; PDF paths are
+copied into the same hash-keyed cache under Electron's userData
+`source-cache/` directory. Both return metadata plus `cache_path`. Electron
+rewrites that path to a privileged `vera-source://cache/...` URL and serves
+the bytes with `protocol.handle`, so PDF.js can fetch the document without
+shipping multi‑MB base64 through the JSON-Lines IPC channel (which previously
+froze the UI on large PDFs).
+
 ## Near-Term App Work
 
 - Replace the extractive cited draft in `answer` with configurable LLM provider calls that preserve citation ids.
-- Keep Source Document PDF rendering responsive for very large source documents.
 - Add recent document shortcuts.
 - Add richer conversion progress events from the sidecar.
 - Add settings for provider configuration and app defaults.

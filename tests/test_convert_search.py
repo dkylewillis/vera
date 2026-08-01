@@ -143,6 +143,29 @@ def test_batch_convert_reports_malformed_existing_output(tmp_path):
     assert "Missing required table: vera_metadata" in report["malformed_existing"][0]["issues"]
 
 
+def test_batch_convert_accepts_explicit_pdf_paths(tmp_path):
+    keep = tmp_path / "keep.pdf"
+    skip_sibling = tmp_path / "sibling.pdf"
+    nested = tmp_path / "nested" / "nested.pdf"
+    nested.parent.mkdir()
+    make_pdf(keep)
+    make_pdf(skip_sibling)
+    make_pdf(nested)
+
+    report = batch_convert(
+        paths=[str(keep), str(nested)],
+        model="hashing",
+    )
+
+    assert report["discovered"] == 2
+    assert report["converted"] == 2
+    assert report["recursive"] is False
+    assert report["directory"] == str(tmp_path.resolve())
+    assert (tmp_path / "keep.vera").is_file()
+    assert (nested.parent / "nested.vera").is_file()
+    assert not (tmp_path / "sibling.vera").exists()
+
+
 def test_batch_convert_skips_valid_output_without_original_asset(tmp_path):
     pdf = tmp_path / "manual.pdf"
     out = tmp_path / "manual.vera"

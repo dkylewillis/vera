@@ -28,3 +28,49 @@ export function isPdfSource(source: SourceDocumentResult | null): boolean {
   if (!source) return false;
   return source.mime_type === 'application/pdf' || source.filename.toLowerCase().endsWith('.pdf');
 }
+
+export function showInFolderLabel(platform: string): string {
+  if (platform === 'darwin') return 'Reveal in Finder';
+  if (platform === 'win32') return 'Show in Explorer';
+  return 'Show in Folder';
+}
+
+export type ExplorerSelection =
+  | { kind: 'file'; path: string; type: 'vera' | 'pdf' }
+  | { kind: 'folder'; path: string };
+
+export interface ConvertPathDefaults {
+  mode: 'single' | 'batch';
+  pdfPath?: string;
+  outputPath?: string;
+  batchDirectory?: string;
+}
+
+/** Prefill Convert PDF fields from the latest Explorer selection. */
+export function convertDefaultsFromSelection(
+  selection: ExplorerSelection | null,
+  fallbackFolderPath = '',
+): ConvertPathDefaults | null {
+  if (selection?.kind === 'file' && selection.type === 'pdf') {
+    return {
+      mode: 'single',
+      pdfPath: selection.path,
+      outputPath: defaultVeraPath(selection.path),
+    };
+  }
+  if (selection?.kind === 'file' && selection.type === 'vera') {
+    return {
+      mode: 'single',
+      pdfPath: selection.path.replace(/\.vera$/i, '.pdf'),
+      outputPath: selection.path,
+    };
+  }
+  if (selection?.kind === 'folder') {
+    return { mode: 'batch', batchDirectory: selection.path };
+  }
+  const folder = fallbackFolderPath.trim();
+  if (folder) {
+    return { mode: 'batch', batchDirectory: folder };
+  }
+  return null;
+}

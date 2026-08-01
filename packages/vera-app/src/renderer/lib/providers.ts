@@ -117,6 +117,16 @@ export function withPresetModels(profile: ProviderProfile): ProviderProfile {
 
 export function filterDiscoveredModels(profile: ProviderProfile, discovered: string[]): string[] {
   const preset = providerPresetFor(profile);
+  // OpenAI's /models list is noisy; keep a curated allowlist. OpenRouter and
+  // local providers surface the full live catalog (searchable in the UI).
+  if (preset?.key !== 'openai' || !preset.catalog?.length) return discovered;
+  const liveIds = new Set(discovered.map((model) => model.toLowerCase()));
+  return preset.catalog.filter((model) => liveIds.has(model.toLowerCase()));
+}
+
+/** Models to enable on first refresh when the profile has none selected yet. */
+export function defaultEnabledModels(profile: ProviderProfile, discovered: string[]): string[] {
+  const preset = providerPresetFor(profile);
   if (!preset?.catalog?.length) return discovered;
   const liveIds = new Set(discovered.map((model) => model.toLowerCase()));
   return preset.catalog.filter((model) => liveIds.has(model.toLowerCase()));
