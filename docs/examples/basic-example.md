@@ -94,9 +94,9 @@ summary.
 
 - Add [attachments](../python-api.md#optional-attachments) to store the original
   PDF alongside chunks.
-- Use [`vera_extract.convert`](../reference/conversion.md) to build archives
+- Use [`vera_extract.convert`](../reference/vera-extract.md) to build archives
   from PDFs instead of hand-authored chunks.
-- Open a folder of archives with [`VeraCorpus`](../reference/corpus.md) for
+- Open a folder of archives with [`VeraCorpus`](../reference/vera-corpus.md) for
   multi-document search.
 
 See [Examples and recipes](../examples.md) for CLI-based workflows.

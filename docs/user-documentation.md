@@ -27,8 +27,9 @@ figures, and citation metadata in one portable `.vera` file.
 
 ## Reference
 
-- [CLI reference](reference/cli.md) — command overview with links to the
+- [CLI reference](cli-reference.md) — command overview with links to the
   exhaustive JSON and exit-code contract.
+- [API reference](reference/index.md) — generated Python API docs.
 - [Current VERA 0.2 format specification](vera-spec-v0.2.md)
 - [Legacy VERA 0.1 format specification](vera-spec-v0.1.md)
 - [Collection index design and behavior](collection-index.md)

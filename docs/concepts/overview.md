@@ -83,4 +83,3 @@ Conversion composes `vera-extract` with `vera-doc`. Search and indexing use
 - [Format specification (0.2)](../vera-spec-v0.2.md) — on-disk schema details.
 - [Python API guide](../python-api.md) — narrative API walkthrough.
 - [Collection index design](../collection-index.md) — how library indexes work.
-- [API reference](../reference/database.md) — generated Python API docs.

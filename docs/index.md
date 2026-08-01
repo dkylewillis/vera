@@ -7,60 +7,14 @@ pre-computed embeddings, a keyword index, JSON metadata, and optional opaque
 attachments. Move it, share it, or search it locally without a retrieval
 service.
 
+## What VERA does
+
 VERA packages source documents into searchable archives and returns
 **citation-ready results** — every hit includes its source filename, page range,
 and heading path. Hybrid search fuses semantic and keyword retrieval so you can
 find both exact identifiers and paraphrased questions.
 
-## Getting started
-
-Ready to try VERA? Start here:
-
-<div class="grid cards" markdown>
-
--   :material-download: **Getting started**
-
-    ---
-
-    Install VERA, convert a PDF, and run your first cited search.
-
-    [:octicons-arrow-right-24: Getting started](getting-started.md)
-
--   :material-book-open-variant: **Concepts**
-
-    ---
-
-    Learn how `.vera` archives, chunks, and library indexes work.
-
-    [:octicons-arrow-right-24: Concepts](concepts/index.md)
-
--   :material-code-braces: **Examples**
-
-    ---
-
-    Copyable CLI recipes and Python examples for common workflows.
-
-    [:octicons-arrow-right-24: Examples](examples/index.md)
-
--   :material-connection: **Integrations**
-
-    ---
-
-    Connect MCP clients, agent skills, and the desktop app.
-
-    [:octicons-arrow-right-24: MCP server](mcp.md)
-
--   :material-api: **Reference**
-
-    ---
-
-    Generated Python API docs and the CLI reference.
-
-    [:octicons-arrow-right-24: Database API](reference/database.md)
-
-</div>
-
-## Features
+Major capabilities:
 
 - **Portable archives** — each `.vera` file is self-contained and searchable
   anywhere.
@@ -90,12 +44,22 @@ workspace:
 uv sync --extra dev --extra ml
 ```
 
+For PDF conversion, also install `vera-extract`:
+
+```bash
+python -m pip install ./packages/vera-extract
+```
+
 ## Quick example
+
+Convert a PDF and search it from the CLI:
 
 ```bash
 vera convert manual.pdf manual.vera
 vera search manual.vera "stormwater detention requirements" --top-k 5 --json
 ```
+
+Or create and search a database from Python:
 
 ```python
 from vera import ChunkRecord, VeraDatabase
@@ -114,6 +78,22 @@ with VeraDatabase.open("knowledge.vera") as database:
         print(result.score, result.record.text)
 ```
 
+## Choose a package
+
+- [**vera-doc**](packages/vera-doc.md) — create, store, and search `.vera`
+  archives from Python.
+- [**vera-extract**](packages/vera-extract.md) — parse PDFs, run selective OCR,
+  and convert sources into archives.
+- [**vera-cli**](packages/vera-cli.md) — run complete workflows from the
+  `vera` command.
+- [**vera-mcp**](packages/vera-mcp.md) — expose retrieval to MCP-capable
+  applications and agents.
+- [**vera-app**](packages/vera-app.md) — install or develop the desktop
+  application.
+
+See [Choose a package](packages/index.md) for package dependencies and
+responsibility boundaries, or browse the [API reference](reference/index.md).
+
 For the desktop app, see [Run the desktop app](desktop-app-getting-started.md).
-For AI agents, see the
+For AI agents, see [MCP integration](mcp.md) and the
 [Agent Skill on GitHub](https://github.com/dkylewillis/vera/blob/main/skills/vera/SKILL.md).

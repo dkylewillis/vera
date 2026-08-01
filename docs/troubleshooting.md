@@ -189,7 +189,7 @@ Check the command:
 - most path, dependency, and runtime failures write unstructured errors to
   stderr.
 
-Do not parse stderr as JSON. See the [CLI reference](reference/cli.md).
+Do not parse stderr as JSON. See the [CLI reference](cli-reference.md).
 
 ## MCP does not start
 

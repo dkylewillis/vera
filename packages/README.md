@@ -3,6 +3,9 @@
 The repository contains independently installable packages with one-way
 dependencies.
 
+See [Choose a package](https://dkylewillis.github.io/vera/packages/) for
+package-specific concepts, guides, examples, and reference documentation.
+
 ## `vera-doc`
 
 Publishes `vera`. Owns only storage and search:

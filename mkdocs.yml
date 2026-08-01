@@ -8,34 +8,29 @@ edit_uri: edit/main/docs/
 theme:
   name: material
   language: en
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  font:
+    text: Roboto
+    code: Roboto Mono
   palette:
     - scheme: slate
-      primary: indigo
-      accent: indigo
+      primary: blue
+      accent: blue
       toggle:
         icon: material/brightness-7
         name: Switch to light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: indigo
-      accent: indigo
+      primary: blue
+      accent: blue
       toggle:
         icon: material/brightness-4
         name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: indigo
-      accent: indigo
-      toggle:
-        icon: material/brightness-auto
-        name: Switch to system preference
   features:
-    - content.tabs.link
-    - content.code.copy
-    - content.tooltips
-    - navigation.footer
     - navigation.tabs
-    - navigation.indexes
+    - navigation.tabs.sticky
+    - navigation.footer
     - navigation.instant
     - navigation.instant.prefetch
     - navigation.instant.progress
@@ -44,24 +39,17 @@ theme:
     - navigation.tracking
     - search.suggest
     - search.highlight
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - content.tooltips
     - toc.follow
 
 plugins:
   - search
   - redirects:
       redirect_maps:
-        cli-reference.md: reference/cli.md
-        concepts/overview.md: concepts/index.md
-        reference/index.md: reference/database.md
-        reference/vera-database.md: reference/database.md
-        reference/vera-models.md: reference/models.md
-        reference/vera-document.md: reference/document.md
-        reference/vera-corpus.md: reference/corpus.md
-        reference/vera-collection.md: reference/collection.md
-        reference/vera-extract.md: reference/conversion.md
-        reference/vera-mcp.md: reference/mcp_server.md
-        reference/vera-cli.md: reference/cli.md
-        reference/vera.md: reference/database.md
+        concepts/index.md: concepts/overview.md
   - mkdocstrings:
       handlers:
         python:
@@ -83,10 +71,9 @@ plugins:
             summary: true
             inherited_members: true
             show_source: false
-            show_submodules: true
+            show_root_toc_entry: true
             show_symbol_type_heading: true
             show_symbol_type_toc: true
-            filters: ["!^_[^_]"]
             members_order: source
 
 markdown_extensions:
@@ -107,53 +94,74 @@ markdown_extensions:
   - toc:
       permalink: true
 
+extra_css:
+  - stylesheets/extra.css
+
 nav:
-  - Documentation:
-      - Documentation: index.md
-      - Getting started:
-          - Getting started: getting-started.md
-          - Quickstart: getting_started/quickstart.md
-      - Usage:
-          - Convert documents: conversion.md
-          - Search documents: searching.md
+  - Home: index.md
+  - Packages:
+      - Choose a package: packages/index.md
+      - API reference overview: reference/index.md
+  - vera-doc:
+      - Overview: packages/vera-doc.md
+      - Learn:
+          - Getting started: guides/basic-usage.md
+          - Concepts: concepts/overview.md
+      - Guides:
+          - Search: searching.md
           - Document libraries: document-libraries.md
           - Figures and regions: figures-and-regions.md
           - Validation and export: validation-and-export.md
-          - Evaluation: evaluation.md
-          - Python API guide: python-api.md
-      - Integrations:
-          - MCP server: mcp.md
-          - Agent skills: agent-skills.md
-          - Desktop app: desktop-app-getting-started.md
-      - Concepts:
-          - Concepts: concepts/index.md
+          - Python API: python-api.md
       - Examples:
-          - Examples: examples/index.md
-          - Basic example: examples/basic-example.md
+          - Create and search an archive: examples/basic-example.md
+      - API reference:
+          - Public package: reference/vera.md
+          - VeraDatabase: reference/vera-database.md
+          - Records: reference/vera-models.md
+          - VeraDocument: reference/vera-document.md
+          - VeraCorpus: reference/vera-corpus.md
+          - Library index: reference/vera-collection.md
+  - vera-extract:
+      - Overview and concepts: packages/vera-extract.md
+      - Guides:
+          - Convert documents: conversion.md
+      - Examples:
+          - Python examples: packages/vera-extract-examples.md
+      - API reference:
+          - Public package: reference/vera-extract.md
+  - vera-cli:
+      - Overview: packages/vera-cli.md
+      - Guides:
+          - Getting started: getting-started.md
           - Recipes: examples.md
-      - FAQ:
-          - Troubleshooting: troubleshooting.md
-      - Specification:
-          - Format (0.2): vera-spec-v0.2.md
-          - Format (0.1): vera-spec-v0.1.md
-          - Collection index: collection-index.md
-          - Library index structure: library-index-structure.md
-      - Contributor:
-          - Documentation index: user-documentation.md
-          - Architecture: architecture.md
-          - Desktop app architecture: desktop-app-architecture.md
-          - Handoff: HANDOFF.md
-  - Reference:
-      - Python API:
-          - Database: reference/database.md
-          - Records: reference/models.md
-          - Document: reference/document.md
-          - Corpus: reference/corpus.md
-          - Library index: reference/collection.md
-          - Conversion: reference/conversion.md
-          - MCP server: reference/mcp_server.md
-      - CLI:
-          - CLI reference: reference/cli.md
+          - Evaluation: evaluation.md
+      - Reference:
+          - CLI commands: cli-reference.md
+          - Python API: reference/vera-cli.md
+  - vera-mcp:
+      - Overview: packages/vera-mcp.md
+      - Guides:
+          - Setup, tools, and examples: mcp.md
+          - Agent skills: agent-skills.md
+      - API reference:
+          - Public package: reference/vera-mcp.md
+  - vera-app:
+      - Overview and user guide: packages/vera-app.md
+      - Guides:
+          - Getting started: desktop-app-getting-started.md
+      - Developer:
+          - Architecture: desktop-app-architecture.md
+  - Specifications:
+      - Format specification (0.2): vera-spec-v0.2.md
+      - Format specification (0.1): vera-spec-v0.1.md
+      - Collection index design: collection-index.md
+      - Library index structure: library-index-structure.md
+  - Project:
+      - Documentation index: user-documentation.md
+      - Architecture: architecture.md
+      - Handoff: HANDOFF.md
+      - Troubleshooting: troubleshooting.md
 
 extra:
   social:

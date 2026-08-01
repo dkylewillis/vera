@@ -1,14 +1,13 @@
-# MCP server
+# Document
 
-This is an automatically generated API reference for the VERA Model Context
-Protocol server.
+This is an automatically generated API reference of the read-oriented
+`VeraDocument` facade used by the CLI, desktop app, and MCP adapter.
 
-::: vera_mcp
+::: vera.document
     handler: python
     options:
       members:
-        - build_server
-        - main
+        - VeraDocument
       show_if_no_docstring: true
       show_submodules: true
       docstring_section_style: list
@@ -26,4 +25,7 @@ Protocol server.
       signature_crossrefs: true
       summary: true
 
-See [MCP integration](../mcp.md) for client configuration examples.
+New applications performing CRUD should prefer
+[`VeraDatabase`](vera-database.md).
+
+See [`SearchResult`](vera-models.md) for the shape of search hits.

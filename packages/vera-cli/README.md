@@ -6,4 +6,7 @@ retrieval evaluation.
 
 Install the `mcp` extra to enable `vera mcp`.
 
-See the [CLI reference](https://github.com/dkylewillis/vera/blob/main/docs/reference/cli.md).
+See the [vera-cli documentation](https://dkylewillis.github.io/vera/packages/vera-cli/)
+for installation, recipes, evaluation, and command reference.
+
+See the [CLI reference](https://github.com/dkylewillis/vera/blob/main/docs/cli-reference.md).

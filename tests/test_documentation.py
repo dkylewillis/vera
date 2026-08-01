@@ -8,7 +8,7 @@ from vera_cli.main import build_parser
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
-CLI_REFERENCE = DOCS / "reference" / "cli.md"
+CLI_REFERENCE = DOCS / "cli-reference.md"
 
 
 def _leaf_commands(
@@ -63,7 +63,7 @@ def test_documentation_index_lists_user_guides():
         "evaluation.md",
         "python-api.md",
         "mcp.md",
-        "reference/cli.md",
+        "cli-reference.md",
         "library-index-structure.md",
     }
     for guide in guides:

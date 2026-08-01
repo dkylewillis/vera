@@ -21,6 +21,14 @@ _SEARCH_MODES = {"hybrid", "semantic", "keyword"}
 
 @dataclass(frozen=True)
 class Mode:
+    """Ask/research mode loaded from a Markdown file with YAML front matter.
+
+    Attributes:
+        id: Stable mode identifier used in requests.
+        label: Short display name in the desktop UI.
+        description: Optional longer description.
+    """
+
     id: str
     label: str
     description: str = ""
@@ -158,6 +166,7 @@ def load_modes(user_dir: str | None = None) -> list[Mode]:
 
 
 def resolve_mode(mode_id: str | None, user_dir: str | None = None) -> Mode:
+    """Return the requested mode, falling back to the default Ask mode."""
     modes = load_modes(user_dir)
     if not modes:
         return Mode(id="ask", label="Ask")

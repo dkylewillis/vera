@@ -1087,6 +1087,15 @@ def _cancelled_error_message(action: str, exc: BaseException | None = None) -> s
 
 
 def handle(request: Request, cancel: CancellationToken | None = None) -> Response:
+    """Dispatch a JSON-RPC request from the Electron renderer.
+
+    Args:
+        request: Parsed request dict with ``action`` and optional ``params``.
+        cancel: Optional token checked by long-running handlers.
+
+    Returns:
+        Response dict with ``id``, ``ok``, and result or error fields.
+    """
     request_id = request.get("id")
     action = str(request.get("action", ""))
     try:
@@ -1154,6 +1163,7 @@ def _run_background_request(request: Request) -> None:
 
 
 def main() -> int:
+    """Read JSON-RPC requests from stdin and write responses to stdout."""
     for line in sys.stdin:
         line = line.strip()
         if not line:

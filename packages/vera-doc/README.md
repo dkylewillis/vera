@@ -10,6 +10,8 @@ MCP, CLI, or desktop dependencies. Applications extract and chunk content
 before calling `vera-doc`. The separate `vera-extract` package provides the
 standard PDF pipeline.
 
+**Documentation:** [vera-doc guides and API reference](https://dkylewillis.github.io/vera/packages/vera-doc/)
+
 ## Install
 
 ```bash

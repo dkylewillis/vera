@@ -71,3 +71,5 @@ types.
       show_symbol_type_toc: true
       signature_crossrefs: true
       summary: true
+
+See [`CorpusSearchResult`](vera-corpus.md) for multi-document search results.

@@ -141,7 +141,7 @@ includes its source filename, page range, and heading path. Add
 text, figure metadata, or page coordinates.
 
 - [CLI quick start and recipes](docs/getting-started.md)
-- [CLI reference](docs/reference/cli.md)
+- [CLI reference](docs/cli-reference.md)
 - [Connect an MCP client](docs/mcp.md)
 - [Install the VERA Agent Skill](docs/agent-skills.md)
 - [Use the Python API](docs/python-api.md)
