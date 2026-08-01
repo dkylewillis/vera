@@ -11,6 +11,16 @@ from .ingest import (
     parse_pdf,
     parse_pdf_structured,
 )
+from .viewer import (
+    export_source_document,
+    figures,
+    figures_for,
+    get_blocks,
+    get_chunk_regions,
+    get_page,
+    get_source_document,
+    regions_for,
+)
 
 __all__ = [
     "convert",
@@ -23,4 +33,12 @@ __all__ = [
     "detect_heading",
     "parse_pdf",
     "parse_pdf_structured",
+    "export_source_document",
+    "figures",
+    "figures_for",
+    "get_blocks",
+    "get_chunk_regions",
+    "get_page",
+    "get_source_document",
+    "regions_for",
 ]

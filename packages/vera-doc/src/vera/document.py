@@ -1,422 +1,910 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import tempfile
+from collections.abc import Iterable, Iterator, Mapping
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, Protocol, Sequence
 
-from .core.schema import FORMAT_VERSION
-from .core.access import SourceDocument
-from .core.access import export_source_document as export_source
-from .core.access import get_asset as get_stored_asset
-from .core.access import get_blocks as get_layout_blocks
-from .core.access import get_chunk_regions as get_regions
-from .core.access import get_page as get_stored_page
-from .core.access import get_source_document as get_stored_source_document
-from .core.access import regions_for_result
-from .core.figures import figures as get_figures
-from .core.figures import figures_for_result
-from .core.inspection import inspect_document
-from .core.search import SearchResult, search_document
+import numpy as np
+
+from .core.embeddings import deserialize_vector, get_embedder, serialize_vector
+from .core.schema import FORMAT_VERSION, create_schema
 from .core.validation import validate_document
-from .database import VeraDatabase
-from .models import QueryResult, thaw_json
+from .models import (
+    AttachmentRecord,
+    AttachmentRef,
+    ChunkRecord,
+    JsonObject,
+    QueryResult,
+    metadata_from_json,
+    metadata_to_json,
+    thaw_json,
+)
+
+OpenMode = Literal["read", "write"]
+SearchMode = Literal["semantic", "keyword", "hybrid"]
 
 
-class VeraDocument:
-    """Read-oriented facade for an existing ``.vera`` archive.
+class EmbeddingFunction(Protocol):
+    """Protocol for embedding functions used when writing records.
 
-    Prefer :class:`~vera.database.VeraDatabase` for CRUD. ``VeraDocument`` adds
-    figure listing, page access, highlight regions, and source export on top
-    of search. Used by the CLI, desktop app, and MCP adapter.
+    Attributes:
+        model_name: Identifier stored in the archive metadata.
+        dimension: Vector length expected by the database.
+    """
+
+    model_name: str
+    dimension: int
+
+    def embed(self, texts: list[str]) -> np.ndarray:
+        """Embed a batch of texts.
+
+        Args:
+            texts: Strings to embed.
+
+        Returns:
+            A 2-D array of shape ``(len(texts), dimension)``.
+        """
+        ...
+
+
+class DuplicateRecordError(ValueError):
+    """Raised when add() receives an ID that already exists."""
+
+
+class RecordNotFoundError(KeyError):
+    """Raised when a requested chunk or attachment does not exist."""
+
+
+class ReadOnlyError(PermissionError):
+    """Raised when a write is attempted on a read-only database."""
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _normalize_scores(scores: Mapping[str, float]) -> dict[str, float]:
+    if not scores:
+        return {}
+    values = list(scores.values())
+    low, high = min(values), max(values)
+    if high == low:
+        return {key: 1.0 for key in scores}
+    return {key: (value - low) / (high - low) for key, value in scores.items()}
+
+
+class VeraDatabase:
+    """An embedded vector database backed by a single portable ``.vera`` file.
+
+    Use :meth:`create` to initialize a new archive and :meth:`open` to access
+    an existing one. Archives support CRUD on :class:`~vera.models.ChunkRecord`
+    objects, optional binary attachments, and semantic, keyword, or hybrid
+    search.
 
     Example:
         ```python
-        from vera import VeraDocument
+        from vera import ChunkRecord, VeraDatabase
 
-        with VeraDocument.open("manual.vera") as document:
-            for result in document.search("detention requirements", top_k=5):
-                print(result.page_start, result.heading_path, result.text)
+        with VeraDatabase.create("example.vera") as database:
+            database.add([ChunkRecord(id="1", text="Hello world.")])
+
+        with VeraDatabase.open("example.vera") as database:
+            results = database.search(text="hello", top_k=5)
         ```
     """
 
     def __init__(
         self,
-        path: str,
-        conn: sqlite3.Connection | None,
+        path: Path,
+        conn: sqlite3.Connection,
         *,
-        database: VeraDatabase | None = None,
-    ):
+        mode: OpenMode,
+        embedding_function: EmbeddingFunction | None,
+    ) -> None:
         self.path = path
-        self.conn = conn
-        self._database = database
-        if self.conn is not None:
-            self.conn.row_factory = sqlite3.Row
+        self._conn = conn
+        self._conn.row_factory = sqlite3.Row
+        self._mode = mode
+        self._embedding_function = embedding_function
+        self._transaction_active = False
+        self._closed = False
 
     @classmethod
-    def open(cls, path: str) -> "VeraDocument":
-        """Open an existing ``.vera`` archive for read-only access.
+    def create(
+        cls,
+        path: str | os.PathLike[str],
+        *,
+        embedding_function: EmbeddingFunction | None = None,
+        model: str = "hashing",
+        metadata: JsonObject | None = None,
+        overwrite: bool = False,
+    ) -> "VeraDatabase":
+        """Create a new empty ``.vera`` archive at ``path``.
 
         Args:
-            path: Path to a ``.vera`` file.
+            path: Destination file path.
+            embedding_function: Custom embedder. When omitted, ``model`` selects
+                the default embedder.
+            model: Default embedding model name (for example ``"hashing"``).
+            metadata: Caller-controlled JSON metadata stored in the archive.
+            overwrite: When ``False`` (default), raise :class:`FileExistsError`
+                if ``path`` already exists.
 
         Returns:
-            A document handle.
+            A write-mode database handle.
+
+        Raises:
+            FileExistsError: When the target exists and ``overwrite`` is false.
+        """
+        target = Path(path)
+        if target.exists() and not overwrite:
+            raise FileExistsError(str(target))
+        target.parent.mkdir(parents=True, exist_ok=True)
+        embedder = embedding_function or get_embedder(model)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+            dir=target.parent,
+        )
+        os.close(descriptor)
+        temporary = Path(temporary_name)
+        conn: sqlite3.Connection | None = None
+        try:
+            conn = sqlite3.connect(temporary)
+            conn.row_factory = sqlite3.Row
+            create_schema(conn)
+            now = _utc_now()
+            values = {
+                "format_name": "VERA",
+                "format_version": FORMAT_VERSION,
+                "created_at": now,
+                "created_by": "vera-doc",
+                "creator_library": f"vera-doc/{FORMAT_VERSION}",
+                "default_embedding_model": embedder.model_name,
+                "default_embedding_dimension": str(embedder.dimension),
+                "archive_metadata": metadata_to_json(metadata or {}),
+            }
+            conn.executemany(
+                "INSERT INTO vera_metadata(key, value) VALUES (?, ?)",
+                values.items(),
+            )
+            conn.commit()
+            conn.close()
+            conn = None
+            os.replace(temporary, target)
+        except BaseException:
+            if conn is not None:
+                conn.close()
+            temporary.unlink(missing_ok=True)
+            raise
+        return cls.open(
+            target,
+            mode="write",
+            embedding_function=embedder,
+        )
+
+    @classmethod
+    def open(
+        cls,
+        path: str | os.PathLike[str],
+        *,
+        mode: OpenMode = "read",
+        embedding_function: EmbeddingFunction | None = None,
+    ) -> "VeraDatabase":
+        """Open an existing ``.vera`` archive.
+
+        Args:
+            path: Path to an existing archive.
+            mode: ``"read"`` (default) opens SQLite read-only; ``"write"`` allows
+                mutations.
+            embedding_function: Embedder used for write-mode searches and record
+                writes. When omitted in write mode, the model recorded in the
+                archive is used.
+
+        Returns:
+            A database handle.
 
         Raises:
             FileNotFoundError: When ``path`` does not exist.
+            ValueError: When the archive format version is unsupported or the
+                embedder dimension does not match the archive.
         """
-        if not Path(path).is_file():
-            raise FileNotFoundError(path)
-        conn = sqlite3.connect(path)
+        target = Path(path)
+        if mode not in {"read", "write"}:
+            raise ValueError("mode must be 'read' or 'write'")
+        if mode == "read":
+            uri = f"{target.resolve().as_uri()}?mode=ro"
+            conn = sqlite3.connect(uri, uri=True)
+        else:
+            conn = sqlite3.connect(target)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
         try:
-            row = conn.execute(
-                "SELECT value FROM vera_metadata WHERE key = 'format_version'"
-            ).fetchone()
-            if row is not None and row["value"] == FORMAT_VERSION:
-                conn.close()
-                return cls(
-                    path,
-                    None,
-                    database=VeraDatabase.open(path, mode="read"),
+            metadata_rows = conn.execute(
+                "SELECT key, value FROM vera_metadata"
+            ).fetchall()
+            stored = {row["key"]: row["value"] for row in metadata_rows}
+            if stored.get("format_version") != FORMAT_VERSION:
+                raise ValueError(
+                    "VeraDatabase requires format "
+                    f"{FORMAT_VERSION}; found {stored.get('format_version', 'unknown')}"
                 )
-        except sqlite3.Error:
-            return cls(path, conn)
-        return cls(path, conn)
+            if embedding_function is None and mode == "write":
+                embedding_function = get_embedder(
+                    stored.get("default_embedding_model", "hashing")
+                )
+            if embedding_function is not None:
+                expected = int(stored["default_embedding_dimension"])
+                if embedding_function.dimension != expected:
+                    raise ValueError(
+                        "embedding function dimension "
+                        f"{embedding_function.dimension} does not match database dimension {expected}"
+                    )
+            return cls(
+                target,
+                conn,
+                mode=mode,
+                embedding_function=embedding_function,
+            )
+        except BaseException:
+            conn.close()
+            raise
+
+    @property
+    def mode(self) -> OpenMode:
+        return self._mode
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Caller-controlled archive metadata as a mutable dict."""
+        value = self._metadata_values().get("archive_metadata", "{}")
+        return thaw_json(metadata_from_json(value))
+
+    def set_metadata(self, metadata: JsonObject) -> None:
+        """Replace caller-controlled archive metadata.
+
+        Args:
+            metadata: JSON-compatible mapping stored in the archive header.
+
+        Raises:
+            ReadOnlyError: When the database is opened read-only.
+        """
+        self._ensure_writable()
+        with self._write_scope():
+            self._conn.execute(
+                "UPDATE vera_metadata SET value = ? WHERE key = 'archive_metadata'",
+                (metadata_to_json(metadata),),
+            )
+
+    def add(self, records: Iterable[ChunkRecord]) -> None:
+        """Insert new chunk records.
+
+        Args:
+            records: Records to insert. IDs must not already exist.
+
+        Raises:
+            DuplicateRecordError: When a record ID already exists.
+            ReadOnlyError: When the database is opened read-only.
+            RecordNotFoundError: When an attachment reference is missing.
+        """
+        self._write_records(records, upsert=False)
+
+    def upsert(self, records: Iterable[ChunkRecord]) -> None:
+        """Insert or replace chunk records atomically.
+
+        Args:
+            records: Records to insert or update by ID.
+
+        Raises:
+            ReadOnlyError: When the database is opened read-only.
+            RecordNotFoundError: When an attachment reference is missing.
+        """
+        self._write_records(records, upsert=True)
+
+    def _write_records(
+        self,
+        records: Iterable[ChunkRecord],
+        *,
+        upsert: bool,
+    ) -> None:
+        self._ensure_writable()
+        items = tuple(records)
+        if not items:
+            return
+        if len({record.id for record in items}) != len(items):
+            raise ValueError("record IDs must be unique within a batch")
+        vectors = self._vectors_for(items)
+        now = _utc_now()
+        model_values = self._metadata_values()
+        model_name = model_values["default_embedding_model"]
+        dimension = int(model_values["default_embedding_dimension"])
+        with self._write_scope():
+            attachment_ids = {
+                row["attachment_id"]
+                for row in self._conn.execute("SELECT attachment_id FROM attachments")
+            }
+            for record, vector in zip(items, vectors):
+                missing = {
+                    ref.attachment_id
+                    for ref in record.attachments
+                    if ref.attachment_id not in attachment_ids
+                }
+                if missing:
+                    raise RecordNotFoundError(
+                        f"unknown attachment IDs: {', '.join(sorted(missing))}"
+                    )
+                existing = self._conn.execute(
+                    "SELECT created_at FROM chunks WHERE chunk_id = ?",
+                    (record.id,),
+                ).fetchone()
+                if existing is not None and not upsert:
+                    raise DuplicateRecordError(record.id)
+                created_at = existing["created_at"] if existing is not None else now
+                self._conn.execute(
+                    """
+                    INSERT INTO chunks(chunk_id, text, metadata_json, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(chunk_id) DO UPDATE SET
+                        text = excluded.text,
+                        metadata_json = excluded.metadata_json,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        record.id,
+                        record.text,
+                        metadata_to_json(record.metadata),
+                        created_at,
+                        now,
+                    ),
+                )
+                self._conn.execute(
+                    """
+                    INSERT INTO embeddings(
+                        chunk_id, model_name, model_dimension, vector, vector_format, created_at
+                    ) VALUES (?, ?, ?, ?, 'float32_le', ?)
+                    ON CONFLICT(chunk_id) DO UPDATE SET
+                        model_name = excluded.model_name,
+                        model_dimension = excluded.model_dimension,
+                        vector = excluded.vector,
+                        vector_format = excluded.vector_format,
+                        created_at = excluded.created_at
+                    """,
+                    (
+                        record.id,
+                        model_name,
+                        dimension,
+                        serialize_vector(vector),
+                        now,
+                    ),
+                )
+                self._conn.execute(
+                    "DELETE FROM chunks_fts WHERE chunk_id = ?",
+                    (record.id,),
+                )
+                self._conn.execute(
+                    "INSERT INTO chunks_fts(chunk_id, text) VALUES (?, ?)",
+                    (record.id, record.text),
+                )
+                self._conn.execute(
+                    "DELETE FROM chunk_attachments WHERE chunk_id = ?",
+                    (record.id,),
+                )
+                self._conn.executemany(
+                    """
+                    INSERT INTO chunk_attachments(chunk_id, attachment_id, role)
+                    VALUES (?, ?, ?)
+                    """,
+                    [
+                        (record.id, ref.attachment_id, ref.role or "")
+                        for ref in record.attachments
+                    ],
+                )
+
+    def _vectors_for(self, records: Sequence[ChunkRecord]) -> list[np.ndarray]:
+        expected = int(self._metadata_values()["default_embedding_dimension"])
+        generated_indices = [
+            index for index, record in enumerate(records) if record.vector is None
+        ]
+        generated: dict[int, np.ndarray] = {}
+        if generated_indices:
+            if self._embedding_function is None:
+                raise ValueError(
+                    "records without vectors require an embedding_function"
+                )
+            matrix = self._embedding_function.embed(
+                [records[index].text for index in generated_indices]
+            )
+            for index, vector in zip(generated_indices, matrix):
+                generated[index] = np.asarray(vector, dtype=np.float32)
+        vectors: list[np.ndarray] = []
+        for index, record in enumerate(records):
+            vector = (
+                generated[index]
+                if record.vector is None
+                else np.asarray(record.vector, dtype=np.float32)
+            )
+            if vector.ndim != 1 or vector.size != expected:
+                raise ValueError(
+                    f"record {record.id!r} vector dimension {vector.size} "
+                    f"does not match database dimension {expected}"
+                )
+            if not np.isfinite(vector).all():
+                raise ValueError(f"record {record.id!r} vector is not finite")
+            vectors.append(vector)
+        return vectors
+
+    def get(
+        self,
+        ids: Iterable[str] | None = None,
+        *,
+        where: Mapping[str, Any] | None = None,
+        limit: int | None = None,
+    ) -> list[ChunkRecord]:
+        """Fetch chunk records by ID and/or metadata filter.
+
+        Args:
+            ids: Specific chunk IDs to retrieve. When omitted, all matching
+                records are returned subject to ``where`` and ``limit``.
+            where: Exact equality filter on top-level metadata keys.
+            limit: Maximum number of records to return.
+
+        Returns:
+            Matching :class:`~vera.models.ChunkRecord` objects in storage order.
+        """
+        self._ensure_open()
+        if limit is not None and limit < 0:
+            raise ValueError("limit must be non-negative")
+        requested = tuple(ids) if ids is not None else None
+        if requested is not None and not requested:
+            return []
+        sql = """
+            SELECT c.chunk_id, c.text, c.metadata_json, e.vector
+            FROM chunks c
+            JOIN embeddings e ON e.chunk_id = c.chunk_id
+        """
+        params: list[Any] = []
+        if requested is not None:
+            placeholders = ",".join("?" for _ in requested)
+            sql += f" WHERE c.chunk_id IN ({placeholders})"
+            params.extend(requested)
+        sql += " ORDER BY c.rowid"
+        rows = self._conn.execute(sql, params).fetchall()
+        records = [self._row_to_record(row) for row in rows]
+        records = [
+            record for record in records if self._metadata_matches(record, where)
+        ]
+        if requested is not None:
+            by_id = {record.id: record for record in records}
+            records = [by_id[item] for item in requested if item in by_id]
+        return records if limit is None else records[:limit]
+
+    def delete(
+        self,
+        ids: Iterable[str] | None = None,
+        *,
+        where: Mapping[str, Any] | None = None,
+    ) -> int:
+        """Delete chunk records by ID and/or metadata filter.
+
+        Args:
+            ids: Specific chunk IDs to delete.
+            where: Exact equality filter on top-level metadata keys.
+
+        Returns:
+            The number of records deleted.
+        """
+        self._ensure_writable()
+        records = self.get(ids, where=where)
+        if not records:
+            return 0
+        with self._write_scope():
+            for record in records:
+                self._conn.execute(
+                    "DELETE FROM chunks_fts WHERE chunk_id = ?",
+                    (record.id,),
+                )
+                self._conn.execute(
+                    "DELETE FROM chunks WHERE chunk_id = ?",
+                    (record.id,),
+                )
+        return len(records)
+
+    def search(
+        self,
+        *,
+        text: str | None = None,
+        vector: Sequence[float] | None = None,
+        mode: SearchMode = "hybrid",
+        where: Mapping[str, Any] | None = None,
+        top_k: int = 10,
+    ) -> list[QueryResult]:
+        """Search chunk records.
+
+        Args:
+            text: Query string for semantic or keyword search. Required unless
+                ``vector`` is supplied for semantic mode.
+            vector: Pre-computed query vector for semantic search.
+            mode: ``"hybrid"`` (default), ``"semantic"``, or ``"keyword"``.
+            where: Exact equality filter on top-level metadata keys.
+            top_k: Maximum number of results to return.
+
+        Returns:
+            Ranked :class:`~vera.models.QueryResult` objects.
+        """
+        self._ensure_open()
+        if mode not in {"semantic", "keyword", "hybrid"}:
+            raise ValueError("mode must be semantic, keyword, or hybrid")
+        if top_k < 0:
+            raise ValueError("top_k must be non-negative")
+        if top_k == 0:
+            return []
+        if mode in {"keyword", "hybrid"} and not text:
+            raise ValueError(f"{mode} search requires text")
+        semantic: dict[str, float] = {}
+        keyword: dict[str, float] = {}
+        if mode in {"semantic", "hybrid"}:
+            query_vector = self._query_vector(text=text, vector=vector)
+            semantic = self._semantic_scores(query_vector)
+        if mode in {"keyword", "hybrid"}:
+            keyword = self._keyword_scores(text or "")
+        if mode == "semantic":
+            combined = semantic
+        elif mode == "keyword":
+            combined = keyword
+        else:
+            semantic_norm = _normalize_scores(semantic)
+            keyword_norm = _normalize_scores(keyword)
+            combined = {
+                record_id: 0.5 * semantic_norm.get(record_id, 0.0)
+                + 0.5 * keyword_norm.get(record_id, 0.0)
+                for record_id in semantic.keys() | keyword.keys()
+            }
+        records = {record.id: record for record in self.get(where=where)}
+        ranked = sorted(
+            (
+                (record_id, score)
+                for record_id, score in combined.items()
+                if record_id in records
+            ),
+            key=lambda item: (-item[1], item[0]),
+        )[:top_k]
+        return [
+            QueryResult(
+                record=records[record_id],
+                score=float(score),
+                semantic_score=semantic.get(record_id),
+                keyword_score=keyword.get(record_id),
+            )
+            for record_id, score in ranked
+        ]
+
+    def put_attachments(
+        self,
+        attachments: Iterable[AttachmentRecord],
+        *,
+        upsert: bool = False,
+    ) -> None:
+        """Store opaque binary attachments.
+
+        Args:
+            attachments: Attachment payloads to insert.
+            upsert: When ``True``, replace existing attachments with the same ID.
+
+        Raises:
+            ReadOnlyError: When the database is opened read-only.
+            DuplicateRecordError: When an ID exists and ``upsert`` is false.
+        """
+        self._ensure_writable()
+        items = tuple(attachments)
+        if len({item.id for item in items}) != len(items):
+            raise ValueError("attachment IDs must be unique within a batch")
+        now = _utc_now()
+        with self._write_scope():
+            for item in items:
+                existing = self._conn.execute(
+                    "SELECT 1 FROM attachments WHERE attachment_id = ?",
+                    (item.id,),
+                ).fetchone()
+                if existing is not None and not upsert:
+                    raise DuplicateRecordError(item.id)
+                self._conn.execute(
+                    """
+                    INSERT INTO attachments(
+                        attachment_id, mime_type, filename, data, hash,
+                        metadata_json, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(attachment_id) DO UPDATE SET
+                        mime_type = excluded.mime_type,
+                        filename = excluded.filename,
+                        data = excluded.data,
+                        hash = excluded.hash,
+                        metadata_json = excluded.metadata_json
+                    """,
+                    (
+                        item.id,
+                        item.media_type,
+                        item.filename,
+                        item.data,
+                        item.checksum,
+                        metadata_to_json(item.metadata),
+                        now,
+                    ),
+                )
+
+    def get_attachment(self, attachment_id: str) -> AttachmentRecord:
+        """Return a stored attachment by ID.
+
+        Args:
+            attachment_id: Attachment identifier.
+
+        Returns:
+            The matching :class:`~vera.models.AttachmentRecord`.
+
+        Raises:
+            RecordNotFoundError: When no attachment exists with that ID.
+        """
+        self._ensure_open()
+        row = self._conn.execute(
+            """
+            SELECT attachment_id, mime_type, filename, data, hash, metadata_json
+            FROM attachments WHERE attachment_id = ?
+            """,
+            (attachment_id,),
+        ).fetchone()
+        if row is None:
+            raise RecordNotFoundError(attachment_id)
+        return AttachmentRecord(
+            id=row["attachment_id"],
+            media_type=row["mime_type"],
+            filename=row["filename"],
+            data=bytes(row["data"]),
+            checksum=row["hash"],
+            metadata=metadata_from_json(row["metadata_json"]),
+        )
+
+    def delete_attachment(self, attachment_id: str) -> None:
+        """Delete a stored attachment.
+
+        Args:
+            attachment_id: Attachment identifier.
+
+        Raises:
+            RecordNotFoundError: When no attachment exists with that ID.
+            ValueError: When the attachment is still referenced by a chunk.
+            ReadOnlyError: When the database is opened read-only.
+        """
+        self._ensure_writable()
+        with self._write_scope():
+            try:
+                cursor = self._conn.execute(
+                    "DELETE FROM attachments WHERE attachment_id = ?",
+                    (attachment_id,),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError(
+                    f"attachment {attachment_id!r} is referenced by a chunk"
+                ) from exc
+            if cursor.rowcount == 0:
+                raise RecordNotFoundError(attachment_id)
+
+    def inspect(self) -> dict[str, Any]:
+        """Return archive metadata and record counts.
+
+        Returns:
+            A dict with ``path``, ``format_version``, ``embedding_model``,
+            ``chunks``, ``attachments``, and related fields.
+        """
+        self._ensure_open()
+        metadata = self._metadata_values()
+        return {
+            "path": str(self.path),
+            "format_name": metadata.get("format_name"),
+            "format_version": metadata.get("format_version"),
+            "created_at": metadata.get("created_at"),
+            "embedding_model": metadata.get("default_embedding_model"),
+            "embedding_dimension": int(
+                metadata.get("default_embedding_dimension", 0)
+            ),
+            "chunks": self._conn.execute(
+                "SELECT COUNT(*) FROM chunks"
+            ).fetchone()[0],
+            "attachments": self._conn.execute(
+                "SELECT COUNT(*) FROM attachments"
+            ).fetchone()[0],
+            "metadata": self.metadata,
+        }
+
+    def validate(self) -> dict[str, Any]:
+        """Check archive integrity.
+
+        Returns:
+            A report dict with an ``ok`` boolean and an ``issues`` list.
+        """
+        self._ensure_open()
+        return validate_document(self._conn)
+
+    @contextmanager
+    def transaction(self) -> Iterator["VeraDatabase"]:
+        """Run a batch of writes in a single SQLite transaction.
+
+        Yields:
+            This database handle for use inside the ``with`` block.
+
+        Raises:
+            RuntimeError: When nested transactions are attempted.
+            ReadOnlyError: When the database is opened read-only.
+        """
+        self._ensure_writable()
+        if self._transaction_active:
+            raise RuntimeError("nested transactions are not supported")
+        self._conn.execute("BEGIN")
+        self._transaction_active = True
+        try:
+            yield self
+        except BaseException:
+            self._conn.rollback()
+            raise
+        else:
+            self._conn.commit()
+        finally:
+            self._transaction_active = False
+
+    @contextmanager
+    def _write_scope(self) -> Iterator[None]:
+        if self._transaction_active:
+            yield
+            return
+        try:
+            yield
+        except BaseException:
+            self._conn.rollback()
+            raise
+        else:
+            self._conn.commit()
+
+    def _row_to_record(self, row: sqlite3.Row) -> ChunkRecord:
+        refs = tuple(
+            AttachmentRef(
+                attachment_id=ref["attachment_id"],
+                role=ref["role"] or None,
+            )
+            for ref in self._conn.execute(
+                """
+                SELECT attachment_id, role FROM chunk_attachments
+                WHERE chunk_id = ? ORDER BY attachment_id, role
+                """,
+                (row["chunk_id"],),
+            )
+        )
+        return ChunkRecord(
+            id=row["chunk_id"],
+            text=row["text"],
+            metadata=metadata_from_json(row["metadata_json"]),
+            vector=deserialize_vector(row["vector"]),
+            attachments=refs,
+        )
+
+    @staticmethod
+    def _metadata_matches(
+        record: ChunkRecord,
+        where: Mapping[str, Any] | None,
+    ) -> bool:
+        if not where:
+            return True
+        metadata = thaw_json(record.metadata)
+        return all(metadata.get(key) == expected for key, expected in where.items())
+
+    def _query_vector(
+        self,
+        *,
+        text: str | None,
+        vector: Sequence[float] | None,
+    ) -> np.ndarray:
+        expected = int(self._metadata_values()["default_embedding_dimension"])
+        if vector is None:
+            if text is None:
+                raise ValueError("semantic search requires text or vector")
+            embedder = self._embedding_function
+            if embedder is None:
+                model_name = self._metadata_values()["default_embedding_model"]
+                embedder = get_embedder(model_name)
+            query = np.asarray(embedder.embed([text])[0], dtype=np.float32)
+        else:
+            query = np.asarray(vector, dtype=np.float32)
+        if query.ndim != 1 or query.size != expected:
+            raise ValueError(
+                f"query vector dimension {query.size} does not match database dimension {expected}"
+            )
+        if not np.isfinite(query).all():
+            raise ValueError("query vector must contain only finite numbers")
+        return query
+
+    def _semantic_scores(self, query: np.ndarray) -> dict[str, float]:
+        query_norm = float(np.linalg.norm(query))
+        if query_norm == 0:
+            return {}
+        scores: dict[str, float] = {}
+        for row in self._conn.execute(
+            "SELECT chunk_id, vector, model_dimension FROM embeddings"
+        ):
+            vector = deserialize_vector(row["vector"])
+            denominator = float(np.linalg.norm(vector)) * query_norm
+            scores[row["chunk_id"]] = (
+                float(np.dot(vector, query) / denominator)
+                if denominator
+                else 0.0
+            )
+        return scores
+
+    def _keyword_scores(self, text: str) -> dict[str, float]:
+        sql = """
+            SELECT chunk_id, bm25(chunks_fts) AS rank
+            FROM chunks_fts
+            WHERE chunks_fts MATCH ?
+        """
+        try:
+            rows = self._conn.execute(sql, (text,)).fetchall()
+        except sqlite3.OperationalError:
+            rows = []
+        if not rows:
+            terms = []
+            for token in text.split():
+                cleaned = "".join(
+                    character
+                    for character in token
+                    if character.isalnum() or character == "_"
+                )
+                if cleaned:
+                    terms.append(f"{cleaned}*")
+            if terms:
+                try:
+                    rows = self._conn.execute(
+                        sql,
+                        (" OR ".join(terms),),
+                    ).fetchall()
+                except sqlite3.OperationalError:
+                    rows = []
+        return {
+            row["chunk_id"]: -float(row["rank"])
+            for row in rows
+        }
+
+    def _metadata_values(self) -> dict[str, str]:
+        return {
+            row["key"]: row["value"]
+            for row in self._conn.execute(
+                "SELECT key, value FROM vera_metadata"
+            )
+        }
+
+    def _ensure_open(self) -> None:
+        if self._closed:
+            raise RuntimeError("database is closed")
+
+    def _ensure_writable(self) -> None:
+        self._ensure_open()
+        if self._mode != "write":
+            raise ReadOnlyError("database is read-only")
 
     def close(self) -> None:
-        if self._database is not None:
-            self._database.close()
-        elif self.conn is not None:
-            self.conn.close()
+        """Close the database connection."""
+        if not self._closed:
+            if self._transaction_active:
+                self._conn.rollback()
+                self._transaction_active = False
+            self._conn.close()
+            self._closed = True
 
-    def __enter__(self) -> "VeraDocument":
+    def __enter__(self) -> "VeraDatabase":
+        self._ensure_open()
         return self
 
     def __exit__(self, *exc: object) -> None:
         self.close()
 
-    def inspect(self) -> dict[str, Any]:
-        if self._database is not None:
-            info = self._database.inspect()
-            metadata = info.pop("metadata")
-            return {
-                **metadata,
-                **info,
-                "source": metadata.get("source_file_name"),
-                "pages": metadata.get("page_count", 0),
-                "default_embedding_model": info.get("embedding_model"),
-                "default_embedding_dimension": info.get("embedding_dimension"),
-            }
-        assert self.conn is not None
-        return inspect_document(self.conn, self.path)
-
-    def validate(self) -> dict[str, Any]:
-        if self._database is not None:
-            return self._database.validate()
-        assert self.conn is not None
-        return validate_document(self.conn)
-
-    def figures(
-        self,
-        page_start: int | None = None,
-        page_end: int | None = None,
-        include_data: bool = False,
-    ) -> list[dict[str, Any]]:
-        """Return extracted figures (image blocks + stored image assets).
-
-        Each figure includes its caption text when a caption block sits
-        vertically adjacent on the same page. Optionally filter to a page
-        range, e.g. the pages of a search result. Set include_data=True to
-        also return the image bytes.
-        """
-        if self._database is not None:
-            return self._modern_figures(
-                page_start=page_start,
-                page_end=page_end,
-                include_data=include_data,
-            )
-        assert self.conn is not None
-        return get_figures(self.conn, page_start, page_end, include_data=include_data)
-
-    def figures_for(self, result: SearchResult, include_data: bool = False) -> list[dict[str, Any]]:
-        """Return figures located on the pages of a search result."""
-        if self._database is not None:
-            record = self._database.get([result.chunk_id])
-            attachment_ids = {
-                ref.attachment_id
-                for ref in (record[0].attachments if record else ())
-                if ref.role == "figure"
-            }
-            return [
-                figure
-                for figure in self._modern_figures(include_data=include_data)
-                if figure["asset_id"] in attachment_ids
-            ]
-        assert self.conn is not None
-        return figures_for_result(self.conn, result, include_data=include_data)
-
-    def get_source_document(self) -> SourceDocument:
-        """Return the original source document (e.g. the PDF) stored in this file.
-
-        Raises ValueError if the file was created with store_original=False.
-        """
-        if self._database is not None:
-            attachment_id = self._database.metadata.get("source_attachment_id")
-            if not attachment_id:
-                raise ValueError("No original document stored in this VERA file")
-            attachment = self._database.get_attachment(attachment_id)
-            return SourceDocument(
-                filename=attachment.filename,
-                mime_type=attachment.media_type,
-                data=attachment.data,
-                hash=attachment.checksum,
-            )
-        assert self.conn is not None
-        return get_stored_source_document(self.conn)
-
-    def export_source_document(self, path: str | None = None) -> str:
-        """Write the original source document to disk and return its path.
-
-        When path is omitted, the stored source filename is used in the
-        current working directory. When path is an existing directory, the
-        stored filename is written inside it.
-        """
-        if self._database is not None:
-            source = self.get_source_document()
-            fallback = source.filename or "source_document"
-            target = Path(path) if path else Path(fallback)
-            if target.is_dir():
-                target = target / fallback
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(source.data)
-            return str(target)
-        assert self.conn is not None
-        return export_source(self.conn, path)
-
-    def get_page(self, page_number: int) -> dict[str, Any] | None:
-        """Return a single page (1-based) with its text and dimensions, or None."""
-        if self._database is not None:
-            pages = self._viewer_payload("viewer_pages_attachment_id")
-            for page in pages:
-                if page.get("page_number") == page_number:
-                    return {
-                        "page_id": f"page_{page_number:06d}",
-                        **page,
-                    }
-            return None
-        assert self.conn is not None
-        return get_stored_page(self.conn, page_number)
-
-    def get_blocks(self, page_number: int | None = None) -> list[dict[str, Any]]:
-        """Return layout blocks in reading order, optionally for a single page.
-
-        Each block carries its bbox ([x0, y0, x1, y1] in page points, origin
-        top-left) so applications can render page overlays.
-        """
-        if self._database is not None:
-            blocks = self._viewer_payload("viewer_blocks_attachment_id")
-            if page_number is not None:
-                blocks = [
-                    block
-                    for block in blocks
-                    if block.get("page_number") == page_number
-                ]
-            return blocks
-        assert self.conn is not None
-        return get_layout_blocks(self.conn, page_number)
-
-    def get_asset(self, asset_id: str, include_data: bool = True) -> dict[str, Any] | None:
-        """Return a stored asset by id (image, original document, ...), or None."""
-        if self._database is not None:
-            if asset_id == "asset_original_001":
-                modern_id = str(
-                    self._database.metadata.get(
-                        "source_attachment_id",
-                        "source_original",
-                    )
-                )
-            elif asset_id.startswith("asset_block_"):
-                modern_id = f"image_{asset_id.removeprefix('asset_')}"
-            else:
-                modern_id = asset_id
-            try:
-                attachment = self._database.get_attachment(modern_id)
-            except KeyError:
-                return None
-            result = {
-                "asset_id": asset_id,
-                "asset_type": (
-                    "original_document"
-                    if asset_id == "asset_original_001"
-                    else attachment.metadata.get("role", "attachment")
-                ),
-                "mime_type": attachment.media_type,
-                "filename": attachment.filename,
-                "hash": attachment.checksum,
-                "metadata": thaw_json(attachment.metadata),
-            }
-            if include_data:
-                result["data"] = attachment.data
-            return result
-        assert self.conn is not None
-        return get_stored_asset(self.conn, asset_id, include_data=include_data)
-
-    def get_chunk_regions(self, chunk_id: str) -> list[dict[str, Any]]:
-        """Return the page regions (bounding boxes) a chunk's text came from.
-
-        Each region is one contributing block: {page_number, bbox, block_id,
-        page_width, page_height}. bbox is [x0, y0, x1, y1] in page points with
-        the origin at the top-left; page dimensions let viewers scale the box
-        to any rendered size. Regions are block-granular: a chunk that starts
-        or ends mid-block highlights the whole block.
-        """
-        if self._database is not None:
-            records = self._database.get([chunk_id])
-            return (
-                list(thaw_json(records[0].metadata).get("regions", []))
-                if records
-                else []
-            )
-        assert self.conn is not None
-        return get_regions(self.conn, chunk_id)
-
-    def regions_for(self, result: SearchResult) -> list[dict[str, Any]]:
-        """Return highlight regions for a search result (see get_chunk_regions)."""
-        if self._database is not None:
-            return self.get_chunk_regions(result.chunk_id)
-        assert self.conn is not None
-        return regions_for_result(self.conn, result)
-
-    def search(self, query: str, mode: str = "hybrid", top_k: int = 10, context_chunks: int = 0) -> list[SearchResult]:
-        """Search the archive and return citation-ready results.
-
-        Args:
-            query: Query string.
-            mode: ``"hybrid"`` (default), ``"semantic"``, or ``"keyword"``.
-            top_k: Maximum number of results.
-            context_chunks: Number of neighboring chunks to include before and
-                after each hit.
-
-        Returns:
-            Ranked :class:`~vera.core.search.SearchResult` objects.
-        """
-        if context_chunks < 0:
-            raise ValueError("context_chunks must be non-negative")
-        if self._database is not None:
-            results = self._database.search(
-                text=query,
-                mode=mode,  # type: ignore[arg-type]
-                top_k=top_k,
-            )
-            mapped = [self._legacy_result(result) for result in results]
-            if context_chunks:
-                all_records = self._database.get()
-                positions = {
-                    record.id: index for index, record in enumerate(all_records)
-                }
-                for result in mapped:
-                    position = positions[result.chunk_id]
-                    result.before_chunks = [
-                        self._context_record(record)
-                        for record in all_records[
-                            max(0, position - context_chunks):position
-                        ]
-                    ]
-                    result.after_chunks = [
-                        self._context_record(record)
-                        for record in all_records[
-                            position + 1:position + context_chunks + 1
-                        ]
-                    ]
-            return mapped
-        assert self.conn is not None
-        return search_document(self.conn, query, mode=mode, top_k=top_k, context_chunks=context_chunks)
-
-    def _viewer_payload(self, metadata_key: str) -> list[dict[str, Any]]:
-        assert self._database is not None
-        attachment_id = self._database.metadata.get(metadata_key)
-        if not attachment_id:
-            return []
-        attachment = self._database.get_attachment(attachment_id)
-        payload = json.loads(attachment.data)
-        return payload if isinstance(payload, list) else []
-
-    def _modern_figures(
-        self,
-        page_start: int | None = None,
-        page_end: int | None = None,
-        include_data: bool = False,
-    ) -> list[dict[str, Any]]:
-        assert self._database is not None
-        rows = self._database._conn.execute(
-            """
-            SELECT attachment_id FROM attachments
-            WHERE json_extract(metadata_json, '$.role') = 'figure'
-            ORDER BY attachment_id
-            """
-        ).fetchall()
-        pages = {
-            page["page_number"]: page
-            for page in self._viewer_payload("viewer_pages_attachment_id")
-        }
-        blocks = self._viewer_payload("viewer_blocks_attachment_id")
-        captions = {
-            block["page_number"]: block["text"]
-            for block in blocks
-            if block.get("block_type") == "caption"
-        }
-        results = []
-        for row in rows:
-            attachment = self._database.get_attachment(row["attachment_id"])
-            metadata = thaw_json(attachment.metadata)
-            page_number = metadata.get("page_number")
-            if page_start is not None and page_number < page_start:
-                continue
-            if page_end is not None and page_number > page_end:
-                continue
-            block_id = attachment.id.removeprefix("image_")
-            page = pages.get(page_number, {})
-            figure = {
-                "block_id": block_id,
-                "page_number": page_number,
-                "bbox": metadata.get("bbox"),
-                "page_width": page.get("width"),
-                "page_height": page.get("height"),
-                "asset_id": attachment.id,
-                "mime_type": attachment.media_type,
-                "filename": attachment.filename,
-                "caption": captions.get(page_number),
-            }
-            if include_data:
-                figure["data"] = attachment.data
-            results.append(figure)
-        return results
-
-    @staticmethod
-    def _legacy_result(result: QueryResult) -> SearchResult:
-        metadata = thaw_json(result.record.metadata)
-        return SearchResult(
-            chunk_id=result.record.id,
-            score=result.score,
-            text=result.record.text,
-            page_start=metadata.get("page_start"),
-            page_end=metadata.get("page_end"),
-            heading_path=metadata.get("heading_path"),
-            source_filename=metadata.get("source_filename"),
-            document_id=metadata.get("document_id", "document_0001"),
-        )
-
-    @staticmethod
-    def _context_record(record: Any) -> dict[str, Any]:
-        metadata = thaw_json(record.metadata)
-        return {
-            "chunk_id": record.id,
-            "text": record.text,
-            "page_start": metadata.get("page_start"),
-            "page_end": metadata.get("page_end"),
-            "heading_path": metadata.get("heading_path"),
-            "source_filename": metadata.get("source_filename"),
-            "document_id": metadata.get("document_id", "document_0001"),
-        }

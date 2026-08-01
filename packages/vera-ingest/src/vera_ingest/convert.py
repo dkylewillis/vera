@@ -14,7 +14,7 @@ from vera import (
     AttachmentRecord,
     AttachmentRef,
     ChunkRecord,
-    VeraDatabase,
+    VeraDocument,
 )
 from vera.core.validation import validate_document
 
@@ -106,7 +106,7 @@ def convert(
     """Convert a PDF into a validated ``.vera`` archive.
 
     Parses the PDF, chunks extracted text, embeds chunks, and writes the
-    result through :class:`~vera.database.VeraDatabase`. The archive is
+    result through :class:`~vera.document.VeraDocument`. The archive is
     validated before the temporary file is published atomically.
 
     Args:
@@ -170,7 +170,7 @@ def convert(
     os.close(file_descriptor)
     temporary = Path(temporary_name)
     temporary.unlink()
-    database: VeraDatabase | None = None
+    document: VeraDocument | None = None
     try:
         page_dimensions = {
             page.page_number: (page.width, page.height)
@@ -309,16 +309,16 @@ def convert(
                 )
             )
 
-        database = VeraDatabase.create(
+        document = VeraDocument.create(
             temporary,
             model=model,
             metadata=archive_metadata,
         )
-        with database.transaction():
-            database.put_attachments(attachments)
-            database.add(records)
-        database.close()
-        database = None
+        with document.transaction():
+            document.put_attachments(attachments)
+            document.add(records)
+        document.close()
+        document = None
         _raise_if_cancelled(cancel)
 
         validation = _validate_output(temporary)
@@ -328,8 +328,8 @@ def convert(
 
         os.replace(temporary, target)
     finally:
-        if database is not None:
-            database.close()
+        if document is not None:
+            document.close()
         temporary.unlink(missing_ok=True)
     return str(target)
 

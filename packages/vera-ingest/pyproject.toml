@@ -1,7 +1,7 @@
 [project]
-name = "vera-extract"
+name = "vera-ingest"
 version = "0.2.0"
-description = "Source extraction and chunking adapters for VERA"
+description = "Source ingestion, chunking, and conversion adapters for VERA"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -18,4 +18,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/vera_extract"]
+packages = ["src/vera_ingest"]
+
+[tool.hatch.build]
+# Keep OCR language data next to the parsers package in wheels.
+[tool.hatch.build.targets.wheel.force-include]
+"src/vera_ingest/tessdata" = "vera_ingest/tessdata"
