@@ -24,9 +24,13 @@ const PDF_ZOOM_MIN = 0.75;
 const PDF_ZOOM_MAX = 2.5;
 const PDF_ZOOM_DEFAULT = 1;
 const PDF_ZOOM_STEP = 0.25;
+/** Wheel/trackpad delta accumulated before applying one discrete zoom step. */
+const PDF_ZOOM_WHEEL_THRESHOLD = 80;
 
 function clampPdfZoom(value: number): number {
-  return Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, Math.round(value * 100) / 100));
+  const clamped = Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, value));
+  const steps = Math.round((clamped - PDF_ZOOM_MIN) / PDF_ZOOM_STEP);
+  return Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, PDF_ZOOM_MIN + steps * PDF_ZOOM_STEP));
 }
 
 function PdfSourceViewerImpl({
@@ -65,27 +69,39 @@ function PdfSourceViewerImpl({
   }, [targetPage]);
 
   // Ctrl/Cmd + mouse wheel (and trackpad pinch, which Chromium reports as a wheel
-  // event with ctrlKey set) zooms the viewer, like a standard PDF/browser viewer.
-  // Wheel deltas are coalesced per animation frame so a fast scroll gesture doesn't
-  // trigger a full page re-render on every tick.
+  // event with ctrlKey set) zooms in the same discrete steps as the toolbar buttons.
+  // Deltas are accumulated so a mouse notch is one step and trackpad pinch doesn't
+  // jump on every tiny event; commits are coalesced to one setState per frame.
   useEffect(() => {
     const container = pagesRef.current;
     if (!container) return;
     let rafId: number | null = null;
-    let pendingFactor = 1;
+    let accumulated = 0;
+    let pendingSteps = 0;
 
     const commit = () => {
       rafId = null;
-      const factor = pendingFactor;
-      pendingFactor = 1;
-      setScale((value) => clampPdfZoom(value * factor));
+      const steps = pendingSteps;
+      pendingSteps = 0;
+      if (!steps) return;
+      setScale((value) => clampPdfZoom(value + steps * PDF_ZOOM_STEP));
     };
 
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
-      pendingFactor *= 1 - event.deltaY * 0.0015;
-      if (rafId == null) rafId = requestAnimationFrame(commit);
+      // Normalize line/page deltas to pixel-ish units so notch size is consistent.
+      const distance = event.deltaMode === 1
+        ? event.deltaY * 16
+        : event.deltaMode === 2
+          ? event.deltaY * PDF_ZOOM_WHEEL_THRESHOLD
+          : event.deltaY;
+      accumulated += distance;
+      while (Math.abs(accumulated) >= PDF_ZOOM_WHEEL_THRESHOLD) {
+        pendingSteps += accumulated > 0 ? -1 : 1;
+        accumulated -= Math.sign(accumulated) * PDF_ZOOM_WHEEL_THRESHOLD;
+      }
+      if (pendingSteps !== 0 && rafId == null) rafId = requestAnimationFrame(commit);
     };
 
     container.addEventListener('wheel', onWheel, { passive: false });
