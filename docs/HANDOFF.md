@@ -24,7 +24,7 @@ clickable citations that scroll the viewer to the page and highlight the cited t
 ## Completed (2026-06-10)
 
 ### Phase 1 — Document access APIs (now under `packages/vera-doc/src/vera`)
-- `SourceDocument` dataclass; `get_source_document()` / `export_source_document(path)`
+- Source attachment helpers: `get_source_document()` / `export_source_document(path)`
   — original PDF bytes back out of the archive (raises `ValueError` if
   `store_original=False`)
 - `get_page(n)`, `get_blocks(page_number=None)` (bbox parsed to lists), `get_asset(asset_id)`
@@ -44,7 +44,7 @@ clickable citations that scroll the viewer to the page and highlight the cited t
 ### Phase 2 — Corpus search (`packages/vera-doc/src/vera/corpus.py`)
 - `VeraCorpus.open(folder)` — discovers `*.vera`, supports opt-in recursive discovery,
   and uses a bounded LRU for source handles
-- `corpus.search(...)` → `CorpusSearchResult` (= `SearchResult` + `file` field)
+- `corpus.search(...)` → `CorpusSearchResult` (= `QueryResult` + `file` field)
 - Fusion: semantic = raw cosine merge for one model or model-group rank fusion for
   mixed models; keyword/hybrid = within-file score with reciprocal-rank tiebreak
 - Per-file query embedding uses each file's recorded model (mixed-model corpora OK)

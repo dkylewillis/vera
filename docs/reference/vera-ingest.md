@@ -1,8 +1,8 @@
-# vera_extract package
+# vera_ingest package
 
 PDF parsing, chunking, and conversion to `.vera` archives.
 
-::: vera_extract
+::: vera_ingest
     options:
       members:
         - convert
@@ -15,18 +15,28 @@ PDF parsing, chunking, and conversion to `.vera` archives.
         - chunk_pages
         - build_chunks_from_blocks
         - detect_heading
+        - figures
+        - figures_for
+        - get_page
+        - get_blocks
+        - get_chunk_regions
+        - regions_for
+        - get_source_document
+        - export_source_document
       heading_level: 2
       show_if_no_docstring: true
 
-Conversion writes through [`VeraDatabase`](vera-database.md). See the
-[conversion guide](../conversion.md) for OCR and batch options.
+Conversion writes through [`VeraDocument`](vera-document.md). Viewer helpers
+interpret ingest-produced attachments and metadata. See the
+[conversion guide](../conversion.md) and
+[figures and regions](../figures-and-regions.md).
 
-::: vera_extract.convert
+::: vera_ingest.convert
     options:
       heading_level: 2
       show_if_no_docstring: true
 
-::: vera_extract.batch_convert
+::: vera_ingest.batch_convert
     options:
       heading_level: 2
       show_if_no_docstring: true

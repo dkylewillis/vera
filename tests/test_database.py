@@ -11,13 +11,13 @@ from vera import (
     ChunkRecord,
     DuplicateRecordError,
     ReadOnlyError,
-    VeraDatabase,
+    VeraDocument,
 )
 
 
 def test_database_chunk_crud_and_search(tmp_path: Path) -> None:
     path = tmp_path / "records.vera"
-    with VeraDatabase.create(path, metadata={"project": "test"}) as database:
+    with VeraDocument.create(path, metadata={"project": "test"}) as database:
         database.add(
             [
                 ChunkRecord(
@@ -53,7 +53,7 @@ def test_database_chunk_crud_and_search(tmp_path: Path) -> None:
         assert database.delete(["two"]) == 1
         assert database.validate()["ok"] is True
 
-    with VeraDatabase.open(path) as database:
+    with VeraDocument.open(path) as database:
         assert [item.id for item in database.get()] == ["one"]
         with pytest.raises(ReadOnlyError):
             database.delete(["one"])
@@ -67,7 +67,7 @@ def test_database_attachments_and_references(tmp_path: Path) -> None:
         media_type="application/pdf",
         filename="source.pdf",
     )
-    with VeraDatabase.create(path) as database:
+    with VeraDocument.create(path) as database:
         database.put_attachments([attachment])
         database.add(
             [
@@ -89,7 +89,7 @@ def test_database_attachments_and_references(tmp_path: Path) -> None:
 
 def test_database_batches_are_atomic(tmp_path: Path) -> None:
     path = tmp_path / "atomic.vera"
-    with VeraDatabase.create(path) as database:
+    with VeraDocument.create(path) as database:
         database.add([ChunkRecord(id="existing", text="First")])
         with pytest.raises(DuplicateRecordError):
             database.add(
@@ -103,7 +103,7 @@ def test_database_batches_are_atomic(tmp_path: Path) -> None:
 
 def test_transaction_rolls_back(tmp_path: Path) -> None:
     path = tmp_path / "transaction.vera"
-    with VeraDatabase.create(path) as database:
+    with VeraDocument.create(path) as database:
         with pytest.raises(RuntimeError):
             with database.transaction():
                 database.add([ChunkRecord(id="temporary", text="Temporary")])
@@ -144,7 +144,7 @@ class TinyEmbedder:
 def test_precomputed_vectors_and_dimension_validation(tmp_path: Path) -> None:
     path = tmp_path / "vectors.vera"
     embedder = TinyEmbedder()
-    with VeraDatabase.create(
+    with VeraDocument.create(
         path,
         embedding_function=embedder,
     ) as database:
@@ -166,7 +166,7 @@ def test_precomputed_vectors_and_dimension_validation(tmp_path: Path) -> None:
 
 
 def test_empty_database_is_valid(tmp_path: Path) -> None:
-    with VeraDatabase.create(tmp_path / "empty.vera") as database:
+    with VeraDocument.create(tmp_path / "empty.vera") as database:
         assert database.validate()["ok"] is True
         assert database.inspect()["chunks"] == 0
 

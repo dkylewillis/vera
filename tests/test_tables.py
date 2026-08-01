@@ -5,10 +5,11 @@ import sqlite3
 import pytest
 
 from vera import VeraDocument
-from vera_extract import convert
-from vera_extract.ingest.chunking import build_chunks_from_blocks
-from vera_extract.ingest.parsers import ParsedBlock, parse_pdf_structured
-from vera_extract.ingest.parsers.pdf import (
+from vera_ingest import convert
+from vera_ingest.viewer import get_blocks
+from vera_ingest.chunking import build_chunks_from_blocks
+from vera_ingest.parsers import ParsedBlock, parse_pdf_structured
+from vera_ingest.parsers.pdf import (
     _merge_tables_into_blocks,
     _overlap_fraction,
     _table_to_markdown,
@@ -149,7 +150,7 @@ class TestParsePdfTables:
         with VeraDocument.open(str(out)) as document:
             count = sum(
                 block["block_type"] == "table"
-                for block in document.get_blocks()
+                for block in get_blocks(document)
             )
             assert count == 1
 

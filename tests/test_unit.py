@@ -2,7 +2,7 @@
 
 import pytest
 
-from vera_extract.ingest.chunking import chunk_pages, detect_heading
+from vera_ingest.chunking import chunk_pages, detect_heading
 from vera.core.embeddings import (
     HashingEmbedder,
     cosine_similarity,
@@ -10,9 +10,9 @@ from vera.core.embeddings import (
     get_embedder,
     serialize_vector,
 )
-from vera.document import VeraDocument, SearchResult
+from vera import ChunkRecord, QueryResult, VeraDocument
 from vera_cli import str_to_bool
-from vera_extract.ingest.parsers.pdf import ParsedPage
+from vera_ingest.parsers.pdf import ParsedPage
 
 
 # ---------------------------------------------------------------------------
@@ -207,23 +207,21 @@ class TestVectorSerialization:
 
 
 # ---------------------------------------------------------------------------
-# SearchResult
+# QueryResult
 # ---------------------------------------------------------------------------
 
-class TestSearchResult:
+class TestQueryResult:
     def _make(self, **kwargs):
         defaults = dict(
-            chunk_id="c001",
+            record=ChunkRecord(
+                id="c001",
+                text="Sample text",
+                metadata={"page_start": 1},
+            ),
             score=0.85,
-            text="Sample text",
-            page_start=1,
-            page_end=1,
-            heading_path="Chapter 1",
-            source_filename="doc.pdf",
-            document_id="doc_001",
         )
         defaults.update(kwargs)
-        return SearchResult(**defaults)
+        return QueryResult(**defaults)
 
     def test_as_dict_contains_all_fields(self):
         r = self._make()
@@ -231,7 +229,7 @@ class TestSearchResult:
         assert d["chunk_id"] == "c001"
         assert d["score"] == pytest.approx(0.85)
         assert d["text"] == "Sample text"
-        assert d["page_start"] == 1
+        assert d["metadata"]["page_start"] == 1
 
     def test_as_dict_is_a_copy(self):
         r = self._make()
@@ -247,7 +245,7 @@ class TestSearchResult:
 class TestVeraDocumentSearchValidation:
     def test_invalid_mode_raises_value_error(self, tmp_path):
         from test_convert_search import make_pdf
-        from vera_extract import convert
+        from vera_ingest import convert
 
         pdf = tmp_path / "test.pdf"
         vera = tmp_path / "test.vera"
@@ -257,7 +255,7 @@ class TestVeraDocumentSearchValidation:
         doc = VeraDocument.open(str(vera))
         try:
             with pytest.raises(ValueError, match="mode must be"):
-                doc.search("query", mode="fuzzy")
+                doc.search(text="query", mode="fuzzy")
         finally:
             doc.close()
 
@@ -268,14 +266,14 @@ class TestVeraDocumentSearchValidation:
 
 class TestConvertErrors:
     def test_missing_input_raises_file_not_found(self, tmp_path):
-        from vera_extract.convert import convert as vera_convert
+        from vera_ingest.convert import convert as vera_convert
 
         with pytest.raises(FileNotFoundError):
             vera_convert(str(tmp_path / "missing.pdf"), str(tmp_path / "out.vera"))
 
     def test_unsupported_parser_raises_value_error(self, tmp_path):
         from test_convert_search import make_pdf
-        from vera_extract.convert import convert as vera_convert
+        from vera_ingest.convert import convert as vera_convert
 
         pdf = tmp_path / "test.pdf"
         make_pdf(pdf)

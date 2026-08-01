@@ -2,7 +2,7 @@
 
 `vera-app` is the VERA desktop product: an Electron and React interface backed
 by a local Python sidecar. It composes `vera-doc` for retrieval and
-`vera-extract` for conversion; it does not use the CLI as its backend.
+`vera-ingest` for conversion; it does not use the CLI as its backend.
 
 The Python package root intentionally exports no public API. Sidecar, LLM
 provider, mode, and cancellation modules are implementation details and are

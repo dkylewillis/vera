@@ -5,9 +5,10 @@ import sqlite3
 import pytest
 
 from vera import VeraDocument
-from vera_extract import convert
-from vera_extract.ingest.chunking import build_chunks_from_blocks
-from vera_extract.ingest.parsers import ParsedBlock, parse_pdf_structured
+from vera_ingest import convert
+from vera_ingest.viewer import figures, figures_for, get_blocks
+from vera_ingest.chunking import build_chunks_from_blocks
+from vera_ingest.parsers import ParsedBlock, parse_pdf_structured
 
 
 def make_structured_pdf(path, with_image: bool = True):
@@ -181,10 +182,10 @@ class TestConvertWithBlocks:
         out = tmp_path / "out.vera"
         convert(str(structured_pdf), str(out), model="hashing")
         with VeraDocument.open(str(out)) as doc:
-            blocks = doc.get_blocks()
+            blocks = get_blocks(doc)
             assert sum(block["block_type"] == "heading" for block in blocks) >= 3
             assert sum(block["block_type"] == "image" for block in blocks) == 1
-            assert doc.figures()
+            assert figures(doc)
 
     def test_heading_path_stored_in_chunks(self, tmp_path, structured_pdf):
         out = tmp_path / "out.vera"
@@ -200,7 +201,7 @@ class TestConvertWithBlocks:
         out = tmp_path / "out.vera"
         convert(str(structured_pdf), str(out), model="hashing")
         with VeraDocument.open(str(out)) as doc:
-            assert len(doc.figures()) == 1
+            assert len(figures(doc)) == 1
 
     def test_validation_still_passes(self, tmp_path, structured_pdf):
         out = tmp_path / "out.vera"
@@ -223,30 +224,30 @@ class TestFiguresAPI:
         doc.close()
 
     def test_figures_lists_extracted_images(self, vera_doc):
-        figures = vera_doc.figures()
-        assert len(figures) == 1
-        assert figures[0]["page_number"] == 1
-        assert figures[0]["mime_type"].startswith("image/")
-        assert "data" not in figures[0]
+        items = figures(vera_doc)
+        assert len(items) == 1
+        assert items[0]["page_number"] == 1
+        assert items[0]["mime_type"].startswith("image/")
+        assert "data" not in items[0]
 
     def test_figures_include_data(self, vera_doc):
-        figures = vera_doc.figures(include_data=True)
-        assert figures[0]["data"]
+        items = figures(vera_doc, include_data=True)
+        assert items[0]["data"]
 
     def test_figures_page_filter(self, vera_doc):
-        assert len(vera_doc.figures(page_start=1, page_end=1)) == 1
-        assert vera_doc.figures(page_start=2, page_end=2) == []
+        assert len(figures(vera_doc, page_start=1, page_end=1)) == 1
+        assert figures(vera_doc, page_start=2, page_end=2) == []
 
     def test_figures_for_search_result(self, vera_doc):
         result = vera_doc.search("restaurant parking", mode="keyword", top_k=1)[0]
         assert result.page_start == 1
-        figures = vera_doc.figures_for(result)
-        assert len(figures) == 1
+        items = figures_for(vera_doc, result)
+        assert len(items) == 1
 
     def test_no_figures_for_other_page_result(self, vera_doc):
         result = vera_doc.search("detention impervious", mode="keyword", top_k=1)[0]
         assert result.page_start == 2
-        assert vera_doc.figures_for(result) == []
+        assert figures_for(vera_doc, result) == []
 
 
 def make_captioned_pdf(path):
@@ -303,10 +304,10 @@ class TestCaptions:
         convert(str(captioned_pdf), str(out), model="hashing")
         doc = VeraDocument.open(str(out))
         try:
-            figures = doc.figures()
-            assert len(figures) == 1
-            assert figures[0]["caption"] is not None
-            assert "Detention pond sizing" in figures[0]["caption"]
+            items = figures(doc)
+            assert len(items) == 1
+            assert items[0]["caption"] is not None
+            assert "Detention pond sizing" in items[0]["caption"]
         finally:
             doc.close()
 
@@ -315,8 +316,8 @@ class TestCaptions:
         convert(str(structured_pdf), str(out), model="hashing")
         doc = VeraDocument.open(str(out))
         try:
-            figures = doc.figures()
-            assert figures[0]["caption"] is None
+            items = figures(doc)
+            assert items[0]["caption"] is None
         finally:
             doc.close()
 
@@ -331,7 +332,7 @@ class TestCaptionKeywords:
         ],
     )
     def test_additional_caption_keywords_recognized(self, caption):
-        from vera_extract.ingest.parsers.pdf import _CAPTION_RE
+        from vera_ingest.parsers.pdf import _CAPTION_RE
 
         assert _CAPTION_RE.match(caption)
 
@@ -410,9 +411,9 @@ class TestFigureQualityFixes:
         with VeraDocument.open(str(out)) as doc:
             assert sum(
                 block["block_type"] == "image"
-                for block in doc.get_blocks()
+                for block in get_blocks(doc)
             ) == 1
-            assert len(doc.figures()) == 1
+            assert len(figures(doc)) == 1
 
     def test_figures_for_result_prefers_tight_chunk_link(self, tmp_path):
         pdf = tmp_path / "two_figures.pdf"
@@ -421,11 +422,11 @@ class TestFigureQualityFixes:
         convert(str(pdf), str(out), model="hashing")
         doc = VeraDocument.open(str(out))
         try:
-            assert len(doc.figures()) == 2
+            assert len(figures(doc)) == 2
             alpha_result = doc.search("alpha widgets components", mode="keyword", top_k=1)[0]
             beta_result = doc.search("beta gadgets components", mode="keyword", top_k=1)[0]
-            alpha_figures = doc.figures_for(alpha_result)
-            beta_figures = doc.figures_for(beta_result)
+            alpha_figures = figures_for(doc, alpha_result)
+            beta_figures = figures_for(doc, beta_result)
             assert len(alpha_figures) == 1
             assert len(beta_figures) == 1
             assert alpha_figures[0]["block_id"] != beta_figures[0]["block_id"]

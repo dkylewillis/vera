@@ -23,7 +23,7 @@ any point with `vera inspect` / `vera validate` or the Python equivalents.
 
 Applications that already have final text use **`ChunkRecord`** objects. VERA
 does not parse or chunk source files inside `vera-doc`; that work lives in
-`vera-extract`.
+`vera-ingest`.
 
 Each record has:
 
@@ -49,14 +49,10 @@ alone.
 
 ## Read vs write access
 
-**`VeraDatabase`** is the primary CRUD and search API. Open archives in
-read-only mode (the default) for search and inspection; use write mode for
-mutations.
-
-**`VeraDocument`** is a read-oriented compatibility facade used by the CLI,
-desktop app, and MCP adapter. It adds figure listing, page access, highlight
-regions, and source export on top of search. New applications performing CRUD
-should prefer `VeraDatabase`.
+**`VeraDocument`** is the storage and search API. Open archives in read-only
+mode (the default) for search and inspection; use write mode for mutations.
+Extractor-produced figures, page text, highlight regions, and source export
+are interpreted by `vera_ingest.viewer`, not by `vera-doc`.
 
 ## Document libraries
 
@@ -69,13 +65,13 @@ rebuildable; the `.vera` files remain the source of truth.
 
 ```text
 vera-doc       Storage, search, corpus, library indexes
-vera-extract   PDF parsing, OCR, chunking, conversion to .vera
+vera-ingest   PDF parsing, OCR, chunking, conversion to .vera
 vera-cli       Command-line interface (vera convert, search, index, …)
 vera-mcp       Model Context Protocol server for AI agents
 vera-app       Desktop app Python sidecar (Electron)
 ```
 
-Conversion composes `vera-extract` with `vera-doc`. Search and indexing use
+Conversion composes `vera-ingest` with `vera-doc`. Search and indexing use
 `vera-doc` directly.
 
 ## Related reading

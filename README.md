@@ -103,6 +103,10 @@ VERA also provides a CLI, Python library, MCP server, and portable Agent Skill
 for workflows that need structured, citation-ready retrieval.
 
 ```bash
+python -m pip install "vera-cli>=0.2.1"
+```
+
+```bash
 # Convert a PDF to a portable retrieval archive.
 vera convert input.pdf output.vera
 
@@ -117,10 +121,10 @@ Applications with ready-made chunks can use `vera-doc` directly without
 installing PDF/OCR dependencies:
 
 ```python
-from vera import ChunkRecord, VeraDatabase
+from vera import ChunkRecord, VeraDocument
 
-with VeraDatabase.create("knowledge.vera") as database:
-    database.add([
+with VeraDocument.create("knowledge.vera") as document:
+    document.add([
         ChunkRecord(
             id="chunk-1",
             text="The minimum pipe diameter is 12 inches.",
@@ -128,11 +132,11 @@ with VeraDatabase.create("knowledge.vera") as database:
         )
     ])
 
-with VeraDatabase.open("knowledge.vera") as database:
-    results = database.search(text="minimum pipe size", top_k=5)
+with VeraDocument.open("knowledge.vera") as document:
+    results = document.search(text="minimum pipe size", top_k=5)
 ```
 
-PDF extraction and chunking live in the separate `vera-extract` package and
+PDF extraction and chunking live in the separate `vera-ingest` package and
 are composed by `vera convert`.
 
 The default hybrid search combines semantic and keyword retrieval. Every result
@@ -150,6 +154,12 @@ text, figure metadata, or page coordinates.
 - [VERA Agent Skill CLI reference](skills/vera/references/cli-reference.md)
 
 ## Documentation
+
+Preview the documentation locally with:
+
+```bash
+uv run --extra docs mkdocs serve
+```
 
 - [Desktop app guide](docs/desktop-app-getting-started.md)
 - [Convert documents](docs/conversion.md)

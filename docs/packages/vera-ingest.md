@@ -1,16 +1,25 @@
-# vera-extract
+# vera-ingest
 
-`vera-extract` publishes the `vera_extract` Python package. It depends on
+`vera-ingest` publishes the `vera_ingest` Python package. It depends on
 `vera-doc` and owns PDF parsing, selective OCR, table extraction, heading
 detection, chunking, and conversion into validated `.vera` archives.
 
 It produces ready-made `ChunkRecord` values and optional attachments, then
-writes them through `VeraDatabase`.
+writes them through `VeraDocument`. Viewer helpers under `vera_ingest.viewer`
+read those ingest conventions back out for CLI, MCP, and app consumers.
 
 ## Install
 
+From PyPI:
+
 ```bash
-python -m pip install ./packages/vera-doc ./packages/vera-extract
+python -m pip install "vera-ingest>=0.2.1"
+```
+
+From a repository checkout:
+
+```bash
+python -m pip install ./packages/vera-doc ./packages/vera-ingest
 ```
 
 Python 3.10 or newer is required. PyMuPDF and pdfplumber are installed with the
@@ -19,7 +28,7 @@ package. Default English OCR works locally with bundled language data.
 ## Start here
 
 ```python
-from vera_extract import convert
+from vera_ingest import convert
 
 convert(
     "manual.pdf",
@@ -45,11 +54,12 @@ scanned prose; it does not reconstruct complex scanned forms or tables.
 ## Documentation
 
 - [Convert documents](../conversion.md) — OCR, chunking, embedding, and batch conversion.
-- [Figures and regions](../figures-and-regions.md) — extracted visual metadata.
+- [Figures and regions](../figures-and-regions.md) — extracted visual metadata and
+  [schema storage map](../figures-and-regions.md#storage-map-vera-02-schema).
 - [Conversion recipes](../examples.md) — single files, scans, and nested libraries.
 - [Python conversion example](../python-api.md#pdf-extraction).
 
 ## API reference
 
-- [`vera_extract`](../reference/vera-extract.md) — curated public conversion,
+- [`vera_ingest`](../reference/vera-ingest.md) — curated public conversion,
   parser, page, block, and chunking interfaces.

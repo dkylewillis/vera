@@ -7,27 +7,23 @@ from .collection import (
     update_library_index,
 )
 from .corpus import CorpusSearchResult, VeraCorpus
-from .database import (
+from .document import (
     DuplicateRecordError,
     EmbeddingFunction,
     ReadOnlyError,
     RecordNotFoundError,
-    VeraDatabase,
+    VeraDocument,
 )
-from .document import VeraDocument, SearchResult, SourceDocument
 from .models import AttachmentRecord, AttachmentRef, ChunkRecord, QueryResult
 
 __all__ = [
     "VeraDocument",
-    "SearchResult",
-    "SourceDocument",
     "VeraCorpus",
     "CorpusSearchResult",
     "VeraCollectionIndex",
     "build_library_index",
     "update_library_index",
     "library_index_status",
-    "VeraDatabase",
     "EmbeddingFunction",
     "ChunkRecord",
     "AttachmentRecord",

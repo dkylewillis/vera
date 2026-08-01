@@ -111,7 +111,7 @@ For neural embeddings, install the optional dependency and name a
 Sentence Transformers model:
 
 ```bash
-python -m pip install vera-cli "vera-doc[ml]"
+python -m pip install "vera-cli>=0.2.1" "vera-doc[ml]>=0.2.1"
 vera convert "input.pdf" --model sentence-transformers/all-MiniLM-L6-v2
 ```
 
@@ -144,7 +144,7 @@ representative query set before adopting non-default values.
 
 ## Parser
 
-`vera-extract` currently supports the `pymupdf` parser:
+`vera-ingest` currently supports the `pymupdf` parser:
 
 ```bash
 vera convert "input.pdf" --parser pymupdf
@@ -183,7 +183,7 @@ embedding counts, FTS consistency, and the stored source document.
 ## Python equivalent
 
 ```python
-from vera_extract import convert
+from vera_ingest import convert
 
 path = convert(
     "input.pdf",

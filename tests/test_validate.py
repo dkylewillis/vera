@@ -3,7 +3,7 @@ import subprocess
 import sys
 
 from vera import VeraDocument
-from vera_extract import convert
+from vera_ingest import convert
 from test_convert_search import make_pdf
 
 

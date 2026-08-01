@@ -1,16 +1,28 @@
 [project]
 name = "vera-mcp"
-version = "0.2.0"
-description = "Model Context Protocol integration for VERA databases"
+version = "0.2.1"
+description = "Model Context Protocol integration for VERA archives"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-doc",
+  "vera-doc>=0.2.1",
+  "vera-ingest>=0.2.1",
   "mcp>=1.0",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
 keywords = ["mcp", "semantic-search", "vera"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Text Processing :: Indexing",
+]
+
+[project.urls]
+Homepage = "https://github.com/dkylewillis/vera"
+Repository = "https://github.com/dkylewillis/vera"
+Documentation = "https://dkylewillis.github.io/vera/packages/vera-mcp/"
 
 [project.scripts]
 vera-mcp = "vera_mcp.server:main"

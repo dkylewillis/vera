@@ -9,7 +9,7 @@ import pytest
 from test_blocks_figures import make_structured_pdf
 from test_corpus import make_topic_pdf
 from test_convert_search import make_pdf
-from vera_extract import convert
+from vera_ingest import convert
 from vera_app.cancellation import CancellationToken
 from vera_app.llm import ChatResponse, LlmConfig, ProviderHttpError, ToolCall, ToolsUnsupportedError, VisionUnsupportedError
 from vera_app.sidecar import handle

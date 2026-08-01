@@ -6,7 +6,7 @@ VERA is a mono-repo of independently installable packages. Dependencies move
 inward toward the storage and search engine:
 
 ```text
-vera-extract ─┐
+vera-ingest ─┐
 vera-cli ─────┼──> vera-doc
 vera-app ─────┤
 vera-mcp ─────┘
@@ -34,47 +34,48 @@ It does not parse, clean, OCR, or chunk source content. It does not know what a
 PDF is. Attachments are opaque bytes, and chunk/archive metadata is
 JSON-compatible caller data.
 
-### `vera-extract`
+### `vera-ingest`
 
-`vera-extract` publishes `vera_extract`. It owns all source interpretation:
+`vera-ingest` publishes `vera_ingest`. It owns all source interpretation:
 
 - PDF parsing and table extraction;
 - selective OCR and bundled Tesseract data;
 - heading detection and chunk construction;
 - mapping pages, regions, figures, and provenance to chunk metadata;
 - optional source/image/viewer attachments;
+- reader helpers for pages, figures, regions, and source export;
 - single-file and batch conversion workflows.
 
-It emits final `ChunkRecord` objects and writes them through `VeraDatabase`.
-`vera-doc` never imports `vera_extract`.
+It emits final `ChunkRecord` objects and writes them through `VeraDocument`.
+`vera-doc` never imports `vera_ingest`.
 
 ### `vera-cli`
 
 `vera-cli` publishes the `vera` console script and `vera_cli` module. It owns
 argument parsing, text/JSON formatting, exit codes, and retrieval evaluation.
-Conversion commands compose `vera-extract` with `vera-doc`.
+Conversion commands compose `vera-ingest` with `vera-doc`.
 
 ### `vera-mcp`
 
 `vera-mcp` publishes `vera_mcp` and the `vera-mcp` console script. It is a
-thin MCP adapter over public `vera-doc` APIs. The optional `vera-cli[mcp]`
-extra installs it for `vera mcp`.
+thin MCP adapter over `vera-doc` search/storage APIs and `vera-ingest.viewer`
+helpers. The optional `vera-cli[mcp]` extra installs it for `vera mcp`.
 
 ### `vera-app`
 
-`vera-app` owns the Electron/React desktop application, Python sidecar, viewer
-interpretation, LLM providers, sessions, and application state. It depends on
-both `vera-doc` and `vera-extract`, not on `vera-cli`.
+`vera-app` owns the Electron/React desktop application, Python sidecar, LLM
+providers, sessions, and application state. It depends on both `vera-doc` and
+`vera-ingest` (including viewer helpers), not on `vera-cli`.
 
 ## Core Python API
 
 Applications that already have chunks need only `vera-doc`:
 
 ```python
-from vera import ChunkRecord, VeraDatabase
+from vera import ChunkRecord, VeraDocument
 
-with VeraDatabase.create("knowledge.vera") as database:
-    database.add(
+with VeraDocument.create("knowledge.vera") as document:
+    document.add(
         [
             ChunkRecord(
                 id="requirements-1",
@@ -84,8 +85,8 @@ with VeraDatabase.create("knowledge.vera") as database:
         ]
     )
 
-with VeraDatabase.open("knowledge.vera") as database:
-    results = database.search(text="minimum pipe size", top_k=5)
+with VeraDocument.open("knowledge.vera") as document:
+    results = document.search(text="minimum pipe size", top_k=5)
 ```
 
 The write API accepts only final chunks and optional opaque attachments:
@@ -109,7 +110,7 @@ record = ChunkRecord(
 Extraction is explicitly composed:
 
 ```python
-from vera_extract import convert
+from vera_ingest import convert
 
 convert("manual.pdf", "manual.vera")
 ```
@@ -121,13 +122,13 @@ packages/
   vera-doc/
     src/vera/
       core/
-      database.py
+      document.py
       document.py
       models.py
       collection.py
       corpus.py
-  vera-extract/
-    src/vera_extract/
+  vera-ingest/
+    src/vera_ingest/
       convert.py
       ingest/
         chunking.py
@@ -149,13 +150,11 @@ not dependency mechanisms.
 
 ## Format compatibility
 
-New databases and conversions write VERA 0.2. `VeraDocument` remains a
-read-oriented compatibility facade for the CLI, app, MCP adapter, and legacy
-0.1 archives. New applications should prefer `VeraDatabase`.
-
-The 0.1 document/page/block schema is documented in
-[vera-spec-v0.1.md](vera-spec-v0.1.md). The chunk-oriented current format is
-[vera-spec-v0.2.md](vera-spec-v0.2.md).
+New archives and conversions write VERA 0.2 only. The chunk-oriented current
+format is documented in [vera-spec-v0.2.md](vera-spec-v0.2.md). The older
+0.1 document/page/block schema remains in
+[vera-spec-v0.1.md](vera-spec-v0.1.md) for historical reference and is no
+longer read by `vera-doc`.
 
 ## Repository strategy
 

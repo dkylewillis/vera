@@ -6,8 +6,9 @@ from pathlib import Path
 import pytest
 
 from vera import VeraDocument
-from vera_extract import batch_convert, convert
-from vera_extract.ingest.parsers import pdf as pdf_parser
+from vera_ingest import batch_convert, convert
+from vera_ingest.parsers import pdf as pdf_parser
+from vera_ingest.viewer import regions_for
 
 
 def _scan_pixmap(text: str | None = None):
@@ -169,7 +170,7 @@ def test_convert_records_ocr_metadata_and_searchable_regions(tmp_path, monkeypat
         assert ocr["ocr_pages"] == [1]
         result = document.search("scanned stormwater", mode="keyword", top_k=1)[0]
         assert result.page_start == 1
-        assert document.regions_for(result)[0]["bbox"] == [48.0, 72.0, 520.0, 112.0]
+        assert regions_for(document, result)[0]["bbox"] == [48.0, 72.0, 520.0, 112.0]
     finally:
         document.close()
 

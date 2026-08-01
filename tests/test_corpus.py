@@ -8,7 +8,8 @@ import sys
 import pytest
 
 from vera import CorpusSearchResult, VeraCorpus
-from vera_extract import convert
+from vera_ingest import convert
+from vera_ingest.viewer import regions_for
 
 
 def make_topic_pdf(path, heading, body):
@@ -107,7 +108,7 @@ class TestSearch:
     def test_regions_for_corpus_result(self, corpus_dir):
         with VeraCorpus.open(str(corpus_dir)) as corpus:
             top = corpus.search("restaurant parking space", top_k=1)[0]
-            regions = corpus.regions_for(top)
+            regions = regions_for(corpus.document(top.file), top)
             assert regions
             assert len(regions[0]["bbox"]) == 4
             assert regions[0]["page_number"] == top.page_start

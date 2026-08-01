@@ -128,6 +128,10 @@ JSON-compatible application data, including:
 These keys are conventional, not required. Readers MUST preserve unknown
 metadata.
 
+For the ingest-produced mapping of figures, tables, captions, layout blocks,
+and highlight regions onto these tables, see
+[Figures and highlight regions — Storage map](figures-and-regions.md#storage-map-vera-02-schema).
+
 ## 5. Attachments
 
 Attachments are optional opaque payloads. The storage engine stores,

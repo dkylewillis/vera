@@ -6,7 +6,7 @@ the package that owns the capability you need.
 | Package | Install name | Import or command | Use it for |
 |---------|--------------|-------------------|------------|
 | [vera-doc](vera-doc.md) | `vera-doc` | `import vera` | Creating, storing, and searching `.vera` archives |
-| [vera-extract](vera-extract.md) | `vera-extract` | `import vera_extract` | PDF parsing, OCR, chunking, and conversion |
+| [vera-ingest](vera-ingest.md) | `vera-ingest` | `import vera_ingest` | PDF parsing, OCR, chunking, and conversion |
 | [vera-cli](vera-cli.md) | `vera-cli` | `vera` / `import vera_cli` | Shell workflows and retrieval evaluation |
 | [vera-mcp](vera-mcp.md) | `vera-mcp` | `vera mcp` / `import vera_mcp` | Exposing VERA retrieval to MCP clients |
 | [vera-app](vera-app.md) | `vera-app` | Desktop application | Interactive conversion, search, and grounded answers |
@@ -14,7 +14,7 @@ the package that owns the capability you need.
 ## Dependency direction
 
 ```text
-vera-extract ─┐
+vera-ingest ─┐
 vera-cli ─────┼──> vera-doc
 vera-app ─────┤
 vera-mcp ─────┘

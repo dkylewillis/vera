@@ -89,16 +89,17 @@ carefully.
 
 ```python
 from vera import VeraDocument
+from vera_ingest.viewer import export_source_document, get_source_document
 
 doc = VeraDocument.open("manual.vera")
 try:
     info = doc.inspect()
     report = doc.validate()
 
-    source = doc.get_source_document()
-    print(source.filename, source.mime_type, source.hash)
+    source = get_source_document(doc)
+    print(source.filename, source.media_type, source.checksum)
 
-    output = doc.export_source_document("./exports")
+    output = export_source_document(doc, "./exports")
     print(output)
 finally:
     doc.close()

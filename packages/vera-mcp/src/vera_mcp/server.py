@@ -21,10 +21,30 @@ from typing import Any
 
 from vera.corpus import VeraCorpus
 from vera.document import VeraDocument
+from vera_ingest.viewer import (
+    figures,
+    figures_for,
+    get_chunk_regions,
+    get_page,
+    regions_for,
+)
 
 
 def _open(file: str) -> VeraDocument:
     return VeraDocument.open(file)
+
+
+def _result_payload(result: Any) -> dict[str, Any]:
+    data = result.as_dict()
+    metadata = data.pop("metadata", {})
+    payload = {**metadata, **data}
+    for key in ("before_chunks", "after_chunks"):
+        if key in payload:
+            payload[key] = [
+                {**item.pop("metadata", {}), **item}
+                for item in payload[key]
+            ]
+    return payload
 
 
 def build_server():
@@ -61,12 +81,12 @@ def build_server():
         doc = _open(file)
         try:
             results = []
-            for result in doc.search(query, mode=mode, top_k=top_k, context_chunks=context_chunks):
-                entry = result.as_dict()
+            for result in doc.search(text=query, mode=mode, top_k=top_k, context_chunks=context_chunks):
+                entry = _result_payload(result)
                 if include_figures:
-                    entry["figures"] = doc.figures_for(result)
+                    entry["figures"] = figures_for(doc, result)
                 if include_regions:
-                    entry["regions"] = doc.regions_for(result)
+                    entry["regions"] = regions_for(doc, result)
                 results.append(entry)
             return {"query": query, "mode": mode, "results": results}
         finally:
@@ -88,12 +108,13 @@ def build_server():
         corpus = VeraCorpus.open(directory, recursive=recursive, excludes=excludes)
         try:
             results = []
-            for result in corpus.search(query, mode=mode, top_k=top_k, context_chunks=context_chunks):
-                entry = result.as_dict()
+            for result in corpus.search(text=query, mode=mode, top_k=top_k, context_chunks=context_chunks):
+                entry = _result_payload(result)
+                document = corpus.document(result.file)
                 if include_figures:
-                    entry["figures"] = corpus.figures_for(result)
+                    entry["figures"] = figures_for(document, result)
                 if include_regions:
-                    entry["regions"] = corpus.regions_for(result)
+                    entry["regions"] = regions_for(document, result)
                 results.append(entry)
             return {
                 "directory": directory,
@@ -134,7 +155,7 @@ def build_server():
         """List figures in a VERA file with captions and page locations."""
         doc = _open(file)
         try:
-            return doc.figures(page_start=page_start, page_end=page_end)
+            return figures(doc, page_start=page_start, page_end=page_end)
         finally:
             doc.close()
 
@@ -143,7 +164,7 @@ def build_server():
         """Get the full text of a single page."""
         doc = _open(file)
         try:
-            page = doc.get_page(page_number)
+            page = get_page(doc, page_number)
             if page is None:
                 return {"error": f"Page {page_number} not found"}
             return page
@@ -155,7 +176,7 @@ def build_server():
         """Get visual grounding regions for a chunk."""
         doc = _open(file)
         try:
-            return doc.get_chunk_regions(chunk_id)
+            return get_chunk_regions(doc, chunk_id)
         finally:
             doc.close()
 

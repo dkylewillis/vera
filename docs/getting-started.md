@@ -9,20 +9,21 @@ format or API changes before a stable release.
 ## Requirements
 
 - Python 3.10 or newer
-- Git
 - A local PDF
 - Windows, macOS, or Linux
 
-## Install from source
+## Install from PyPI
 
-VERA is not currently published on PyPI, so `python -m pip install vera-cli`
-does not work yet. Clone the repository and install both workspace packages
-into your preferred Python environment:
+Install the CLI and its dependencies:
 
 ```bash
-git clone https://github.com/dkylewillis/vera.git
-cd vera
-python -m pip install ./packages/vera-doc ./packages/vera-cli
+python -m pip install "vera-cli>=0.2.1"
+```
+
+That installs `vera-doc` and `vera-ingest` as well. Add MCP support with:
+
+```bash
+python -m pip install "vera-cli[mcp]>=0.2.1"
 ```
 
 Verify that the console script is available:
@@ -37,8 +38,30 @@ If `vera` is not on `PATH`, invoke the same CLI as a Python module:
 python -m vera_cli --help
 ```
 
-Contributors using `uv` can instead synchronize the workspace and invoke the
-CLI as a Python module:
+### Library-only installs
+
+```bash
+# Storage and search only
+python -m pip install "vera-doc>=0.2.1"
+
+# PDF conversion and viewer helpers
+python -m pip install "vera-ingest>=0.2.1"
+
+# MCP server package
+python -m pip install "vera-mcp>=0.2.1"
+```
+
+## Install from source
+
+Contributors can clone the repository and install workspace packages:
+
+```bash
+git clone https://github.com/dkylewillis/vera.git
+cd vera
+python -m pip install ./packages/vera-doc ./packages/vera-ingest ./packages/vera-cli
+```
+
+Or with `uv`:
 
 ```bash
 uv sync --extra dev
@@ -78,55 +101,29 @@ Inspect the archive:
 vera inspect "manual.vera"
 ```
 
-Check its integrity:
+Validate integrity:
 
 ```bash
 vera validate "manual.vera"
 ```
 
-A valid archive exits with status 0. An invalid archive exits with status 1 and
-prints the issues it found.
+Both commands accept `--json` for machine-readable output.
 
-## Search
-
-Hybrid search combines semantic and keyword retrieval and is the best default:
-
-```bash
-vera search "manual.vera" "stormwater detention requirements" --mode hybrid --top-k 5
-```
-
-Each result includes:
-
-- a relevance score;
-- source filename;
-- page or page range;
-- heading path;
-- retrieved text.
-
-Use those fields as citations rather than treating the score as evidence. For
-example:
-
-```text
-Detention is required when ... (manual.pdf, p. 117,
-Chapter 4 > Detention Design).
-```
-
-## Request structured output
-
-All one-shot commands accept `--json`:
+## Search with citations
 
 ```bash
 vera search "manual.vera" "stormwater detention requirements" --top-k 5 --json
 ```
 
-`vera mcp` is the exception: it is a long-running stdio protocol server, not a
-one-shot JSON command.
+Each result includes page range and heading path for grounded citations. Add
+`--figures`, `--regions`, or `--context-chunks 1` when you need visual or
+neighboring context.
 
 ## Next steps
 
-- Learn how to [choose search modes and refine queries](searching.md).
-- [Convert a directory of PDFs](conversion.md).
-- [Search and index a document library](document-libraries.md).
-- Retrieve [figures and visual highlight regions](figures-and-regions.md).
-- [Evaluate retrieval quality](evaluation.md) against expected answers.
-- Use VERA from [Python](python-api.md) or an [MCP client](mcp.md).
+- [CLI recipes](examples.md)
+- [Convert documents](conversion.md)
+- [Search documents](searching.md)
+- [Document libraries](document-libraries.md)
+- [Python API](python-api.md)
+- [MCP integration](mcp.md)

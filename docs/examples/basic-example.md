@@ -9,7 +9,7 @@ PDF or OCR dependencies.
 ```python
 """Minimal vera-doc example: create, populate, and search an archive."""
 
-from vera import ChunkRecord, QueryResult, VeraDatabase
+from vera import ChunkRecord, QueryResult, VeraDocument
 
 
 def print_result(result: QueryResult) -> None:
@@ -54,11 +54,11 @@ records = [
 ]
 
 # Create a new archive and add records.
-with VeraDatabase.create("example.vera", metadata={"project": "drainage"}) as db:
+with VeraDocument.create("example.vera", metadata={"project": "drainage"}) as db:
     db.add(records)
 
 # Search with each mode.
-with VeraDatabase.open("example.vera") as db:
+with VeraDocument.open("example.vera") as db:
     print("=== keyword: exact section reference ===")
     for r in db.search(text="section 4.2", mode="keyword", top_k=3):
         print_result(r)
@@ -94,7 +94,7 @@ summary.
 
 - Add [attachments](../python-api.md#optional-attachments) to store the original
   PDF alongside chunks.
-- Use [`vera_extract.convert`](../reference/vera-extract.md) to build archives
+- Use [`vera_ingest.convert`](../reference/vera-ingest.md) to build archives
   from PDFs instead of hand-authored chunks.
 - Open a folder of archives with [`VeraCorpus`](../reference/vera-corpus.md) for
   multi-document search.

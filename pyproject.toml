@@ -1,12 +1,12 @@
 [project]
 name = "vera-workspace"
-version = "0.2.0"
+version = "0.2.1"
 description = "VERA mono-repo workspace"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "vera-doc",
-  "vera-extract",
+  "vera-ingest",
   "vera-cli",
   "vera-app",
 ]
@@ -30,7 +30,7 @@ sidecar = ["pyinstaller>=6"]
 [tool.uv.workspace]
 members = [
   "packages/vera-doc",
-  "packages/vera-extract",
+  "packages/vera-ingest",
   "packages/vera-mcp",
   "packages/vera-cli",
   "packages/vera-app",
@@ -38,7 +38,7 @@ members = [
 
 [tool.uv.sources]
 vera-doc = { workspace = true }
-vera-extract = { workspace = true }
+vera-ingest = { workspace = true }
 vera-mcp = { workspace = true }
 vera-cli = { workspace = true }
 vera-app = { workspace = true }
@@ -53,7 +53,7 @@ bypass-selection = true
 [tool.pytest.ini_options]
 pythonpath = [
   "packages/vera-doc/src",
-  "packages/vera-extract/src",
+  "packages/vera-ingest/src",
   "packages/vera-mcp/src",
   "packages/vera-cli/src",
   "packages/vera-app/src",

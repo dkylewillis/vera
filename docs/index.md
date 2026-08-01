@@ -28,26 +28,26 @@ Major capabilities:
 
 ## Install
 
-VERA is currently installed from source. Clone the repository and install the
-workspace packages:
+Install the CLI from PyPI:
+
+```bash
+python -m pip install "vera-cli>=0.2.1"
+```
+
+That pulls in `vera-doc` and `vera-ingest`. Library-only installs:
+
+```bash
+python -m pip install "vera-doc>=0.2.1"
+python -m pip install "vera-ingest>=0.2.1"
+```
+
+Contributors using [uv](https://docs.astral.sh/uv/) can clone the repository and
+synchronize the workspace:
 
 ```bash
 git clone https://github.com/dkylewillis/vera.git
 cd vera
-python -m pip install ./packages/vera-doc ./packages/vera-cli
-```
-
-Contributors using [uv](https://docs.astral.sh/uv/) can synchronize the full
-workspace:
-
-```bash
 uv sync --extra dev --extra ml
-```
-
-For PDF conversion, also install `vera-extract`:
-
-```bash
-python -m pip install ./packages/vera-extract
 ```
 
 ## Quick example
@@ -62,10 +62,10 @@ vera search manual.vera "stormwater detention requirements" --top-k 5 --json
 Or create and search a database from Python:
 
 ```python
-from vera import ChunkRecord, VeraDatabase
+from vera import ChunkRecord, VeraDocument
 
-with VeraDatabase.create("knowledge.vera") as database:
-    database.add([
+with VeraDocument.create("knowledge.vera") as document:
+    document.add([
         ChunkRecord(
             id="chunk-1",
             text="The minimum pipe diameter is 12 inches.",
@@ -73,8 +73,8 @@ with VeraDatabase.create("knowledge.vera") as database:
         )
     ])
 
-with VeraDatabase.open("knowledge.vera") as database:
-    for result in database.search(text="minimum pipe size", top_k=5):
+with VeraDocument.open("knowledge.vera") as document:
+    for result in document.search(text="minimum pipe size", top_k=5):
         print(result.score, result.record.text)
 ```
 
@@ -82,7 +82,7 @@ with VeraDatabase.open("knowledge.vera") as database:
 
 - [**vera-doc**](packages/vera-doc.md) — create, store, and search `.vera`
   archives from Python.
-- [**vera-extract**](packages/vera-extract.md) — parse PDFs, run selective OCR,
+- [**vera-ingest**](packages/vera-ingest.md) — parse PDFs, run selective OCR,
   and convert sources into archives.
 - [**vera-cli**](packages/vera-cli.md) — run complete workflows from the
   `vera` command.

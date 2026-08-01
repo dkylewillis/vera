@@ -7,11 +7,36 @@ from pathlib import Path
 from vera.collection import build_library_index, library_index_status, update_library_index
 from vera.corpus import VeraCorpus
 from vera.document import VeraDocument
-from vera_extract import batch_convert, convert
+from vera_ingest import batch_convert, convert
+from vera_ingest.viewer import (
+    export_source_document,
+    figures_for,
+    get_source_document,
+    regions_for,
+)
 
 
 def str_to_bool(value: str) -> bool:
     return str(value).lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _document_for(target, result) -> VeraDocument:
+    if isinstance(target, VeraCorpus):
+        return target.document(result.file)
+    return target
+
+
+def _result_payload(result) -> dict:
+    data = result.as_dict()
+    metadata = data.pop("metadata", {})
+    payload = {**metadata, **data}
+    for key in ("before_chunks", "after_chunks"):
+        if key in payload:
+            payload[key] = [
+                {**item.pop("metadata", {}), **item}
+                for item in payload[key]
+            ]
+    return payload
 
 
 def cmd_convert(args) -> int:
@@ -101,15 +126,21 @@ def cmd_search(args) -> int:
         else VeraDocument.open(args.file)
     )
     try:
-        results = target.search(args.query, mode=args.mode, top_k=args.top_k, context_chunks=args.context_chunks)
+        results = target.search(
+            text=args.query,
+            mode=args.mode,
+            top_k=args.top_k,
+            context_chunks=args.context_chunks,
+        )
         if args.json:
             payload = []
             for result in results:
-                entry = result.as_dict()
+                entry = _result_payload(result)
+                document = _document_for(target, result)
                 if args.figures:
-                    entry["figures"] = target.figures_for(result)
+                    entry["figures"] = figures_for(document, result)
                 if args.regions:
-                    entry["regions"] = target.regions_for(result)
+                    entry["regions"] = regions_for(document, result)
                 payload.append(entry)
             response = {"query": args.query, "mode": args.mode, "results": payload}
             if isinstance(target, VeraCorpus):
@@ -131,16 +162,19 @@ def cmd_search(args) -> int:
                     f"{group['error']}"
                 )
         for result in results:
+            metadata = result.record.metadata
             print(f"Score: {result.score:.4f}")
             file = getattr(result, "file", None)
             if file:
                 print(f"File: {file}")
-            print(f"Source: {result.source_filename}")
-            page = result.page_start if result.page_start == result.page_end else f"{result.page_start}-{result.page_end}"
+            print(f"Source: {metadata.get('source_filename')}")
+            page_start = metadata.get("page_start")
+            page_end = metadata.get("page_end")
+            page = page_start if page_start == page_end else f"{page_start}-{page_end}"
             print(f"Page: {page}")
-            print(f"Heading: {result.heading_path or ''}")
+            print(f"Heading: {metadata.get('heading_path') or ''}")
             print()
-            print(result.text)
+            print(result.record.text)
             print("-" * 72)
     finally:
         target.close()
@@ -210,10 +244,9 @@ def cmd_validate(args) -> int:
     print(f"VERA validation: {'PASS' if report['ok'] else 'FAIL'}")
     print(f"File: {args.file}")
     counts = report["counts"]
-    print(f"Documents: {counts['documents']}")
-    print(f"Pages: {counts['pages']}")
     print(f"Chunks: {counts['chunks']}")
     print(f"Embeddings: {counts['embeddings']}")
+    print(f"Attachments: {counts['attachments']}")
     print(f"FTS rows: {counts['fts_rows']}")
     print(f"Original document: {'present' if report['checks']['original_document_present'] else 'missing'}")
     print(f"Issues: {len(report['issues'])}")
@@ -226,18 +259,18 @@ def cmd_export(args) -> int:
     doc = VeraDocument.open(args.file)
     try:
         try:
-            path = doc.export_source_document(args.output)
+            path = export_source_document(doc, args.output)
         except ValueError as exc:
             if args.json:
                 print(json.dumps({"ok": False, "error": str(exc)}))
             else:
                 print(f"Error: {exc}", file=sys.stderr)
             return 1
-        source = doc.get_source_document()
+        source = get_source_document(doc)
     finally:
         doc.close()
     if args.json:
-        print(json.dumps({"ok": True, "output": path, "filename": source.filename, "mime_type": source.mime_type, "hash": source.hash}))
+        print(json.dumps({"ok": True, "output": path, "filename": source.filename, "mime_type": source.media_type, "hash": source.checksum}))
     else:
         print(f"Exported {path}")
     return 0

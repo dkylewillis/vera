@@ -6,6 +6,15 @@ dependencies.
 See [Choose a package](https://dkylewillis.github.io/vera/packages/) for
 package-specific concepts, guides, examples, and reference documentation.
 
+Published on PyPI:
+
+| Package | Import / command | Role |
+|---------|------------------|------|
+| [`vera-doc`](https://pypi.org/project/vera-doc/) | `import vera` | Storage and search |
+| [`vera-ingest`](https://pypi.org/project/vera-ingest/) | `import vera_ingest` | PDF ingest and conversion |
+| [`vera-cli`](https://pypi.org/project/vera-cli/) | `vera` | CLI and evaluation |
+| [`vera-mcp`](https://pypi.org/project/vera-mcp/) | `vera mcp` | MCP adapter |
+
 ## `vera-doc`
 
 Publishes `vera`. Owns only storage and search:
@@ -16,35 +25,37 @@ Publishes `vera`. Owns only storage and search:
 - embedding storage/generation;
 - keyword, semantic, hybrid, corpus, and library-index search.
 
-It must not import conversion, extraction, chunking, PDF/OCR, MCP, CLI,
+It must not import conversion, ingestion, chunking, PDF/OCR, MCP, CLI,
 desktop, or evaluation modules.
 
-## `vera-extract`
+## `vera-ingest`
 
-Publishes `vera_extract` and depends on `vera-doc`. Owns PDF parsing, OCR,
-tables, heading detection, chunking, conversion, and extraction provenance.
-It emits ready-made `ChunkRecord` objects and optional opaque attachments.
+Publishes `vera_ingest` and depends on `vera-doc`. Owns PDF parsing, OCR,
+tables, heading detection, chunking, conversion, and ingest-produced viewer
+helpers. It emits ready-made `ChunkRecord` objects and optional opaque
+attachments.
 
 ## `vera-cli`
 
 Publishes `vera_cli` and the `vera` command. Depends on `vera-doc` and
-`vera-extract`. Owns argument parsing, output contracts, exit codes, and
+`vera-ingest`. Owns argument parsing, output contracts, exit codes, and
 retrieval evaluation. The optional `mcp` extra adds `vera-mcp`.
 
 ## `vera-mcp`
 
-Publishes `vera_mcp` and depends on `vera-doc`. It is the protocol adapter for
-agent tools and owns no storage or retrieval implementation.
+Publishes `vera_mcp` and depends on `vera-doc` plus `vera-ingest` for viewer
+helpers. It is the protocol adapter for agent tools and owns no storage or
+retrieval implementation.
 
 ## `vera-app`
 
 Owns the Electron/React desktop app and Python sidecar. Depends directly on
-`vera-doc` and `vera-extract`; it does not use the CLI as a backend.
+`vera-doc` and `vera-ingest`; it does not use the CLI as a backend.
 
 ## Dependency direction
 
 ```text
-vera-extract ─┐
+vera-ingest ─┐
 vera-cli ─────┼──> vera-doc
 vera-app ─────┤
 vera-mcp ─────┘

@@ -1,17 +1,28 @@
 [project]
 name = "vera-ingest"
-version = "0.2.0"
+version = "0.2.1"
 description = "Source ingestion, chunking, and conversion adapters for VERA"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-doc",
+  "vera-doc>=0.2.1",
   "pdfplumber>=0.11",
   "pymupdf>=1.23",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
 keywords = ["pdf", "ocr", "chunking", "semantic-search", "vera"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Text Processing :: Indexing",
+]
+
+[project.urls]
+Homepage = "https://github.com/dkylewillis/vera"
+Repository = "https://github.com/dkylewillis/vera"
+Documentation = "https://dkylewillis.github.io/vera/packages/vera-ingest/"
 
 [build-system]
 requires = ["hatchling"]
@@ -19,8 +30,3 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vera_ingest"]
-
-[tool.hatch.build]
-# Keep OCR language data next to the parsers package in wheels.
-[tool.hatch.build.targets.wheel.force-include]
-"src/vera_ingest/tessdata" = "vera_ingest/tessdata"

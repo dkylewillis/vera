@@ -1,7 +1,7 @@
-"""Read extractor-produced viewer metadata from a VERA archive.
+"""Read ingest-produced viewer metadata from a VERA archive.
 
 ``vera-doc`` stores opaque chunks and attachments. This module interprets the
-attachment and metadata conventions written by :mod:`vera_extract.convert`:
+attachment and metadata conventions written by :mod:`vera_ingest.convert`:
 
 - archive metadata keys ``viewer_pages_attachment_id``,
   ``viewer_blocks_attachment_id``, and ``source_attachment_id``
@@ -44,7 +44,7 @@ def export_source_document(
 
 
 def get_page(document: VeraDocument, page_number: int) -> dict[str, Any] | None:
-    """Return extractor-provided viewer data for one page."""
+    """Return ingest-provided viewer data for one page."""
     for page in _viewer_payload(document, "viewer_pages_attachment_id"):
         if page.get("page_number") == page_number:
             return {"page_id": f"page_{page_number:06d}", **page}
@@ -55,7 +55,7 @@ def get_blocks(
     document: VeraDocument,
     page_number: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Return extractor-provided layout blocks."""
+    """Return ingest-provided layout blocks."""
     blocks = _viewer_payload(document, "viewer_blocks_attachment_id")
     if page_number is None:
         return blocks
@@ -67,7 +67,7 @@ def get_blocks(
 
 
 def get_chunk_regions(document: VeraDocument, chunk_id: str) -> list[dict[str, Any]]:
-    """Return extractor-provided highlight regions for a chunk."""
+    """Return ingest-provided highlight regions for a chunk."""
     records = document.get([chunk_id])
     if not records:
         return []
@@ -75,7 +75,7 @@ def get_chunk_regions(document: VeraDocument, chunk_id: str) -> list[dict[str, A
 
 
 def regions_for(document: VeraDocument, result: QueryResult) -> list[dict[str, Any]]:
-    """Return extractor-provided highlight regions for a query result."""
+    """Return ingest-provided highlight regions for a query result."""
     return get_chunk_regions(document, result.record.id)
 
 
@@ -85,7 +85,7 @@ def figures(
     page_end: int | None = None,
     include_data: bool = False,
 ) -> list[dict[str, Any]]:
-    """Return figure attachments produced by an extractor."""
+    """Return figure attachments produced during ingest."""
     pages = {
         page["page_number"]: page
         for page in _viewer_payload(document, "viewer_pages_attachment_id")

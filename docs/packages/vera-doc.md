@@ -9,6 +9,14 @@ MCP tools, or implement the desktop application.
 
 ## Install
 
+From PyPI:
+
+```bash
+python -m pip install "vera-doc>=0.2.1"
+```
+
+From a repository checkout:
+
 ```bash
 python -m pip install ./packages/vera-doc
 ```
@@ -20,10 +28,10 @@ the optional `ml` extra.
 ## Start here
 
 ```python
-from vera import ChunkRecord, VeraDatabase
+from vera import ChunkRecord, VeraDocument
 
-with VeraDatabase.create("knowledge.vera") as database:
-    database.add([
+with VeraDocument.create("knowledge.vera") as document:
+    document.add([
         ChunkRecord(
             id="chunk-1",
             text="The minimum pipe diameter is 12 inches.",
@@ -31,14 +39,14 @@ with VeraDatabase.create("knowledge.vera") as database:
         )
     ])
 
-with VeraDatabase.open("knowledge.vera") as database:
-    results = database.search(text="minimum pipe size", top_k=5)
+with VeraDocument.open("knowledge.vera") as document:
+    results = document.search(text="minimum pipe size", top_k=5)
 ```
 
 ## Documentation
 
 - [Concepts](../concepts/overview.md) — archives, records, search modes, and indexes.
-- [Basic usage](../guides/basic-usage.md) — direct database and read-facade workflows.
+- [Basic usage](../guides/basic-usage.md) — convert, inspect, and search workflows.
 - [Search documents](../searching.md) — semantic, keyword, and hybrid retrieval.
 - [Document libraries](../document-libraries.md) — corpus search and persistent indexes.
 - [Figures and regions](../figures-and-regions.md) — citation and viewer metadata.
@@ -49,8 +57,7 @@ with VeraDatabase.open("knowledge.vera") as database:
 ## API reference
 
 - [Public package exports](../reference/vera.md)
-- [VeraDatabase](../reference/vera-database.md)
-- [Records and results](../reference/vera-models.md)
 - [VeraDocument](../reference/vera-document.md)
+- [Records and results](../reference/vera-models.md)
 - [VeraCorpus](../reference/vera-corpus.md)
 - [Library indexes](../reference/vera-collection.md)

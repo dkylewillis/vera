@@ -159,7 +159,7 @@ temporary output.
 
 ## Conversion fails for a parser name
 
-`vera-extract` supports:
+`vera-ingest` supports:
 
 ```bash
 vera convert "input.pdf" --parser pymupdf

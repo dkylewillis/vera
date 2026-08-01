@@ -7,7 +7,7 @@ corpus search, and rebuildable library indexes.
 
 It intentionally contains no PDF parsing, OCR, source extraction, chunking,
 MCP, CLI, or desktop dependencies. Applications extract and chunk content
-before calling `vera-doc`. The separate `vera-extract` package provides the
+before calling `vera-doc`. The separate `vera-ingest` package provides the
 standard PDF pipeline.
 
 **Documentation:** [vera-doc guides and API reference](https://dkylewillis.github.io/vera/packages/vera-doc/)
@@ -24,7 +24,7 @@ download or API key.
 ## Quick start
 
 ```python
-from vera import ChunkRecord, VeraDatabase
+from vera import ChunkRecord, VeraDocument
 
 records = [
     ChunkRecord(
@@ -38,11 +38,11 @@ records = [
     )
 ]
 
-with VeraDatabase.create("manual.vera") as database:
-    database.add(records)
+with VeraDocument.create("manual.vera") as document:
+    document.add(records)
 
-with VeraDatabase.open("manual.vera") as database:
-    results = database.search(
+with VeraDocument.open("manual.vera") as document:
+    results = document.search(
         text="minimum pipe size",
         mode="hybrid",
         top_k=5,
@@ -52,7 +52,7 @@ for result in results:
     print(result.score, result.record.text)
 ```
 
-`VeraDatabase.open()` is read-only by default. Use `mode="write"` when adding,
+`VeraDocument.open()` is read-only by default. Use `mode="write"` when adding,
 updating, or deleting records.
 
 ## What is stored in a `.vera` file?
@@ -165,7 +165,7 @@ The role is caller-defined. Common roles include `source`, `figure`, and
 
 ### `QueryResult`
 
-Returned by `VeraDatabase.search()`:
+Returned by `VeraDocument.search()`:
 
 ```python
 QueryResult(
@@ -193,12 +193,12 @@ class EmbeddingFunction:
 
 The same model and dimension must be used for stored records and text queries.
 
-## `VeraDatabase` methods
+## `VeraDocument` methods
 
 ### Create and open
 
 ```python
-VeraDatabase.create(
+VeraDocument.create(
     path,
     *,
     embedding_function=None,
@@ -207,7 +207,7 @@ VeraDatabase.create(
     overwrite=False,
 )
 
-VeraDatabase.open(
+VeraDocument.open(
     path,
     *,
     mode="read",
@@ -221,7 +221,7 @@ unless `overwrite=True`. Both methods return context managers.
 ### Add records
 
 ```python
-database.add(records)
+document.add(records)
 ```
 
 Inserts an iterable of `ChunkRecord` objects. Existing IDs raise
@@ -231,7 +231,7 @@ are written in one transaction.
 ### Insert or replace records
 
 ```python
-database.upsert(records)
+document.upsert(records)
 ```
 
 Inserts new IDs and replaces existing records. Replacement updates text,
@@ -240,7 +240,7 @@ metadata, embedding, keyword index, and attachment links together.
 ### Retrieve records
 
 ```python
-database.get(
+document.get(
     ids=None,
     *,
     where=None,
@@ -252,13 +252,13 @@ Returns `ChunkRecord` objects, including their vectors and attachment links.
 `where` performs exact equality matching on top-level metadata keys:
 
 ```python
-records = database.get(where={"discipline": "civil"})
+records = document.get(where={"discipline": "civil"})
 ```
 
 ### Delete records
 
 ```python
-deleted_count = database.delete(
+deleted_count = document.delete(
     ids=None,
     *,
     where=None,
@@ -271,7 +271,7 @@ links. It does not delete the attachments themselves.
 ### Search
 
 ```python
-database.search(
+document.search(
     *,
     text=None,
     vector=None,
@@ -294,9 +294,9 @@ Keyword and hybrid search require text.
 ### Attachments
 
 ```python
-database.put_attachments(attachments, upsert=False)
-attachment = database.get_attachment("source-pdf")
-database.delete_attachment("source-pdf")
+document.put_attachments(attachments, upsert=False)
+attachment = document.get_attachment("source-pdf")
+document.delete_attachment("source-pdf")
 ```
 
 Referenced attachments cannot be deleted until their chunk links are removed.
@@ -305,8 +305,8 @@ Missing attachments raise `RecordNotFoundError`.
 ### Archive metadata
 
 ```python
-metadata = database.metadata
-database.set_metadata({"project": "stormwater"})
+metadata = document.metadata
+document.set_metadata({"project": "stormwater"})
 ```
 
 Archive metadata is a JSON-compatible object separate from per-chunk metadata.
@@ -314,9 +314,9 @@ Archive metadata is a JSON-compatible object separate from per-chunk metadata.
 ### Transactions
 
 ```python
-with database.transaction():
-    database.put_attachments(attachments)
-    database.add(records)
+with document.transaction():
+    document.put_attachments(attachments)
+    document.add(records)
 ```
 
 The entire block commits together. An exception rolls it back. Nested
@@ -325,8 +325,8 @@ transactions are intentionally rejected.
 ### Inspection and validation
 
 ```python
-info = database.inspect()
-report = database.validate()
+info = document.inspect()
+report = document.validate()
 ```
 
 Inspection reports the format, model, dimension, counts, and archive metadata.
@@ -336,7 +336,7 @@ FTS parity, vector lengths, JSON payloads, foreign keys, and attachment hashes.
 ### Close
 
 ```python
-database.close()
+document.close()
 ```
 
 Context managers call `close()` automatically.
@@ -357,7 +357,7 @@ from vera import (
     AttachmentRecord,
     AttachmentRef,
     ChunkRecord,
-    VeraDatabase,
+    VeraDocument,
 )
 
 source = AttachmentRecord(
@@ -375,10 +375,10 @@ chunk = ChunkRecord(
     attachments=(AttachmentRef("source-pdf", role="source"),),
 )
 
-with VeraDatabase.create("manual.vera") as database:
-    with database.transaction():
-        database.put_attachments([source])
-        database.add([chunk])
+with VeraDocument.create("manual.vera") as document:
+    with document.transaction():
+        document.put_attachments([source])
+        document.add([chunk])
 ```
 
 ## Custom embeddings
@@ -386,7 +386,7 @@ with VeraDatabase.create("manual.vera") as database:
 ```python
 import numpy as np
 
-from vera import ChunkRecord, VeraDatabase
+from vera import ChunkRecord, VeraDocument
 
 
 class MyEmbedder:
@@ -399,17 +399,17 @@ class MyEmbedder:
 
 embedder = MyEmbedder()
 
-with VeraDatabase.create(
+with VeraDocument.create(
     "custom.vera",
     embedding_function=embedder,
-) as database:
-    database.add([ChunkRecord(id="one", text="Example text")])
+) as document:
+    document.add([ChunkRecord(id="one", text="Example text")])
 
-with VeraDatabase.open(
+with VeraDocument.open(
     "custom.vera",
     embedding_function=embedder,
-) as database:
-    results = database.search(text="example", mode="semantic")
+) as document:
+    results = document.search(text="example", mode="semantic")
 ```
 
 Callers may instead provide `ChunkRecord.vector` and search with a query
@@ -443,46 +443,22 @@ update_library_index("./library")
 The `.vera-index/` directory is rebuildable. Individual `.vera` files remain
 the source of truth.
 
-## Legacy document API
-
-`VeraDocument` remains a read-oriented compatibility facade for VERA 0.1,
-the CLI, the desktop app, and citation-oriented workflows:
-
-```python
-from vera import VeraDocument
-
-with VeraDocument.open("manual.vera") as document:
-    results = document.search(
-        "detention requirements",
-        mode="hybrid",
-        top_k=5,
-        context_chunks=1,
-    )
-```
-
-New applications that create or mutate databases should use `VeraDatabase`.
-
 ## Package source structure
 
 ```text
 src/vera/
 ├── __init__.py          Public exports
 ├── models.py            Chunk, attachment, and query value objects
-├── database.py          Transactional vector-database facade
-├── document.py          Legacy/read-oriented compatibility facade
+├── document.py          Storage, CRUD, search, and viewer helpers
 ├── corpus.py            Multi-file corpus search
 ├── collection.py        Persistent library index
 └── core/
-    ├── schema.py        SQLite schema and format versions
+    ├── schema.py        SQLite schema and format version
     ├── validation.py    Integrity and contract validation
-    ├── embeddings.py    Embedders and vector serialization
-    ├── search.py        Legacy search implementation
-    ├── inspection.py    Legacy inspection helpers
-    ├── access.py        Legacy page/asset/region access
-    └── figures.py       Legacy figure access
+    └── embeddings.py    Embedders and vector serialization
 ```
 
-Source extraction lives under `packages/vera-extract`, and MCP integration
+Source ingestion lives under `packages/vera-ingest`, and MCP integration
 lives under `packages/vera-mcp`.
 
 ## Format and API references

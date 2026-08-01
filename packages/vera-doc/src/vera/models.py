@@ -179,7 +179,7 @@ class AttachmentRecord:
 
 @dataclass(frozen=True)
 class QueryResult:
-    """Ranked search hit from :meth:`~vera.database.VeraDatabase.search`.
+    """Ranked search hit from :meth:`~vera.document.VeraDocument.search`.
 
     Attributes:
         record: Matching chunk record.
@@ -192,6 +192,49 @@ class QueryResult:
     score: float
     semantic_score: float | None = None
     keyword_score: float | None = None
+    before: tuple[ChunkRecord, ...] = ()
+    after: tuple[ChunkRecord, ...] = ()
+
+    @property
+    def chunk_id(self) -> str:
+        return self.record.id
+
+    @property
+    def text(self) -> str:
+        return self.record.text
+
+    @property
+    def page_start(self) -> int | None:
+        value = self.record.metadata.get("page_start")
+        return value if isinstance(value, int) else None
+
+    @property
+    def page_end(self) -> int | None:
+        value = self.record.metadata.get("page_end")
+        return value if isinstance(value, int) else None
+
+    @property
+    def heading_path(self) -> str | None:
+        value = self.record.metadata.get("heading_path")
+        return value if isinstance(value, str) else None
+
+    @property
+    def source_filename(self) -> str | None:
+        value = self.record.metadata.get("source_filename")
+        return value if isinstance(value, str) else None
+
+    @property
+    def document_id(self) -> str | None:
+        value = self.record.metadata.get("document_id")
+        return value if isinstance(value, str) else None
+
+    @property
+    def before_chunks(self) -> list[dict[str, Any]]:
+        return [_record_dict(record) for record in self.before]
+
+    @property
+    def after_chunks(self) -> list[dict[str, Any]]:
+        return [_record_dict(record) for record in self.after]
 
     def as_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation of this result."""
@@ -205,5 +248,16 @@ class QueryResult:
             data["semantic_score"] = self.semantic_score
         if self.keyword_score is not None:
             data["keyword_score"] = self.keyword_score
+        if self.before or self.after:
+            data["before_chunks"] = [_record_dict(record) for record in self.before]
+            data["after_chunks"] = [_record_dict(record) for record in self.after]
         return data
+
+
+def _record_dict(record: ChunkRecord) -> dict[str, Any]:
+    return {
+        "chunk_id": record.id,
+        "text": record.text,
+        "metadata": thaw_json(record.metadata),
+    }
 

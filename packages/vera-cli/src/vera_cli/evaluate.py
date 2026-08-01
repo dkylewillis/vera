@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from vera.document import VeraDocument, SearchResult
+from vera import QueryResult, VeraDocument
 
 MODES = ("semantic", "keyword", "hybrid")
 
@@ -30,15 +30,18 @@ class QueryCase:
         if not self.expected_pages and not self.expected_terms:
             raise ValueError(f"Query case {self.query!r} needs expected_pages and/or expected_terms")
 
-    def matches(self, result: SearchResult) -> bool:
+    def matches(self, result: QueryResult) -> bool:
+        metadata = result.record.metadata
         if self.expected_pages:
-            pages = {p for p in (result.page_start, result.page_end) if p is not None}
-            if result.page_start is not None and result.page_end is not None:
-                pages.update(range(result.page_start, result.page_end + 1))
+            page_start = metadata.get("page_start")
+            page_end = metadata.get("page_end")
+            pages = {p for p in (page_start, page_end) if isinstance(p, int)}
+            if isinstance(page_start, int) and isinstance(page_end, int):
+                pages.update(range(page_start, page_end + 1))
             if not pages.intersection(self.expected_pages):
                 return False
         if self.expected_terms:
-            text = result.text.lower()
+            text = result.record.text.lower()
             if not all(term.lower() in text for term in self.expected_terms):
                 return False
         return True
@@ -88,7 +91,7 @@ def evaluate_document(
     reciprocal_ranks = []
     hits = 0
     for case in cases:
-        results = doc.search(case.query, mode=mode, top_k=top_k)
+        results = doc.search(text=case.query, mode=mode, top_k=top_k)  # type: ignore[arg-type]
         rank = None
         for idx, result in enumerate(results, start=1):
             if case.matches(result):
@@ -104,7 +107,11 @@ def evaluate_document(
                 "hit": hit,
                 "rank": rank,
                 "top_score": results[0].score if results else None,
-                "top_page": results[0].page_start if results else None,
+                "top_page": (
+                    results[0].record.metadata.get("page_start")
+                    if results
+                    else None
+                ),
             }
         )
     total = len(cases)

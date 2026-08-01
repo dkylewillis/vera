@@ -152,7 +152,7 @@ Requires the integration package: `pip install "vera-cli[mcp]"` or `pip install 
 - Python 3.10+, dependencies managed with [uv](https://docs.astral.sh/uv/):
   `uv sync --extra dev --extra ml --extra app --extra mcp`
 - Run tests with `pytest` (all tests must pass before committing).
-- Storage/search code lives in [packages/vera-doc/src/vera](packages/vera-doc/src/vera), extraction lives in [packages/vera-extract/src/vera_extract](packages/vera-extract/src/vera_extract), MCP lives in [packages/vera-mcp/src/vera_mcp](packages/vera-mcp/src/vera_mcp), and CLI code lives in [packages/vera-cli/src/vera_cli](packages/vera-cli/src/vera_cli); the current format spec is
+- Storage/search code lives in [packages/vera-doc/src/vera](packages/vera-doc/src/vera), extraction lives in [packages/vera-ingest/src/vera_ingest](packages/vera-ingest/src/vera_ingest), MCP lives in [packages/vera-mcp/src/vera_mcp](packages/vera-mcp/src/vera_mcp), and CLI code lives in [packages/vera-cli/src/vera_cli](packages/vera-cli/src/vera_cli); the current format spec is
  [docs/vera-spec-v0.2.md](docs/vera-spec-v0.2.md) — keep code and spec in sync.
 - Keep human and agent documentation current. Any user-visible feature change
   must update the relevant [README](README.md), human guide under

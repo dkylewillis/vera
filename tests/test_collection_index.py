@@ -12,7 +12,8 @@ from pathlib import Path
 import pytest
 
 from vera import VeraCorpus, VeraDocument, build_library_index, library_index_status, update_library_index
-from vera_extract import convert
+from vera_ingest import convert
+from vera_ingest.viewer import regions_for
 from vera.collection import INDEX_DIRECTORY, discover_vera_files
 from test_corpus import make_topic_pdf
 
@@ -128,7 +129,7 @@ class TestBuildAndSearch:
             result = corpus.search("water treatment pumping", top_k=1, context_chunks=1)[0]
             assert isinstance(result.before_chunks, list)
             assert isinstance(result.after_chunks, list)
-            assert corpus.regions_for(result)
+            assert regions_for(corpus.document(result.file), result)
 
     def test_indexed_summary_does_not_reopen_archives(self, nested_library, monkeypatch):
         build_library_index(str(nested_library), recursive=True, excludes=["archive"])

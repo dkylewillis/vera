@@ -1,16 +1,13 @@
-"""Source extraction, chunking, and conversion adapters for VERA."""
+"""Source ingestion, chunking, and conversion adapters for VERA."""
 
-from .convert import batch_convert, convert
-from .ingest import (
+from .chunking import (
     Chunk,
-    ParsedBlock,
-    ParsedPage,
     build_chunks_from_blocks,
     chunk_pages,
     detect_heading,
-    parse_pdf,
-    parse_pdf_structured,
 )
+from .convert import batch_convert, convert
+from .parsers import ParsedBlock, ParsedPage, parse_pdf, parse_pdf_structured
 from .viewer import (
     export_source_document,
     figures,

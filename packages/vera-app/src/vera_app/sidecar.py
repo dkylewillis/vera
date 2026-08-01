@@ -18,7 +18,14 @@ from vera import (
     update_library_index,
 )
 from vera.corpus import VeraCorpus
-from vera_extract import batch_convert, convert
+from vera_ingest import batch_convert, convert
+from vera_ingest.viewer import (
+    export_source_document,
+    figures_for,
+    get_page,
+    get_source_document,
+    regions_for,
+)
 from vera_app.cancellation import CancellationToken, CancelledError, SkipCurrentError
 from vera_app.llm import (
     ChatResponse,
@@ -116,6 +123,19 @@ def _figure_payload(figure: dict[str, Any]) -> dict[str, Any]:
     return figure
 
 
+def _result_payload(result: Any) -> dict[str, Any]:
+    data = result.as_dict()
+    metadata = data.pop("metadata", {})
+    payload = {**metadata, **data}
+    for key in ("before_chunks", "after_chunks"):
+        if key in payload:
+            payload[key] = [
+                {**item.pop("metadata", {}), **item}
+                for item in payload[key]
+            ]
+    return payload
+
+
 def _inspect(request: Request) -> dict[str, Any]:
     path = str(request["path"])
     if Path(path).is_dir():
@@ -167,7 +187,7 @@ def _search(request: Request) -> list[dict[str, Any]]:
     scoped_file = _scoped_single_file(request)
     try:
         results = target.search(
-            str(request.get("query", "")),
+            text=str(request.get("query", "")),
             mode=str(request.get("mode", "hybrid")),
             top_k=int(request.get("top_k", 10)),
             context_chunks=int(request.get("context_chunks", 0)),
@@ -177,13 +197,25 @@ def _search(request: Request) -> list[dict[str, Any]]:
         include_figure_data = bool(request.get("include_figure_data", False))
         payload: list[dict[str, Any]] = []
         for result in results:
-            entry = result.as_dict()
+            entry = _result_payload(result)
             if scoped_file and not entry.get("file"):
                 entry["file"] = scoped_file
+            document = (
+                target.document(result.file)
+                if isinstance(target, VeraCorpus)
+                else target
+            )
             if include_regions:
-                entry["regions"] = target.regions_for(result)
+                entry["regions"] = regions_for(document, result)
             if include_figures:
-                entry["figures"] = [_figure_payload(figure) for figure in target.figures_for(result, include_data=include_figure_data)]
+                entry["figures"] = [
+                    _figure_payload(figure)
+                    for figure in figures_for(
+                        document,
+                        result,
+                        include_data=include_figure_data,
+                    )
+                ]
             payload.append(entry)
         return payload
     finally:
@@ -1008,13 +1040,16 @@ def _batch_convert(
 def _export(request: Request) -> dict[str, Any]:
     doc = _open_document(str(request["path"]))
     try:
-        output = doc.export_source_document(str(request["output"]) if request.get("output") else None)
-        source = doc.get_source_document()
+        output = export_source_document(
+            doc,
+            str(request["output"]) if request.get("output") else None,
+        )
+        source = get_source_document(doc)
         return {
             "output": output,
             "filename": source.filename,
-            "mime_type": source.mime_type,
-            "hash": source.hash,
+            "mime_type": source.media_type,
+            "hash": source.checksum,
         }
     finally:
         doc.close()
@@ -1023,12 +1058,12 @@ def _export(request: Request) -> dict[str, Any]:
 def _source(request: Request) -> dict[str, Any]:
     doc = _open_document(str(request["path"]))
     try:
-        source = doc.get_source_document()
-        mime_type = source.mime_type or "application/octet-stream"
+        source = get_source_document(doc)
+        mime_type = source.media_type or "application/octet-stream"
         return {
             "filename": source.filename,
             "mime_type": mime_type,
-            "hash": source.hash,
+            "hash": source.checksum,
             "size": len(source.data),
             "data_url": f"data:{mime_type};base64,{base64.b64encode(source.data).decode('ascii')}",
         }
@@ -1039,7 +1074,7 @@ def _source(request: Request) -> dict[str, Any]:
 def _page(request: Request) -> dict[str, Any] | None:
     doc = _open_document(str(request["path"]))
     try:
-        return doc.get_page(int(request["page_number"]))
+        return get_page(doc, int(request["page_number"]))
     finally:
         doc.close()
 

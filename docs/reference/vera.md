@@ -6,7 +6,6 @@ queries, and library indexes for `.vera` archives.
 ::: vera
     options:
       members:
-        - VeraDatabase
         - VeraDocument
         - VeraCorpus
         - VeraCollectionIndex
@@ -14,9 +13,7 @@ queries, and library indexes for `.vera` archives.
         - AttachmentRecord
         - AttachmentRef
         - QueryResult
-        - SearchResult
         - CorpusSearchResult
-        - SourceDocument
         - EmbeddingFunction
         - build_library_index
         - update_library_index
@@ -29,8 +26,7 @@ queries, and library indexes for `.vera` archives.
 
 See also the focused reference pages:
 
-- [VeraDatabase](vera-database.md)
-- [Records](vera-models.md)
 - [VeraDocument](vera-document.md)
+- [Records](vera-models.md)
 - [VeraCorpus](vera-corpus.md)
 - [Library index](vera-collection.md)

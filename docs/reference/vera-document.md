@@ -1,13 +1,17 @@
 # Document
 
-This is an automatically generated API reference of the read-oriented
-`VeraDocument` facade used by the CLI, desktop app, and MCP adapter.
+This is an automatically generated API reference of the VERA storage and
+search engine (`vera.document`).
 
 ::: vera.document
     handler: python
     options:
       members:
         - VeraDocument
+        - EmbeddingFunction
+        - DuplicateRecordError
+        - RecordNotFoundError
+        - ReadOnlyError
       show_if_no_docstring: true
       show_submodules: true
       docstring_section_style: list
@@ -25,7 +29,4 @@ This is an automatically generated API reference of the read-oriented
       signature_crossrefs: true
       summary: true
 
-New applications performing CRUD should prefer
-[`VeraDatabase`](vera-database.md).
-
-See [`SearchResult`](vera-models.md) for the shape of search hits.
+See [`QueryResult`](vera-models.md) for the shape of search hits.

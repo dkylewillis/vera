@@ -8,15 +8,24 @@ generated from source docstrings using [mkdocstrings](https://mkdocstrings.githu
 | Package | Import | Purpose |
 |---------|--------|---------|
 | [vera-doc](vera.md) | `import vera` | Storage, CRUD, search, corpus, library indexes |
-| [vera-extract](vera-extract.md) | `import vera_extract` | PDF parsing, chunking, conversion |
+| [vera-ingest](vera-ingest.md) | `import vera_ingest` | PDF parsing, chunking, conversion |
 | [vera-cli](vera-cli.md) | `import vera_cli` | Command-line interface |
 | [vera-mcp](vera-mcp.md) | `import vera_mcp` | MCP server for AI agents |
 
-Install packages individually or from the monorepo workspace:
+Install packages from PyPI:
+
+```bash
+python -m pip install "vera-doc>=0.2.1"
+python -m pip install "vera-ingest>=0.2.1"
+python -m pip install "vera-cli>=0.2.1"
+python -m pip install "vera-mcp>=0.2.1"
+```
+
+Or from a repository checkout:
 
 ```bash
 python -m pip install ./packages/vera-doc
-python -m pip install ./packages/vera-extract
+python -m pip install ./packages/vera-ingest
 python -m pip install ./packages/vera-cli
 python -m pip install ./packages/vera-mcp
 ```
@@ -25,17 +34,17 @@ python -m pip install ./packages/vera-mcp
 
 === "Create and search chunks"
 
-    Use [`VeraDatabase`](vera-database.md) with [`ChunkRecord`](vera-models.md)
+    Use [`VeraDocument`](vera-document.md) with [`ChunkRecord`](vera-models.md)
     when your application already has final text.
 
 === "Open an existing archive"
 
-    Use [`VeraDocument`](vera-document.md) for read-only search with figures,
-    pages, and highlight regions. Use `VeraDatabase.open()` for direct CRUD.
+    Use [`VeraDocument.open()`](vera-document.md) for search, inspection,
+    figures, pages, highlight regions, and write-mode CRUD.
 
 === "Convert PDFs"
 
-    Use [`vera_extract.convert`](vera-extract.md) or the `vera convert` CLI
+    Use [`vera_ingest.convert`](vera-ingest.md) or the `vera convert` CLI
     command.
 
 === "Search a folder"

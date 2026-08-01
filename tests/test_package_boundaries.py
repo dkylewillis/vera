@@ -10,7 +10,7 @@ VERA_DOC = ROOT / "packages" / "vera-doc"
 
 def test_vera_doc_does_not_import_outer_packages() -> None:
     banned_prefixes = (
-        "vera_extract",
+        "vera_ingest",
         "vera_mcp",
         "vera_cli",
         "vera_app",
@@ -41,13 +41,16 @@ def test_vera_doc_has_no_extraction_modules_or_dependencies() -> None:
     assert not list((package_root / "integrations").glob("*.py"))
 
     metadata = (VERA_DOC / "pyproject.toml").read_text(encoding="utf-8")
-    for dependency in ("pymupdf", "pdfplumber", "vera-extract", "mcp>="):
+    for dependency in ("pymupdf", "pdfplumber", "vera-ingest", "mcp>="):
         assert dependency not in metadata.lower()
 
 
 def test_conversion_and_mcp_live_in_sibling_packages() -> None:
     assert (
-        ROOT / "packages" / "vera-extract" / "src" / "vera_extract" / "convert.py"
+        ROOT / "packages" / "vera-ingest" / "src" / "vera_ingest" / "convert.py"
+    ).is_file()
+    assert (
+        ROOT / "packages" / "vera-ingest" / "src" / "vera_ingest" / "viewer.py"
     ).is_file()
     assert (
         ROOT / "packages" / "vera-mcp" / "src" / "vera_mcp" / "server.py"

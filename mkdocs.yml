@@ -50,12 +50,15 @@ plugins:
   - redirects:
       redirect_maps:
         concepts/index.md: concepts/overview.md
+        packages/vera-extract.md: packages/vera-ingest.md
+        packages/vera-extract-examples.md: packages/vera-ingest-examples.md
+        reference/vera-extract.md: reference/vera-ingest.md
   - mkdocstrings:
       handlers:
         python:
           paths:
             - packages/vera-doc/src
-            - packages/vera-extract/src
+            - packages/vera-ingest/src
             - packages/vera-cli/src
             - packages/vera-mcp/src
             - packages/vera-app/src
@@ -117,19 +120,18 @@ nav:
           - Create and search an archive: examples/basic-example.md
       - API reference:
           - Public package: reference/vera.md
-          - VeraDatabase: reference/vera-database.md
           - Records: reference/vera-models.md
           - VeraDocument: reference/vera-document.md
           - VeraCorpus: reference/vera-corpus.md
           - Library index: reference/vera-collection.md
-  - vera-extract:
-      - Overview and concepts: packages/vera-extract.md
+  - vera-ingest:
+      - Overview and concepts: packages/vera-ingest.md
       - Guides:
           - Convert documents: conversion.md
       - Examples:
-          - Python examples: packages/vera-extract-examples.md
+          - Python examples: packages/vera-ingest-examples.md
       - API reference:
-          - Public package: reference/vera-extract.md
+          - Public package: reference/vera-ingest.md
   - vera-cli:
       - Overview: packages/vera-cli.md
       - Guides:

@@ -72,7 +72,7 @@ def _open_fitz():
         import fitz  # PyMuPDF
     except Exception as exc:  # pragma: no cover
         raise RuntimeError(
-            "PyMuPDF is required for PDF parsing: install vera-extract"
+            "PyMuPDF is required for PDF parsing: install vera-ingest"
         ) from exc
     return fitz
 

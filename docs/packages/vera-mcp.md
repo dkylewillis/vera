@@ -1,16 +1,25 @@
 # vera-mcp
 
 `vera-mcp` publishes the `vera_mcp` Python package and `vera-mcp` entry point.
-It depends on `vera-doc` and exposes read-only archive and corpus retrieval as
-Model Context Protocol tools.
+It depends on `vera-doc` for storage/search and `vera-ingest` for viewer helpers
+(pages, figures, regions, source export). It exposes archive and corpus
+retrieval as Model Context Protocol tools.
 
-The package is a protocol adapter. Storage, search, ranking, validation, and
-figure access remain implemented by `vera-doc`.
+The package is a protocol adapter. Ranking, validation, and conversion remain
+implemented by `vera-doc` and `vera-ingest`.
 
 ## Install
 
+From PyPI:
+
 ```bash
-python -m pip install "vera-cli[mcp]"
+python -m pip install "vera-cli[mcp]>=0.2.1"
+```
+
+Or install the package directly:
+
+```bash
+python -m pip install "vera-mcp>=0.2.1"
 ```
 
 From a repository checkout:

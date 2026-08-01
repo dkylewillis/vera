@@ -1,12 +1,12 @@
 [project]
 name = "vera-cli"
-version = "0.2.0"
+version = "0.2.1"
 description = "Command-line interface for VERA documents"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-doc",
-  "vera-extract",
+  "vera-doc>=0.2.1",
+  "vera-ingest>=0.2.1",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
@@ -18,8 +18,13 @@ classifiers = [
   "Topic :: Text Processing :: Indexing",
 ]
 
+[project.urls]
+Homepage = "https://github.com/dkylewillis/vera"
+Repository = "https://github.com/dkylewillis/vera"
+Documentation = "https://dkylewillis.github.io/vera/packages/vera-cli/"
+
 [project.optional-dependencies]
-mcp = ["vera-mcp"]
+mcp = ["vera-mcp>=0.2.1"]
 
 [project.scripts]
 vera = "vera_cli:main"

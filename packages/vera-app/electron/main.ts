@@ -137,7 +137,7 @@ class PythonSidecar {
       const sourcePaths = [
         join(process.cwd(), 'src'),
         join(process.cwd(), '..', 'vera-doc', 'src'),
-        join(process.cwd(), '..', 'vera-extract', 'src'),
+        join(process.cwd(), '..', 'vera-ingest', 'src'),
       ];
       env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
     }

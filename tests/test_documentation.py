@@ -148,3 +148,23 @@ def test_hardening_json_contracts_are_documented():
     assert "allow_empty=True" in libraries
     assert "`skipped_files`" in mcp
     assert "`skipped_semantic_model_groups`" in mcp
+
+
+def test_figures_storage_map_is_documented():
+    figures = (DOCS / "figures-and-regions.md").read_text(encoding="utf-8")
+    spec = (DOCS / "vera-spec-v0.2.md").read_text(encoding="utf-8")
+
+    assert "## Storage map (VERA 0.2 schema)" in figures
+    for marker in (
+        "`chunks`",
+        "`metadata_json`",
+        '`"regions"`',
+        "`attachments`",
+        "`chunk_attachments`",
+        "`viewer_pages`",
+        "`viewer_blocks`",
+        "`vera_metadata`",
+        "`archive_metadata`",
+    ):
+        assert marker in figures, f"storage map missing {marker}"
+    assert "figures-and-regions.md#storage-map-vera-02-schema" in spec

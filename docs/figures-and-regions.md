@@ -4,6 +4,43 @@ VERA stores extracted images, nearby captions, page dimensions, layout blocks,
 and chunk-to-block mappings. These support figure-aware search and visual
 grounding without reparsing the PDF.
 
+## Storage map (VERA 0.2 schema)
+
+`vera-doc` has no dedicated `figures`, `tables`, `regions`, `blocks`, or
+`pages` tables. Conversion (`vera-ingest`) writes those concepts as JSON and
+opaque attachments into the standard 0.2 tables. Viewer helpers under
+`vera_ingest.viewer` interpret the conventions below.
+
+| Item | Table | Column / location |
+|---|---|---|
+| Chunk text (including table markdown) | `chunks` | `text` |
+| Citations (`page_start`, `page_end`, `heading_path`, `source_filename`, …) | `chunks` | `metadata_json` |
+| Highlight regions / text bounding boxes | `chunks` | `metadata_json` → `"regions"` |
+| Figure image bytes | `attachments` | `data` (row id like `image_block_000042`) |
+| Figure mime type and filename | `attachments` | `mime_type`, `filename` |
+| Figure role, page, and bbox | `attachments` | `metadata_json` → `"role": "figure"`, `"page_number"`, `"bbox"` |
+| Chunk ↔ figure link | `chunk_attachments` | `chunk_id`, `attachment_id`, `role` (`"figure"`) |
+| Chunk ↔ source PDF link | `chunk_attachments` | `chunk_id`, `attachment_id`, `role` (`"source"`) |
+| Page dimensions and page text | `attachments` | `viewer_pages` row; JSON payload in `data` |
+| Full layout blocks (heading, paragraph, table, caption, image, …) | `attachments` | `viewer_blocks` row; JSON payload in `data` |
+| Original source PDF (optional) | `attachments` | `source_original` row; PDF bytes in `data` |
+| Pointers to viewer/source attachments | `vera_metadata` | `archive_metadata` JSON → `viewer_pages_attachment_id`, `viewer_blocks_attachment_id`, `source_attachment_id` |
+
+How to read the map:
+
+- **Tables** are not separate attachment types. Selectable tables become chunk
+  `text` (markdown) and a `block_type: "table"` entry inside `viewer_blocks`.
+  Their bbox is included in chunk `regions` like other non-image blocks.
+- **Captions** live in `viewer_blocks` as `block_type: "caption"` and usually
+  also as searchable chunk text. The figure API joins a caption by page number.
+- **Image blocks** are excluded from chunk `regions` and surfaced through
+  figure attachments instead.
+- Coordinate contract for every `bbox`: `[x0, y0, x1, y1]` in page points,
+  origin top-left. See [Coordinate conversion](#coordinate-conversion).
+
+See [Format specification (0.2)](vera-spec-v0.2.md) for the table definitions
+themselves.
+
 ## Include figures in search results
 
 `--figures` affects JSON output:
@@ -78,16 +115,21 @@ coordinates using `page_height`.
 
 ## Python API
 
+Viewer helpers live in `vera_ingest.viewer`. They interpret the attachment and
+metadata conventions written by conversion; `vera-doc` stores those values
+opaquely.
+
 Retrieve figures for a result:
 
 ```python
 from vera import VeraDocument
+from vera_ingest.viewer import figures_for, regions_for
 
 doc = VeraDocument.open("manual.vera")
 try:
     result = doc.search("pipe sizing chart", top_k=1)[0]
-    figures = doc.figures_for(result)
-    regions = doc.regions_for(result)
+    figures = figures_for(doc, result)
+    regions = regions_for(doc, result)
 finally:
     doc.close()
 ```
@@ -95,21 +137,23 @@ finally:
 Request image bytes when needed:
 
 ```python
+from vera_ingest.viewer import figures_for
+
 doc = VeraDocument.open("manual.vera")
 try:
     result = doc.search("pipe sizing chart", top_k=1)[0]
-    figures = doc.figures_for(result, include_data=True)
+    figures = figures_for(doc, result, include_data=True)
     image_bytes = figures[0]["data"]
 finally:
     doc.close()
 ```
 
-Retrieve a stored asset directly:
+Retrieve a figure attachment directly:
 
 ```python
 doc = VeraDocument.open("manual.vera")
 try:
-    asset = doc.get_asset("asset_block_000371", include_data=True)
+    attachment = doc.get_attachment("image_block_000371")
 finally:
     doc.close()
 ```
@@ -117,15 +161,23 @@ finally:
 Retrieve regions by chunk ID:
 
 ```python
+from vera_ingest.viewer import get_chunk_regions
+
 doc = VeraDocument.open("manual.vera")
 try:
-    regions = doc.get_chunk_regions("chunk_0042")
+    regions = get_chunk_regions(doc, "chunk_0042")
 finally:
     doc.close()
 ```
 
-For corpus results, use `VeraCorpus.figures_for(result)` and
-`VeraCorpus.regions_for(result)`; the corpus dispatches to the correct archive.
+For corpus results, resolve the archive first:
+
+```python
+from vera_ingest.viewer import figures_for, regions_for
+
+figures = figures_for(corpus.document(result.file), result)
+regions = regions_for(corpus.document(result.file), result)
+```
 
 ## MCP tools
 

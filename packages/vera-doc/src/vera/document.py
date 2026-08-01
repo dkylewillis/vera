@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 import os
 import sqlite3
 import tempfile
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, Protocol, Sequence
@@ -79,8 +79,8 @@ def _normalize_scores(scores: Mapping[str, float]) -> dict[str, float]:
     return {key: (value - low) / (high - low) for key, value in scores.items()}
 
 
-class VeraDatabase:
-    """An embedded vector database backed by a single portable ``.vera`` file.
+class VeraDocument:
+    """An embedded storage and search engine backed by one portable ``.vera`` file.
 
     Use :meth:`create` to initialize a new archive and :meth:`open` to access
     an existing one. Archives support CRUD on :class:`~vera.models.ChunkRecord`
@@ -89,13 +89,13 @@ class VeraDatabase:
 
     Example:
         ```python
-        from vera import ChunkRecord, VeraDatabase
+        from vera import ChunkRecord, VeraDocument
 
-        with VeraDatabase.create("example.vera") as database:
-            database.add([ChunkRecord(id="1", text="Hello world.")])
+        with VeraDocument.create("example.vera") as document:
+            document.add([ChunkRecord(id="1", text="Hello world.")])
 
-        with VeraDatabase.open("example.vera") as database:
-            results = database.search(text="hello", top_k=5)
+        with VeraDocument.open("example.vera") as document:
+            results = document.search(text="hello", top_k=5)
         ```
     """
 
@@ -124,7 +124,7 @@ class VeraDatabase:
         model: str = "hashing",
         metadata: JsonObject | None = None,
         overwrite: bool = False,
-    ) -> "VeraDatabase":
+    ) -> "VeraDocument":
         """Create a new empty ``.vera`` archive at ``path``.
 
         Args:
@@ -196,7 +196,7 @@ class VeraDatabase:
         *,
         mode: OpenMode = "read",
         embedding_function: EmbeddingFunction | None = None,
-    ) -> "VeraDatabase":
+    ) -> "VeraDocument":
         """Open an existing ``.vera`` archive.
 
         Args:
@@ -216,6 +216,8 @@ class VeraDatabase:
                 embedder dimension does not match the archive.
         """
         target = Path(path)
+        if not target.is_file():
+            raise FileNotFoundError(str(target))
         if mode not in {"read", "write"}:
             raise ValueError("mode must be 'read' or 'write'")
         if mode == "read":
@@ -226,14 +228,22 @@ class VeraDatabase:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         try:
-            metadata_rows = conn.execute(
-                "SELECT key, value FROM vera_metadata"
-            ).fetchall()
+            try:
+                metadata_rows = conn.execute(
+                    "SELECT key, value FROM vera_metadata"
+                ).fetchall()
+            except sqlite3.OperationalError as exc:
+                if "no such table" in str(exc).lower():
+                    raise ValueError(
+                        "Missing required table: vera_metadata"
+                    ) from exc
+                raise
             stored = {row["key"]: row["value"] for row in metadata_rows}
-            if stored.get("format_version") != FORMAT_VERSION:
+            stored_version = stored.get("format_version")
+            if stored_version is not None and stored_version != FORMAT_VERSION:
                 raise ValueError(
-                    "VeraDatabase requires format "
-                    f"{FORMAT_VERSION}; found {stored.get('format_version', 'unknown')}"
+                    "VeraDocument requires format "
+                    f"{FORMAT_VERSION}; found {stored_version}"
                 )
             if embedding_function is None and mode == "write":
                 embedding_function = get_embedder(
@@ -517,12 +527,13 @@ class VeraDatabase:
 
     def search(
         self,
-        *,
         text: str | None = None,
+        *,
         vector: Sequence[float] | None = None,
         mode: SearchMode = "hybrid",
         where: Mapping[str, Any] | None = None,
         top_k: int = 10,
+        context_chunks: int = 0,
     ) -> list[QueryResult]:
         """Search chunk records.
 
@@ -533,6 +544,7 @@ class VeraDatabase:
             mode: ``"hybrid"`` (default), ``"semantic"``, or ``"keyword"``.
             where: Exact equality filter on top-level metadata keys.
             top_k: Maximum number of results to return.
+            context_chunks: Number of adjacent stored chunks to include.
 
         Returns:
             Ranked :class:`~vera.models.QueryResult` objects.
@@ -542,6 +554,8 @@ class VeraDatabase:
             raise ValueError("mode must be semantic, keyword, or hybrid")
         if top_k < 0:
             raise ValueError("top_k must be non-negative")
+        if context_chunks < 0:
+            raise ValueError("context_chunks must be non-negative")
         if top_k == 0:
             return []
         if mode in {"keyword", "hybrid"} and not text:
@@ -574,7 +588,7 @@ class VeraDatabase:
             ),
             key=lambda item: (-item[1], item[0]),
         )[:top_k]
-        return [
+        results = [
             QueryResult(
                 record=records[record_id],
                 score=float(score),
@@ -583,6 +597,28 @@ class VeraDatabase:
             )
             for record_id, score in ranked
         ]
+        if context_chunks:
+            ordered = self.get()
+            positions = {record.id: index for index, record in enumerate(ordered)}
+            results = [
+                replace(
+                    result,
+                    before=tuple(
+                        ordered[
+                            max(0, positions[result.record.id] - context_chunks):
+                            positions[result.record.id]
+                        ]
+                    ),
+                    after=tuple(
+                        ordered[
+                            positions[result.record.id] + 1:
+                            positions[result.record.id] + context_chunks + 1
+                        ]
+                    ),
+                )
+                for result in results
+            ]
+        return results
 
     def put_attachments(
         self,
@@ -659,6 +695,43 @@ class VeraDatabase:
         ).fetchone()
         if row is None:
             raise RecordNotFoundError(attachment_id)
+        return self._row_to_attachment(row)
+
+    def attachments(
+        self,
+        *,
+        where: Mapping[str, Any] | None = None,
+    ) -> list[AttachmentRecord]:
+        """Return stored attachments, optionally filtered by metadata equality.
+
+        Args:
+            where: Exact equality filter on top-level attachment metadata keys.
+
+        Returns:
+            Matching attachments in storage order.
+        """
+        self._ensure_open()
+        rows = self._conn.execute(
+            """
+            SELECT attachment_id, mime_type, filename, data, hash, metadata_json
+            FROM attachments
+            ORDER BY attachment_id
+            """
+        ).fetchall()
+        items = [self._row_to_attachment(row) for row in rows]
+        if not where:
+            return items
+        return [
+            item
+            for item in items
+            if all(
+                thaw_json(item.metadata).get(key) == expected
+                for key, expected in where.items()
+            )
+        ]
+
+    @staticmethod
+    def _row_to_attachment(row: sqlite3.Row) -> AttachmentRecord:
         return AttachmentRecord(
             id=row["attachment_id"],
             media_type=row["mime_type"],
@@ -702,13 +775,19 @@ class VeraDatabase:
         """
         self._ensure_open()
         metadata = self._metadata_values()
+        archive_metadata = self.metadata
         return {
+            **archive_metadata,
             "path": str(self.path),
             "format_name": metadata.get("format_name"),
             "format_version": metadata.get("format_version"),
             "created_at": metadata.get("created_at"),
             "embedding_model": metadata.get("default_embedding_model"),
+            "default_embedding_model": metadata.get("default_embedding_model"),
             "embedding_dimension": int(
+                metadata.get("default_embedding_dimension", 0)
+            ),
+            "default_embedding_dimension": int(
                 metadata.get("default_embedding_dimension", 0)
             ),
             "chunks": self._conn.execute(
@@ -717,7 +796,9 @@ class VeraDatabase:
             "attachments": self._conn.execute(
                 "SELECT COUNT(*) FROM attachments"
             ).fetchone()[0],
-            "metadata": self.metadata,
+            "pages": archive_metadata.get("page_count", 0),
+            "source": archive_metadata.get("source_file_name"),
+            "metadata": archive_metadata,
         }
 
     def validate(self) -> dict[str, Any]:
@@ -730,7 +811,7 @@ class VeraDatabase:
         return validate_document(self._conn)
 
     @contextmanager
-    def transaction(self) -> Iterator["VeraDatabase"]:
+    def transaction(self) -> Iterator["VeraDocument"]:
         """Run a batch of writes in a single SQLite transaction.
 
         Yields:
@@ -901,7 +982,7 @@ class VeraDatabase:
             self._conn.close()
             self._closed = True
 
-    def __enter__(self) -> "VeraDatabase":
+    def __enter__(self) -> "VeraDocument":
         self._ensure_open()
         return self
 

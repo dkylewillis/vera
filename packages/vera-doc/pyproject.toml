@@ -1,7 +1,7 @@
 [project]
 name = "vera-doc"
-version = "0.2.0"
-description = "Vector-Embedded Retrieval Archive document and retrieval engine"
+version = "0.2.1"
+description = "Embedded storage and search engine for portable .vera archives"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -20,6 +20,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/dkylewillis/vera"
 Repository = "https://github.com/dkylewillis/vera"
+Documentation = "https://dkylewillis.github.io/vera/packages/vera-doc/"
 Specification = "https://github.com/dkylewillis/vera/blob/main/docs/vera-spec-v0.2.md"
 
 [project.optional-dependencies]

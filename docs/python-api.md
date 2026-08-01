@@ -5,13 +5,13 @@
 Install only the storage and search engine:
 
 ```bash
-python -m pip install vera-doc
+python -m pip install "vera-doc>=0.2.1"
 ```
 
-Install source extraction separately when needed:
+Install source ingestion separately when needed:
 
 ```bash
-python -m pip install vera-extract
+python -m pip install "vera-ingest>=0.2.1"
 ```
 
 ## Create and search a database
@@ -19,7 +19,7 @@ python -m pip install vera-extract
 `vera-doc` accepts final chunks. It never parses or chunks source files.
 
 ```python
-from vera import ChunkRecord, VeraDatabase
+from vera import ChunkRecord, VeraDocument
 
 records = [
     ChunkRecord(
@@ -33,14 +33,14 @@ records = [
     )
 ]
 
-with VeraDatabase.create(
+with VeraDocument.create(
     "manual.vera",
     metadata={"project": "drainage"},
-) as database:
-    database.add(records)
+) as document:
+    document.add(records)
 
-with VeraDatabase.open("manual.vera") as database:
-    results = database.search(
+with VeraDocument.open("manual.vera") as document:
+    results = document.search(
         text="minimum pipe size",
         mode="hybrid",
         top_k=5,
@@ -75,12 +75,12 @@ function embeds the text.
 ## Add, upsert, get, and delete
 
 ```python
-from vera import ChunkRecord, VeraDatabase
+from vera import ChunkRecord, VeraDocument
 
-with VeraDatabase.open("manual.vera", mode="write") as database:
-    database.add([ChunkRecord(id="new", text="New chunk")])
+with VeraDocument.open("manual.vera", mode="write") as document:
+    document.add([ChunkRecord(id="new", text="New chunk")])
 
-    database.upsert([
+    document.upsert([
         ChunkRecord(
             id="new",
             text="Replacement text",
@@ -88,8 +88,8 @@ with VeraDatabase.open("manual.vera", mode="write") as database:
         )
     ])
 
-    reviewed = database.get(where={"status": "reviewed"})
-    deleted_count = database.delete(ids=["new"])
+    reviewed = document.get(where={"status": "reviewed"})
+    deleted_count = document.delete(ids=["new"])
 ```
 
 `add()` rejects existing IDs. `upsert()` inserts or replaces the text,
@@ -99,10 +99,10 @@ atomic.
 Use an explicit transaction to combine operations:
 
 ```python
-with VeraDatabase.open("manual.vera", mode="write") as database:
-    with database.transaction():
-        database.put_attachments(attachments)
-        database.add(records)
+with VeraDocument.open("manual.vera", mode="write") as document:
+    with document.transaction():
+        document.put_attachments(attachments)
+        document.add(records)
 ```
 
 An exception rolls the transaction back.
@@ -113,7 +113,7 @@ Attachments are opaque bytes. `vera-doc` stores and retrieves them but does not
 parse, OCR, chunk, embed, or search them.
 
 ```python
-from vera import AttachmentRecord, AttachmentRef, ChunkRecord, VeraDatabase
+from vera import AttachmentRecord, AttachmentRef, ChunkRecord, VeraDocument
 
 source = AttachmentRecord(
     id="source",
@@ -129,10 +129,10 @@ record = ChunkRecord(
     attachments=(AttachmentRef("source", role="source"),),
 )
 
-with VeraDatabase.create("manual.vera") as database:
-    with database.transaction():
-        database.put_attachments([source])
-        database.add([record])
+with VeraDocument.create("manual.vera") as document:
+    with document.transaction():
+        document.put_attachments([source])
+        document.add([record])
 ```
 
 Referenced attachments cannot be deleted until their links are removed.
@@ -141,17 +141,17 @@ Checksums are computed and validated automatically.
 ## Search modes and filters
 
 ```python
-with VeraDatabase.open("manual.vera") as database:
-    keyword = database.search(
+with VeraDocument.open("manual.vera") as document:
+    keyword = document.search(
         text="section 4.2",
         mode="keyword",
         where={"discipline": "civil"},
     )
-    semantic = database.search(
+    semantic = document.search(
         text="how large should the pond be",
         mode="semantic",
     )
-    hybrid = database.search(
+    hybrid = document.search(
         text="detention requirements",
         mode="hybrid",
     )
@@ -163,10 +163,10 @@ metadata filtering currently supports exact equality on top-level keys.
 ## Database metadata, inspection, and validation
 
 ```python
-with VeraDatabase.open("manual.vera") as database:
-    print(database.metadata)
-    print(database.inspect())
-    report = database.validate()
+with VeraDocument.open("manual.vera") as document:
+    print(document.metadata)
+    print(document.inspect())
+    report = document.validate()
     assert report["ok"], report["issues"]
 ```
 
@@ -179,7 +179,7 @@ record counts, and integrity results are available through `inspect()` and
 Conversion is not part of `vera-doc`:
 
 ```python
-from vera_extract import batch_convert, convert
+from vera_ingest import batch_convert, convert
 
 convert(
     "input.pdf",
@@ -192,27 +192,8 @@ convert(
 )
 ```
 
-`vera-extract` parses and chunks the source, creates `ChunkRecord` objects and
-optional attachments, then writes them through `VeraDatabase`.
-
-## Compatibility facade
-
-`VeraDocument` remains the read-oriented facade used by the CLI, desktop app,
-MCP adapter, and legacy VERA 0.1 files:
-
-```python
-from vera import VeraDocument
-
-with VeraDocument.open("manual.vera") as document:
-    results = document.search(
-        "detention requirements",
-        mode="hybrid",
-        top_k=5,
-        context_chunks=1,
-    )
-```
-
-New applications performing CRUD should use `VeraDatabase`.
+`vera-ingest` parses and chunks the source, creates `ChunkRecord` objects and
+optional attachments, then writes them through `VeraDocument`.
 
 ## Corpus and library indexes
 

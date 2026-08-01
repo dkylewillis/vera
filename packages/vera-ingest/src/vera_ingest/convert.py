@@ -18,8 +18,8 @@ from vera import (
 )
 from vera.core.validation import validate_document
 
-from .ingest.chunking import build_chunks_from_blocks
-from .ingest.parsers import ParsedBlock, parse_pdf_structured
+from .chunking import build_chunks_from_blocks
+from .parsers import ParsedBlock, parse_pdf_structured
 
 
 def _sha256_bytes(data: bytes) -> str:

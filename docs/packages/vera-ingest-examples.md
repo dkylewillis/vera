@@ -1,12 +1,12 @@
-# vera-extract examples
+# vera-ingest examples
 
-These examples use the public `vera_extract` API directly. For equivalent
+These examples use the public `vera_ingest` API directly. For equivalent
 shell workflows, use [`vera convert`](vera-cli.md).
 
 ## Convert one PDF
 
 ```python
-from vera_extract import convert
+from vera_ingest import convert
 
 output = convert(
     "manual.pdf",
@@ -26,7 +26,7 @@ the archive.
 ## Force OCR
 
 ```python
-from vera_extract import convert
+from vera_ingest import convert
 
 convert(
     "scanned-manual.pdf",
@@ -42,7 +42,7 @@ Use forced OCR only when automatic detection misses scanned content.
 ## Convert a directory
 
 ```python
-from vera_extract import batch_convert
+from vera_ingest import batch_convert
 
 report = batch_convert(
     "./proposals",

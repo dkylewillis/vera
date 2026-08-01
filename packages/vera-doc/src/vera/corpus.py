@@ -5,33 +5,38 @@ from __future__ import annotations
 import os
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from .collection import VeraCollectionIndex, discover_vera_files, library_index_status
-from .core.search import (
-    context_chunks_for,
-    fuse_hybrid_results,
-    keyword_search,
-    row_to_result,
-    semantic_scores,
-)
-from .document import SearchResult, VeraDocument
+from .document import VeraDocument
 from .models import QueryResult
 
 _RRF_K = 60.0
 
 
-@dataclass
-class CorpusSearchResult(SearchResult):
+@dataclass(frozen=True)
+class CorpusSearchResult(QueryResult):
     """A search result attributed to the .vera file it came from."""
 
     file: str = ""
 
 
-def _with_file(result: SearchResult, file: str) -> CorpusSearchResult:
-    return CorpusSearchResult(file=file, **result.as_dict())
+    def as_dict(self) -> dict[str, Any]:
+        return {"file": self.file, **super().as_dict()}
+
+
+def _with_file(result: QueryResult, file: str) -> CorpusSearchResult:
+    return CorpusSearchResult(
+        record=result.record,
+        score=result.score,
+        semantic_score=result.semantic_score,
+        keyword_score=result.keyword_score,
+        before=result.before,
+        after=result.after,
+        file=file,
+    )
 
 
 class VeraCorpus:
@@ -311,7 +316,8 @@ class VeraCorpus:
 
     def search(
         self,
-        query: str,
+        text: str,
+        *,
         mode: str = "hybrid",
         top_k: int = 10,
         context_chunks: int = 0,
@@ -329,47 +335,35 @@ class VeraCorpus:
             return []
         self.skipped_semantic_model_groups = []
         if self._collection_index is not None:
-            final = self._search_index(query, mode, top_k)
+            final = self._search_index(text, mode, top_k)
             self.skipped_semantic_model_groups = list(
                 self._collection_index.skipped_semantic_model_groups
             )
         else:
-            per_file, models = self._search_files(query, mode, top_k)
+            per_file, models = self._search_files(text, mode, top_k)
             if mode == "semantic":
                 final = self._fuse_semantic(per_file, models, top_k)
             else:
                 final = self._fuse_rrf(per_file, top_k)
         if context_chunks:
-            for result in final:
+            for result_index, result in enumerate(final):
                 doc = self.document(result.file)
-                if doc._database is not None:
-                    records = doc._database.get()
-                    positions = {
-                        record.id: index for index, record in enumerate(records)
-                    }
-                    position = positions.get(result.chunk_id)
-                    if position is not None:
-                        result.before_chunks = [
-                            doc._context_record(record)
-                            for record in records[
-                                max(0, position - context_chunks):position
-                            ]
-                        ]
-                        result.after_chunks = [
-                            doc._context_record(record)
-                            for record in records[
-                                position + 1:position + context_chunks + 1
-                            ]
-                        ]
-                else:
-                    assert doc.conn is not None
-                    before, after = context_chunks_for(
-                        doc.conn,
-                        result.chunk_id,
-                        context_chunks,
+                records = doc.get()
+                positions = {
+                    record.id: index for index, record in enumerate(records)
+                }
+                position = positions.get(result.record.id)
+                if position is not None:
+                    replacement = replace(
+                        result,
+                        before=tuple(
+                            records[max(0, position - context_chunks):position]
+                        ),
+                        after=tuple(
+                            records[position + 1:position + context_chunks + 1]
+                        ),
                     )
-                    result.before_chunks = before
-                    result.after_chunks = after
+                    final[result_index] = replacement
         return final
 
     def _search_files(
@@ -377,104 +371,61 @@ class VeraCorpus:
         query: str,
         mode: str,
         top_k: int,
-    ) -> tuple[dict[str, list[SearchResult]], dict[str, str]]:
+    ) -> tuple[dict[str, list[QueryResult]], dict[str, str]]:
         """Search files in parallel using short-lived, thread-local connections."""
 
         def search_path(
             path: str,
-            *,
-            allow_keyword_fallback: bool,
-        ) -> tuple[str, list[SearchResult], str, bool, str | None]:
+        ) -> tuple[str, list[QueryResult], str, str | None]:
             try:
                 doc = VeraDocument.open(path)
                 validation = doc.validate()
                 if not validation["ok"]:
-                    return path, [], "", False, "; ".join(validation["issues"])
-                if doc._database is not None:
-                    model = str(doc.inspect().get("embedding_model") or "")
-                    results = doc.search(query, mode=mode, top_k=top_k)
-                    keyword_matched = (
-                        bool(doc.search(query, mode="keyword", top_k=1))
-                        if mode in {"keyword", "hybrid"}
-                        else False
-                    )
-                    return path, results, model, keyword_matched, None
-                assert doc.conn is not None
-                row = doc.conn.execute(
-                    "SELECT value FROM vera_metadata WHERE key = 'default_embedding_model'"
-                ).fetchone()
-                model = str(row["value"]) if row else ""
-                if mode == "keyword":
-                    results = keyword_search(
-                        doc.conn,
-                        query,
-                        top_k,
-                        allow_fallback=allow_keyword_fallback,
-                    )
-                    keyword_matched = bool(results)
-                elif mode == "hybrid":
-                    semantic = semantic_scores(doc.conn, query)
-                    keyword = keyword_search(
-                        doc.conn,
-                        query,
-                        max(top_k * 5, 50),
-                        allow_fallback=allow_keyword_fallback,
-                    )
-                    results = fuse_hybrid_results(semantic, keyword, top_k)
-                    keyword_matched = bool(keyword)
-                else:
-                    results = doc.search(query, mode=mode, top_k=top_k)
-                    keyword_matched = False
-                return path, results, model, keyword_matched, None
+                    return path, [], "", "; ".join(validation["issues"])
+                model = str(doc.inspect().get("embedding_model") or "")
+                results = doc.search(
+                    text=query,
+                    mode=mode,  # type: ignore[arg-type]
+                    top_k=top_k,
+                )
+                return path, results, model, None
             except Exception as exc:
-                return path, [], "", False, str(exc)
+                return path, [], "", str(exc)
             finally:
                 if "doc" in locals():
                     doc.close()
 
-        def run(
-            allow_keyword_fallback: bool,
-        ) -> list[tuple[str, list[SearchResult], str, bool, str | None]]:
+        def run() -> list[tuple[str, list[QueryResult], str, str | None]]:
             paths = [path for path in self.paths if not self._is_invalid(path)]
             if not paths:
                 return []
             if len(paths) == 1:
-                return [search_path(paths[0], allow_keyword_fallback=allow_keyword_fallback)]
+                return [search_path(paths[0])]
             workers = min(8, len(paths))
             with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="vera-corpus") as executor:
                 return list(
                     executor.map(
-                        lambda path: search_path(
-                            path,
-                            allow_keyword_fallback=allow_keyword_fallback,
-                        ),
+                        search_path,
                         paths,
                     )
                 )
 
-        searched = run(allow_keyword_fallback=False)
-        for path, _, _, _, error in searched:
+        searched = run()
+        for path, _, _, error in searched:
             if error:
                 self._record_invalid(path, error)
-        if mode in {"keyword", "hybrid"} and not any(
-            matched for _, _, _, matched, _ in searched
-        ):
-            searched = run(allow_keyword_fallback=True)
-            for path, _, _, _, error in searched:
-                if error:
-                    self._record_invalid(path, error)
         return (
-            {path: results for path, results, _, _, error in searched if not error},
-            {path: model for path, _, model, _, error in searched if not error},
+            {path: results for path, results, _, error in searched if not error},
+            {path: model for path, _, model, error in searched if not error},
         )
 
     @staticmethod
     def _fuse_semantic(
-        per_file: dict[str, list[SearchResult]],
+        per_file: dict[str, list[QueryResult]],
         models: dict[str, str],
         top_k: int,
     ) -> list[CorpusSearchResult]:
-        model_groups: dict[str, list[tuple[str, SearchResult]]] = {}
+        model_groups: dict[str, list[tuple[str, QueryResult]]] = {}
         for path, results in per_file.items():
             model_groups.setdefault(models.get(path, ""), []).extend((path, result) for result in results)
         for results in model_groups.values():
@@ -496,43 +447,22 @@ class VeraCorpus:
         for hit in self._collection_index.search(query, mode=mode, top_k=top_k):
             path = str((Path(self.directory) / Path(hit.relative_path)).resolve())
             doc = self.document(path)
-            if doc._database is not None:
-                records = doc._database.get([hit.chunk_id])
-                if not records:
-                    continue
-                result = doc._legacy_result(
-                    QueryResult(record=records[0], score=hit.score)
+            records = doc.get([hit.chunk_id])
+            if not records:
+                continue
+            final.append(
+                _with_file(
+                    QueryResult(record=records[0], score=hit.score),
+                    path,
                 )
-                final.append(_with_file(result, path))
-                continue
-            assert doc.conn is not None
-            row = doc.conn.execute(
-                """
-                SELECT c.*, d.source_filename
-                FROM chunks c JOIN documents d ON d.document_id = c.document_id
-                WHERE c.chunk_id = ?
-                """,
-                (hit.chunk_id,),
-            ).fetchone()
-            if row is None:
-                continue
-            result = row_to_result(row, hit.score)
-            final.append(_with_file(result, path))
+            )
         return final
 
     @staticmethod
-    def _fuse_rrf(per_file: dict[str, list[SearchResult]], top_k: int) -> list[CorpusSearchResult]:
-        fused: list[tuple[float, float, str, SearchResult]] = []
+    def _fuse_rrf(per_file: dict[str, list[QueryResult]], top_k: int) -> list[CorpusSearchResult]:
+        fused: list[tuple[float, float, str, QueryResult]] = []
         for path, results in per_file.items():
             for rank, result in enumerate(results, start=1):
                 fused.append((result.score, 1.0 / (_RRF_K + rank), path, result))
         fused.sort(key=lambda item: (item[0], item[1]), reverse=True)
         return [_with_file(result, path) for _, _, path, result in fused[:top_k]]
-
-    def regions_for(self, result: CorpusSearchResult) -> list[dict[str, Any]]:
-        """Return highlight regions for a corpus result (see VeraDocument.get_chunk_regions)."""
-        return self.document(result.file).regions_for(result)
-
-    def figures_for(self, result: CorpusSearchResult, include_data: bool = False) -> list[dict[str, Any]]:
-        """Return figures on the pages of a corpus result."""
-        return self.document(result.file).figures_for(result, include_data=include_data)
