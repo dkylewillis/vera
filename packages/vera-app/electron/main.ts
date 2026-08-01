@@ -715,7 +715,9 @@ function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
-    minWidth: 980,
+    // Match the three-pane CSS floor (side + 420px chat + 340px viewer) so the
+    // window cannot shrink into document-level scrollbars.
+    minWidth: 1100,
     minHeight: 660,
     title: 'VERA',
     backgroundColor: '#f3f1ec',
