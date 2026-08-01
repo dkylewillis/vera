@@ -30,10 +30,30 @@
   --vera-surface-light: #202020;
 }
 
-/* Give the package tabs a distinct product-navigation band. */
+/* Let both navigation bars blend into the page; reserve blue for accents. */
+.md-header,
 .md-tabs {
-  border-bottom: 1px solid color-mix(in srgb, var(--md-primary-fg-color) 70%, white 20%);
-  box-shadow: 0 0.2rem 0.6rem rgba(0, 0, 0, 0.12);
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+}
+
+.md-header {
+  box-shadow: none;
+}
+
+.md-tabs {
+  border-bottom: 1px solid var(--vera-border-light);
+  box-shadow: 0 0.2rem 0.6rem rgba(0, 0, 0, 0.08);
+}
+
+.md-search__form {
+  background: var(--vera-surface-light);
+  border: 1px solid var(--vera-border-light);
+  border-radius: var(--vera-radius);
+}
+
+.md-search__input::placeholder {
+  color: var(--md-default-fg-color--light);
 }
 
 .md-tabs__link {
@@ -41,9 +61,13 @@
   opacity: 0.82;
 }
 
-.md-tabs__link--active,
+.md-tabs__item--active .md-tabs__link,
 .md-tabs__link:hover {
   opacity: 1;
+}
+
+.md-tabs__item--active {
+  box-shadow: inset 0 -0.14rem 0 var(--md-accent-fg-color);
 }
 
 /* Keep the VERA document mark crisp in both palettes. */
@@ -118,6 +142,44 @@
   border: 1px solid var(--vera-border-light);
   border-radius: var(--vera-radius);
   padding: 0.65rem 0.8rem;
+}
+
+/* Compact API-kind badges in headings and the table of contents. */
+html body code.doc-symbol-module::after {
+  content: "mod";
+}
+
+html body code.doc-symbol-class::after {
+  content: "c";
+}
+
+html body code.doc-symbol-attribute::after {
+  content: "a";
+}
+
+html body code.doc-symbol-method::after {
+  content: "m";
+}
+
+html body code.doc-symbol-function::after {
+  content: "f";
+}
+
+html body code.doc-symbol-parameter::after {
+  content: "p";
+}
+
+html body code.doc-symbol-type_parameter::after {
+  content: "tp";
+}
+
+html body code.doc-symbol-type_alias::after {
+  content: "t";
+}
+
+html body code.doc-symbol:not(.doc-symbol-module) {
+  min-width: 1.15rem;
+  text-align: center;
 }
 
 /* Material card grids remain available for future package landing pages. */
