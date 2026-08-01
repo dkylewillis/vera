@@ -2,7 +2,8 @@ import sqlite3
 import subprocess
 import sys
 
-from vera import VeraDocument, convert
+from vera import VeraDocument
+from vera_extract import convert
 from test_convert_search import make_pdf
 
 
@@ -47,7 +48,10 @@ def test_validate_reports_bad_embedding_dimension(tmp_path):
     make_pdf(pdf)
     convert(str(pdf), str(out), model="hashing")
     conn = sqlite3.connect(out)
-    conn.execute("UPDATE embeddings SET vector = ? WHERE embedding_id = 'emb_000001'", (b"bad",))
+    conn.execute(
+        "UPDATE embeddings SET vector = ? WHERE chunk_id = 'chunk_000001'",
+        (b"bad",),
+    )
     conn.commit()
     conn.close()
 

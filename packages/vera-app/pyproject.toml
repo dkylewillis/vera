@@ -1,11 +1,12 @@
 [project]
 name = "vera-app"
-version = "0.1.1"
+version = "0.2.0"
 description = "Python sidecar for the VERA desktop app"
-readme = "../../README.md"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "vera-doc",
+  "vera-extract",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
@@ -26,6 +27,3 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vera_app"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"src/vera_app/modes_builtin" = "vera_app/modes_builtin"

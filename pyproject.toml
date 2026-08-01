@@ -1,11 +1,12 @@
 [project]
 name = "vera-workspace"
-version = "0.1.1"
+version = "0.2.0"
 description = "VERA mono-repo workspace"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "vera-doc",
+  "vera-extract",
   "vera-cli",
   "vera-app",
 ]
@@ -13,22 +14,32 @@ authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "reportlab>=4", "mcp>=1.0"]
+dev = ["pytest>=8", "reportlab>=4", "vera-mcp"]
 ml = ["sentence-transformers>=2.7"]
 app = ["vera-app"]
-mcp = ["mcp>=1.0"]
+mcp = ["vera-mcp"]
+docs = [
+  "mkdocs>=1.6",
+  "mkdocs-material>=9.5",
+  "mkdocstrings[python]>=0.26",
+  "mkdocs-redirects>=1.2",
+]
 # Build-only: PyInstaller for packages/vera-app `build:sidecar`.
 sidecar = ["pyinstaller>=6"]
 
 [tool.uv.workspace]
 members = [
   "packages/vera-doc",
+  "packages/vera-extract",
+  "packages/vera-mcp",
   "packages/vera-cli",
   "packages/vera-app",
 ]
 
 [tool.uv.sources]
 vera-doc = { workspace = true }
+vera-extract = { workspace = true }
+vera-mcp = { workspace = true }
 vera-cli = { workspace = true }
 vera-app = { workspace = true }
 
@@ -42,6 +53,8 @@ bypass-selection = true
 [tool.pytest.ini_options]
 pythonpath = [
   "packages/vera-doc/src",
+  "packages/vera-extract/src",
+  "packages/vera-mcp/src",
   "packages/vera-cli/src",
   "packages/vera-app/src",
 ]

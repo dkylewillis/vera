@@ -1,0 +1,29 @@
+# MCP server
+
+This is an automatically generated API reference for the VERA Model Context
+Protocol server.
+
+::: vera_mcp
+    handler: python
+    options:
+      members:
+        - build_server
+        - main
+      show_if_no_docstring: true
+      show_submodules: true
+      docstring_section_style: list
+      filters: ["!^_[^_]"]
+      heading_level: 2
+      inherited_members: true
+      merge_init_into_class: true
+      separate_signature: true
+      show_root_heading: true
+      show_root_full_path: false
+      show_signature_annotations: true
+      show_source: false
+      show_symbol_type_heading: true
+      show_symbol_type_toc: true
+      signature_crossrefs: true
+      summary: true
+
+See [MCP integration](../mcp.md) for client configuration examples.

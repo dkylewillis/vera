@@ -5,8 +5,8 @@ Status notes for resuming work in a new session/agent. Last updated: 2026-06-10.
 ## Project context
 
 VERA is a single-file SQLite format (`.vera`) bundling a document + parsed structure +
-embeddings + keyword index for portable semantic search. See [README.md](../README.md)
-and the spec at [vera-spec-v0.1.md](vera-spec-v0.1.md).
+embeddings + keyword index for portable semantic search. See the [project README](https://github.com/dkylewillis/vera/blob/main/README.md)
+and the current spec at [vera-spec-v0.2.md](vera-spec-v0.2.md).
 
 **Driving goal:** VERA is the document engine for the mono-repo app package
 (`packages/vera-app`) — a PDF viewer with a built-in research agent. Users query one
@@ -68,7 +68,7 @@ clickable citations that scroll the viewer to the page and highlight the cited t
 - Fresh-index inspection consumes the skipped-file manifest without reopening
   archives that index build rejected
 - Mixed embedding model groups are queried separately and rank-fused
-- The index is rebuildable and does not change the `.vera` v0.1 format
+- The index is rebuildable and does not change the `.vera` archive format
 
 ## Next steps
 
@@ -102,7 +102,7 @@ clickable citations that scroll the viewer to the page and highlight the cited t
 - **Don't regress retrieval baselines:** GSMM hybrid ≥ 9/10 hit rate, MRR ≥ 0.900
   (`vera eval <gsmm.vera> examples/gsmm-queries.json`); the .vera for it must be
   rebuilt locally from the GSMM PDF (not in repo)
-- Keep code and `docs/vera-spec-v0.1.md` in sync (repo rule, see AGENTS.md)
+- Keep code and `docs/vera-spec-v0.2.md` in sync (repo rule, see AGENTS.md)
 - `chunks` never span pages (chunking flushes at page boundaries) — citations are page-precise
 - MCP tests call tools in-process via `build_server()` + `server.call_tool(...)`;
   payload extraction helper `_payload` is in `tests/test_mcp_server.py`

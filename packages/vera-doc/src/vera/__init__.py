@@ -6,13 +6,18 @@ from .collection import (
     library_index_status,
     update_library_index,
 )
-from .convert import batch_convert, convert
 from .corpus import CorpusSearchResult, VeraCorpus
+from .database import (
+    DuplicateRecordError,
+    EmbeddingFunction,
+    ReadOnlyError,
+    RecordNotFoundError,
+    VeraDatabase,
+)
 from .document import VeraDocument, SearchResult, SourceDocument
+from .models import AttachmentRecord, AttachmentRef, ChunkRecord, QueryResult
 
 __all__ = [
-    "convert",
-    "batch_convert",
     "VeraDocument",
     "SearchResult",
     "SourceDocument",
@@ -22,4 +27,13 @@ __all__ = [
     "build_library_index",
     "update_library_index",
     "library_index_status",
+    "VeraDatabase",
+    "EmbeddingFunction",
+    "ChunkRecord",
+    "AttachmentRecord",
+    "AttachmentRef",
+    "QueryResult",
+    "DuplicateRecordError",
+    "RecordNotFoundError",
+    "ReadOnlyError",
 ]

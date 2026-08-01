@@ -72,7 +72,7 @@ python -m pip install "vera-doc[ml]"
 The required Sentence Transformers model may also need to be available in the
 runtime environment. The default hashing model does not require this extra.
 
-In v0.1, an unrecognized model name falls back to hashing but is retained in
+An unrecognized model name falls back to hashing but is retained in
 archive metadata. If a custom name was used accidentally, reconvert with
 `--model hashing` or a supported Sentence Transformers name.
 
@@ -159,7 +159,7 @@ temporary output.
 
 ## Conversion fails for a parser name
 
-VERA v0.1 supports:
+`vera-extract` supports:
 
 ```bash
 vera convert "input.pdf" --parser pymupdf
@@ -189,14 +189,14 @@ Check the command:
 - most path, dependency, and runtime failures write unstructured errors to
   stderr.
 
-Do not parse stderr as JSON. See the [CLI reference](cli-reference.md).
+Do not parse stderr as JSON. See the [CLI reference](reference/cli.md).
 
 ## MCP does not start
 
 Install the optional dependency:
 
 ```bash
-python -m pip install vera-cli "vera-doc[mcp]"
+python -m pip install "vera-cli[mcp]"
 ```
 
 Ensure the MCP client launches the command from that environment. See

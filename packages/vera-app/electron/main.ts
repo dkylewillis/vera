@@ -134,7 +134,11 @@ class PythonSidecar {
     const executable = app.isPackaged ? packagedSidecar : process.env.VERA_APP_PYTHON || 'python';
     const args = app.isPackaged ? [] : ['-m', 'vera_app.sidecar'];
     if (!app.isPackaged) {
-      const sourcePaths = [join(process.cwd(), 'src'), join(process.cwd(), '..', 'vera-doc', 'src')];
+      const sourcePaths = [
+        join(process.cwd(), 'src'),
+        join(process.cwd(), '..', 'vera-doc', 'src'),
+        join(process.cwd(), '..', 'vera-extract', 'src'),
+      ];
       env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
     }
 

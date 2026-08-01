@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from vera import convert
-from vera.evaluate import QueryCase, evaluate, load_queries
+from vera_extract import convert
+from vera_cli.evaluate import QueryCase, evaluate, load_queries
 from test_convert_search import make_pdf
 
 

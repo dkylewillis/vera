@@ -78,12 +78,12 @@ returns exit status 1 while still printing the complete report.
 - Review individual misses; aggregate metrics do not explain why retrieval
   changed.
 
-Example query sets live under [`examples/`](../examples/).
+Example query sets live under [`examples/`](https://github.com/dkylewillis/vera/tree/main/examples).
 
 ## Python API
 
 ```python
-from vera.evaluate import evaluate
+from vera_cli.evaluate import evaluate
 
 summary = evaluate(
     "manual.vera",

@@ -1,69 +1,52 @@
 # VERA Mono-Repo Packages
 
-This directory contains the active multi-package mono-repo layout.
+The repository contains independently installable packages with one-way
+dependencies.
 
-## Planned Packages
+## `vera-doc`
 
-### vera-doc
+Publishes `vera`. Owns only storage and search:
 
-Core document and retrieval engine.
+- chunk-oriented `.vera` schema and validation;
+- typed chunk, attachment, and query-result objects;
+- transactional CRUD and metadata filtering;
+- embedding storage/generation;
+- keyword, semantic, hybrid, corpus, and library-index search.
 
-Owns:
+It must not import conversion, extraction, chunking, PDF/OCR, MCP, CLI,
+desktop, or evaluation modules.
 
-- `.vera` schema, validation, readers, and writers
-- conversion, parsing, chunking, embeddings, and assets
-- document and corpus search
-- citation metadata, context chunks, figures, and visual grounding regions
-- public Python APIs used by the CLI, app, MCP integration, and third-party consumers
+## `vera-extract`
 
-### vera-cli
+Publishes `vera_extract` and depends on `vera-doc`. Owns PDF parsing, OCR,
+tables, heading detection, chunking, conversion, and extraction provenance.
+It emits ready-made `ChunkRecord` objects and optional opaque attachments.
 
-Command-line interface over `vera-doc`.
+## `vera-cli`
 
-Owns:
+Publishes `vera_cli` and the `vera` command. Depends on `vera-doc` and
+`vera-extract`. Owns argument parsing, output contracts, exit codes, and
+retrieval evaluation. The optional `mcp` extra adds `vera-mcp`.
 
-- argument parsing
-- text and JSON output formatting
-- process exit codes
-- terminal-oriented command behavior
+## `vera-mcp`
 
-`vera-cli` should not own retrieval, validation, schema, chunking, or parsing logic.
+Publishes `vera_mcp` and depends on `vera-doc`. It is the protocol adapter for
+agent tools and owns no storage or retrieval implementation.
 
-### vera-app
+## `vera-app`
 
-User-facing application layer over `vera-doc`.
+Owns the Electron/React desktop app and Python sidecar. Depends directly on
+`vera-doc` and `vera-extract`; it does not use the CLI as a backend.
 
-Owns:
-
-- Electron desktop shell and React workspace UI
-- Python sidecar protocol over `vera-doc`
-- source document viewer and visual grounding UX
-- sessions, prompts, instructions, and response configuration
-- LLM provider integrations
-- external tool connections and tool-use policies
-- app-specific auth, telemetry, and audit workflows
-
-`vera-app` should call `vera-doc` directly and should not shell out to `vera-cli` for normal operation.
-
-## Dependency Direction
+## Dependency direction
 
 ```text
-vera-cli  -> vera-doc
-vera-app  -> vera-doc
+vera-extract ─┐
+vera-cli ─────┼──> vera-doc
+vera-app ─────┤
+vera-mcp ─────┘
 ```
 
-The MCP server is an optional integration inside `vera-doc`, not a separate
-workspace package.
-
-The core document package must not import from CLI or app packages.
-
-## Current Packages
-
-```text
-packages/
-	vera-doc/   # publishes the importable `vera` document package
-	vera-cli/   # publishes the `vera` console script and `vera_cli` module
-	vera-app/   # owns the Electron UI and Python `vera_app` sidecar module
-```
-
-The root test suite is the integration contract across packages.
+The uv workspace provides editable development links. Released packages use
+ordinary Python package versions. The root test suite is the cross-package
+integration contract.

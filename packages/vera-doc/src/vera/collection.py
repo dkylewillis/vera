@@ -18,6 +18,7 @@ import numpy as np
 
 from .core.embeddings import deserialize_vector, get_embedder
 from .document import VeraDocument
+from .models import metadata_from_json, thaw_json
 
 INDEX_DIRECTORY = ".vera-index"
 INDEX_DATABASE = "index.sqlite3"
@@ -318,25 +319,84 @@ def build_library_index(
                         record_skipped(path, relative_path, "invalid", reason)
                         conn.execute("RELEASE SAVEPOINT index_file")
                         continue
-                    file_metadata = {
-                        row["key"]: row["value"]
-                        for row in doc.conn.execute("SELECT key, value FROM vera_metadata")
-                    }
-                    document = doc.conn.execute("SELECT * FROM documents ORDER BY rowid LIMIT 1").fetchone()
-                    if document and document["page_count"] is not None:
-                        # Keep summary-only library opens exact without changing
-                        # the collection index schema. Older indexes fall back to
-                        # the highest page represented by a chunk.
-                        file_metadata["_vera_page_count"] = int(document["page_count"])
-                    rows = doc.conn.execute(
-                        """
-                        SELECT c.*, d.source_filename, e.model_name, e.model_dimension, e.vector
-                        FROM chunks c
-                        JOIN documents d ON d.document_id = c.document_id
-                        JOIN embeddings e ON e.chunk_id = c.chunk_id
-                        ORDER BY c.sort_order
-                        """
-                    ).fetchall()
+                    if doc._database is not None:
+                        database = doc._database
+                        stored_metadata = database._metadata_values()
+                        archive_metadata = database.metadata
+                        file_metadata = {
+                            **stored_metadata,
+                            **archive_metadata,
+                        }
+                        file_metadata["_vera_page_count"] = int(
+                            archive_metadata.get("page_count", 0)
+                        )
+                        document = {
+                            "source_filename": archive_metadata.get(
+                                "source_file_name"
+                            ),
+                            "title": archive_metadata.get("title"),
+                            "created_at": stored_metadata.get("created_at"),
+                        }
+                        modern_rows = database._conn.execute(
+                            """
+                            SELECT c.chunk_id, c.text, c.metadata_json,
+                                   e.model_name, e.model_dimension, e.vector
+                            FROM chunks c
+                            JOIN embeddings e ON e.chunk_id = c.chunk_id
+                            ORDER BY c.rowid
+                            """
+                        ).fetchall()
+                        rows = []
+                        for modern_row in modern_rows:
+                            chunk_metadata = thaw_json(
+                                metadata_from_json(modern_row["metadata_json"])
+                            )
+                            rows.append(
+                                {
+                                    **dict(modern_row),
+                                    "document_id": chunk_metadata.get(
+                                        "document_id",
+                                        "document_0001",
+                                    ),
+                                    "page_start": chunk_metadata.get("page_start"),
+                                    "page_end": chunk_metadata.get("page_end"),
+                                    "heading_path": chunk_metadata.get(
+                                        "heading_path"
+                                    ),
+                                    "source_filename": chunk_metadata.get(
+                                        "source_filename",
+                                        archive_metadata.get("source_file_name"),
+                                    ),
+                                }
+                            )
+                    else:
+                        assert doc.conn is not None
+                        file_metadata = {
+                            row["key"]: row["value"]
+                            for row in doc.conn.execute(
+                                "SELECT key, value FROM vera_metadata"
+                            )
+                        }
+                        document = doc.conn.execute(
+                            "SELECT * FROM documents ORDER BY rowid LIMIT 1"
+                        ).fetchone()
+                        if document and document["page_count"] is not None:
+                            # Keep summary-only library opens exact without changing
+                            # the collection index schema. Older indexes fall back to
+                            # the highest page represented by a chunk.
+                            file_metadata["_vera_page_count"] = int(
+                                document["page_count"]
+                            )
+                        rows = doc.conn.execute(
+                            """
+                            SELECT c.*, d.source_filename, e.model_name,
+                                   e.model_dimension, e.vector
+                            FROM chunks c
+                            JOIN documents d ON d.document_id = c.document_id
+                            JOIN embeddings e ON e.chunk_id = c.chunk_id
+                            ORDER BY c.sort_order
+                            """
+                        ).fetchall()
                     prepared: list[tuple[sqlite3.Row, np.ndarray, tuple[str, int]]] = []
                     file_problem = None
                     for row in rows:

@@ -12,15 +12,15 @@ or configure in an MCP client (e.g. VS Code .vscode/mcp.json):
       }
     }
 
-Requires the optional dependency: pip install vera-cli "vera-doc[mcp]"
+Install the integration package with: pip install vera-mcp
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from ..corpus import VeraCorpus
-from ..document import VeraDocument
+from vera.corpus import VeraCorpus
+from vera.document import VeraDocument
 
 
 def _open(file: str) -> VeraDocument:
@@ -33,17 +33,17 @@ def build_server():
         from mcp.server.fastmcp import FastMCP
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError(
-            "The MCP server requires the optional 'mcp' dependency: pip install vera-cli \"vera-doc[mcp]\""
+            "The MCP server requires the vera-mcp package and its 'mcp' dependency"
         ) from exc
 
     server = FastMCP(
         "vera",
         instructions=(
-            "Search VERA (Vector-Embedded Retrieval Archive) files. An .vera file is a portable "
-            "SQLite container holding a document plus chunks, embeddings, a keyword index, "
-            "figures, and citation metadata. Use vera_search to retrieve citation-ready "
-            "context (text + page + heading path) from a document. Results include page "
-            "numbers and heading paths that should be cited when answering."
+            "Search VERA (Vector-Embedded Retrieval Archive) files. An .vera file is a "
+            "portable SQLite vector database holding ready-made chunks, embeddings, a "
+            "keyword index, metadata, and optional attachments. Use vera_search to retrieve "
+            "citation-ready context. Results include source/page/heading metadata when the "
+            "extractor supplied it."
         ),
     )
 

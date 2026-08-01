@@ -4,9 +4,10 @@ import sqlite3
 
 import pytest
 
-from vera import VeraDocument, convert
-from vera.ingest.chunking import build_chunks_from_blocks
-from vera.ingest.parsers import ParsedBlock, parse_pdf_structured
+from vera import VeraDocument
+from vera_extract import convert
+from vera_extract.ingest.chunking import build_chunks_from_blocks
+from vera_extract.ingest.parsers import ParsedBlock, parse_pdf_structured
 
 
 def make_structured_pdf(path, with_image: bool = True):
@@ -179,27 +180,27 @@ class TestConvertWithBlocks:
     def test_blocks_and_chunk_blocks_populated(self, tmp_path, structured_pdf):
         out = tmp_path / "out.vera"
         convert(str(structured_pdf), str(out), model="hashing")
-        conn = sqlite3.connect(out)
-        assert conn.execute("SELECT COUNT(*) FROM blocks WHERE block_type='heading'").fetchone()[0] >= 3
-        assert conn.execute("SELECT COUNT(*) FROM blocks WHERE block_type='image'").fetchone()[0] == 1
-        assert conn.execute("SELECT COUNT(*) FROM chunk_blocks").fetchone()[0] >= 1
-        conn.close()
+        with VeraDocument.open(str(out)) as doc:
+            blocks = doc.get_blocks()
+            assert sum(block["block_type"] == "heading" for block in blocks) >= 3
+            assert sum(block["block_type"] == "image" for block in blocks) == 1
+            assert doc.figures()
 
     def test_heading_path_stored_in_chunks(self, tmp_path, structured_pdf):
         out = tmp_path / "out.vera"
         convert(str(structured_pdf), str(out), model="hashing")
-        conn = sqlite3.connect(out)
-        paths = [row[0] for row in conn.execute("SELECT heading_path FROM chunks")]
-        conn.close()
+        with VeraDocument.open(str(out)) as doc:
+            paths = [
+                result.heading_path
+                for result in doc.search("parking", mode="keyword", top_k=10)
+            ]
         assert any("Chapter 110 Zoning" in (p or "") for p in paths)
 
     def test_image_asset_stored(self, tmp_path, structured_pdf):
         out = tmp_path / "out.vera"
         convert(str(structured_pdf), str(out), model="hashing")
-        conn = sqlite3.connect(out)
-        count = conn.execute("SELECT COUNT(*) FROM assets WHERE asset_type='extracted_image'").fetchone()[0]
-        conn.close()
-        assert count == 1
+        with VeraDocument.open(str(out)) as doc:
+            assert len(doc.figures()) == 1
 
     def test_validation_still_passes(self, tmp_path, structured_pdf):
         out = tmp_path / "out.vera"
@@ -330,7 +331,7 @@ class TestCaptionKeywords:
         ],
     )
     def test_additional_caption_keywords_recognized(self, caption):
-        from vera.ingest.parsers.pdf import _CAPTION_RE
+        from vera_extract.ingest.parsers.pdf import _CAPTION_RE
 
         assert _CAPTION_RE.match(caption)
 
@@ -406,12 +407,12 @@ class TestFigureQualityFixes:
         make_pdf_with_repeated_logo(pdf)
         out = tmp_path / "out.vera"
         convert(str(pdf), str(out), model="hashing")
-        conn = sqlite3.connect(out)
-        try:
-            assert conn.execute("SELECT COUNT(*) FROM blocks WHERE block_type='image'").fetchone()[0] == 1
-            assert conn.execute("SELECT COUNT(*) FROM assets WHERE asset_type='extracted_image'").fetchone()[0] == 1
-        finally:
-            conn.close()
+        with VeraDocument.open(str(out)) as doc:
+            assert sum(
+                block["block_type"] == "image"
+                for block in doc.get_blocks()
+            ) == 1
+            assert len(doc.figures()) == 1
 
     def test_figures_for_result_prefers_tight_chunk_link(self, tmp_path):
         pdf = tmp_path / "two_figures.pdf"

@@ -11,6 +11,21 @@ from .embeddings import deserialize_vector, get_embedder
 
 @dataclass
 class SearchResult:
+    """Citation-ready search hit from :class:`~vera.document.VeraDocument`.
+
+    Attributes:
+        chunk_id: Identifier of the matching chunk.
+        score: Relevance score for the selected mode.
+        text: Retrieved chunk text.
+        page_start: First page number, when available.
+        page_end: Last page number, when available.
+        heading_path: Document heading breadcrumb, when available.
+        source_filename: Original source filename, when available.
+        document_id: Internal document identifier.
+        before_chunks: Neighboring chunks before the hit (when requested).
+        after_chunks: Neighboring chunks after the hit (when requested).
+    """
+
     chunk_id: str
     score: float
     text: str
@@ -23,6 +38,7 @@ class SearchResult:
     after_chunks: list[dict[str, Any]] | None = None
 
     def as_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable representation of this result."""
         data = self.__dict__.copy()
         if self.before_chunks is None:
             data.pop("before_chunks")

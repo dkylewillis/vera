@@ -18,6 +18,7 @@ from .core.search import (
     semantic_scores,
 )
 from .document import SearchResult, VeraDocument
+from .models import QueryResult
 
 _RRF_K = 60.0
 
@@ -84,6 +85,27 @@ class VeraCorpus:
         default_recursive: bool = False,
         allow_empty: bool = False,
     ) -> "VeraCorpus":
+        """Open a directory of ``.vera`` files for corpus search.
+
+        Args:
+            directory: Root directory containing ``.vera`` archives.
+            recursive: When ``True``, include nested directories. When ``None``,
+                use persisted index settings when an index exists.
+            excludes: Glob patterns to skip.
+            max_open_documents: LRU cache size for opened documents.
+            use_index: When ``True``, use a fresh local index when available.
+            default_recursive: Default recursion when no index exists.
+            allow_empty: When ``True``, allow opening a directory with no
+                valid archives.
+
+        Returns:
+            A corpus handle ready for :meth:`search`.
+
+        Raises:
+            NotADirectoryError: When ``directory`` is not a directory.
+            FileNotFoundError: When no valid archives are found and
+                ``allow_empty`` is false.
+        """
         root = Path(directory).resolve()
         if not root.is_dir():
             raise NotADirectoryError(directory)
@@ -320,9 +342,34 @@ class VeraCorpus:
         if context_chunks:
             for result in final:
                 doc = self.document(result.file)
-                before, after = context_chunks_for(doc.conn, result.chunk_id, context_chunks)
-                result.before_chunks = before
-                result.after_chunks = after
+                if doc._database is not None:
+                    records = doc._database.get()
+                    positions = {
+                        record.id: index for index, record in enumerate(records)
+                    }
+                    position = positions.get(result.chunk_id)
+                    if position is not None:
+                        result.before_chunks = [
+                            doc._context_record(record)
+                            for record in records[
+                                max(0, position - context_chunks):position
+                            ]
+                        ]
+                        result.after_chunks = [
+                            doc._context_record(record)
+                            for record in records[
+                                position + 1:position + context_chunks + 1
+                            ]
+                        ]
+                else:
+                    assert doc.conn is not None
+                    before, after = context_chunks_for(
+                        doc.conn,
+                        result.chunk_id,
+                        context_chunks,
+                    )
+                    result.before_chunks = before
+                    result.after_chunks = after
         return final
 
     def _search_files(
@@ -343,6 +390,16 @@ class VeraCorpus:
                 validation = doc.validate()
                 if not validation["ok"]:
                     return path, [], "", False, "; ".join(validation["issues"])
+                if doc._database is not None:
+                    model = str(doc.inspect().get("embedding_model") or "")
+                    results = doc.search(query, mode=mode, top_k=top_k)
+                    keyword_matched = (
+                        bool(doc.search(query, mode="keyword", top_k=1))
+                        if mode in {"keyword", "hybrid"}
+                        else False
+                    )
+                    return path, results, model, keyword_matched, None
+                assert doc.conn is not None
                 row = doc.conn.execute(
                     "SELECT value FROM vera_metadata WHERE key = 'default_embedding_model'"
                 ).fetchone()
@@ -439,6 +496,16 @@ class VeraCorpus:
         for hit in self._collection_index.search(query, mode=mode, top_k=top_k):
             path = str((Path(self.directory) / Path(hit.relative_path)).resolve())
             doc = self.document(path)
+            if doc._database is not None:
+                records = doc._database.get([hit.chunk_id])
+                if not records:
+                    continue
+                result = doc._legacy_result(
+                    QueryResult(record=records[0], score=hit.score)
+                )
+                final.append(_with_file(result, path))
+                continue
+            assert doc.conn is not None
             row = doc.conn.execute(
                 """
                 SELECT c.*, d.source_filename

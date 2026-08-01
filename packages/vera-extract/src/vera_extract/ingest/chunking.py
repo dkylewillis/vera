@@ -10,6 +10,17 @@ _HEADING_RE = re.compile(r"^(chapter|section|article|part|appendix|stormwater|zo
 
 @dataclass
 class Chunk:
+    """Text segment produced by the extraction chunker.
+
+    Attributes:
+        text: Chunk content.
+        page_start: First page number spanned by the chunk.
+        page_end: Last page number spanned by the chunk.
+        heading_path: Heading breadcrumb at chunk start.
+        token_count: Approximate token count.
+        block_ids: Source layout block identifiers.
+    """
+
     text: str
     page_start: int
     page_end: int

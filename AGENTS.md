@@ -4,10 +4,11 @@ This file teaches AI coding agents how to use VERA to retrieve context from docu
 
 ## What is an `.vera` file?
 
-A single SQLite file containing a document's full text, structure (pages, headings,
-figures), and pre-computed embeddings. You can search it instantly — no parsing, no
-chunking, no embedding API calls, no vector database. See
-[docs/vera-spec-v0.1.md](docs/vera-spec-v0.1.md) for the format specification.
+A single SQLite vector database containing ready-made chunks, JSON metadata,
+pre-computed embeddings, and optional opaque attachments. Extraction may record
+pages, headings, figures, and regions as metadata or attachments. You can search
+it instantly — no parsing, chunking, embedding API calls, or retrieval service. See
+[docs/vera-spec-v0.2.md](docs/vera-spec-v0.2.md) for the current format specification.
 
 ## Quick reference
 
@@ -132,7 +133,7 @@ VERA ships an MCP server (stdio) exposing the same capabilities as tools:
 | `vera_get_page` | Full text of a specific page |
 | `vera_get_chunk_regions` | Page numbers + bounding boxes a chunk's text came from (visual grounding) |
 
-Requires the document package's `mcp` extra: `pip install vera-cli "vera-doc[mcp]"`. Example VS Code config
+Requires the integration package: `pip install "vera-cli[mcp]"` or `pip install vera-mcp`. Example VS Code config
 (`.vscode/mcp.json`):
 
 ```json
@@ -151,11 +152,11 @@ Requires the document package's `mcp` extra: `pip install vera-cli "vera-doc[mcp
 - Python 3.10+, dependencies managed with [uv](https://docs.astral.sh/uv/):
   `uv sync --extra dev --extra ml --extra app --extra mcp`
 - Run tests with `pytest` (all tests must pass before committing).
-- Core document code lives in [packages/vera-doc/src/vera](packages/vera-doc/src/vera), and CLI code lives in [packages/vera-cli/src/vera_cli](packages/vera-cli/src/vera_cli); the format spec is
-  [docs/vera-spec-v0.1.md](docs/vera-spec-v0.1.md) — keep code and spec in sync.
+- Storage/search code lives in [packages/vera-doc/src/vera](packages/vera-doc/src/vera), extraction lives in [packages/vera-extract/src/vera_extract](packages/vera-extract/src/vera_extract), MCP lives in [packages/vera-mcp/src/vera_mcp](packages/vera-mcp/src/vera_mcp), and CLI code lives in [packages/vera-cli/src/vera_cli](packages/vera-cli/src/vera_cli); the current format spec is
+ [docs/vera-spec-v0.2.md](docs/vera-spec-v0.2.md) — keep code and spec in sync.
 - Keep human and agent documentation current. Any user-visible feature change
   must update the relevant [README](README.md), human guide under
-  [docs](docs/README.md), examples, portable
+  [docs](https://dkylewillis.github.io/vera/), examples, portable
   [agent skill](skills/vera/SKILL.md), and documentation-contract tests in the
   same change. Changes to CLI commands or flags, JSON output, exit codes, MCP
   tools, installation requirements, or retrieval behavior must also update the

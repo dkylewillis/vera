@@ -5,8 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from vera import VeraDocument, batch_convert, convert
-from vera.ingest.parsers import pdf as pdf_parser
+from vera import VeraDocument
+from vera_extract import batch_convert, convert
+from vera_extract.ingest.parsers import pdf as pdf_parser
 
 
 def _scan_pixmap(text: str | None = None):
@@ -158,17 +159,14 @@ def test_convert_records_ocr_metadata_and_searchable_regions(tmp_path, monkeypat
         ocr_dpi=300,
     )
 
-    conn = sqlite3.connect(out)
-    metadata = dict(conn.execute("SELECT key, value FROM vera_metadata"))
-    conn.close()
-    assert metadata["ocr_engine"] == "tesseract"
-    assert metadata["ocr_mode"] == "auto"
-    assert metadata["ocr_language"] == "eng"
-    assert metadata["ocr_dpi"] == "300"
-    assert json.loads(metadata["ocr_pages"]) == [1]
-
     document = VeraDocument.open(str(out))
     try:
+        ocr = document.inspect()["ocr"]
+        assert ocr["ocr_engine"] == "tesseract"
+        assert ocr["ocr_mode"] == "auto"
+        assert ocr["ocr_language"] == "eng"
+        assert ocr["ocr_dpi"] == 300
+        assert ocr["ocr_pages"] == [1]
         result = document.search("scanned stormwater", mode="keyword", top_k=1)[0]
         assert result.page_start == 1
         assert document.regions_for(result)[0]["bbox"] == [48.0, 72.0, 520.0, 112.0]

@@ -4,10 +4,10 @@ import json
 import sys
 from pathlib import Path
 
-from vera import batch_convert, convert
 from vera.collection import build_library_index, library_index_status, update_library_index
 from vera.corpus import VeraCorpus
 from vera.document import VeraDocument
+from vera_extract import batch_convert, convert
 
 
 def str_to_bool(value: str) -> bool:
@@ -244,13 +244,13 @@ def cmd_export(args) -> int:
 
 
 def cmd_mcp(args) -> int:
-    from vera.integrations.mcp_server import main as mcp_main
+    from vera_mcp import main as mcp_main
 
     return mcp_main()
 
 
 def cmd_eval(args) -> int:
-    from vera.evaluate import evaluate
+    from vera_cli.evaluate import evaluate
 
     summary = evaluate(args.file, args.queries, mode=args.mode, top_k=args.top_k)
     all_ok = all(report["hits"] == report["total"] for report in summary["reports"])

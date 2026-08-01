@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from vera import convert
+from vera_extract import convert
 from test_convert_search import make_pdf
 
 
@@ -20,7 +20,7 @@ def vera_file(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def server():
-    from vera.integrations.mcp_server import build_server
+    from vera_mcp import build_server
 
     return build_server()
 
@@ -61,7 +61,7 @@ async def test_search_tool_returns_context_chunks(server, vera_file):
 @pytest.mark.anyio
 async def test_inspect_and_validate_tools(server, vera_file):
     info = _payload(await server.call_tool("vera_inspect", {"file": str(vera_file)}))
-    assert info["format_version"] == "0.1"
+    assert info["format_version"] == "0.2"
     assert info["pages"] == 2
 
     report = _payload(await server.call_tool("vera_validate", {"file": str(vera_file)}))

@@ -31,6 +31,7 @@ def positive_int(value: str) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the ``vera`` command-line argument parser."""
     parser = argparse.ArgumentParser(prog="vera", description="Vector-Embedded Retrieval Archive CLI")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -142,5 +143,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the ``vera`` CLI and return a process exit code.
+
+    Args:
+        argv: Optional argument list. Defaults to ``sys.argv[1:]``.
+
+    Returns:
+        Integer exit code (0 on success).
+    """
     args = build_parser().parse_args(argv)
     return args.func(args)

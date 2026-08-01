@@ -8,7 +8,7 @@ from vera_cli.main import build_parser
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
-CLI_REFERENCE = DOCS / "cli-reference.md"
+CLI_REFERENCE = DOCS / "reference" / "cli.md"
 
 
 def _leaf_commands(
@@ -31,7 +31,7 @@ def _documentation_files() -> list[Path]:
     return [
         ROOT / "README.md",
         ROOT / "AGENTS.md",
-        *DOCS.glob("*.md"),
+        *DOCS.rglob("*.md"),
         *(ROOT / "skills" / "vera").rglob("*.md"),
     ]
 
@@ -49,7 +49,7 @@ def test_local_documentation_links_resolve():
 
 
 def test_documentation_index_lists_user_guides():
-    index = (DOCS / "README.md").read_text(encoding="utf-8")
+    index = (DOCS / "user-documentation.md").read_text(encoding="utf-8")
     guides = {
         "getting-started.md",
         "desktop-app-getting-started.md",
@@ -63,7 +63,7 @@ def test_documentation_index_lists_user_guides():
         "evaluation.md",
         "python-api.md",
         "mcp.md",
-        "cli-reference.md",
+        "reference/cli.md",
         "library-index-structure.md",
     }
     for guide in guides:

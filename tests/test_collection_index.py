@@ -11,7 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from vera import VeraCorpus, VeraDocument, build_library_index, convert, library_index_status, update_library_index
+from vera import VeraCorpus, VeraDocument, build_library_index, library_index_status, update_library_index
+from vera_extract import convert
 from vera.collection import INDEX_DIRECTORY, discover_vera_files
 from test_corpus import make_topic_pdf
 
@@ -378,7 +379,7 @@ class TestCli:
 
 @pytest.mark.anyio
 async def test_mcp_recursive_corpus_search(nested_library):
-    from vera.integrations.mcp_server import build_server
+    from vera_mcp import build_server
 
     server = build_server()
     result = await server.call_tool(
@@ -402,7 +403,7 @@ async def test_mcp_recursive_corpus_search(nested_library):
 @pytest.mark.anyio
 async def test_mcp_reports_skipped_semantic_model_groups(nested_library, monkeypatch):
     import vera.collection as collection
-    from vera.integrations.mcp_server import build_server
+    from vera_mcp import build_server
 
     build_library_index(str(nested_library), recursive=True, excludes=["archive"])
 

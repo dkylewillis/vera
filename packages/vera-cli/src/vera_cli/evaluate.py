@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .document import VeraDocument, SearchResult
+from vera.document import VeraDocument, SearchResult
 
 MODES = ("semantic", "keyword", "hybrid")
 

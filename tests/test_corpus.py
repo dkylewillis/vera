@@ -7,7 +7,8 @@ import sys
 
 import pytest
 
-from vera import CorpusSearchResult, VeraCorpus, convert
+from vera import CorpusSearchResult, VeraCorpus
+from vera_extract import convert
 
 
 def make_topic_pdf(path, heading, body):
@@ -180,7 +181,7 @@ class TestCli:
 
 @pytest.mark.anyio
 async def test_mcp_corpus_search_tool(corpus_dir):
-    from vera.integrations.mcp_server import build_server
+    from vera_mcp import build_server
 
     server = build_server()
     result = await server.call_tool(

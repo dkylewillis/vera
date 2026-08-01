@@ -6,20 +6,20 @@ import mimetypes
 import os
 import sqlite3
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 from collections.abc import Callable
 from typing import Any
 
-from .core.embeddings import get_embedder, serialize_vector
-from .core.schema import FORMAT_VERSION, create_schema
-from .core.validation import validate_document
+from vera import (
+    AttachmentRecord,
+    AttachmentRef,
+    ChunkRecord,
+    VeraDatabase,
+)
+from vera.core.validation import validate_document
+
 from .ingest.chunking import build_chunks_from_blocks
 from .ingest.parsers import ParsedBlock, parse_pdf_structured
-
-
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -103,6 +103,32 @@ def convert(
     ocr_dpi: int = 300,
     cancel: Any | None = None,
 ) -> str:
+    """Convert a PDF into a validated ``.vera`` archive.
+
+    Parses the PDF, chunks extracted text, embeds chunks, and writes the
+    result through :class:`~vera.database.VeraDatabase`. The archive is
+    validated before the temporary file is published atomically.
+
+    Args:
+        input_path: Source PDF path.
+        output_path: Destination ``.vera`` path.
+        model: Embedding model name (default ``"hashing"``).
+        parser: PDF parser backend (currently only ``"pymupdf"``).
+        chunk_size: Target chunk size in characters.
+        overlap: Character overlap between consecutive chunks.
+        store_original: When ``True``, embed the original PDF as an attachment.
+        ocr_mode: ``"auto"`` (default), ``"off"``, or ``"force"``.
+        ocr_language: Tesseract language code (default ``"eng"``).
+        ocr_dpi: Rasterization DPI for OCR.
+        cancel: Optional cancellation token with ``raise_if_cancelled()``.
+
+    Returns:
+        The ``output_path`` string.
+
+    Raises:
+        FileNotFoundError: When ``input_path`` does not exist.
+        ValueError: When no searchable text is extracted or the parser is unsupported.
+    """
     source = Path(input_path)
     target = Path(output_path)
     if not source.exists():
@@ -135,10 +161,6 @@ def convert(
             "the PDF may be scanned and requires OCR."
         )
     _raise_if_cancelled(cancel)
-    embedder = get_embedder(model)
-    vectors = embedder.embed([c.text for c in chunks])
-    _raise_if_cancelled(cancel)
-
     target.parent.mkdir(parents=True, exist_ok=True)
     file_descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{target.name}.",
@@ -147,98 +169,157 @@ def convert(
     )
     os.close(file_descriptor)
     temporary = Path(temporary_name)
-    conn: sqlite3.Connection | None = None
+    temporary.unlink()
+    database: VeraDatabase | None = None
     try:
-        conn = sqlite3.connect(temporary)
-        create_schema(conn)
-        now = _utc_now()
-        doc_id = "doc_001"
-        metadata = {
-            "format_name": "VERA",
-            "format_version": FORMAT_VERSION,
-            "created_at": now,
-            "created_by": "vera",
-            "creator_library": "vera-python/0.1.0",
+        page_dimensions = {
+            page.page_number: (page.width, page.height)
+            for page in pages
+        }
+        page_payload = [
+            {
+                "page_number": page.page_number,
+                "width": page.width,
+                "height": page.height,
+                "text": page.text,
+            }
+            for page in pages
+        ]
+        block_payload = [
+            {
+                "block_id": block_id,
+                "page_number": block.page_number,
+                "block_type": block.block_type,
+                "text": block.text,
+                "bbox": list(block.bbox) if block.bbox else None,
+                "heading_level": block.heading_level,
+                "sort_order": index,
+            }
+            for index, (block_id, block) in enumerate(block_records, start=1)
+        ]
+        block_lookup = dict(block_records)
+        attachments: list[AttachmentRecord] = [
+            AttachmentRecord(
+                id="viewer_pages",
+                media_type="application/vnd.vera.pages+json",
+                filename="pages.json",
+                data=json.dumps(page_payload, ensure_ascii=False).encode("utf-8"),
+                metadata={"role": "viewer_pages"},
+            ),
+            AttachmentRecord(
+                id="viewer_blocks",
+                media_type="application/vnd.vera.blocks+json",
+                filename="blocks.json",
+                data=json.dumps(block_payload, ensure_ascii=False).encode("utf-8"),
+                metadata={"role": "viewer_blocks"},
+            ),
+        ]
+        image_attachment_by_block: dict[str, str] = {}
+        for block_id, block in block_records:
+            if block.block_type != "image" or not block.image_bytes:
+                continue
+            extension = block.image_ext or "png"
+            attachment_id = f"image_{block_id}"
+            image_attachment_by_block[block_id] = attachment_id
+            attachments.append(
+                AttachmentRecord(
+                    id=attachment_id,
+                    media_type=f"image/{extension}",
+                    filename=f"page{block.page_number:04d}_{block_id}.{extension}",
+                    data=block.image_bytes,
+                    metadata={
+                        "role": "figure",
+                        "page_number": block.page_number,
+                        "bbox": list(block.bbox) if block.bbox else None,
+                    },
+                )
+            )
+        source_attachment_id: str | None = None
+        if store_original:
+            source_attachment_id = "source_original"
+            attachments.append(
+                AttachmentRecord(
+                    id=source_attachment_id,
+                    media_type=mime_type,
+                    filename=source.name,
+                    data=source_data,
+                    metadata={"role": "source"},
+                )
+            )
+
+        archive_metadata = {
+            "title": source.stem,
             "source_file_name": source.name,
             "source_file_hash": source_hash,
             "source_mime_type": mime_type,
-            "default_embedding_model": embedder.model_name,
-            "default_embedding_dimension": str(embedder.dimension),
             "chunking_strategy": f"heading_block_sliding_window:{chunk_size}:{overlap}",
             "parser_name": parser,
             "parser_version": "pymupdf",
-            "ocr_engine": str(parse_diagnostics["ocr_engine"]),
-            "ocr_mode": str(parse_diagnostics["ocr_mode"]),
-            "ocr_language": str(parse_diagnostics["ocr_language"]),
-            "ocr_dpi": str(parse_diagnostics["ocr_dpi"]),
-            "ocr_pages": json.dumps(parse_diagnostics["ocr_pages"]),
+            "ocr": parse_diagnostics,
+            "page_count": len(pages),
+            "viewer_pages_attachment_id": "viewer_pages",
+            "viewer_blocks_attachment_id": "viewer_blocks",
+            "source_attachment_id": source_attachment_id,
         }
-        conn.executemany("INSERT INTO vera_metadata(key, value) VALUES (?, ?)", metadata.items())
-        conn.execute(
-            "INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (doc_id, source.stem, source.name, mime_type, source_hash, len(pages), now),
-        )
-        for page in pages:
-            page_id = f"page_{page.page_number:06d}"
-            conn.execute(
-                "INSERT INTO pages VALUES (?, ?, ?, ?, ?, ?)",
-                (page_id, doc_id, page.page_number, page.width, page.height, page.text),
-            )
-        for sort_order, (block_id, block) in enumerate(block_records, start=1):
-            page_id = f"page_{block.page_number:06d}"
-            bbox_json = json.dumps(list(block.bbox)) if block.bbox else None
-            conn.execute(
-                "INSERT INTO blocks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    block_id,
-                    doc_id,
-                    page_id,
+        records: list[ChunkRecord] = []
+        for index, chunk in enumerate(chunks, start=1):
+            regions = []
+            references: list[AttachmentRef] = []
+            for block_id in chunk.block_ids:
+                block = block_lookup.get(block_id)
+                if block is None:
+                    continue
+                width, height = page_dimensions.get(
                     block.page_number,
-                    block.block_type,
-                    block.text,
-                    bbox_json,
-                    block.heading_level,
-                    sort_order,
-                ),
-            )
-            if block.block_type == "image" and block.image_bytes:
-                ext = block.image_ext or "png"
-                conn.execute(
-                    "INSERT INTO assets VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        f"asset_{block_id}",
-                        doc_id,
-                        "extracted_image",
-                        f"image/{ext}",
-                        f"page{block.page_number:04d}_{block_id}.{ext}",
-                        block.image_bytes,
-                        _sha256_bytes(block.image_bytes),
-                    ),
+                    (None, None),
                 )
-        for idx, (chunk, vector) in enumerate(zip(chunks, vectors), start=1):
-            chunk_id = f"chunk_{idx:06d}"
-            text_hash = hashlib.sha256(chunk.text.encode("utf-8")).hexdigest()
-            conn.execute(
-                "INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (chunk_id, doc_id, chunk.page_start, chunk.page_end, chunk.heading_path, chunk.text, chunk.token_count, text_hash, idx),
+                if block.bbox and block.block_type != "image":
+                    regions.append(
+                        {
+                            "block_id": block_id,
+                            "page_number": block.page_number,
+                            "bbox": list(block.bbox),
+                            "page_width": width,
+                            "page_height": height,
+                        }
+                    )
+                image_attachment_id = image_attachment_by_block.get(block_id)
+                if image_attachment_id:
+                    references.append(
+                        AttachmentRef(image_attachment_id, role="figure")
+                    )
+            if source_attachment_id:
+                references.append(
+                    AttachmentRef(source_attachment_id, role="source")
+                )
+            records.append(
+                ChunkRecord(
+                    id=f"chunk_{index:06d}",
+                    text=chunk.text,
+                    metadata={
+                        "document_id": "document_0001",
+                        "source_filename": source.name,
+                        "page_start": chunk.page_start,
+                        "page_end": chunk.page_end,
+                        "heading_path": chunk.heading_path,
+                        "token_count": chunk.token_count,
+                        "regions": regions,
+                    },
+                    attachments=tuple(references),
+                )
             )
-            conn.executemany(
-                "INSERT OR IGNORE INTO chunk_blocks(chunk_id, block_id) VALUES (?, ?)",
-                [(chunk_id, block_id) for block_id in chunk.block_ids],
-            )
-            conn.execute("INSERT INTO chunks_fts(chunk_id, text, heading_path) VALUES (?, ?, ?)", (chunk_id, chunk.text, chunk.heading_path))
-            conn.execute(
-                "INSERT INTO embeddings VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (f"emb_{idx:06d}", chunk_id, embedder.model_name, embedder.dimension, serialize_vector(vector), "float32_le", now),
-            )
-        if store_original:
-            conn.execute(
-                "INSERT INTO assets VALUES (?, ?, ?, ?, ?, ?, ?)",
-                ("asset_original_001", doc_id, "original_document", mime_type, source.name, source_data, source_hash),
-            )
-        conn.commit()
-        conn.close()
-        conn = None
+
+        database = VeraDatabase.create(
+            temporary,
+            model=model,
+            metadata=archive_metadata,
+        )
+        with database.transaction():
+            database.put_attachments(attachments)
+            database.add(records)
+        database.close()
+        database = None
+        _raise_if_cancelled(cancel)
 
         validation = _validate_output(temporary)
         if not validation["ok"]:
@@ -247,8 +328,8 @@ def convert(
 
         os.replace(temporary, target)
     finally:
-        if conn is not None:
-            conn.close()
+        if database is not None:
+            database.close()
         temporary.unlink(missing_ok=True)
     return str(target)
 
@@ -269,7 +350,30 @@ def batch_convert(
     progress: Callable[[int, int, str], None] | None = None,
     cancel: Any | None = None,
 ) -> dict[str, Any]:
-    """Convert every PDF in a directory, continuing after per-file failures."""
+    """Convert every PDF in a directory, continuing after per-file failures.
+
+    Args:
+        directory: Root directory to scan for PDFs.
+        recursive: When ``True``, scan subdirectories.
+        overwrite: When ``True``, replace existing ``.vera`` outputs.
+        model: Embedding model name passed to :func:`convert`.
+        parser: PDF parser backend passed to :func:`convert`.
+        chunk_size: Target chunk size passed to :func:`convert`.
+        overlap: Chunk overlap passed to :func:`convert`.
+        store_original: Whether to embed originals passed to :func:`convert`.
+        ocr_mode: OCR mode passed to :func:`convert`.
+        ocr_language: OCR language passed to :func:`convert`.
+        ocr_dpi: OCR DPI passed to :func:`convert`.
+        progress: Optional ``(current, total, filename)`` callback.
+        cancel: Optional cancellation token.
+
+    Returns:
+        A report dict with ``converted``, ``skipped``, ``failed``, and related
+        fields.
+
+    Raises:
+        NotADirectoryError: When ``directory`` is not a directory.
+    """
     root = Path(directory).resolve()
     if not root.is_dir():
         raise NotADirectoryError(str(root))

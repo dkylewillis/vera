@@ -28,6 +28,15 @@ _OCR_IMAGE_COVERAGE_THRESHOLD = 0.5
 
 @dataclass
 class ParsedPage:
+    """Single page extracted from a PDF.
+
+    Attributes:
+        page_number: 1-based page number.
+        width: Page width in points, when available.
+        height: Page height in points, when available.
+        text: Concatenated native text for the page.
+    """
+
     page_number: int
     width: float | None
     height: float | None
@@ -36,6 +45,19 @@ class ParsedPage:
 
 @dataclass
 class ParsedBlock:
+    """Layout block extracted from a PDF page.
+
+    Attributes:
+        page_number: 1-based page number.
+        block_type: One of ``heading``, ``paragraph``, ``image``, ``caption``,
+            or ``table``.
+        text: Block text content.
+        bbox: Bounding box ``(x0, y0, x1, y1)`` in page points, when available.
+        heading_level: Heading depth for heading blocks.
+        image_bytes: Raw image bytes for image blocks.
+        image_ext: Image format extension for image blocks.
+    """
+
     page_number: int
     block_type: str  # heading | paragraph | image | caption | table
     text: str
@@ -49,7 +71,9 @@ def _open_fitz():
     try:
         import fitz  # PyMuPDF
     except Exception as exc:  # pragma: no cover
-        raise RuntimeError("PyMuPDF is required for PDF parsing: install vera with pymupdf") from exc
+        raise RuntimeError(
+            "PyMuPDF is required for PDF parsing: install vera-extract"
+        ) from exc
     return fitz
 
 

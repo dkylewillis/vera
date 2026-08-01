@@ -1,6 +1,6 @@
 # VERA CLI reference for agents
 
-This reference describes the current `vera-cli` v0.1 command contract. The
+This reference describes the current `vera-cli` command contract. The
 console entry point is `vera`; `python -m vera_cli` invokes the same parser.
 
 ## Runtime and installation
@@ -8,7 +8,7 @@ console entry point is `vera`; `python -m vera_cli` invokes the same parser.
 - Python: 3.10 or newer.
 - Published CLI: `pip install vera-cli`.
 - Neural embedding models require the `ml` extra from `vera-doc`.
-- `vera mcp` requires `pip install vera-cli "vera-doc[mcp]"`.
+- `vera mcp` requires `pip install "vera-cli[mcp]"` or `pip install vera-mcp`.
 - A repository checkout can use:
   `uv sync --extra dev --extra ml --extra app --extra mcp`.
 
@@ -104,7 +104,7 @@ so agents must tolerate additional keys.
 {
   "file": "manual.vera",
   "format_name": "VERA",
-  "format_version": "0.1",
+  "format_version": "0.2",
   "created_at": "2026-01-01T00:00:00+00:00",
   "source_file_name": "manual.pdf",
   "default_embedding_model": "hashing",

@@ -1,228 +1,166 @@
-# VERA Architecture and Refactor Plan
+# VERA Architecture
 
-## Purpose
+## Package boundaries
 
-This note defines the target project boundaries for VERA after the package rename to `vera`. The goal is to let the project grow into separate document, CLI, and app surfaces while keeping behavior stable.
-
-The first refactor should be intentionally boring: no schema changes, no search behavior changes, and no CLI output changes. The work should clarify ownership and module boundaries while preserving the existing public API.
-
-## Current Shape
-
-The current package, `vera`, contains several responsibilities in one namespace:
-
-- `.vera` schema creation and format constants
-- document opening, inspection, validation, search, context chunks, figures, and visual grounding regions
-- PDF conversion, parsing, chunking, embedding, and writing
-- corpus search over multiple `.vera` files
-- CLI command parsing and output formatting
-- retrieval evaluation utilities
-- MCP server integration
-- Electron desktop app and Python sidecar
-
-## Target Product Boundaries
-
-### vera-doc
-
-`vera-doc` is the core document and retrieval engine. It owns behavior that must be consistent across the CLI, app, MCP server, tests, and third-party consumers.
-
-Responsibilities:
-
-- `.vera` schema and format constants
-- `.vera` reader/writer APIs
-- document inspection and validation
-- keyword, semantic, hybrid, and corpus search
-- context chunks and citation-ready search result models
-- chunking and chunk provenance
-- embedding interfaces and built-in embedders
-- PDF parser adapters and conversion pipeline
-- assets, figures, captions, source-document access, and visual grounding regions
-- public Python API contracts
-
-Non-responsibilities:
-
-- terminal argument parsing
-- human-oriented CLI output formatting
-- sessions, prompts, LLM calls, or user workflows
-- UI state or source viewer presentation
-
-### vera-cli
-
-`vera-cli` is a thin command-line interface over `vera-doc`.
-
-Responsibilities:
-
-- command registration and argument parsing
-- text and JSON output formatting
-- process exit codes
-- command-level error handling and messages
-- shell-friendly workflows for convert, inspect, validate, search, export, eval, and mcp
-
-Non-responsibilities:
-
-- retrieval business logic
-- schema or validation rules
-- chunking, embedding, parsing, or search ranking
-- app sessions or LLM orchestration
-
-### vera-app
-
-`vera-app` is the user-facing application layer. It should call `vera-doc` directly rather than shelling out to `vera-cli`.
-
-Responsibilities:
-
-- source document viewer and visual grounding
-- user prompt input and prompt history
-- sessions and saved research state
-- instruction layering and response configuration
-- LLM provider integrations
-- external tool registry and tool-use policies
-- answer rendering, citations, and source document views
-- app-specific auth, config, telemetry, and audit workflows
-
-Non-responsibilities:
-
-- low-level `.vera` schema behavior
-- core search algorithm correctness
-- CLI output compatibility
-
-## Dependency Direction
-
-Dependencies should move in one direction:
+VERA is a mono-repo of independently installable packages. Dependencies move
+inward toward the storage and search engine:
 
 ```text
-vera-cli  -> vera-doc
-vera-app  -> vera-doc
+vera-extract ─┐
+vera-cli ─────┼──> vera-doc
+vera-app ─────┤
+vera-mcp ─────┘
 ```
 
-The MCP server is an optional integration inside `vera-doc`, not a separate
-package.
+No package may make `vera-doc` depend on extraction, a user interface, MCP,
+evaluation tooling, or a source-file format.
 
-`vera-doc` should not import from `vera-cli` or `vera-app`.
+### `vera-doc`
 
-`vera-app` should not depend on `vera-cli` for normal operation. CLI commands are a user interface, not a backend API.
+`vera-doc` publishes the `vera` Python package. It is an embedded vector
+database backed by one portable SQLite `.vera` file.
 
-## Current Package Structure
+It owns:
 
-VERA now uses a mono-repo package layout:
+- the current `.vera` schema and format validation;
+- immutable `ChunkRecord`, `AttachmentRecord`, and query-result objects;
+- transactional chunk and attachment CRUD;
+- embedding generation and storage;
+- keyword, semantic, and hybrid retrieval;
+- read-only compatibility for 0.1 document archives;
+- corpus search and rebuildable `.vera-index/` library indexes.
+
+It does not parse, clean, OCR, or chunk source content. It does not know what a
+PDF is. Attachments are opaque bytes, and chunk/archive metadata is
+JSON-compatible caller data.
+
+### `vera-extract`
+
+`vera-extract` publishes `vera_extract`. It owns all source interpretation:
+
+- PDF parsing and table extraction;
+- selective OCR and bundled Tesseract data;
+- heading detection and chunk construction;
+- mapping pages, regions, figures, and provenance to chunk metadata;
+- optional source/image/viewer attachments;
+- single-file and batch conversion workflows.
+
+It emits final `ChunkRecord` objects and writes them through `VeraDatabase`.
+`vera-doc` never imports `vera_extract`.
+
+### `vera-cli`
+
+`vera-cli` publishes the `vera` console script and `vera_cli` module. It owns
+argument parsing, text/JSON formatting, exit codes, and retrieval evaluation.
+Conversion commands compose `vera-extract` with `vera-doc`.
+
+### `vera-mcp`
+
+`vera-mcp` publishes `vera_mcp` and the `vera-mcp` console script. It is a
+thin MCP adapter over public `vera-doc` APIs. The optional `vera-cli[mcp]`
+extra installs it for `vera mcp`.
+
+### `vera-app`
+
+`vera-app` owns the Electron/React desktop application, Python sidecar, viewer
+interpretation, LLM providers, sessions, and application state. It depends on
+both `vera-doc` and `vera-extract`, not on `vera-cli`.
+
+## Core Python API
+
+Applications that already have chunks need only `vera-doc`:
+
+```python
+from vera import ChunkRecord, VeraDatabase
+
+with VeraDatabase.create("knowledge.vera") as database:
+    database.add(
+        [
+            ChunkRecord(
+                id="requirements-1",
+                text="The minimum pipe diameter is 12 inches.",
+                metadata={"source": "manual.pdf", "page": 42},
+            )
+        ]
+    )
+
+with VeraDatabase.open("knowledge.vera") as database:
+    results = database.search(text="minimum pipe size", top_k=5)
+```
+
+The write API accepts only final chunks and optional opaque attachments:
+
+```python
+from vera import AttachmentRecord, AttachmentRef, ChunkRecord
+
+source = AttachmentRecord(
+    id="source",
+    media_type="application/pdf",
+    filename="manual.pdf",
+    data=pdf_bytes,
+)
+record = ChunkRecord(
+    id="chunk-1",
+    text="Ready-made chunk text.",
+    attachments=(AttachmentRef("source", role="source"),),
+)
+```
+
+Extraction is explicitly composed:
+
+```python
+from vera_extract import convert
+
+convert("manual.pdf", "manual.vera")
+```
+
+## Repository layout
 
 ```text
 packages/
   vera-doc/
     src/vera/
       core/
-        access.py
-        embeddings.py
-        figures.py
-        inspection.py
-        schema.py
-        search.py
-        validation.py
+      database.py
+      document.py
+      models.py
+      collection.py
+      corpus.py
+  vera-extract/
+    src/vera_extract/
+      convert.py
       ingest/
         chunking.py
-        parsers/
-          pdf.py
-      integrations/
-        mcp_server.py
+        parsers/pdf.py
+        tessdata/
   vera-cli/
     src/vera_cli/
-      main.py
       commands.py
+      evaluate.py
+  vera-mcp/
+    src/vera_mcp/
+      server.py
   vera-app/
-    electron/
-      main.ts
-      preload.ts
-    src/vera_app/
-      sidecar.py
-    src/renderer/
-      main.tsx
 ```
 
-`vera-doc` publishes the importable `vera` package. `vera-cli` publishes the `vera_cli` module and the `vera` console script. `vera-app` owns the Electron/React desktop app and publishes a Python `vera-app-sidecar` helper for local document operations.
+The root uv workspace links packages as editable dependencies. Published
+packages use normal version constraints; source copying and Git submodules are
+not dependency mechanisms.
 
-Internal tests and code should import implementation helpers from their owning package:
+## Format compatibility
 
-```python
-from vera import convert, VeraDocument
-from vera.convert import convert
-from vera.document import VeraDocument, SearchResult
-from vera.ingest import build_chunks_from_blocks, chunk_pages
-from vera_cli import main, build_parser, str_to_bool
-from vera.integrations.mcp_server import build_server
-```
+New databases and conversions write VERA 0.2. `VeraDocument` remains a
+read-oriented compatibility facade for the CLI, app, MCP adapter, and legacy
+0.1 archives. New applications should prefer `VeraDatabase`.
 
-A mono-repo keeps shared tests, examples, docs, schema changes, and cross-package refactors easy while still giving `vera-doc`, `vera-cli`, and `vera-app` clean package boundaries.
+The 0.1 document/page/block schema is documented in
+[vera-spec-v0.1.md](vera-spec-v0.1.md). The chunk-oriented current format is
+[vera-spec-v0.2.md](vera-spec-v0.2.md).
 
-`vera-cli` and `vera-app` depend on `vera-doc` through normal package dependencies. The root repo owns integration tests that prove the packages work together.
+## Repository strategy
 
-See [packages/README.md](../packages/README.md) for the package ownership rules and extraction criteria.
-
-Separate repositories should wait until there is a clear reason, such as different owners, incompatible release cadences, governance requirements, or deployment constraints.
-
-## Public API To Preserve
-
-```python
-from vera import convert, VeraDocument
-
-convert("input.pdf", "output.vera")
-
-doc = VeraDocument.open("output.vera")
-try:
-    info = doc.inspect()
-    report = doc.validate()
-    results = doc.search("query", mode="hybrid", top_k=5, context_chunks=1)
-    figures = doc.figures_for(results[0]) if results else []
-    regions = doc.regions_for(results[0]) if results else []
-finally:
-    doc.close()
-```
-
-CLI behavior should also remain stable:
-
-```bash
-vera convert input.pdf output.vera
-vera inspect output.vera
-vera validate output.vera
-vera search output.vera "query" --mode hybrid --top-k 5
-vera export output.vera
-vera eval output.vera queries.json --mode all
-vera mcp
-vera-app
-```
-
-For CLI compatibility, preserve JSON output shapes and exit-code behavior unless a deliberate breaking change is documented.
-
-## Baseline
-
-Use the project virtual environment or uv workspace for tests:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest
-uv run --extra dev python -m pytest -q
-```
-
-Baseline after the mono-repo package split on 2026-06-18:
-
-```text
-140 passed
-```
-
-## Refactor Guardrails
-
-- Do not change the `.vera` schema as part of structure-only refactors.
-- Do not change search ranking behavior unless the change is explicit and evaluated.
-- Do not change chunking behavior during module moves.
-- Do not change CLI output formats during module moves.
-- Document deliberate package/import moves in README, AGENTS.md, and package docs.
-- Do not introduce app/LLM behavior into core document modules.
-- Run tests after each small move.
-
-## Success Criteria
-
-The structure is successful when:
-
-- the full test suite passes through the project virtual environment
-- package dependencies and imports follow the `vera-cli -> vera-doc` direction
-- existing CLI commands continue to work
-- docs describe the new boundaries clearly
-- `vera-doc` responsibilities are separable from CLI and app concerns
-- future `vera-app` work can call document APIs directly without relying on CLI subprocesses
+Keep the packages in one GitHub repository while schema, extraction, CLI, and
+desktop changes commonly need atomic integration work. Separate repositories
+only when ownership, release cadence, governance, or deployment constraints
+actually diverge. Before a split, publish versioned wheels and test dependents
+against both minimum and latest supported package versions.

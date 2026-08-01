@@ -4,10 +4,11 @@ import sqlite3
 
 import pytest
 
-from vera import VeraDocument, convert
-from vera.ingest.chunking import build_chunks_from_blocks
-from vera.ingest.parsers import ParsedBlock, parse_pdf_structured
-from vera.ingest.parsers.pdf import (
+from vera import VeraDocument
+from vera_extract import convert
+from vera_extract.ingest.chunking import build_chunks_from_blocks
+from vera_extract.ingest.parsers import ParsedBlock, parse_pdf_structured
+from vera_extract.ingest.parsers.pdf import (
     _merge_tables_into_blocks,
     _overlap_fraction,
     _table_to_markdown,
@@ -145,12 +146,12 @@ class TestParsePdfTables:
     def test_table_blocks_persisted_in_vera_file(self, tmp_path, table_pdf):
         out = tmp_path / "out.vera"
         convert(str(table_pdf), str(out), model="hashing")
-        conn = sqlite3.connect(out)
-        try:
-            count = conn.execute("SELECT COUNT(*) FROM blocks WHERE block_type='table'").fetchone()[0]
+        with VeraDocument.open(str(out)) as document:
+            count = sum(
+                block["block_type"] == "table"
+                for block in document.get_blocks()
+            )
             assert count == 1
-        finally:
-            conn.close()
 
 
 class TestTableChunking:

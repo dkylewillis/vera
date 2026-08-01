@@ -1,0 +1,161 @@
+site_name: VERA
+site_description: Vector-Embedded Retrieval Archive — portable document search and grounded retrieval
+site_url: https://dkylewillis.github.io/vera/
+repo_url: https://github.com/dkylewillis/vera
+repo_name: dkylewillis/vera
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: en
+  palette:
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to system preference
+  features:
+    - content.tabs.link
+    - content.code.copy
+    - content.tooltips
+    - navigation.footer
+    - navigation.tabs
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.path
+    - navigation.top
+    - navigation.tracking
+    - search.suggest
+    - search.highlight
+    - toc.follow
+
+plugins:
+  - search
+  - redirects:
+      redirect_maps:
+        cli-reference.md: reference/cli.md
+        concepts/overview.md: concepts/index.md
+        reference/index.md: reference/database.md
+        reference/vera-database.md: reference/database.md
+        reference/vera-models.md: reference/models.md
+        reference/vera-document.md: reference/document.md
+        reference/vera-corpus.md: reference/corpus.md
+        reference/vera-collection.md: reference/collection.md
+        reference/vera-extract.md: reference/conversion.md
+        reference/vera-mcp.md: reference/mcp_server.md
+        reference/vera-cli.md: reference/cli.md
+        reference/vera.md: reference/database.md
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - packages/vera-doc/src
+            - packages/vera-extract/src
+            - packages/vera-cli/src
+            - packages/vera-mcp/src
+            - packages/vera-app/src
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: true
+            merge_init_into_class: true
+            docstring_section_style: list
+            summary: true
+            inherited_members: true
+            show_source: false
+            show_submodules: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            filters: ["!^_[^_]"]
+            members_order: source
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - toc:
+      permalink: true
+
+nav:
+  - Documentation:
+      - Documentation: index.md
+      - Getting started:
+          - Getting started: getting-started.md
+          - Quickstart: getting_started/quickstart.md
+      - Usage:
+          - Convert documents: conversion.md
+          - Search documents: searching.md
+          - Document libraries: document-libraries.md
+          - Figures and regions: figures-and-regions.md
+          - Validation and export: validation-and-export.md
+          - Evaluation: evaluation.md
+          - Python API guide: python-api.md
+      - Integrations:
+          - MCP server: mcp.md
+          - Agent skills: agent-skills.md
+          - Desktop app: desktop-app-getting-started.md
+      - Concepts:
+          - Concepts: concepts/index.md
+      - Examples:
+          - Examples: examples/index.md
+          - Basic example: examples/basic-example.md
+          - Recipes: examples.md
+      - FAQ:
+          - Troubleshooting: troubleshooting.md
+      - Specification:
+          - Format (0.2): vera-spec-v0.2.md
+          - Format (0.1): vera-spec-v0.1.md
+          - Collection index: collection-index.md
+          - Library index structure: library-index-structure.md
+      - Contributor:
+          - Documentation index: user-documentation.md
+          - Architecture: architecture.md
+          - Desktop app architecture: desktop-app-architecture.md
+          - Handoff: HANDOFF.md
+  - Reference:
+      - Python API:
+          - Database: reference/database.md
+          - Records: reference/models.md
+          - Document: reference/document.md
+          - Corpus: reference/corpus.md
+          - Library index: reference/collection.md
+          - Conversion: reference/conversion.md
+          - MCP server: reference/mcp_server.md
+      - CLI:
+          - CLI reference: reference/cli.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/dkylewillis/vera

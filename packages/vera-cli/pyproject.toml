@@ -1,11 +1,12 @@
 [project]
 name = "vera-cli"
-version = "0.1.1"
+version = "0.2.0"
 description = "Command-line interface for VERA documents"
-readme = "../../README.md"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "vera-doc",
+  "vera-extract",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
@@ -16,6 +17,9 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Topic :: Text Processing :: Indexing",
 ]
+
+[project.optional-dependencies]
+mcp = ["vera-mcp"]
 
 [project.scripts]
 vera = "vera_cli:main"

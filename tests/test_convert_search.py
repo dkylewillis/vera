@@ -3,7 +3,8 @@ import sqlite3
 
 import pytest
 
-from vera import VeraDocument, batch_convert, convert
+from vera import VeraDocument
+from vera_extract import batch_convert, convert
 
 
 def make_pdf(path):
@@ -49,16 +50,17 @@ def test_convert_pdf_populates_vera_and_searches(tmp_path):
     convert(str(pdf), str(out), model="hashing", chunk_size=40, overlap=5)
 
     conn = sqlite3.connect(out)
-    assert conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 1
-    assert conn.execute("SELECT COUNT(*) FROM pages").fetchone()[0] == 2
     assert conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0] >= 2
     assert conn.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0] >= 2
     assert conn.execute("SELECT COUNT(*) FROM chunks_fts").fetchone()[0] >= 2
-    assert conn.execute("SELECT COUNT(*) FROM assets WHERE asset_type='original_document'").fetchone()[0] == 1
+    assert conn.execute(
+        "SELECT COUNT(*) FROM attachments "
+        "WHERE json_extract(metadata_json, '$.role')='source'"
+    ).fetchone()[0] == 1
 
     doc = VeraDocument.open(str(out))
     info = doc.inspect()
-    assert info["format_version"] == "0.1"
+    assert info["format_version"] == "0.2"
     assert info["pages"] == 2
 
     keyword = doc.search("restaurant parking", mode="keyword", top_k=1)[0]
@@ -93,12 +95,12 @@ def test_convert_failure_preserves_destination_and_removes_temporary_file(
     out = tmp_path / "manual.vera"
     make_pdf(pdf)
     out.write_bytes(b"existing destination")
-    convert_module = importlib.import_module("vera.convert")
+    convert_module = importlib.import_module("vera_extract.convert")
 
-    def fail_schema(_conn):
+    def fail_create(*_args, **_kwargs):
         raise RuntimeError("simulated interrupted conversion")
 
-    monkeypatch.setattr(convert_module, "create_schema", fail_schema)
+    monkeypatch.setattr(convert_module.VeraDatabase, "create", fail_create)
 
     with pytest.raises(RuntimeError, match="simulated interrupted conversion"):
         convert(str(pdf), str(out), model="hashing")
@@ -112,7 +114,7 @@ def test_convert_validation_failure_is_not_published(tmp_path, monkeypatch):
     out = tmp_path / "manual.vera"
     make_pdf(pdf)
     out.write_bytes(b"existing destination")
-    convert_module = importlib.import_module("vera.convert")
+    convert_module = importlib.import_module("vera_extract.convert")
     monkeypatch.setattr(
         convert_module,
         "validate_document",
@@ -191,7 +193,7 @@ def test_batch_convert_stops_when_cancelled(tmp_path, monkeypatch):
             self.raise_if_cancelled()
 
     cancel = Token()
-    convert_mod = importlib.import_module("vera.convert")
+    convert_mod = importlib.import_module("vera_extract.convert")
     real_convert = convert_mod.convert
 
     def convert_once(input_path, output_path, **kwargs):
@@ -234,7 +236,7 @@ def test_batch_convert_skips_current_file_and_continues(tmp_path, monkeypatch):
             self.skip_requested = False
 
     cancel = Token()
-    convert_mod = importlib.import_module("vera.convert")
+    convert_mod = importlib.import_module("vera_extract.convert")
     real_convert = convert_mod.convert
     calls = {"n": 0}
 

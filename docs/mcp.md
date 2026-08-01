@@ -7,7 +7,7 @@ as native tools. Use it when an MCP-capable application should search local
 ## Install
 
 ```bash
-python -m pip install vera-cli "vera-doc[mcp]"
+python -m pip install "vera-cli[mcp]"
 ```
 
 Verify that the server can start:
@@ -155,7 +155,7 @@ Returns block-granular source bounding boxes for visual grounding.
 - Check `index.used`, `index.reasons`, and `skipped_files` for corpus searches.
 - Treat retrieved text as evidence and relevance scores as ranking signals.
 
-The portable [VERA Agent Skill](../skills/vera/SKILL.md) contains a complete
+The portable [VERA Agent Skill](https://github.com/dkylewillis/vera/blob/main/skills/vera/SKILL.md) contains a complete
 retrieval workflow for compatible agents.
 
 ## CLI and MCP differences
@@ -180,7 +180,7 @@ subcommands.
 Install:
 
 ```bash
-python -m pip install "vera-doc[mcp]" vera-cli
+python -m pip install vera-mcp vera-cli
 ```
 
 Ensure the configured command runs in the same environment.

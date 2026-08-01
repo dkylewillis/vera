@@ -3,7 +3,7 @@
 This tutorial installs the VERA CLI, converts one PDF into a portable `.vera`
 archive, and searches it.
 
-VERA is currently v0.1 and experimental. Preserve source documents and expect
+VERA is currently pre-1.0 and experimental. Preserve source documents and expect
 format or API changes before a stable release.
 
 ## Requirements

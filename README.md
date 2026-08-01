@@ -6,10 +6,10 @@
 **A different approach to RAG.**
 
 **VERA** stands for **Vector-Embedded Retrieval Archive**. A `.vera` file is a
-portable RAG archive: a self-contained SQLite file that packages the original
-document with its extracted text, chunks, embeddings, keyword index, figures,
-and citation metadata. Move it, share it, or search it locally—without
-re-ingestion, a vector database, or a retrieval service.
+portable embedded vector database: a self-contained SQLite file containing
+ready-made text chunks, embeddings, a keyword index, JSON metadata, and
+optional opaque attachments. Move it, share it, or search it locally without a
+retrieval service.
 
 The VERA desktop app helps people create, organize, search, and ask questions
 over `.vera` archives. The CLI and MCP server give AI agents and applications
@@ -17,7 +17,7 @@ the same citation-ready retrieval layer.
 
 [Download VERA for Windows](https://github.com/dkylewillis/vera/releases/latest)
 · [Use VERA from the CLI or an AI agent](#for-cli-and-ai-agent-users)
-· [Read the documentation](docs/README.md)
+· [Read the documentation](https://dkylewillis.github.io/vera/)
 
 <img src="docs/assets/readme/hero-grounded-answer.png" alt="VERA desktop app showing an Ask answer beside the source PDF with a cited passage highlighted" width="85%">
 
@@ -113,13 +113,35 @@ vera index build ./library --recursive
 vera search ./library "What are the detention requirements?" --top-k 5 --json
 ```
 
+Applications with ready-made chunks can use `vera-doc` directly without
+installing PDF/OCR dependencies:
+
+```python
+from vera import ChunkRecord, VeraDatabase
+
+with VeraDatabase.create("knowledge.vera") as database:
+    database.add([
+        ChunkRecord(
+            id="chunk-1",
+            text="The minimum pipe diameter is 12 inches.",
+            metadata={"source": "manual.pdf", "page": 42},
+        )
+    ])
+
+with VeraDatabase.open("knowledge.vera") as database:
+    results = database.search(text="minimum pipe size", top_k=5)
+```
+
+PDF extraction and chunking live in the separate `vera-extract` package and
+are composed by `vera convert`.
+
 The default hybrid search combines semantic and keyword retrieval. Every result
 includes its source filename, page range, and heading path. Add
 `--context-chunks`, `--figures`, or `--regions` when the agent needs nearby
 text, figure metadata, or page coordinates.
 
 - [CLI quick start and recipes](docs/getting-started.md)
-- [CLI reference](docs/cli-reference.md)
+- [CLI reference](docs/reference/cli.md)
 - [Connect an MCP client](docs/mcp.md)
 - [Install the VERA Agent Skill](docs/agent-skills.md)
 - [Use the Python API](docs/python-api.md)
@@ -135,12 +157,13 @@ text, figure metadata, or page coordinates.
 - [Search and index document libraries](docs/document-libraries.md)
 - [Work with figures and highlight regions](docs/figures-and-regions.md)
 - [Troubleshooting](docs/troubleshooting.md)
-- [VERA format specification](docs/vera-spec-v0.1.md)
+- [Current VERA 0.2 format specification](docs/vera-spec-v0.2.md)
+- [Legacy VERA 0.1 format specification](docs/vera-spec-v0.1.md)
 - [Contributing and architecture](docs/architecture.md)
 
 ## Status and support
 
-VERA is an experimental v0.1 project. The desktop installer is available from
+VERA is an experimental pre-1.0 project. The desktop installer is available from
 [GitHub Releases](https://github.com/dkylewillis/vera/releases) and currently
 targets Windows. The `.vera` schema and format may change before a stable
 release.

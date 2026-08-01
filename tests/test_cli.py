@@ -22,7 +22,7 @@ def test_cli_convert_inspect_search(tmp_path):
         capture_output=True,
         check=True,
     )
-    assert "Format: VERA v0.1" in inspected.stdout
+    assert "Format: VERA v0.2" in inspected.stdout
     assert "Chunks:" in inspected.stdout
 
     searched = subprocess.run(
@@ -56,7 +56,7 @@ def test_cli_json_output_for_agents(tmp_path):
     assert converted["output"].endswith("manual.vera")
 
     info = run("inspect", str(out), "--json")
-    assert info["format_version"] == "0.1"
+    assert info["format_version"] == "0.2"
     assert info["pages"] == 2
 
     report = run("validate", str(out), "--json")

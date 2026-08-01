@@ -1,17 +1,15 @@
 [project]
 name = "vera-doc"
-version = "0.1.1"
+version = "0.2.0"
 description = "Vector-Embedded Retrieval Archive document and retrieval engine"
-readme = "../../README.md"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.24",
-  "pdfplumber>=0.11",
-  "pymupdf>=1.23",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
-keywords = ["semantic-search", "document", "sqlite", "embeddings", "rag", "pdf"]
+keywords = ["semantic-search", "vector-database", "sqlite", "embeddings", "rag"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "License :: OSI Approved :: Apache Software License",
@@ -22,11 +20,10 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/dkylewillis/vera"
 Repository = "https://github.com/dkylewillis/vera"
-Specification = "https://github.com/dkylewillis/vera/blob/main/docs/vera-spec-v0.1.md"
+Specification = "https://github.com/dkylewillis/vera/blob/main/docs/vera-spec-v0.2.md"
 
 [project.optional-dependencies]
 ml = ["sentence-transformers>=2.7"]
-mcp = ["mcp>=1.0"]
 
 [build-system]
 requires = ["hatchling"]

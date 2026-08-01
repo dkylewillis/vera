@@ -13,13 +13,12 @@ from typing import Any
 
 from vera import (
     VeraDocument,
-    batch_convert,
     build_library_index,
-    convert,
     library_index_status,
     update_library_index,
 )
 from vera.corpus import VeraCorpus
+from vera_extract import batch_convert, convert
 from vera_app.cancellation import CancellationToken, CancelledError, SkipCurrentError
 from vera_app.llm import (
     ChatResponse,

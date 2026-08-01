@@ -120,7 +120,7 @@ the recorded model, so the `ml` extra must also be installed on machines that
 search an archive created with a Sentence Transformers model.
 
 Use only `hashing`, `vera-hashing-384`, `all-MiniLM-L6-v2`, or a
-`sentence-transformers/...` name. In v0.1, an unrecognized model name falls
+`sentence-transformers/...` name. An unrecognized model name falls
 back to hashing while retaining the requested name in metadata; that can make
 the archive difficult to query consistently on another machine.
 
@@ -144,7 +144,7 @@ representative query set before adopting non-default values.
 
 ## Parser
 
-VERA v0.1 supports the `pymupdf` parser:
+`vera-extract` currently supports the `pymupdf` parser:
 
 ```bash
 vera convert "input.pdf" --parser pymupdf
@@ -183,7 +183,7 @@ embedding counts, FTS consistency, and the stored source document.
 ## Python equivalent
 
 ```python
-from vera import convert
+from vera_extract import convert
 
 path = convert(
     "input.pdf",

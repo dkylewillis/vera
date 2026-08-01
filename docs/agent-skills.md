@@ -2,7 +2,7 @@
 
 VERA ships a portable
 [Agent Skills](https://agentskills.io/specification) package at
-[`skills/vera/`](../skills/vera/). It teaches a shell-capable AI agent to use
+[`skills/vera/`](https://github.com/dkylewillis/vera/tree/main/skills/vera/). It teaches a shell-capable AI agent to use
 `vera-cli`, interpret its JSON and exit codes, retrieve evidence, and produce
 page-level citations.
 
@@ -75,7 +75,7 @@ python -m vera_cli --help
 Optional capabilities:
 
 - Neural embedding models require the `vera-doc` `ml` extra.
-- MCP requires `pip install vera-cli "vera-doc[mcp]"`.
+- MCP requires `pip install "vera-cli[mcp]"` or `pip install vera-mcp`.
 - The zero-dependency hashing embedder is the default and needs neither extra.
 
 For a repository checkout:
@@ -167,7 +167,7 @@ The CLI skill is appropriate when the agent has shell and file access. An
 MCP-capable agent can instead run VERA as native tools:
 
 ```bash
-pip install vera-cli "vera-doc[mcp]"
+pip install "vera-cli[mcp]"
 vera mcp
 ```
 

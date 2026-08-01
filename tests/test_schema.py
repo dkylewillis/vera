@@ -17,13 +17,10 @@ def test_create_schema_creates_required_tables_and_fts(tmp_path):
 
     assert {
         "vera_metadata",
-        "documents",
-        "pages",
-        "blocks",
         "chunks",
-        "chunk_blocks",
         "embeddings",
-        "assets",
+        "attachments",
+        "chunk_attachments",
         "chunks_fts",
     }.issubset(names)
     assert "format_version" in REQUIRED_METADATA_KEYS

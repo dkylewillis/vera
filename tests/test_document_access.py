@@ -7,7 +7,8 @@ import sys
 
 import pytest
 
-from vera import SourceDocument, VeraDocument, convert
+from vera import SourceDocument, VeraDocument
+from vera_extract import convert
 from test_blocks_figures import make_structured_pdf
 
 
@@ -126,11 +127,11 @@ class TestGetAsset:
 class TestChunkRegions:
     def test_regions_have_bbox_and_page_dimensions(self, vera_doc):
         doc, _, _ = vera_doc
-        chunk = doc.conn.execute("SELECT chunk_id, page_start FROM chunks LIMIT 1").fetchone()
-        regions = doc.get_chunk_regions(chunk["chunk_id"])
+        chunk = doc.search("restaurant parking", mode="keyword", top_k=1)[0]
+        regions = doc.get_chunk_regions(chunk.chunk_id)
         assert regions
         for region in regions:
-            assert region["page_number"] == chunk["page_start"]
+            assert region["page_number"] == chunk.page_start
             assert len(region["bbox"]) == 4
             assert region["page_width"] > 0
             assert region["page_height"] > 0
@@ -152,13 +153,15 @@ class TestChunkRegions:
         doc, _, _ = vera_doc
         result = doc.search("restaurant parking", mode="keyword", top_k=1)[0]
         image_block_ids = {
-            row["block_id"] for row in doc.conn.execute("SELECT block_id FROM blocks WHERE block_type='image'")
+            block["block_id"]
+            for block in doc.get_blocks()
+            if block["block_type"] == "image"
         }
         # Sanity check: the chunk really is linked to an image via chunk_blocks,
         # otherwise this test would trivially pass without exercising the fix.
         linked = {
-            row["block_id"]
-            for row in doc.conn.execute("SELECT block_id FROM chunk_blocks WHERE chunk_id=?", (result.chunk_id,))
+            figure["block_id"]
+            for figure in doc.figures_for(result)
         }
         assert linked & image_block_ids
 
