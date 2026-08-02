@@ -17,13 +17,13 @@ format or API changes before a stable release.
 Install the CLI and its dependencies:
 
 ```bash
-python -m pip install "vera-cli>=0.2.1"
+python -m pip install "vera-cli>=0.2.2"
 ```
 
 That installs `vera-doc` and `vera-ingest` as well. Add MCP support with:
 
 ```bash
-python -m pip install "vera-cli[mcp]>=0.2.1"
+python -m pip install "vera-cli[mcp]>=0.2.2"
 ```
 
 Verify that the console script is available:
@@ -42,13 +42,13 @@ python -m vera_cli --help
 
 ```bash
 # Storage and search only
-python -m pip install "vera-doc>=0.2.1"
+python -m pip install "vera-doc>=0.2.2"
 
 # PDF conversion and viewer helpers
-python -m pip install "vera-ingest>=0.2.1"
+python -m pip install "vera-ingest>=0.2.2"
 
 # MCP server package
-python -m pip install "vera-mcp>=0.2.1"
+python -m pip install "vera-mcp>=0.2.2"
 ```
 
 ## Install from source

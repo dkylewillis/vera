@@ -31,14 +31,14 @@ Major capabilities:
 Install the CLI from PyPI:
 
 ```bash
-python -m pip install "vera-cli>=0.2.1"
+python -m pip install "vera-cli>=0.2.2"
 ```
 
 That pulls in `vera-doc` and `vera-ingest`. Library-only installs:
 
 ```bash
-python -m pip install "vera-doc>=0.2.1"
-python -m pip install "vera-ingest>=0.2.1"
+python -m pip install "vera-doc>=0.2.2"
+python -m pip install "vera-ingest>=0.2.2"
 ```
 
 Contributors using [uv](https://docs.astral.sh/uv/) can clone the repository and

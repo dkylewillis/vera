@@ -13,13 +13,13 @@ implemented by `vera-doc` and `vera-ingest`.
 From PyPI:
 
 ```bash
-python -m pip install "vera-cli[mcp]>=0.2.1"
+python -m pip install "vera-cli[mcp]>=0.2.2"
 ```
 
 Or install the package directly:
 
 ```bash
-python -m pip install "vera-mcp>=0.2.1"
+python -m pip install "vera-mcp>=0.2.2"
 ```
 
 From a repository checkout:

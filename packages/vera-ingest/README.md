@@ -11,7 +11,7 @@ region, and source-document conventions.
 ## Install
 
 ```bash
-python -m pip install "vera-ingest>=0.2.1"
+python -m pip install "vera-ingest>=0.2.2"
 ```
 
 See the [vera-ingest documentation](https://dkylewillis.github.io/vera/packages/vera-ingest/)

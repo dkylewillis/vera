@@ -5,13 +5,13 @@
 Install only the storage and search engine:
 
 ```bash
-python -m pip install "vera-doc>=0.2.1"
+python -m pip install "vera-doc>=0.2.2"
 ```
 
 Install source ingestion separately when needed:
 
 ```bash
-python -m pip install "vera-ingest>=0.2.1"
+python -m pip install "vera-ingest>=0.2.2"
 ```
 
 ## Create and search a database
