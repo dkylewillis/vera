@@ -20,7 +20,9 @@ Install the CLI and its dependencies:
 python -m pip install "vera-cli>=0.2.2"
 ```
 
-That installs `vera-doc` and `vera-ingest` as well. Add MCP support with:
+That installs `vera-doc` and `vera-ingest` as well. `vera-ingest` may not yet be
+published to PyPI; if the install fails because the package cannot be found,
+[install from source](#install-from-source) instead. Add MCP support with:
 
 ```bash
 python -m pip install "vera-cli[mcp]>=0.2.2"
@@ -50,6 +52,9 @@ python -m pip install "vera-ingest>=0.2.2"
 # MCP server package
 python -m pip install "vera-mcp>=0.2.2"
 ```
+
+`vera-ingest` may not yet be published to PyPI. If that package install fails
+because it cannot be found, use [Install from source](#install-from-source).
 
 ## Install from source
 

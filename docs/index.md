@@ -41,6 +41,10 @@ python -m pip install "vera-doc>=0.2.2"
 python -m pip install "vera-ingest>=0.2.2"
 ```
 
+`vera-ingest` may not yet be published to PyPI. If the install fails because the
+package cannot be found, install from a repository checkout instead
+(`python -m pip install ./packages/vera-doc ./packages/vera-ingest`).
+
 Contributors using [uv](https://docs.astral.sh/uv/) can clone the repository and
 synchronize the workspace:
 

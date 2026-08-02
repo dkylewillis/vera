@@ -14,6 +14,10 @@ Install source ingestion separately when needed:
 python -m pip install "vera-ingest>=0.2.2"
 ```
 
+`vera-ingest` may not yet be published to PyPI. If the install fails because the
+package cannot be found, install from a repository checkout instead
+(`python -m pip install ./packages/vera-doc ./packages/vera-ingest`).
+
 ## Create and search a database
 
 `vera-doc` accepts final chunks. It never parses or chunks source files.

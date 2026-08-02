@@ -14,6 +14,13 @@ region, and source-document conventions.
 python -m pip install "vera-ingest>=0.2.2"
 ```
 
+`vera-ingest` may not yet be published to PyPI. If the install fails because the
+package cannot be found, install from a repository checkout:
+
+```bash
+python -m pip install ./packages/vera-doc ./packages/vera-ingest
+```
+
 See the [vera-ingest documentation](https://dkylewillis.github.io/vera/packages/vera-ingest/)
 for concepts, examples, and API reference.
 
