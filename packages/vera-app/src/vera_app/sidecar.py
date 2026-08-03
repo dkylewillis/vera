@@ -701,16 +701,6 @@ def _answer(
         if write_event:
             write_event(entry)
 
-    # Stream the model's visible answer token-by-token when an event sink exists.
-    # Intermediate tool-deciding turns rarely emit prose; if such a turn does emit
-    # partial text and then calls a tool, we send `answer_reset` so the UI discards
-    # it and only the final answer turn's text survives.
-    stream_delta = (
-        (lambda text: write_event({"event": "answer_delta", "text": text}))
-        if write_event
-        else None
-    )
-
     last_response: ChatResponse | None = None
     # Whether the active provider still appears to accept image content. Flipped
     # off for the rest of this answer the first time it rejects an image message
@@ -724,6 +714,10 @@ def _answer(
                 cancel.raise_if_cancelled()
             force_answer = turn >= mode.max_searches or tool.chunk_count >= mode.max_chunks
             offered_tools = None if force_answer else [SEARCH_TOOL]
+            # Providers can emit textual/XML tool syntax in any turn, even when
+            # tools were not offered. Buffer every response until parsing removes
+            # that syntax and confirms whether the turn is a tool call or an answer.
+            stream_delta = None
             record({
                 "event": "llm_request",
                 "turn": turn,
@@ -777,11 +771,11 @@ def _answer(
                 flush=True,
             )
             if force_answer or not response.tool_calls:
+                # Publish only the parsed, canonical answer. Raw streaming fragments
+                # may contain malformed tool-call syntax and must never reach the UI.
+                if write_event and response.content:
+                    write_event({"event": "answer_delta", "text": response.content})
                 break
-            # This turn is using tools, so any prose it streamed is not the final
-            # answer — tell the UI to discard the partial it just rendered.
-            if stream_delta:
-                write_event({"event": "answer_reset"})
             # Build the assistant message to append — ensure content is not None.
             assistant_msg = dict(response.message)
             if assistant_msg.get("content") is None:

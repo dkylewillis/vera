@@ -705,14 +705,16 @@ def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):
     convert(str(pdf), str(out), model="hashing", store_original=True)
 
     calls = {"n": 0}
+    emitted: list[dict] = []
 
     def fake_chat(messages, config, tools=None, tool_choice="auto", on_delta=None):
         calls["n"] += 1
         if calls["n"] == 1:
             assert tools, "tools should be offered on the first turn"
             assert config.model == "test-model"
+            assert on_delta is None, "tool-deciding turns must not stream raw content"
             return ChatResponse(
-                content="",
+                content='<tool_call>{"query":"restaurant parking"}</tool_call>',
                 tool_calls=[ToolCall(id="call_1", name="search", arguments={"query": "restaurant parking", "mode": "keyword", "top_k": 1})],
                 message={"role": "assistant", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "search", "arguments": "{}"}}]},
                 model="test-model",
@@ -730,6 +732,7 @@ def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
+    monkeypatch.setattr("vera_app.sidecar._write_response", emitted.append)
 
     response = handle({"id": "1", "action": "answer", "path": str(out), "prompt": "restaurant parking", "llm": _llm_payload()})
 
@@ -741,6 +744,9 @@ def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):
     assert result["citations"][0]["result"]["regions"]
     assert result["searches"][0]["query"] == "restaurant parking"
     assert result["llm"]["model"] == "test-model"
+    visible_deltas = [event.get("text") for event in emitted if event.get("event") == "answer_delta"]
+    assert visible_deltas == ["Restaurant parking requirements are in the cited passage. [C1]"]
+    assert all("<tool_call>" not in str(event.get("text", "")) for event in emitted)
 
 
 def test_answer_action_merges_custom_instructions(tmp_path, monkeypatch):

@@ -20,6 +20,8 @@ import {
   Minimize2,
   PanelLeftClose,
   PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   RefreshCw,
   Search,
@@ -39,6 +41,7 @@ import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexMo
 import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { ModelManager, ProviderManager } from './components/ProviderManagers';
 import { VeraIcon } from './components/VeraIcon';
+import { firstCitationInAnswer } from './lib/citations';
 import { EMPTY_FIGURES, EMPTY_REGIONS } from './lib/constants';
 import {
   convertDefaultsFromSelection,
@@ -149,7 +152,6 @@ function App() {
   const [chunkSize, setChunkSize] = useState(500);
   const [overlap, setOverlap] = useState(75);
   const [storeOriginal, setStoreOriginal] = useState(true);
-  const [status, setStatus] = useState('Ready');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [providerErrorDetail, setProviderErrorDetail] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -169,10 +171,12 @@ function App() {
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [sourceDocument, setSourceDocument] = useState<SourceDocumentResult | null>(null);
   const [sourceDocumentPath, setSourceDocumentPath] = useState('');
+  const sourceDocumentLoadRef = useRef(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageResult, setPageResult] = useState<PageResult | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState<SearchResult | null>(null);
+  const [citationJumpVersion, setCitationJumpVersion] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [collapsedFolders, setCollapsedFolders] = useState<string[]>([]);
   const [explorerFileFilter, setExplorerFileFilter] = useState<ExplorerFileFilter>('vera');
@@ -244,6 +248,7 @@ function App() {
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [sourcePaneWidth, setSourcePaneWidth] = useState(34);
   const [viewerCollapsed, setViewerCollapsed] = useState(false);
+  const [viewerExpanded, setViewerExpanded] = useState(false);
   const [isResizingSource, setIsResizingSource] = useState(false);
   const [sidePanelWidth, setSidePanelWidth] = useState(() => {
     const stored = Number(localStorage.getItem('vera.sidePanelWidth'));
@@ -293,7 +298,16 @@ function App() {
   // Keep these props referentially stable so PdfSourceViewer's memoization can
   // isolate its DOM-heavy PDF tree from chat-composer keystrokes.
   const viewerHighlights = useMemo(() => {
-    if (!selected || sourceDocumentPath !== selectedSourcePath) {
+    if (!selected) {
+      return { regions: EMPTY_REGIONS, figures: EMPTY_FIGURES, targetPage: null };
+    }
+    // Only suppress overlays when a different archive is still on screen.
+    const normalize = (value: string) => value.replace(/\\/g, '/').toLowerCase();
+    if (
+      sourceDocumentPath
+      && selectedSourcePath
+      && normalize(sourceDocumentPath) !== normalize(selectedSourcePath)
+    ) {
       return { regions: EMPTY_REGIONS, figures: EMPTY_FIGURES, targetPage: null };
     }
     return {
@@ -302,7 +316,6 @@ function App() {
       targetPage: selectedTargetPage,
     };
   }, [selected, selectedSourcePath, selectedTargetPage, sourceDocumentPath]);
-  const sourceExpanded = sourcePaneWidth >= 58;
 
   function applyConvertDefaultsFromSelection(selection: ExplorerSelection | null = explorerSelection) {
     const defaults = convertDefaultsFromSelection(selection, activeLibraryPath);
@@ -507,7 +520,8 @@ function App() {
     const selection: ExplorerSelection = { kind: 'file', path: entry.path, type: entry.type };
     if (entry.type === 'vera') {
       setExplorerSelection(selection);
-      // Selecting a document sets the active scope for the chat and search UI.
+      // Selecting a document sets Search/Ask scope only; the document viewer is
+      // unchanged until double-click / Preview / a citation loads a source.
       // Metadata inspection is deferred until the user opens the Info panel.
       updateTargetPath(entry.path);
       return;
@@ -573,12 +587,14 @@ function App() {
       setSelectedFiles((files) => files.filter((file) => file !== entry.path));
       setSelectedPdfs((files) => files.filter((file) => file !== entry.path));
       if (path === entry.path) updateTargetPath(activeLibraryPath || '');
+      // Scope and viewer are independent — only blank the viewer when its open file is gone.
+      if (sourceDocumentPath === entry.path) {
+        sourceDocumentLoadRef.current += 1;
+        setSourceDocument(null);
+        setSourceDocumentPath('');
+      }
       await refreshFolder(folderPath);
-      setStatus(result === 'trashed'
-        ? `Moved ${entry.name} to the Recycle Bin`
-        : `Permanently deleted ${entry.name}`);
     } catch (error) {
-      setStatus('Unable to move file to the Recycle Bin');
       setErrorMessage(error instanceof Error ? error.message : 'Unable to move file to the Recycle Bin');
     }
   }
@@ -587,9 +603,7 @@ function App() {
     const label = showInFolderLabel(window.vera.platform);
     try {
       await window.vera.showInFolder(targetPath);
-      setStatus(label);
     } catch (error) {
-      setStatus(`Unable to ${label.toLowerCase()}`);
       setErrorMessage(error instanceof Error ? error.message : `Unable to ${label.toLowerCase()}`);
     }
   }
@@ -620,7 +634,6 @@ function App() {
     label: string,
     requestId?: string,
   ): Promise<T | null> {
-    setStatus(label);
     setBusyAction(label);
     setErrorMessage(null);
     setProviderErrorDetail(null);
@@ -628,23 +641,18 @@ function App() {
       const response = await window.vera.request<T>(payload, requestId);
       if (!response.ok) {
         if (response.cancelled || response.error?.includes('Answer cancelled')) {
-          setStatus('Stopped');
           return null;
         }
-        setStatus('Ready');
         setErrorMessage(response.error || 'Request failed');
         setProviderErrorDetail(response.provider_error_detail || null);
         return null;
       }
-      setStatus('Ready');
       return (response.result || null) as T | null;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Request failed';
       if (message.includes('Answer cancelled')) {
-        setStatus('Stopped');
         return null;
       }
-      setStatus('Ready');
       setErrorMessage(message);
       setProviderErrorDetail(null);
       return null;
@@ -667,8 +675,6 @@ function App() {
       setPath(value);
       setValidation(null);
       setExportResult(null);
-      setSourceDocument(null);
-      setSourceDocumentPath('');
       setPageResult(null);
       const cached = libraryInspectCache.current.get(value);
       if (cached) {
@@ -698,12 +704,13 @@ function App() {
   }
 
   function updateTargetPath(value: string) {
+    // Changing Search/Ask scope must not clear the document viewer. Preview and
+    // citation loads replace the open source explicitly; trash clears it when
+    // the open file is removed.
     setPath(value);
     setInspect(null);
     setValidation(null);
     setExportResult(null);
-    setSourceDocument(null);
-    setSourceDocumentPath('');
     setPageResult(null);
   }
 
@@ -765,7 +772,6 @@ function App() {
 
   async function manageLibraryIndex(folderPath: string) {
     if (indexingFolders[folderPath]) {
-      setStatus('Library indexing is already in progress');
       return;
     }
     const value = indexStatuses[folderPath] ?? await refreshIndexStatus(folderPath);
@@ -787,7 +793,6 @@ function App() {
       return next;
     });
     setIndexingFolders((prev) => ({ ...prev, [folderPath]: action === 'index_build' ? 'build' : 'update' }));
-    setStatus(`${actionLabel} library index in the background`);
     setErrorMessage(null);
     try {
       const response = await window.vera.request<LibraryIndexBuildReport>({
@@ -825,13 +830,7 @@ function App() {
           current?.directory === folderPath || current?.file === folderPath ? inspected : current
         ));
       }
-      setStatus(
-        result.skipped
-          ? `Library index ready · ${result.skipped} skipped · select the index badge for details`
-          : `Library index ready · ${result.indexed} archives · ${result.chunks.toLocaleString()} chunks`,
-      );
     } catch (error) {
-      setStatus('Library indexing failed');
       setErrorMessage(error instanceof Error ? error.message : 'Library indexing failed');
     } finally {
       setIndexingFolders((prev) => {
@@ -918,10 +917,8 @@ function App() {
     const requestId = activeAnswerRequestIdRef.current;
     if (busyAction !== 'Asking' || !requestId) return;
     answerCanceledRef.current = true;
-    setStatus('Stopping…');
     void window.vera.cancelAnswer(requestId).catch((error) => {
       answerCanceledRef.current = false;
-      setStatus('Ready');
       setErrorMessage(error instanceof Error ? error.message : 'Unable to stop the answer');
     });
   }
@@ -934,26 +931,22 @@ function App() {
     }
     const provider = activeProvider;
     if (!provider) {
-      setStatus('Choose an LLM provider');
       setErrorMessage('Select a provider and model before asking.');
       setSettingsOpen(true);
       return;
     }
     const model = activeModel.trim();
     if (!model) {
-      setStatus('Choose an LLM model');
       setErrorMessage(`Select a model for "${providerDisplayName(provider)}".`);
       setModelPickerOpen(true);
       return;
     }
     if (!provider.base_url.trim()) {
-      setStatus('Choose an LLM base URL');
       setErrorMessage(`Set a base URL for "${providerDisplayName(provider)}" before asking.`);
       setSettingsOpen(true);
       return;
     }
     if (provider.auth_type === 'api_key' && !provider.has_api_key) {
-      setStatus('Save an API key');
       setErrorMessage(`Save an API key for "${providerDisplayName(provider)}" before asking with API key auth.`);
       setSettingsOpen(true);
       return;
@@ -1110,7 +1103,17 @@ function App() {
       setChatAnswer(result);
       const citedResults = result.citations.map((c) => c.result);
       setResults(citedResults);
-      if (citedResults[0]) selectSearchResult(citedResults[0]);
+      const linkableById = new Map<string, ChatCitationResult>();
+      for (const turn of sessionTurns) {
+        for (const citation of turn.citations ?? []) {
+          linkableById.set(citation.id, citation);
+        }
+      }
+      for (const citation of result.citations) {
+        linkableById.set(citation.id, citation);
+      }
+      const firstAnswerCitation = firstCitationInAnswer(result.answer, linkableById.values());
+      if (firstAnswerCitation) selectSearchResult(firstAnswerCitation.result);
       else setSelected(null);
       setViewerMode('document');
 
@@ -1190,9 +1193,8 @@ function App() {
     shouldAutoScrollThreadRef.current = true;
     setShowJumpToLatest(false);
     setSessionTurns(hydratedTurns);
-    // Restore the source document FIRST so any stale source is cleared before we
-    // select a cited result. Selecting first would race with openTargetPath, which
-    // resets sourceDocument to null and blanks the viewer.
+    // Restore scope before selecting citations so result.file fallbacks resolve
+    // against the session path. Viewer content is replaced by loadSourceDocument below.
     const sessionPath = session.source_path;
     if (sessionPath && sessionPath !== path) {
       await openTargetPath(sessionPath);
@@ -1204,7 +1206,6 @@ function App() {
       : storedSelection;
     setSelectedFiles(restoredSelection);
     if (storedSelection.length > restoredSelection.length) {
-      setStatus(`Restored ${restoredSelection.length} selected document${restoredSelection.length === 1 ? '' : 's'}; ${storedSelection.length - restoredSelection.length} unavailable`);
     }
     // Restore the last cited result for source pane. Use the session's path (not the
     // possibly-stale `path` closure) as the single-document fallback; corpus results
@@ -1263,7 +1264,6 @@ function App() {
     if (!profile) return;
     if (!profile.base_url.trim()) {
       setModelRefreshMessage(`Set a base URL for ${providerDisplayName(profile)} first.`);
-      setStatus('Set provider base URL');
       return;
     }
     setModelRefreshBusyId(providerId);
@@ -1280,7 +1280,6 @@ function App() {
       });
       if (!response.ok) {
         setModelRefreshMessage(response.error || 'Unable to refresh models.');
-        setStatus('Model refresh failed');
         return;
       }
       const discovered = filterDiscoveredModels(profile, response.result?.models ?? []);
@@ -1300,7 +1299,6 @@ function App() {
       setModelRefreshMessage(discovered.length
         ? `Found ${discovered.length} models from ${providerDisplayName(profile)}.`
         : `${providerDisplayName(profile)} returned no models.`);
-      setStatus(discovered.length ? `Found ${discovered.length} models` : 'No models returned');
     } finally {
       setModelRefreshBusyId('');
     }
@@ -1356,7 +1354,6 @@ function App() {
         : 'medium';
       const currentIndex = REASONING_EFFORTS.indexOf(current as (typeof REASONING_EFFORTS)[number]);
       const next = REASONING_EFFORTS[(currentIndex + 1) % REASONING_EFFORTS.length];
-      setStatus(`Reasoning: ${reasoningEffortLabel(next)}`);
       void updateModelOptions(activeProvider.id, activeModel, { ...options, reasoning_effort: next });
     };
     window.addEventListener('keydown', cycleReasoning);
@@ -1591,9 +1588,13 @@ function App() {
     if (result) setExportResult(result);
   }
 
-  async function loadSourceDocument(targetPath = path, activateViewer = true) {
+  async function loadSourceDocument(
+    targetPath = path,
+    activateViewer = true,
+    requestId = ++sourceDocumentLoadRef.current,
+  ) {
     const result = await call<SourceDocumentResult>({ action: 'source', path: targetPath }, 'Loading source');
-    if (result) {
+    if (result && requestId === sourceDocumentLoadRef.current) {
       setSourceDocument(result);
       setSourceDocumentPath(targetPath);
       if (activateViewer) setViewerMode('document');
@@ -1603,13 +1604,17 @@ function App() {
   function selectSearchResult(result: SearchResult) {
     setSelected(result);
     const resultPath = result.file || path;
+    // Every selection supersedes earlier document requests, including a click
+    // back to the document that is already visible while another load is pending.
+    const requestId = ++sourceDocumentLoadRef.current;
     if (resultPath && (resultPath !== sourceDocumentPath || !sourceDocument)) {
-      void loadSourceDocument(resultPath, false);
+      void loadSourceDocument(resultPath, false, requestId);
     }
   }
 
   function selectCitation(citation: ChatCitationResult) {
     selectSearchResult(citation.result);
+    setCitationJumpVersion((version) => version + 1);
     setViewerMode('document');
   }
 
@@ -1834,41 +1839,63 @@ function App() {
           </nav>
         </header>
       ) : null}
-      <div className={`appBody${viewerCollapsed ? ' appBody--viewerCollapsed' : ''}`} ref={workspaceRef} style={{ '--source-pane-width': `${sourcePaneWidth}%`, '--side-panel-width': `${sidePanelWidth}px` } as CSSProperties}>
-        {!sidebarCollapsed ? (
-          <aside className="sidePanel">
-            <div className="sidePanelHeader">
-              <nav className="sideViewNav" aria-label="Sidebar views">
-                {([
-                  ['explorer', 'Explorer', Folder],
-                  ['chats', 'Chats', MessageSquareText],
-                  ['search', 'Search', Search],
-                  ['convert', 'Convert PDF', FileInput],
-                  ['info', 'Document info', Info],
-                ] as const).map(([view, label, Icon]) => (
-                  <button
-                    className={`ghostIcon sideViewButton${sideView === view ? ' active' : ''}`}
-                    key={view}
-                    onClick={() => openSide(view)}
-                    title={label}
-                    aria-label={label}
-                    aria-pressed={sideView === view}
-                  >
-                    <Icon size={15} />
-                  </button>
-                ))}
-              </nav>
-              <div className="sidePanelActions">
-                {sideView === 'explorer' ? (
-                  <>
-                    <button className="ghostIcon" onClick={() => void addFolder()} title="Open folder"><FolderOpen size={15} /></button>
-                    <button className="ghostIcon" onClick={async () => { const f = await window.vera.pickArchive(); if (f) void openTargetPath(f); }} title="Open .vera file"><VeraIcon size={15} /></button>
-                  </>
-                ) : null}
-                <button className="ghostIcon" onClick={() => setSettingsOpen(true)} title="LLM Providers" aria-label="LLM Providers"><Settings size={15} /></button>
-                <button className="ghostIcon" onClick={() => setSidebarCollapsed(true)} title="Hide sidebar"><PanelLeftClose size={15} /></button>
-              </div>
-            </div>
+      <div
+        className={[
+          'appBody',
+          sidebarCollapsed ? 'appBody--sidebarCollapsed' : '',
+          viewerCollapsed ? 'appBody--viewerCollapsed' : '',
+          viewerExpanded && !viewerCollapsed ? 'appBody--viewerExpanded' : '',
+        ].filter(Boolean).join(' ')}
+        ref={workspaceRef}
+        style={{ '--source-pane-width': `${sourcePaneWidth}%`, '--side-panel-width': `${sidePanelWidth}px` } as CSSProperties}
+      >
+        <aside className={sidebarCollapsed ? 'sidePanel sidePanel--collapsed' : 'sidePanel'}>
+          <div className="sidePanelHeader">
+            <button
+              type="button"
+              className="ghostIcon"
+              onClick={() => setSidebarCollapsed((value) => !value)}
+              title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+              aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+              aria-pressed={!sidebarCollapsed}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+            </button>
+            {!sidebarCollapsed ? (
+              <>
+                <nav className="sideViewNav" aria-label="Sidebar views">
+                  {([
+                    ['explorer', 'Explorer', Folder],
+                    ['chats', 'Chats', MessageSquareText],
+                    ['search', 'Search', Search],
+                    ['convert', 'Convert PDF', FileInput],
+                    ['info', 'Document info', Info],
+                  ] as const).map(([view, label, Icon]) => (
+                    <button
+                      className={`ghostIcon sideViewButton${sideView === view ? ' active' : ''}`}
+                      key={view}
+                      onClick={() => openSide(view)}
+                      title={label}
+                      aria-label={label}
+                      aria-pressed={sideView === view}
+                    >
+                      <Icon size={15} />
+                    </button>
+                  ))}
+                </nav>
+                <div className="sidePanelActions">
+                  {sideView === 'explorer' ? (
+                    <>
+                      <button className="ghostIcon" onClick={() => void addFolder()} title="Open folder"><FolderOpen size={15} /></button>
+                      <button className="ghostIcon" onClick={async () => { const f = await window.vera.pickArchive(); if (f) void openTargetPath(f); }} title="Open .vera file"><VeraIcon size={15} /></button>
+                    </>
+                  ) : null}
+                  <button className="ghostIcon" onClick={() => setSettingsOpen(true)} title="LLM Providers" aria-label="LLM Providers"><Settings size={15} /></button>
+                </div>
+              </>
+            ) : null}
+          </div>
+          {!sidebarCollapsed ? (
             <div className={`sidePanelBody${sideView === 'explorer' ? ' sidePanelBody--explorer' : ''}${sideView === 'chats' ? ' sidePanelBody--chats' : ''}`}>
               {sideView === 'explorer' ? (
                 folders.length === 0 ? (
@@ -2027,15 +2054,17 @@ function App() {
                                 }
                                 onClick={(event) => openEntry(entry, event)}
                                 onDoubleClick={() => {
-                                  if (entry.type === 'pdf') void previewSourceDocument(entry);
+                                  if (entry.type === 'vera' || entry.type === 'pdf') {
+                                    void previewSourceDocument(entry);
+                                  }
                                 }}
                                 onContextMenu={(event) => {
                                   event.preventDefault();
                                   showEntryContextMenu(entry, folder.path, event.clientX, event.clientY);
                                 }}
                                 title={entry.type === 'pdf'
-                                  ? `${entry.relativePath} — Ctrl/Cmd+click to multi-select`
-                                  : entry.relativePath}
+                                  ? `${entry.relativePath} — Ctrl/Cmd+click to multi-select · double-click to view`
+                                  : `${entry.relativePath} — double-click to preview source`}
                               >
                                 {entry.type === 'vera' ? <VeraIcon size={14} className="fileRowIcon vera" /> : <FileText size={14} className="fileRowIcon pdf" />}
                                 <span className="fileRowName">{entry.relativePath}</span>
@@ -2089,8 +2118,8 @@ function App() {
                     <div className="searchScope">
                       <span>{selectedFiles.length > 0
                         ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
-                        : activeLibraryIsEmpty ? 'Empty library'
-                        : activeLibraryPath ? 'Entire library' : path ? 'Current document' : 'No search scope'}</span>
+                        : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
+                        : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? 'Current document' : 'No search scope'}</span>
                       {selectedFiles.length > 0 ? (
                         <button type="button" onClick={() => setSelectedFiles([])} title="Clear selection">Clear</button>
                       ) : null}
@@ -2418,8 +2447,8 @@ function App() {
                 </div>
               ) : null}
             </div>
-          </aside>
-        ) : null}
+          ) : null}
+        </aside>
 
         {!sidebarCollapsed ? (
           <div
@@ -2443,32 +2472,10 @@ function App() {
           />
         ) : null}
 
+        {!(viewerExpanded && !viewerCollapsed) ? (
         <main className="centerPane">
           <header className="centerHeader">
-            {sidebarCollapsed ? (
-              <button
-                type="button"
-                className="ghostIcon"
-                onClick={() => setSidebarCollapsed(false)}
-                title="Show sidebar"
-                aria-label="Show sidebar"
-              >
-                <PanelLeftOpen size={15} />
-              </button>
-            ) : null}
             <button className="centerNewChat" onClick={() => void newSession()} title="Start a new chat"><Plus size={14} />New chat</button>
-            <span className="centerStatus">{busyAction === 'Asking' ? 'Ready' : status}</span>
-            {viewerCollapsed ? (
-              <button
-                type="button"
-                className="ghostIcon"
-                onClick={() => setViewerCollapsed(false)}
-                title="Open document viewer"
-                aria-label="Open document viewer"
-              >
-                <Maximize2 size={15} />
-              </button>
-            ) : null}
           </header>
 
           {errorMessage ? (
@@ -2495,7 +2502,6 @@ function App() {
                   setErrorMessage(null);
                   setProviderErrorDetail(null);
                   setFailedTraceEvents([]);
-                  setStatus('Ready');
                 }}
               >
                 <X size={14} />
@@ -2563,8 +2569,8 @@ function App() {
                           </ul>
                         </details>
                       )
-                      : activeLibraryIsEmpty ? 'Empty library'
-                      : activeLibraryPath ? 'Entire library' : path ? 'Current document' : 'No search scope'}
+                      : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
+                      : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? 'Current document' : 'No search scope'}
                 </div>
                 <ChatComposer
                   attachments={attachments}
@@ -2798,151 +2804,171 @@ function App() {
               </div>
             </div>
         </main>
+        ) : null}
 
-        {!viewerCollapsed ? (
-          <>
-        <div
-          className={isResizingSource ? 'paneDivider resizing' : 'paneDivider'}
-          role="separator"
-          aria-label="Resize Source Document pane"
-          aria-orientation="vertical"
-          tabIndex={0}
-          onDoubleClick={() => setSourcePaneWidth(34)}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowLeft') setSourcePaneWidth((value) => clampSourcePaneWidth(value + 4));
-            if (event.key === 'ArrowRight') setSourcePaneWidth((value) => clampSourcePaneWidth(value - 4));
-            if (event.key === 'Home') setSourcePaneWidth(32);
-            if (event.key === 'End') setSourcePaneWidth(70);
-          }}
-          onPointerDown={(event) => {
-            event.preventDefault();
-            setIsResizingSource(true);
-            resizeSourcePane(event.clientX);
-          }}
-        />
+        {!viewerCollapsed && !viewerExpanded ? (
+          <div
+            className={isResizingSource ? 'paneDivider resizing' : 'paneDivider'}
+            role="separator"
+            aria-label="Resize Source Document pane"
+            aria-orientation="vertical"
+            tabIndex={0}
+            onDoubleClick={() => setSourcePaneWidth(34)}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowLeft') setSourcePaneWidth((value) => clampSourcePaneWidth(value + 4));
+              if (event.key === 'ArrowRight') setSourcePaneWidth((value) => clampSourcePaneWidth(value - 4));
+              if (event.key === 'Home') setSourcePaneWidth(32);
+              if (event.key === 'End') setSourcePaneWidth(70);
+            }}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              setIsResizingSource(true);
+              resizeSourcePane(event.clientX);
+            }}
+          />
+        ) : null}
 
-        <aside className="viewerPane">
+        <aside className={viewerCollapsed ? 'viewerPane viewerPane--collapsed' : 'viewerPane'}>
           <div className="viewerHeader">
-            <div className="viewerTitleGroup">
-              <h2>{selected && viewerMode === 'selection' ? 'Chunk Details' : 'Document Viewer'}</h2>
-              <span title={selected ? citation : sourceDocument?.filename || ''}>{selected && viewerMode === 'selection' ? citation : sourceDocument?.filename || 'No document loaded'}</span>
-            </div>
+            {!viewerCollapsed ? (
+              <div className="viewerTitleGroup">
+                <h2>{selected && viewerMode === 'selection' ? 'Chunk Details' : 'Document Viewer'}</h2>
+                <span title={selected ? citation : sourceDocument?.filename || ''}>{selected && viewerMode === 'selection' ? citation : sourceDocument?.filename || 'No document loaded'}</span>
+              </div>
+            ) : null}
             <div className="viewerHeaderActions">
-              {selected ? (
+              {!viewerCollapsed && selected ? (
                 <div className="viewerModeToggle">
                   <button className={viewerMode === 'document' ? 'active' : ''} onClick={() => { setViewerMode('document'); if (!sourceDocument && selectedSourcePath) void loadSourceDocument(selectedSourcePath, false); }} title="Show full document">Document</button>
                   <button className={viewerMode === 'selection' ? 'active' : ''} onClick={() => setViewerMode('selection')} title="Show chunk debug data">Details</button>
                 </div>
               ) : null}
-              <button className="ghostIcon" onClick={() => setSourcePaneWidth(sourceExpanded ? 34 : 64)} title={sourceExpanded ? 'Restore viewer' : 'Expand viewer'} aria-label={sourceExpanded ? 'Restore viewer' : 'Expand viewer'}>
-                {sourceExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-              </button>
+              {!viewerCollapsed ? (
+                <button
+                  type="button"
+                  className="ghostIcon"
+                  onClick={() => setViewerExpanded((value) => !value)}
+                  title={viewerExpanded ? 'Show chat' : 'Expand viewer'}
+                  aria-label={viewerExpanded ? 'Show chat' : 'Expand viewer'}
+                  aria-pressed={viewerExpanded}
+                >
+                  {viewerExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="ghostIcon"
-                onClick={() => setViewerCollapsed(true)}
-                title="Close document viewer"
-                aria-label="Close document viewer"
+                onClick={() => {
+                  setViewerCollapsed((value) => {
+                    const next = !value;
+                    if (next) setViewerExpanded(false);
+                    return next;
+                  });
+                }}
+                title={viewerCollapsed ? 'Show document viewer' : 'Hide document viewer'}
+                aria-label={viewerCollapsed ? 'Show document viewer' : 'Hide document viewer'}
+                aria-pressed={!viewerCollapsed}
               >
-                <X size={15} />
+                {viewerCollapsed ? <PanelRightOpen size={15} /> : <PanelRightClose size={15} />}
               </button>
             </div>
           </div>
-          {selected && viewerMode === 'selection' ? (
-            <article className="sourceDetails sourceViewerOnly">
-              <details className="sourceDisclosure" open>
-                <summary>Passage Text</summary>
-                <p>{selected.text?.trim() ? selected.text : 'No passage text was returned for this citation.'}</p>
-              </details>
-
-              <details className="sourceDisclosure">
-                <summary>Metadata</summary>
-                <dl>
-                  <div><dt>Chunk</dt><dd>{selected.chunk_id}</dd></div>
-                  <div><dt>Heading</dt><dd>{selected.heading_path || '-'}</dd></div>
-                  <div><dt>Pages</dt><dd>{formatPages(selected.page_start, selected.page_end)}</dd></div>
-                  <div><dt>Regions</dt><dd>{selected.regions?.length ?? 0}</dd></div>
-                  <div><dt>Figures</dt><dd>{selected.figures?.length ?? 0}</dd></div>
-                </dl>
-              </details>
-
-              {(selected.before_chunks?.length || selected.after_chunks?.length) ? (
-                <details className="sourceDisclosure">
-                  <summary>Context Chunks</summary>
-                  <section className="contextPanel">
-                    {selected.before_chunks?.map((chunk) => (
-                      <article className="contextChunk" key={`before-${chunk.chunk_id}`}>
-                        <span>Before · p. {formatPages(chunk.page_start, chunk.page_end)}</span>
-                        <p>{chunk.text}</p>
-                      </article>
-                    ))}
-                    {selected.after_chunks?.map((chunk) => (
-                      <article className="contextChunk" key={`after-${chunk.chunk_id}`}>
-                        <span>After · p. {formatPages(chunk.page_start, chunk.page_end)}</span>
-                        <p>{chunk.text}</p>
-                      </article>
-                    ))}
-                  </section>
+          {!viewerCollapsed ? (
+            selected && viewerMode === 'selection' ? (
+              <article className="sourceDetails sourceViewerOnly">
+                <details className="sourceDisclosure" open>
+                  <summary>Passage Text</summary>
+                  <p>{selected.text?.trim() ? selected.text : 'No passage text was returned for this citation.'}</p>
                 </details>
-              ) : null}
 
-              <details className="sourceDisclosure">
-                <summary>Region Coordinates</summary>
-                {selected.regions?.length ? (
-                  <div className="regionList">
-                    {selected.regions.map((region, index) => (
-                      <div className="regionRow" key={`${region.page_number || 'page'}-${index}`}>
-                        <strong>p. {region.page_number ?? '-'}</strong>
-                        <span>{formatBox(region.bbox)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mutedText">No highlight regions were returned for this result.</p>
-                )}
-              </details>
+                <details className="sourceDisclosure">
+                  <summary>Metadata</summary>
+                  <dl>
+                    <div><dt>Chunk</dt><dd>{selected.chunk_id}</dd></div>
+                    <div><dt>Heading</dt><dd>{selected.heading_path || '-'}</dd></div>
+                    <div><dt>Pages</dt><dd>{formatPages(selected.page_start, selected.page_end)}</dd></div>
+                    <div><dt>Regions</dt><dd>{selected.regions?.length ?? 0}</dd></div>
+                    <div><dt>Figures</dt><dd>{selected.figures?.length ?? 0}</dd></div>
+                  </dl>
+                </details>
 
-              <details className="sourceDisclosure">
-                <summary>Figures</summary>
-                {selected.figures?.length ? (
-                  <div className="figureList">
-                    {selected.figures.map((figure, index) => (
-                      <article className="figureCard" key={`${figure.asset_id || figure.filename || 'figure'}-${index}`}>
-                        {figure.data_url ? <img src={figure.data_url} alt={figure.caption || figure.filename || 'Figure preview'} /> : null}
-                        <span>p. {figure.page_number}</span>
-                        <strong>{figure.filename || figure.asset_id || 'Figure'}</strong>
-                        <p>{figure.caption || 'No caption available'}</p>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mutedText">No nearby figures were returned for this result.</p>
-                )}
-              </details>
-            </article>
-          ) : sourceDocument && isPdfSource(sourceDocument) ? (
-            <div className="sourceViewer">
-              <PdfSourceViewer
-                source={sourceDocument}
-                highlightRegions={viewerHighlights.regions}
-                highlightFigures={viewerHighlights.figures}
-                targetPage={viewerHighlights.targetPage}
-              />
-            </div>
-          ) : sourceDocument ? (
-            <div className="unsupportedSource">
-              <strong>{sourceDocument.filename}</strong>
-              <span>{sourceDocument.mime_type}</span>
-            </div>
-          ) : (
-            <div className="emptyState">
-              <VeraIcon size={30} />
-              <p>Select a citation or open a document to preview it here.</p>
-            </div>
-          )}
+                {(selected.before_chunks?.length || selected.after_chunks?.length) ? (
+                  <details className="sourceDisclosure">
+                    <summary>Context Chunks</summary>
+                    <section className="contextPanel">
+                      {selected.before_chunks?.map((chunk) => (
+                        <article className="contextChunk" key={`before-${chunk.chunk_id}`}>
+                          <span>Before · p. {formatPages(chunk.page_start, chunk.page_end)}</span>
+                          <p>{chunk.text}</p>
+                        </article>
+                      ))}
+                      {selected.after_chunks?.map((chunk) => (
+                        <article className="contextChunk" key={`after-${chunk.chunk_id}`}>
+                          <span>After · p. {formatPages(chunk.page_start, chunk.page_end)}</span>
+                          <p>{chunk.text}</p>
+                        </article>
+                      ))}
+                    </section>
+                  </details>
+                ) : null}
+
+                <details className="sourceDisclosure">
+                  <summary>Region Coordinates</summary>
+                  {selected.regions?.length ? (
+                    <div className="regionList">
+                      {selected.regions.map((region, index) => (
+                        <div className="regionRow" key={`${region.page_number || 'page'}-${index}`}>
+                          <strong>p. {region.page_number ?? '-'}</strong>
+                          <span>{formatBox(region.bbox)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mutedText">No highlight regions were returned for this result.</p>
+                  )}
+                </details>
+
+                <details className="sourceDisclosure">
+                  <summary>Figures</summary>
+                  {selected.figures?.length ? (
+                    <div className="figureList">
+                      {selected.figures.map((figure, index) => (
+                        <article className="figureCard" key={`${figure.asset_id || figure.filename || 'figure'}-${index}`}>
+                          {figure.data_url ? <img src={figure.data_url} alt={figure.caption || figure.filename || 'Figure preview'} /> : null}
+                          <span>p. {figure.page_number}</span>
+                          <strong>{figure.filename || figure.asset_id || 'Figure'}</strong>
+                          <p>{figure.caption || 'No caption available'}</p>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mutedText">No nearby figures were returned for this result.</p>
+                  )}
+                </details>
+              </article>
+            ) : sourceDocument && isPdfSource(sourceDocument) ? (
+              <div className="sourceViewer">
+                <PdfSourceViewer
+                  source={sourceDocument}
+                  highlightRegions={viewerHighlights.regions}
+                  highlightFigures={viewerHighlights.figures}
+                  targetPage={viewerHighlights.targetPage}
+                  jumpVersion={citationJumpVersion}
+                />
+              </div>
+            ) : sourceDocument ? (
+              <div className="unsupportedSource">
+                <strong>{sourceDocument.filename}</strong>
+                <span>{sourceDocument.mime_type}</span>
+              </div>
+            ) : (
+              <div className="emptyState">
+                <VeraIcon size={30} />
+                <p>Select a citation or open a document to preview it here.</p>
+              </div>
+            )
+          ) : null}
         </aside>
-          </>
-        ) : null}
       </div>
       <footer className="statusbar">
         <span className="statusPath">{path || 'No file open'}</span>

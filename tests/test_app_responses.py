@@ -52,6 +52,22 @@ def test_extracts_xml_tool_calls():
     assert calls[1].arguments["query"] == "second query"
 
 
+def test_strips_malformed_nested_xml_tool_call_before_answer():
+    content = (
+        '<tool_call>search】query: "Table 2-2c" mode: keyword'
+        '<tool_call>search】query: "Table 2-2d"</arg_value>'
+        '<arg_key>mode</arg_key><arg_value>keyword</arg_value>'
+        '<arg_key>top_k</arg_key><arg_value>10</arg_value></tool_call>'
+        'Below is the grounded answer. [C9]'
+    )
+
+    cleaned, calls = _extract_xml_tool_calls(content)
+
+    assert cleaned == "Below is the grounded answer. [C9]"
+    assert [call.name for call in calls] == ["search"]
+    assert calls[0].arguments == {"mode": "keyword", "top_k": 10}
+
+
 class FakeResponse:
     def __init__(self, payload=None, lines=None):
         self.payload = payload

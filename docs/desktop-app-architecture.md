@@ -72,11 +72,13 @@ library path, clears file-selection overrides, and refreshes the index badge
 in the background. The corpus is opened on the first Search or Ask request.
 Cached library summaries from an earlier Deep inspect are restored for status
 metrics when available; otherwise page/chunk counts stay blank until an
-explicit inspect. The active library is independent from the document viewer:
-opening a `.vera` file for review does not replace the library scope. Checking
-one or more archives in Explorer explicitly narrows retrieval to those files;
-clearing the checks restores whole-library search. Chat sessions persist the
-scope path so reopening a library-backed conversation restores its context.
+explicit inspect. The active library and Search/Ask scope are independent from
+the document viewer: selecting a `.vera` file or library folder for scope does
+not clear or replace the open source preview, and previewing an archive does
+not replace the library scope. Checking one or more archives in Explorer
+explicitly narrows retrieval to those files; clearing the checks restores
+whole-library search. Chat sessions persist the scope path so reopening a
+library-backed conversation restores its context.
 
 The app checks the folder's local collection index when the folder is added,
 activated, refreshed, changed by the watcher, or receives a newly converted
@@ -95,22 +97,23 @@ close actions in the folder row's context menu. File rows offer show-in-system-
 folder (and preview/trash where applicable). Clicking a PDF selects it and
 seeds Convert defaults without switching to the Convert view; Ctrl/Cmd+click
 toggles additional PDFs into a conversion multi-select (separate from `.vera`
-search-scope checkboxes). Double-click or right-click **View in document
-viewer** loads that PDF in the source pane; when multiple PDFs are selected,
-right-click also offers **Convert selected**. `.vera` rows keep **Preview
-embedded source** for the archive's stored original. The same menus can be
-opened from the keyboard with Shift+F10 or the Menu key, support arrow key
-navigation, and close with Escape. Show-in-folder opens a library directory in
-the OS file manager, or reveals a selected `.vera`/`.pdf` file in its parent
-folder. Explorer keeps the active-folder highlight without an Active text
-label, including when selected files override the library, and represents
-index state with a compact database badge: green for a fresh index and orange
-when an index is missing or stale. A blue spinning badge means a build or update is
-running in the background; after completion, a warning badge opens the report
-when archives were skipped. Choosing **Search anyway** never blocks retrieval:
-the sidecar performs recursive fan-out search and the app keeps a slower-search
-banner visible. Watcher events and completed directory conversions update badges
-but never start a build automatically.
+search-scope checkboxes). Clicking a `.vera` sets Search/Ask scope without
+changing the document viewer. Double-click or right-click **View in document
+viewer** / **Preview embedded source** loads that PDF or archive original in
+the source pane; when multiple PDFs are selected, right-click also offers
+**Convert selected**. The same menus can be opened from the keyboard with
+Shift+F10 or the Menu key, support arrow key navigation, and close with
+Escape. Show-in-folder opens a library directory in the OS file manager, or
+reveals a selected `.vera`/`.pdf` file in its parent folder. Explorer keeps
+the active-folder highlight without an Active text label, including when
+selected files override the library, and represents index state with a compact
+database badge: green for a fresh index and orange when an index is missing or
+stale. A blue spinning badge means a build or update is running in the
+background; after completion, a warning badge opens the report when archives
+were skipped. Choosing **Search anyway** never blocks retrieval: the sidecar
+performs recursive fan-out search and the app keeps a slower-search banner
+visible. Watcher events and completed directory conversions update badges but
+never start a build automatically.
 
 Any readable folder can remain active even before it contains a `.vera`
 archive. Search and Ask open the corpus on demand; an empty library returns a
@@ -190,6 +193,18 @@ rewrites that path to a privileged `vera-source://cache/...` URL and serves
 the bytes with `protocol.handle`, so PDF.js can fetch the document without
 shipping multi‑MB base64 through the JSON-Lines IPC channel (which previously
 froze the UI on large PDFs).
+
+The renderer PDF viewer (PDF.js) defaults to fit-width zoom so pages fill the
+source pane without horizontal cropping, and also supports fit-page, page
+navigation (previous/next and an editable page field), discrete zoom steps with
+Ctrl/Cmd+wheel and standard zoom hotkeys, and viewport-preserving zoom so the
+visible page stays put when scale changes. Manual zoom is temporary: resizing
+the source pane (or window) snaps back to fit-width, while an explicit fit-page
+choice continues to reflow on resize. Pages render at device pixel ratio for
+sharper output on HiDPI displays. Citation passage and figure highlights can be
+toggled, with a compact color legend when both are present. The viewer chrome
+can hide the pane (keeping a right-edge toggle) or expand it by hiding chat so
+the document fills from the left sidebar to the window edge.
 
 ## Near-Term App Work
 

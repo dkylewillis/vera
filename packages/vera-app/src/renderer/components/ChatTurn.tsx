@@ -2,6 +2,7 @@ import React, { type ReactNode } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatCitationResult, SessionTurn } from '../types';
+import { citationsForTurn } from '../lib/citations';
 import { ActivityTrace } from './activity/ActivityTrace';
 import { TraceView } from './activity/TraceView';
 
@@ -113,6 +114,7 @@ export const ChatTurn = React.memo(function ChatTurn({
       </article>
     );
   }
+  const answerCitations = citationsForTurn(turn.citations ?? [], linkableCitations ?? []);
   return (
     <article className="chatMessage assistantMessage">
       <span>
@@ -127,8 +129,8 @@ export const ChatTurn = React.memo(function ChatTurn({
       />
       {turn.answer_mode === 'retrieval' ? <div className="noteBanner">The active API route rejected tool calling, so VERA used a single retrieval pass instead of agentic search.</div> : null}
       {turn.vision_fallback ? <div className="noteBanner">This model does not support image input. VERA omitted the images and retried with text only.</div> : null}
-      {(linkableCitations?.length || turn.citations?.length) ? (
-        renderAnswerWithCitations(turn.content, linkableCitations ?? turn.citations ?? [], selectCitation)
+      {answerCitations.length ? (
+        renderAnswerWithCitations(turn.content, answerCitations, selectCitation)
       ) : (
         <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{turn.content}</Markdown></div>
       )}
