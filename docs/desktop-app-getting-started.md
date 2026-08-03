@@ -55,6 +55,12 @@ Desktop conversions use the supported PyMuPDF parser and deterministic
 local hashing embeddings. Use the CLI when you need a Sentence Transformers
 model or explicit OCR controls.
 
+Use the **Chat / Search** switch above the center workspace to choose between
+LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,
+and keyword modes from its composer options. Its ranked passage cards open and
+highlight the matching source in the document viewer without adding the query
+to chat history.
+
 ## Large document libraries
 
 Collection indexes are persistent: the app checks their freshness when a
@@ -63,7 +69,7 @@ folder only sets the Search and Ask scope; the corpus opens on the first
 query. A fresh index makes that first search fast. If an index is missing or
 stale, the first Search or Ask prompts you to build or update it; choose
 **Don&apos;t ask again** to keep using recursive search without future prompts for
-that library. Use **Deep inspect** in the Info view only when you need library
+that library. Use **Inspect** in the Info view only when you need library
 metrics or to revalidate every archive; that operation can take substantially
 longer for large libraries.
 

@@ -56,6 +56,21 @@ with VeraDocument.open("manual.vera") as document:
 `create()` refuses to overwrite an existing path unless `overwrite=True`.
 `open()` defaults to read-only mode; use `mode="write"` for mutations.
 Both accept `str` and path-like values and support context managers.
+New archives also record their stored-vector normalization policy. Built-in
+embedders declare `l2`; custom embedders may expose a `normalization` attribute
+or callers can set `embedding_normalization="l2"`, `"none"`, or `"unknown"`:
+
+```python
+with VeraDocument.create(
+    "external-vectors.vera",
+    embedding_function=my_embedder,
+    embedding_normalization="none",
+) as document:
+    ...
+```
+
+Embedders without a declaration default to `unknown`. Under the `l2` policy,
+non-zero precomputed and generated vectors must have unit L2 norm.
 
 ## Records
 
@@ -73,8 +88,8 @@ record = ChunkRecord(
 
 `ChunkRecord` is immutable. Its ID and text must be non-empty, metadata must be
 JSON-compatible, and a supplied vector must contain finite numbers matching the
-database dimension. When `vector` is omitted, the configured embedding
-function embeds the text.
+database dimension and declared normalization policy. When `vector` is omitted,
+the configured embedding function embeds the text.
 
 ## Add, upsert, get, and delete
 
@@ -174,9 +189,10 @@ with VeraDocument.open("manual.vera") as document:
     assert report["ok"], report["issues"]
 ```
 
-Archive metadata is caller-controlled JSON. Format, embedding model, dimension,
-record counts, and integrity results are available through `inspect()` and
-`validate()`.
+Archive metadata is caller-controlled JSON. Format, embedding model and
+dimension, archive byte size, record counts, and integrity results are
+available through `inspect()` and `validate()`. Ingest-created archives also
+expose parser, chunking, and OCR diagnostics through their metadata.
 
 ## PDF extraction
 

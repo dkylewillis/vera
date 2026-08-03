@@ -117,6 +117,10 @@ def test_index_actions_and_recursive_folder_search(nested_app_library):
     assert fresh["ok"] is True
     assert fresh["result"]["fresh"] is True
     assert fresh["result"]["recursive"] is True
+    assert fresh["result"]["generation_id"].startswith("generation-")
+    assert fresh["result"]["verified_at"] == fresh["result"]["checked_at"]
+    assert fresh["result"]["model_groups"][0]["documents"] == 2
+    assert fresh["result"]["index_size_bytes"] > 0
 
     summary = handle({
         "id": "inspect-summary",

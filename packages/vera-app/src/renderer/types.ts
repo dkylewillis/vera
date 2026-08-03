@@ -84,12 +84,29 @@ export interface LibraryIndexStatus {
   exists: boolean;
   fresh: boolean;
   reasons: string[];
+  generation_id?: string | null;
+  created_at?: string | null;
+  checked_at?: string | null;
+  verified_at?: string | null;
+  index_size_bytes?: number;
+  database_size_bytes?: number;
+  vector_size_bytes?: number;
   recursive?: boolean;
   excludes?: string[];
   file_count?: number;
   skipped?: number;
   skipped_files?: { file: string; category: string; reason: string }[];
   discovered?: number;
+  indexed_chunks?: number;
+  source_chunks?: number;
+  model_groups?: {
+    model: string;
+    dimension: number;
+    documents: number;
+    chunks: number;
+    vector_file: string;
+    vector_size_bytes: number;
+  }[];
 }
 
 export interface LibraryIndexBuildReport {
@@ -112,15 +129,37 @@ export interface LibraryIndexBuildReport {
 }
 
 export interface InspectResult {
-  file: string;
+  /** Single-document inspections use `path`; `file` is retained for older sidecars. */
+  path?: string;
+  file?: string;
+  title?: string;
   source?: string;
+  source_file_name?: string;
+  source_file_hash?: string;
+  source_mime_type?: string;
   pages?: number;
   chunks?: number;
   embeddings?: number;
+  attachments?: number;
+  archive_size_bytes?: number | null;
+  created_at?: string;
   format_name?: string;
   format_version?: string;
   default_embedding_model?: string;
+  default_embedding_dimension?: number;
+  embedding_dimension?: number;
+  default_embedding_normalization?: 'l2' | 'none' | 'unknown';
+  embedding_normalization?: 'l2' | 'none' | 'unknown';
   parser_name?: string;
+  parser_version?: string;
+  chunking_strategy?: string;
+  ocr?: {
+    ocr_engine?: string;
+    ocr_mode?: 'auto' | 'off' | 'force';
+    ocr_language?: string;
+    ocr_dpi?: number;
+    ocr_pages?: number[];
+  };
   ocr_engine?: string;
   ocr_mode?: 'auto' | 'off' | 'force';
   ocr_language?: string;

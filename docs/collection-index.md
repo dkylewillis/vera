@@ -32,9 +32,19 @@ The NumPy files store normalized, contiguous float32 matrices grouped by
 embedding model and dimension. Semantic queries run as one batched matrix
 operation per model group. Results from mixed models are rank-fused, then the
 winning chunk IDs are resolved against their source `.vera` files.
+Index builds L2-normalize each non-zero vector regardless of the source
+archive's declared normalization policy, preserving cosine-similarity ranking.
 If a query embedder cannot be loaded or has a different dimension,
 `skipped_semantic_model_groups` reports the omitted group and error; keyword
 search remains available.
+
+Index status and the desktop Library Info view report the active generation,
+build and verification times, database/vector/total storage, indexed and
+discovered document counts, exclusions, skipped archives, and embedding
+coverage. Model groups are listed separately with model name, vector dimension,
+document count, chunk count, and vector-file size. Indexes created before
+source-chunk coverage was recorded treat indexed chunks as the source total
+until they are rebuilt.
 
 See [Library index structure](library-index-structure.md) for diagrams of the
 generation layout, SQLite relationships, vector mapping, and indexed search
@@ -67,7 +77,7 @@ their relative paths, categories, and reasons. Folder inspection uses that
 manifest when the index is fresh and does not reopen known-invalid archives.
 The desktop app also reads library counts and source metadata directly from a
 fresh index when opening a folder, avoiding a full validation scan of every
-archive. Its explicit **Deep inspect** action still reopens and validates all
+archive. Its explicit **Inspect** action still reopens and validates all
 archives when a current health check is needed.
 
 ## Performance baseline

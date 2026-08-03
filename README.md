@@ -152,6 +152,10 @@ with VeraDocument.open("knowledge.vera") as document:
     results = document.search(text="minimum pipe size", top_k=5)
 ```
 
+Archives record whether stored embeddings are L2-normalized, unnormalized, or
+unknown. Custom vector pipelines can set `embedding_normalization` at creation;
+`vera-doc` validates vectors when the archive declares L2 normalization.
+
 ### Convert sources
 
 PDF extraction and chunking live in the separate `vera-ingest` package and

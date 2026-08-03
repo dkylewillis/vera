@@ -108,6 +108,10 @@ def cmd_inspect(args) -> int:
         print(f"Chunks: {info.get('chunks')}")
         print(f"Embedding model: {info.get('default_embedding_model')}")
         print(f"Embedding dimensions: {info.get('default_embedding_dimension')}")
+        print(
+            "Embedding normalization: "
+            f"{info.get('default_embedding_normalization', 'unknown')}"
+        )
         print(f"Parser: {info.get('parser_name')}")
         print(f"Created: {info.get('created_at')}")
     finally:

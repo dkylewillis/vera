@@ -62,6 +62,12 @@ def test_convert_pdf_populates_vera_and_searches(tmp_path):
     info = doc.inspect()
     assert info["format_version"] == "0.2"
     assert info["pages"] == 2
+    assert info["archive_size_bytes"] == out.stat().st_size
+    assert info["attachments"] >= 3
+    assert info["embedding_dimension"] == 384
+    assert info["embedding_normalization"] == "l2"
+    assert info["parser_name"] == "pymupdf"
+    assert info["chunking_strategy"] == "heading_block_sliding_window:40:5"
 
     keyword = doc.search("restaurant parking", mode="keyword", top_k=1)[0]
     assert "parking" in keyword.text.lower()

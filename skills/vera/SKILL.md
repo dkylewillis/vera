@@ -106,6 +106,9 @@ Use inspection when source identity or archive metadata matters:
 vera inspect "manual.vera" --json
 ```
 
+Inspection includes `default_embedding_normalization`: `l2`, `none`, or
+`unknown`. Older archives without the field are reported as `unknown`.
+
 Use validation when the user asks about archive integrity or a search failure
 suggests corruption:
 

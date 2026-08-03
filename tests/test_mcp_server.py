@@ -63,6 +63,7 @@ async def test_inspect_and_validate_tools(server, vera_file):
     info = _payload(await server.call_tool("vera_inspect", {"file": str(vera_file)}))
     assert info["format_version"] == "0.2"
     assert info["pages"] == 2
+    assert info["default_embedding_normalization"] == "l2"
 
     report = _payload(await server.call_tool("vera_validate", {"file": str(vera_file)}))
     assert report["ok"] is True

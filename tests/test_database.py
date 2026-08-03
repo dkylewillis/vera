@@ -163,6 +163,50 @@ def test_precomputed_vectors_and_dimension_validation(tmp_path: Path) -> None:
             database.add(
                 [ChunkRecord(id="bad", text="Bad", vector=[1.0, 2.0, 3.0])]
             )
+        assert database.inspect()["default_embedding_normalization"] == "unknown"
+
+
+def test_l2_normalization_policy_validates_stored_vectors(tmp_path: Path) -> None:
+    path = tmp_path / "normalized.vera"
+    with VeraDocument.create(path) as database:
+        assert database.inspect()["default_embedding_normalization"] == "l2"
+        with pytest.raises(ValueError, match="not L2-normalized"):
+            database.add(
+                [ChunkRecord(id="bad", text="Bad vector", vector=[2.0] + [0.0] * 383)]
+            )
+
+    with VeraDocument.create(
+        tmp_path / "unnormalized.vera",
+        embedding_function=TinyEmbedder(),
+        embedding_normalization="none",
+    ) as database:
+        database.add(
+            [ChunkRecord(id="allowed", text="Allowed vector", vector=[2.0, 0.0])]
+        )
+        assert database.validate()["ok"] is True
+
+
+def test_rejects_invalid_embedding_normalization(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="embedding normalization"):
+        VeraDocument.create(
+            tmp_path / "invalid.vera",
+            embedding_normalization="unit",  # type: ignore[arg-type]
+        )
+    conflicting = tmp_path / "conflicting.vera"
+    with pytest.raises(ValueError, match="does not match embedding function"):
+        VeraDocument.create(
+            conflicting,
+            embedding_normalization="none",
+        )
+    assert not conflicting.exists()
+
+
+def test_create_canonicalizes_embedding_normalization_input(tmp_path: Path) -> None:
+    with VeraDocument.create(
+        tmp_path / "canonical.vera",
+        embedding_normalization=" L2 ",  # type: ignore[arg-type]
+    ) as database:
+        assert database.inspect()["default_embedding_normalization"] == "l2"
 
 
 def test_empty_database_is_valid(tmp_path: Path) -> None:

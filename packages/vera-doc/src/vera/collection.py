@@ -63,6 +63,18 @@ def _database_path(root: Path) -> Path:
     return _generation_path(root) / INDEX_DATABASE
 
 
+def _path_size(path: Path) -> int:
+    """Return the total byte size of a file or directory tree."""
+    if path.is_file():
+        return path.stat().st_size
+    total = 0
+    if path.is_dir():
+        for child in path.rglob("*"):
+            if child.is_file():
+                total += child.stat().st_size
+    return total
+
+
 def _relative(path: Path, root: Path) -> str:
     return path.relative_to(root).as_posix()
 
@@ -275,6 +287,7 @@ def build_library_index(
     incompatible: list[dict[str, str]] = []
     indexed_files = 0
     indexed_chunks = 0
+    source_chunks = 0
 
     def record_skipped(path: Path, relative_path: str, category: str, reason: str) -> None:
         try:
@@ -341,6 +354,9 @@ def build_library_index(
                         ORDER BY c.rowid
                         """
                     ).fetchall()
+                    file_source_chunks = int(
+                        doc._conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+                    )
                     rows = []
                     for modern_row in modern_rows:
                         chunk_metadata = thaw_json(
@@ -437,6 +453,7 @@ def build_library_index(
                 conn.execute("RELEASE SAVEPOINT index_file")
                 indexed_files += 1
                 indexed_chunks += len(prepared)
+                source_chunks += file_source_chunks
             except Exception as exc:
                 conn.execute("ROLLBACK TO SAVEPOINT index_file")
                 conn.execute("RELEASE SAVEPOINT index_file")
@@ -460,6 +477,13 @@ def build_library_index(
                 "INSERT INTO vector_groups(model_name, dimension, filename, row_count) VALUES (?, ?, ?, ?)",
                 (model_name, dimension, filename, matrix.shape[0]),
             )
+        conn.executemany(
+            "INSERT INTO index_metadata(key, value) VALUES (?, ?)",
+            (
+                ("source_chunks", str(source_chunks)),
+                ("indexed_chunks", str(indexed_chunks)),
+            ),
+        )
         conn.commit()
         check = conn.execute("PRAGMA integrity_check").fetchone()[0]
         if check != "ok":
@@ -477,7 +501,13 @@ def build_library_index(
         (target / INDEX_GENERATIONS).mkdir(parents=True, exist_ok=True)
         temporary.rename(generation_path)
         pointer_temporary.write_text(
-            json.dumps({"generation": generation_name, "index_version": INDEX_VERSION}),
+            json.dumps(
+                {
+                    "generation": generation_name,
+                    "index_version": INDEX_VERSION,
+                    "created_at": metadata["created_at"],
+                }
+            ),
             encoding="utf-8",
         )
         os.replace(pointer_temporary, target / INDEX_POINTER)
@@ -494,6 +524,8 @@ def build_library_index(
         "operation": operation,
         "directory": str(root),
         "index": str(target),
+        "generation_id": generation_name,
+        "created_at": metadata["created_at"],
         "recursive": recursive,
         "excludes": list(exclude_patterns),
         "discovered": len(paths),
@@ -565,8 +597,12 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
         conn = sqlite3.connect(database)
         conn.row_factory = sqlite3.Row
         try:
-            version_row = conn.execute("SELECT value FROM index_metadata WHERE key = 'index_version'").fetchone()
-            if version_row is None or int(version_row["value"]) != INDEX_VERSION:
+            index_metadata = {
+                str(row["key"]): str(row["value"])
+                for row in conn.execute("SELECT key, value FROM index_metadata")
+            }
+            version_value = index_metadata.get("index_version")
+            if version_value is None or int(version_value) != INDEX_VERSION:
                 reasons.append("index version is unsupported")
             indexed = {
                 row["relative_path"]: dict(row)
@@ -577,6 +613,31 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
                 for row in conn.execute("SELECT * FROM skipped_files")
             }
             groups = list(conn.execute("SELECT * FROM vector_groups"))
+            model_groups = [
+                {
+                    "model": str(row["model_name"]),
+                    "dimension": int(row["dimension"]),
+                    "documents": int(row["document_count"]),
+                    "chunks": int(row["chunk_count"]),
+                    "vector_file": str(row["filename"]),
+                }
+                for row in conn.execute(
+                    """
+                    SELECT
+                        c.model_name,
+                        c.dimension,
+                        COUNT(DISTINCT c.file_id) AS document_count,
+                        COUNT(c.row_id) AS chunk_count,
+                        vg.filename
+                    FROM chunks c
+                    JOIN vector_groups vg
+                      ON vg.model_name = c.model_name
+                     AND vg.dimension = c.dimension
+                    GROUP BY c.model_name, c.dimension, vg.filename
+                    ORDER BY c.model_name, c.dimension
+                    """
+                )
+            ]
             if conn.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                 reasons.append("index database integrity check failed")
         finally:
@@ -586,6 +647,8 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
         indexed = {}
         skipped = {}
         groups = []
+        model_groups = []
+        index_metadata = {}
 
     discovered = discover_vera_files(
         root,
@@ -618,12 +681,34 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
                 reasons.append(f"vector matrix shape is invalid: {group['filename']}")
         except (OSError, ValueError):
             reasons.append(f"vector matrix is unreadable: {group['filename']}")
+    generation = _generation_path(root)
+    for group in model_groups:
+        vector_file = generation / str(group["vector_file"])
+        group["vector_size_bytes"] = (
+            vector_file.stat().st_size if vector_file.is_file() else 0
+        )
+    database_size = database.stat().st_size if database.is_file() else 0
+    vector_size = sum(
+        (generation / str(group["filename"])).stat().st_size
+        for group in groups
+        if (generation / str(group["filename"])).is_file()
+    )
+    indexed_chunks = sum(int(group["chunks"]) for group in model_groups)
+    source_chunks = int(index_metadata.get("source_chunks", indexed_chunks))
+    checked_at = _utc_now()
     return {
         "directory": str(root),
         "index": str(_index_path(root)),
         "exists": True,
         "fresh": not reasons,
         "reasons": list(dict.fromkeys(reasons)),
+        "generation_id": generation.name if generation.parent.name == INDEX_GENERATIONS else None,
+        "created_at": index_metadata.get("created_at"),
+        "checked_at": checked_at,
+        "verified_at": checked_at if verify_hashes else None,
+        "index_size_bytes": _path_size(generation),
+        "database_size_bytes": database_size,
+        "vector_size_bytes": vector_size,
         "recursive": bool(config.get("recursive", False)),
         "excludes": list(config.get("excludes", ())),
         "file_count": len(indexed),
@@ -637,6 +722,9 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
             for relative_path, row in sorted(skipped.items())
         ],
         "discovered": len(discovered),
+        "indexed_chunks": indexed_chunks,
+        "source_chunks": source_chunks,
+        "model_groups": model_groups,
     }
 
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import math
 import re
 from dataclasses import dataclass
 from functools import lru_cache
@@ -30,6 +29,7 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 class Embedder(Protocol):
     model_name: str
     dimension: int
+    normalization: str
 
     def embed(self, texts: list[str]) -> list[np.ndarray]: ...
 
@@ -40,6 +40,7 @@ class HashingEmbedder:
 
     dimension: int = 384
     model_name: str = "vera-hashing-384"
+    normalization: str = "l2"
 
     def embed(self, texts: list[str]) -> list[np.ndarray]:
         vectors = []
@@ -63,6 +64,7 @@ class SentenceTransformerEmbedder:
         from sentence_transformers import SentenceTransformer
 
         self.model_name = model_name
+        self.normalization = "l2"
         self._model = SentenceTransformer(model_name)
         get_dim = getattr(self._model, "get_embedding_dimension", None) or self._model.get_sentence_embedding_dimension
         dim = get_dim()

@@ -57,7 +57,9 @@ import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REAS
 import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ConvertResult, ExportResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
 import './styles.css';
 
-type SideView = 'explorer' | 'chats' | 'search' | 'convert' | 'info';
+type SideView = 'explorer' | 'chats' | 'convert';
+type CenterView = 'chat' | 'search';
+type ViewerMode = 'selection' | 'document' | 'info';
 type FolderContextMenu = { path: string; x: number; y: number };
 type EntryContextMenu = { entry: FolderEntry; folderPath: string; x: number; y: number };
 type ExplorerFileFilter = 'all' | FolderEntry['type'];
@@ -76,6 +78,46 @@ function fileName(filePath: string): string {
   return filePath.split(/[\\/]/).pop() || filePath;
 }
 
+function formatBytes(value?: number): string {
+  if (value === undefined || value === null) return '-';
+  if (value < 1024) return `${value} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let amount = value / 1024;
+  let unit = units[0];
+  for (let index = 1; index < units.length && amount >= 1024; index += 1) {
+    amount /= 1024;
+    unit = units[index];
+  }
+  return `${amount >= 10 ? amount.toFixed(1) : amount.toFixed(2)} ${unit}`;
+}
+
+function formatTimestamp(value?: string | null): string {
+  if (!value) return '-';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+}
+
+function formatChunkingStrategy(value?: string): string {
+  if (!value) return '-';
+  const match = /^heading_block_sliding_window:(\d+):(\d+)$/.exec(value);
+  if (!match) return value;
+  return `Heading-aware sliding window · ${match[1]} characters · ${match[2]} overlap`;
+}
+
+function formatOcrSummary(ocr?: InspectResult['ocr']): string {
+  if (!ocr) return 'Not recorded';
+  const pages = ocr.ocr_pages ?? [];
+  const mode = ocr.ocr_mode ? `${ocr.ocr_mode[0].toUpperCase()}${ocr.ocr_mode.slice(1)}` : 'Unknown mode';
+  const details = [
+    ocr.ocr_engine,
+    mode,
+    ocr.ocr_language,
+    ocr.ocr_dpi ? `${ocr.ocr_dpi} DPI` : null,
+    `${pages.length} page${pages.length === 1 ? '' : 's'} OCR’d`,
+  ].filter(Boolean);
+  return details.join(' · ');
+}
+
 function stripTrace(turn: SessionTurn): SessionTurn {
   if (!turn.trace) return turn;
   const { trace: _trace, ...rest } = turn;
@@ -86,9 +128,10 @@ function App() {
   const customTitlebar = Boolean(window.vera.platform && window.vera.platform !== 'darwin');
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [sideView, setSideView] = useState<SideView>('explorer');
+  const [centerView, setCenterView] = useState<CenterView>('chat');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [folders, setFolders] = useState<WorkspaceFolderResult[]>([]);
-  const [viewerMode, setViewerMode] = useState<'selection' | 'document'>('document');
+  const [viewerMode, setViewerMode] = useState<ViewerMode>('document');
   const [path, setPath] = useState('');
   const [activeLibraryPath, setActiveLibraryPath] = useState('');
   const [indexStatuses, setIndexStatuses] = useState<Record<string, LibraryIndexStatus>>({});
@@ -120,6 +163,7 @@ function App() {
   const [pdfPath, setPdfPath] = useState('');
   const [outputPath, setOutputPath] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [submittedSearchQuery, setSubmittedSearchQuery] = useState('');
   const [composerResetVersion, setComposerResetVersion] = useState(0);
   const [composerRestoredDraft, setComposerRestoredDraft] = useState({ version: 0, text: '' });
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
@@ -171,6 +215,7 @@ function App() {
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [sourceDocument, setSourceDocument] = useState<SourceDocumentResult | null>(null);
   const [sourceDocumentPath, setSourceDocumentPath] = useState('');
+  const [libraryInfoPath, setLibraryInfoPath] = useState('');
   const sourceDocumentLoadRef = useRef(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageResult, setPageResult] = useState<PageResult | null>(null);
@@ -275,6 +320,23 @@ function App() {
     || (path && !path.toLowerCase().endsWith('.vera'))
     || selectedFiles.length > 1,
   );
+  const viewerInfoPath = sourceDocumentPath || libraryInfoPath;
+  const viewerInfoIsCorpus = Boolean(libraryInfoPath && viewerInfoPath === libraryInfoPath);
+  const viewerInfoIsArchive = Boolean(
+    viewerInfoPath && viewerInfoPath.toLowerCase().endsWith('.vera'),
+  );
+  const viewerInfoInspectable = Boolean(
+    viewerInfoPath
+    && (viewerInfoIsCorpus || viewerInfoIsArchive),
+  );
+  const inspectedPath = inspect?.directory || inspect?.path || inspect?.file || '';
+  const viewerInspect = inspectedPath.replace(/\\/g, '/').toLowerCase()
+    === viewerInfoPath.replace(/\\/g, '/').toLowerCase()
+    ? inspect
+    : null;
+  const viewerIndexStatus = viewerInfoIsCorpus
+    ? indexStatuses[viewerInfoPath] ?? viewerInspect?.index
+    : undefined;
   const busy = Boolean(busyAction);
   const chatBusy = busyAction === 'Asking';
   const activeProvider = useMemo(
@@ -365,8 +427,38 @@ function App() {
   }, [selectedPdfs, convertMode]);
 
   function selectExplorerFolder(folderPath: string) {
+    sourceDocumentLoadRef.current += 1;
+    setSourceDocument(null);
+    setSourceDocumentPath('');
+    setLibraryInfoPath('');
+    setSelected(null);
+    setViewerMode('document');
     setExplorerSelection({ kind: 'folder', path: folderPath });
     void openTargetPath(folderPath, { asLibrary: true });
+  }
+
+  async function openLibraryInfo(folderPath: string) {
+    selectExplorerFolder(folderPath);
+    sourceDocumentLoadRef.current += 1;
+    setSourceDocument(null);
+    setSourceDocumentPath('');
+    setLibraryInfoPath(folderPath);
+    setSelected(null);
+    setErrorMessage(null);
+    setViewerMode('info');
+    setViewerCollapsed(false);
+    setViewerExpanded(false);
+    const response = await window.vera.request<InspectResult>({
+      action: 'inspect',
+      path: folderPath,
+      summary_only: true,
+      default_recursive: true,
+      allow_empty: true,
+    });
+    if (response.ok && response.result) {
+      libraryInspectCache.current.set(folderPath, response.result);
+      setInspect(response.result);
+    }
   }
 
   function indexStateKey(value: LibraryIndexStatus): string {
@@ -401,13 +493,13 @@ function App() {
     return true;
   }
 
-  async function refreshIndexStatus(folderPath: string): Promise<LibraryIndexStatus | null> {
+  async function refreshIndexStatus(folderPath: string, verifyHashes = false): Promise<LibraryIndexStatus | null> {
     setIndexStatusChecking((prev) => ({ ...prev, [folderPath]: true }));
     try {
       const response = await window.vera.request<LibraryIndexStatus>({
         action: 'index_status',
         path: folderPath,
-        verify_hashes: false,
+        verify_hashes: verifyHashes,
       });
       if (!response.ok || !response.result) return null;
       const value = response.result;
@@ -568,6 +660,7 @@ function App() {
   async function previewSourceDocument(entry: FolderEntry) {
     if (entry.type !== 'vera' && entry.type !== 'pdf') return;
     const selection: ExplorerSelection = { kind: 'file', path: entry.path, type: entry.type };
+    setLibraryInfoPath('');
     setExplorerSelection(selection);
     setSelected(null);
     setViewerMode('document');
@@ -673,6 +766,7 @@ function App() {
       try { localStorage.setItem('vera.activeLibraryPath', value); } catch { /* ignore persistence errors */ }
       setSelectedFiles([]);
       setPath(value);
+      if (!sourceDocument) setViewerMode('info');
       setValidation(null);
       setExportResult(null);
       setPageResult(null);
@@ -735,25 +829,28 @@ function App() {
     if (chosen) setOutputPath(chosen);
   }
 
-  async function inspectTarget() {
-    const result = await call<InspectResult>({
-      action: 'inspect',
-      path,
-      ...(path === activeLibraryPath ? { recursive: activeIndexStatus?.recursive ?? true, excludes: activeIndexStatus?.excludes ?? [] } : {}),
-    }, 'Inspecting');
+  async function inspectTarget(targetPath = path) {
+    const isLibrary = folders.some((folder) => folder.path === targetPath);
+    const [result, refreshedStatus] = await Promise.all([
+      call<InspectResult>({
+        action: 'inspect',
+        path: targetPath,
+        ...(targetPath === activeLibraryPath ? { recursive: activeIndexStatus?.recursive ?? true, excludes: activeIndexStatus?.excludes ?? [] } : {}),
+      }, 'Inspecting'),
+      isLibrary ? refreshIndexStatus(targetPath, true) : Promise.resolve(null),
+    ]);
     if (result) {
-      if (result.directory) libraryInspectCache.current.set(path, result);
+      if (refreshedStatus) result.index = refreshedStatus;
+      if (result.directory) libraryInspectCache.current.set(targetPath, result);
       setInspect(result);
       setValidation(null);
-      openSide('info');
     }
   }
 
-  async function validateTarget() {
-    const result = await call<ValidateResult>({ action: 'validate', path }, 'Validating');
+  async function validateTarget(targetPath = path) {
+    const result = await call<ValidateResult>({ action: 'validate', path: targetPath }, 'Validating');
     if (result) {
       setValidation(result);
-      openSide('info');
     }
   }
 
@@ -863,13 +960,14 @@ function App() {
       include_figure_data: includeFigures,
     }, 'Searching');
     if (result) {
+      setSubmittedSearchQuery(searchQuery.trim());
       setResults(result);
       if (result[0]) {
         selectSearchResult(result[0]);
       } else {
         setSelected(null);
       }
-      openSide('search');
+      setCenterView('search');
     }
   }
 
@@ -1581,10 +1679,10 @@ function App() {
     }
   }
 
-  async function exportSource() {
+  async function exportSource(targetPath = path) {
     const output = await window.vera.saveAny();
     if (!output) return;
-    const result = await call<ExportResult>({ action: 'export', path, output }, 'Exporting source');
+    const result = await call<ExportResult>({ action: 'export', path: targetPath, output }, 'Exporting source');
     if (result) setExportResult(result);
   }
 
@@ -1593,12 +1691,25 @@ function App() {
     activateViewer = true,
     requestId = ++sourceDocumentLoadRef.current,
   ) {
+    if (folders.some((folder) => folder.path === targetPath)) {
+      return;
+    }
     const result = await call<SourceDocumentResult>({ action: 'source', path: targetPath }, 'Loading source');
     if (result && requestId === sourceDocumentLoadRef.current) {
+      setLibraryInfoPath('');
       setSourceDocument(result);
       setSourceDocumentPath(targetPath);
       if (activateViewer) setViewerMode('document');
     }
+  }
+
+  function closeSourceDocument() {
+    sourceDocumentLoadRef.current += 1;
+    setSourceDocument(null);
+    setSourceDocumentPath('');
+    setLibraryInfoPath('');
+    setSelected(null);
+    setViewerMode('document');
   }
 
   function selectSearchResult(result: SearchResult) {
@@ -1625,11 +1736,10 @@ function App() {
   selectCitationRef.current = selectCitation;
   const stableSelectCitation = useMemo(() => (citation: ChatCitationResult) => selectCitationRef.current(citation), []);
 
-  async function loadPage() {
-    const result = await call<PageResult>({ action: 'page', path, page_number: pageNumber }, 'Loading page');
+  async function loadPage(targetPath = path) {
+    const result = await call<PageResult>({ action: 'page', path: targetPath, page_number: pageNumber }, 'Loading page');
     if (result) {
       setPageResult(result);
-      openSide('info');
     }
   }
 
@@ -1867,9 +1977,7 @@ function App() {
                   {([
                     ['explorer', 'Explorer', Folder],
                     ['chats', 'Chats', MessageSquareText],
-                    ['search', 'Search', Search],
                     ['convert', 'Convert PDF', FileInput],
-                    ['info', 'Document info', Info],
                   ] as const).map(([view, label, Icon]) => (
                     <button
                       className={`ghostIcon sideViewButton${sideView === view ? ' active' : ''}`}
@@ -1987,13 +2095,14 @@ function App() {
                           <button
                             className="folderGroupToggle"
                             onClick={() => selectExplorerFolder(folder.path)}
+                            onDoubleClick={() => void openLibraryInfo(folder.path)}
                             onKeyDown={(event) => {
                               if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
                               event.preventDefault();
                               const bounds = event.currentTarget.getBoundingClientRect();
                               showFolderContextMenu(folder.path, bounds.left, bounds.bottom);
                             }}
-                            title="Use this folder as the active library"
+                            title="Use as active library · double-click for Library Info"
                             aria-haspopup="menu"
                             aria-expanded={folderContextMenu?.path === folder.path}
                           >
@@ -2096,75 +2205,6 @@ function App() {
                       </div>
                     ))
                   )}
-                </div>
-              ) : null}
-
-              {sideView === 'search' ? (
-                <div className="searchView">
-                  <div className="searchBox">
-                    <textarea
-                      className="searchInput"
-                      value={searchQuery}
-                      rows={3}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                          event.preventDefault();
-                          void searchTarget();
-                        }
-                      }}
-                      placeholder="Search the active scope…"
-                    />
-                    <div className="searchScope">
-                      <span>{selectedFiles.length > 0
-                        ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
-                        : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
-                        : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? 'Current document' : 'No search scope'}</span>
-                      {selectedFiles.length > 0 ? (
-                        <button type="button" onClick={() => setSelectedFiles([])} title="Clear selection">Clear</button>
-                      ) : null}
-                    </div>
-                    <div className="searchControls">
-                      <label className="miniField">
-                        <span>Mode</span>
-                        <select value={mode} onChange={(event) => setMode(event.target.value)}>
-                          <option value="hybrid">Hybrid</option>
-                          <option value="semantic">Semantic</option>
-                          <option value="keyword">Keyword</option>
-                        </select>
-                      </label>
-                      <label className="miniField">
-                        <span>Top K</span>
-                        <input className="numberInput" type="number" min={1} max={50} value={topK} onChange={(event) => setTopK(Number(event.target.value))} />
-                      </label>
-                      <label className="miniField">
-                        <span>Context</span>
-                        <input className="numberInput" type="number" min={0} max={5} value={contextChunks} onChange={(event) => setContextChunks(Number(event.target.value))} />
-                      </label>
-                      <label className="miniCheck">
-                        <input type="checkbox" checked={includeFigures} onChange={(event) => setIncludeFigures(event.target.checked)} />
-                        <span>Figures</span>
-                      </label>
-                    </div>
-                    <button className="sidePrimary" onClick={searchTarget} disabled={!hasSearchableScope || !searchQuery.trim() || busy}><Search size={15} />Search</button>
-                  </div>
-                  <div className="searchResults">
-                    {results.length === 0 ? (
-                      <p className="sideMuted">{searchScopePath ? 'No results yet.' : 'Open a document or library first.'}</p>
-                    ) : (
-                      results.map((result) => (
-                        <button
-                          className={selected?.chunk_id === result.chunk_id ? 'resultRow active' : 'resultRow'}
-                          key={`${result.file || result.document_id}-${result.chunk_id}`}
-                          onClick={() => { selectSearchResult(result); setViewerMode('document'); }}
-                        >
-                          <span className="resultRowMeta">{result.score.toFixed(3)} · p. {formatPages(result.page_start, result.page_end)}{result.file ? ` · ${result.file}` : ''}</span>
-                          <strong>{result.heading_path || result.source_filename || result.chunk_id}</strong>
-                          <span className="resultRowText">{result.text}</span>
-                        </button>
-                      ))
-                    )}
-                  </div>
                 </div>
               ) : null}
 
@@ -2392,60 +2432,6 @@ function App() {
                 </div>
               ) : null}
 
-              {sideView === 'info' ? (
-                <div className="infoView">
-                  {path ? (
-                    <>
-                      <div className="infoActions">
-                        <button className="secondaryAction" onClick={inspectTarget} disabled={!path.trim() || activeLibraryIsEmpty || busy}><ShieldCheck size={15} />{isCorpus ? 'Deep inspect' : 'Inspect'}</button>
-                        <button className="secondaryAction" onClick={validateTarget} disabled={!path.trim() || isCorpus || busy}><CheckCircle2 size={15} />Validate</button>
-                        <button className="secondaryAction" onClick={exportSource} disabled={!path.trim() || isCorpus || busy}><Download size={15} />Export</button>
-                      </div>
-                      <dl className="infoList">
-                        <div><dt>Format</dt><dd>{inspect ? `${inspect.format_name || 'VERA'} ${inspect.format_version || ''}` : '-'}</dd></div>
-                        <div><dt>Source</dt><dd>{inspect?.source || inspect?.directory || '-'}</dd></div>
-                        <div><dt>Pages</dt><dd>{inspect?.pages ?? '-'}</dd></div>
-                        <div><dt>Chunks</dt><dd>{inspect?.chunks ?? '-'}</dd></div>
-                        <div><dt>Model</dt><dd>{inspect?.default_embedding_model || inspect?.embedding_models?.join(', ') || '-'}</dd></div>
-                        {isCorpus ? <div><dt>Summary</dt><dd>{inspect?.summary_source === 'index' ? 'Persistent index' : inspect?.summary_source === 'archives' ? 'Deep archive scan' : 'File discovery only'}</dd></div> : null}
-                        <div><dt>Validation</dt><dd>{validation ? (validation.ok ? 'PASS' : 'FAIL') : '-'}</dd></div>
-                        <div><dt>Issues</dt><dd>{validation?.issues?.length ? validation.issues.join('; ') : '0'}</dd></div>
-                        <div><dt>Export</dt><dd>{exportResult?.output || '-'}</dd></div>
-                      </dl>
-                      {sourceDocument ? (
-                        <section className="infoSection">
-                          <h3>Source Document</h3>
-                          <dl className="infoList">
-                            <div><dt>File</dt><dd>{sourceDocument.filename}</dd></div>
-                            <div><dt>Type</dt><dd>{sourceDocument.mime_type}</dd></div>
-                            <div><dt>Size</dt><dd>{Math.round(sourceDocument.size / 1024).toLocaleString()} KB</dd></div>
-                          </dl>
-                        </section>
-                      ) : null}
-                      <section className="infoSection">
-                        <h3>Page Text</h3>
-                        <div className="pageControls">
-                          <input className="numberInput" type="number" min={1} max={inspect?.pages || undefined} value={pageNumber} onChange={(event) => setPageNumber(Number(event.target.value))} />
-                          <button className="secondaryAction" onClick={loadPage} disabled={!path.trim() || isCorpus || busy}>Load Page</button>
-                        </div>
-                        {pageResult ? (
-                          <article className="pageText">
-                            <span>p. {pageResult.page_number} · {pageResult.width ?? '-'} x {pageResult.height ?? '-'}</span>
-                            <p>{pageResult.text || 'No text was extracted for this page.'}</p>
-                          </article>
-                        ) : (
-                          <p className="sideMuted">Load a page to inspect extracted text.</p>
-                        )}
-                      </section>
-                    </>
-                  ) : (
-                    <div className="sideEmpty">
-                      <Info size={28} />
-                      <p>Open a document to see its details.</p>
-                    </div>
-                  )}
-                </div>
-              ) : null}
             </div>
           ) : null}
         </aside>
@@ -2475,7 +2461,27 @@ function App() {
         {!(viewerExpanded && !viewerCollapsed) ? (
         <main className="centerPane">
           <header className="centerHeader">
-            <button className="centerNewChat" onClick={() => void newSession()} title="Start a new chat"><Plus size={14} />New chat</button>
+            <div className="centerViewToggle" role="group" aria-label="Center workspace">
+              <button
+                type="button"
+                className={centerView === 'chat' ? 'active' : ''}
+                onClick={() => setCenterView('chat')}
+                aria-pressed={centerView === 'chat'}
+              >
+                Chat
+              </button>
+              <button
+                type="button"
+                className={centerView === 'search' ? 'active' : ''}
+                onClick={() => setCenterView('search')}
+                aria-pressed={centerView === 'search'}
+              >
+                Search
+              </button>
+            </div>
+            {centerView === 'chat' ? (
+              <button className="centerNewChat" onClick={() => void newSession()} title="Start a new chat"><Plus size={14} />New chat</button>
+            ) : null}
           </header>
 
           {errorMessage ? (
@@ -2508,6 +2514,104 @@ function App() {
               </button>
             </div>
           ) : null}
+          {centerView === 'search' ? (
+            <section className={submittedSearchQuery ? 'centerSearch centerSearch--active' : 'centerSearch centerSearch--empty'}>
+              {submittedSearchQuery ? (
+                <div className="searchThread">
+                  <article className="chatMessage userMessage searchQueryMessage">
+                    <p>{submittedSearchQuery}</p>
+                  </article>
+                  <article className="chatMessage assistantMessage searchResponse">
+                    <span>{results.length} result{results.length === 1 ? '' : 's'}</span>
+                    {results.length > 0 ? (
+                      <div className="centerSearchResults">
+                        {results.map((result, index) => (
+                          <button
+                            className={selected?.chunk_id === result.chunk_id ? 'searchResultCard active' : 'searchResultCard'}
+                            key={`${result.file || result.document_id}-${result.chunk_id}`}
+                            onClick={() => { selectSearchResult(result); setViewerMode('document'); }}
+                          >
+                            <span className="searchResultRank">{index + 1}</span>
+                            <span className="searchResultBody">
+                              <span className="resultRowMeta">{result.score.toFixed(3)} · p. {formatPages(result.page_start, result.page_end)}{result.file ? ` · ${fileName(result.file)}` : ''}</span>
+                              <strong>{result.heading_path || result.source_filename || result.chunk_id}</strong>
+                              <span className="resultRowText">{result.text}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="searchNoResults">No matching passages found.</p>
+                    )}
+                  </article>
+                </div>
+              ) : (
+                <div className="chatEmptyState">
+                  <Search size={26} />
+                  <p>Search your documents</p>
+                </div>
+              )}
+              <div className="searchComposerWrap">
+                <div className="composerScope searchComposerScope">
+                  <span>
+                    {selectedFiles.length > 0
+                      ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
+                      : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
+                      : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? 'Current document' : 'No search scope'}
+                  </span>
+                  {selectedFiles.length > 0 ? (
+                    <button type="button" onClick={() => setSelectedFiles([])}>Clear</button>
+                  ) : null}
+                </div>
+                <div className="searchComposer">
+                  <textarea
+                    value={searchQuery}
+                    rows={1}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        if (hasSearchableScope && searchQuery.trim() && !busy) void searchTarget();
+                      }
+                    }}
+                    placeholder="Search the active scope…"
+                    aria-label="Search query"
+                  />
+                  <button
+                    type="button"
+                    className="askSendButton"
+                    onClick={() => void searchTarget()}
+                    disabled={!hasSearchableScope || !searchQuery.trim() || busy}
+                    aria-label="Search"
+                  >
+                    {busyAction === 'Searching' ? <span className="askSpinner" /> : <Search size={14} />}
+                  </button>
+                </div>
+                <div className="searchOptionsBar">
+                  <label>
+                    <span>Mode</span>
+                    <select value={mode} onChange={(event) => setMode(event.target.value)}>
+                      <option value="hybrid">Hybrid</option>
+                      <option value="semantic">Semantic</option>
+                      <option value="keyword">Keyword</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Results</span>
+                    <input type="number" min={1} max={50} value={topK} onChange={(event) => setTopK(Number(event.target.value))} />
+                  </label>
+                  <label>
+                    <span>Context</span>
+                    <input type="number" min={0} max={5} value={contextChunks} onChange={(event) => setContextChunks(Number(event.target.value))} />
+                  </label>
+                  <label className="searchFiguresOption">
+                    <input type="checkbox" checked={includeFigures} onChange={(event) => setIncludeFigures(event.target.checked)} />
+                    <span>Figures</span>
+                  </label>
+                </div>
+              </div>
+            </section>
+          ) : (
           <div className={sessionTurns.length > 0 ? 'chatPanel chatPanel--active' : 'chatPanel chatPanel--empty'}>
               {sessionTurns.length > 0 ? (
                 <div className="chatThreadWrap">
@@ -2803,6 +2907,7 @@ function App() {
                   </div>
               </div>
             </div>
+          )}
         </main>
         ) : null}
 
@@ -2832,16 +2937,46 @@ function App() {
           <div className="viewerHeader">
             {!viewerCollapsed ? (
               <div className="viewerTitleGroup">
-                <h2>{selected && viewerMode === 'selection' ? 'Chunk Details' : 'Document Viewer'}</h2>
-                <span title={selected ? citation : sourceDocument?.filename || ''}>{selected && viewerMode === 'selection' ? citation : sourceDocument?.filename || 'No document loaded'}</span>
+                <h2>{viewerMode === 'info' ? viewerInfoIsCorpus ? 'Library Info' : 'Document Info' : selected && viewerMode === 'selection' ? 'Chunk Details' : 'Document Viewer'}</h2>
+                <span title={viewerMode === 'info' ? viewerInfoPath : selected ? citation : sourceDocument?.filename || ''}>
+                  {viewerMode === 'info' ? viewerInfoPath || 'No document loaded' : selected && viewerMode === 'selection' ? citation : sourceDocument?.filename || 'No document loaded'}
+                </span>
               </div>
             ) : null}
             <div className="viewerHeaderActions">
-              {!viewerCollapsed && selected ? (
+              {!viewerCollapsed && (selected || viewerInfoPath) ? (
                 <div className="viewerModeToggle">
-                  <button className={viewerMode === 'document' ? 'active' : ''} onClick={() => { setViewerMode('document'); if (!sourceDocument && selectedSourcePath) void loadSourceDocument(selectedSourcePath, false); }} title="Show full document">Document</button>
-                  <button className={viewerMode === 'selection' ? 'active' : ''} onClick={() => setViewerMode('selection')} title="Show chunk debug data">Details</button>
+                  {!viewerInfoIsCorpus ? (
+                    <button className={viewerMode === 'document' ? 'active' : ''} onClick={() => { setViewerMode('document'); if (!sourceDocument && selectedSourcePath) void loadSourceDocument(selectedSourcePath, false); }} title="Show full document">Document</button>
+                  ) : null}
+                  {selected ? <button className={viewerMode === 'selection' ? 'active' : ''} onClick={() => setViewerMode('selection')} title="Show chunk debug data">Details</button> : null}
+                  <button
+                    className={viewerMode === 'info' ? 'active' : ''}
+                    onClick={() => {
+                      setViewerMode('info');
+                      setValidation(null);
+                      setExportResult(null);
+                      setPageResult(null);
+                      if (viewerInfoInspectable && !viewerInfoIsCorpus && !viewerInspect) {
+                        void inspectTarget(viewerInfoPath);
+                      }
+                    }}
+                    title={viewerInfoIsArchive ? 'Inspect VERA archive metadata' : 'Inspect document metadata'}
+                  >
+                    Info
+                  </button>
                 </div>
+              ) : null}
+              {!viewerCollapsed && (sourceDocument || libraryInfoPath) ? (
+                <button
+                  type="button"
+                  className="ghostIcon"
+                  onClick={closeSourceDocument}
+                  title={libraryInfoPath ? 'Close library info' : 'Close document'}
+                  aria-label={libraryInfoPath ? 'Close library info' : 'Close document'}
+                >
+                  <X size={15} />
+                </button>
               ) : null}
               {!viewerCollapsed ? (
                 <button
@@ -2874,7 +3009,142 @@ function App() {
             </div>
           </div>
           {!viewerCollapsed ? (
-            selected && viewerMode === 'selection' ? (
+            viewerMode === 'info' ? (
+              <article className="viewerInfoView infoView">
+                {viewerInfoPath ? (
+                  <>
+                    <div className="infoActions">
+                      {viewerInfoIsCorpus ? (
+                        <button className="secondaryAction" onClick={() => void inspectTarget(viewerInfoPath)} disabled={!viewerInfoInspectable || activeLibraryIsEmpty || busy}><ShieldCheck size={15} />Inspect</button>
+                      ) : (
+                        <>
+                          <button className="secondaryAction" onClick={() => void validateTarget(viewerInfoPath)} disabled={!viewerInfoInspectable || busy}><CheckCircle2 size={15} />Validate</button>
+                          <button className="secondaryAction" onClick={() => void exportSource(viewerInfoPath)} disabled={!viewerInfoInspectable || busy}><Download size={15} />Export</button>
+                        </>
+                      )}
+                    </div>
+                    {viewerInfoIsCorpus ? (
+                      <>
+                        <dl className="infoList">
+                          <div><dt>Library</dt><dd>{viewerInfoPath}</dd></div>
+                          <div>
+                            <dt>Documents</dt>
+                            <dd>
+                              {viewerInspect?.file_count ?? viewerIndexStatus?.file_count ?? '-'} indexed
+                              {' / '}{viewerInspect?.discovered_file_count ?? viewerIndexStatus?.discovered ?? '-'} discovered
+                              {' / '}{viewerInspect?.skipped ?? viewerIndexStatus?.skipped ?? 0} skipped
+                            </dd>
+                          </div>
+                          <div><dt>Pages</dt><dd>{viewerInspect?.pages ?? '-'}</dd></div>
+                          <div><dt>Chunks</dt><dd>{viewerInspect?.chunks ?? viewerIndexStatus?.indexed_chunks ?? '-'}</dd></div>
+                          <div><dt>Models</dt><dd>{viewerInspect?.embedding_models?.join(', ') || viewerIndexStatus?.model_groups?.map((group) => group.model).join(', ') || '-'}</dd></div>
+                          <div>
+                            <dt>Index</dt>
+                            <dd className={viewerIndexStatus?.fresh ? 'infoStatus infoStatus--good' : 'infoStatus infoStatus--warn'}>
+                              {viewerIndexStatus?.fresh ? 'Fresh' : viewerIndexStatus?.exists ? 'Stale' : 'Missing'}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Coverage</dt>
+                            <dd>
+                              {viewerIndexStatus?.indexed_chunks ?? '-'} / {viewerIndexStatus?.source_chunks ?? '-'} chunks embedded
+                              {viewerIndexStatus?.source_chunks
+                                ? ` (${Math.round(((viewerIndexStatus.indexed_chunks ?? 0) / viewerIndexStatus.source_chunks) * 100)}%)`
+                                : ''}
+                            </dd>
+                          </div>
+                          <div><dt>Storage</dt><dd>{formatBytes(viewerIndexStatus?.index_size_bytes)} total · {formatBytes(viewerIndexStatus?.database_size_bytes)} database · {formatBytes(viewerIndexStatus?.vector_size_bytes)} vectors</dd></div>
+                          <div><dt>Built</dt><dd>{formatTimestamp(viewerIndexStatus?.created_at)}</dd></div>
+                          <div><dt>Checked</dt><dd>{formatTimestamp(viewerIndexStatus?.checked_at)}</dd></div>
+                          <div><dt>Verified</dt><dd>{formatTimestamp(viewerIndexStatus?.verified_at)}</dd></div>
+                          <div><dt>Generation</dt><dd>{viewerIndexStatus?.generation_id || '-'}</dd></div>
+                          <div><dt>Recursive</dt><dd>{viewerIndexStatus?.recursive ? 'Yes' : 'No'}</dd></div>
+                          <div><dt>Excludes</dt><dd>{viewerIndexStatus?.excludes?.length ? viewerIndexStatus.excludes.join(', ') : 'None'}</dd></div>
+                          <div><dt>Summary</dt><dd>{viewerInspect?.summary_source === 'index' ? 'Persistent index' : viewerInspect?.summary_source === 'archives' ? 'Archive scan' : 'File discovery only'}</dd></div>
+                        </dl>
+                        {viewerIndexStatus?.model_groups?.length ? (
+                          <section className="infoSection">
+                            <h3>Model groups</h3>
+                            <div className="modelGroupList">
+                              {viewerIndexStatus.model_groups.map((group) => (
+                                <article className="modelGroupCard" key={`${group.model}-${group.dimension}`}>
+                                  <strong>{group.model}</strong>
+                                  <span>{group.dimension} dimensions</span>
+                                  <span>{group.documents} document{group.documents === 1 ? '' : 's'} · {group.chunks} chunks</span>
+                                  <span>{formatBytes(group.vector_size_bytes)} vectors</span>
+                                </article>
+                              ))}
+                            </div>
+                          </section>
+                        ) : null}
+                        {(viewerIndexStatus?.reasons.length || viewerIndexStatus?.skipped_files?.length) ? (
+                          <section className="infoSection">
+                            <h3>Index health</h3>
+                            <div className="indexHealthList">
+                              {viewerIndexStatus.reasons.map((reason) => <p key={reason}>{reason}</p>)}
+                              {viewerIndexStatus.skipped_files?.map((entry) => (
+                                <p key={entry.file}><strong>{entry.file}</strong> · {entry.category}: {entry.reason}</p>
+                              ))}
+                            </div>
+                          </section>
+                        ) : null}
+                      </>
+                    ) : (
+                      <dl className="infoList">
+                        {viewerInfoIsArchive ? <div><dt>Archive</dt><dd>{viewerInfoPath}</dd></div> : null}
+                        <div><dt>Title</dt><dd>{viewerInspect?.title || '-'}</dd></div>
+                        <div><dt>Created</dt><dd>{formatTimestamp(viewerInspect?.created_at)}</dd></div>
+                        <div><dt>Archive size</dt><dd>{formatBytes(viewerInspect?.archive_size_bytes ?? undefined)}</dd></div>
+                        <div><dt>Format</dt><dd>{viewerInspect ? `${viewerInspect.format_name || 'VERA'} ${viewerInspect.format_version || ''}` : '-'}</dd></div>
+                        <div><dt>Source</dt><dd>{viewerInspect?.source || '-'}</dd></div>
+                        <div><dt>Pages</dt><dd>{viewerInspect?.pages ?? '-'}</dd></div>
+                        <div><dt>Chunks</dt><dd>{viewerInspect?.chunks ?? '-'}</dd></div>
+                        <div><dt>Model</dt><dd>{viewerInspect?.default_embedding_model || viewerInspect?.embedding_models?.join(', ') || '-'}</dd></div>
+                        <div><dt>Dimensions</dt><dd>{viewerInspect?.default_embedding_dimension ?? viewerInspect?.embedding_dimension ?? '-'}</dd></div>
+                        <div><dt>Normalization</dt><dd>{viewerInspect?.default_embedding_normalization ?? viewerInspect?.embedding_normalization ?? 'unknown'}</dd></div>
+                        <div><dt>Parser</dt><dd>{viewerInspect?.parser_name ? `${viewerInspect.parser_name}${viewerInspect.parser_version ? ` ${viewerInspect.parser_version}` : ''}` : '-'}</dd></div>
+                        <div><dt>Chunking</dt><dd>{formatChunkingStrategy(viewerInspect?.chunking_strategy)}</dd></div>
+                        <div><dt>OCR</dt><dd>{formatOcrSummary(viewerInspect?.ocr)}</dd></div>
+                        <div><dt>Attachments</dt><dd>{viewerInspect?.attachments ?? '-'}</dd></div>
+                        <div><dt>Validation</dt><dd>{validation ? (validation.ok ? 'PASS' : 'FAIL') : '-'}</dd></div>
+                        <div><dt>Issues</dt><dd>{validation?.issues?.length ? validation.issues.join('; ') : '0'}</dd></div>
+                        <div><dt>Export</dt><dd>{exportResult?.output || '-'}</dd></div>
+                      </dl>
+                    )}
+                    {sourceDocument ? (
+                      <section className="infoSection">
+                        <h3>Source Document</h3>
+                        <dl className="infoList">
+                          <div><dt>File</dt><dd>{sourceDocument.filename}</dd></div>
+                          <div><dt>Type</dt><dd>{sourceDocument.mime_type}</dd></div>
+                          <div><dt>Size</dt><dd>{Math.round(sourceDocument.size / 1024).toLocaleString()} KB</dd></div>
+                        </dl>
+                      </section>
+                    ) : null}
+                    {!viewerInfoIsCorpus ? <section className="infoSection">
+                      <h3>Page Text</h3>
+                      <div className="pageControls">
+                        <input className="numberInput" type="number" min={1} max={viewerInspect?.pages || undefined} value={pageNumber} onChange={(event) => setPageNumber(Number(event.target.value))} />
+                        <button className="secondaryAction" onClick={() => void loadPage(viewerInfoPath)} disabled={!viewerInfoInspectable || viewerInfoIsCorpus || busy}>Load Page</button>
+                      </div>
+                      {pageResult ? (
+                        <article className="pageText">
+                          <span>p. {pageResult.page_number} · {pageResult.width ?? '-'} x {pageResult.height ?? '-'}</span>
+                          <p>{pageResult.text || 'No text was extracted for this page.'}</p>
+                        </article>
+                      ) : (
+                        <p className="sideMuted">Load a page to inspect extracted text.</p>
+                      )}
+                    </section> : null}
+                  </>
+                ) : (
+                  <div className="emptyState">
+                    <Info size={28} />
+                    <p>Open a document to see its details.</p>
+                  </div>
+                )}
+              </article>
+            ) : selected && viewerMode === 'selection' ? (
               <article className="sourceDetails sourceViewerOnly">
                 <details className="sourceDisclosure" open>
                   <summary>Passage Text</summary>
@@ -2970,13 +3240,6 @@ function App() {
           ) : null}
         </aside>
       </div>
-      <footer className="statusbar">
-        <span className="statusPath">{path || 'No file open'}</span>
-        <span>Pages: {inspect?.pages ?? '-'}</span>
-        <span>Chunks: {inspect?.chunks ?? '-'}</span>
-        <span>Files: {inspect?.file_count ?? '-'}</span>
-        <span>Model: {inspect?.default_embedding_model || inspect?.embedding_models?.join(', ') || '-'}</span>
-      </footer>
       {folderContextMenu ? (
         <div className="folderContextMenuBackdrop" onClick={() => setFolderContextMenu(null)}>
           <div
@@ -2987,15 +3250,6 @@ function App() {
           >
             <button
               ref={folderContextMenuFirstActionRef}
-              role="menuitem"
-              onClick={() => {
-                selectExplorerFolder(folderContextMenu.path);
-                setFolderContextMenu(null);
-              }}
-            >
-              Use as active library
-            </button>
-            <button
               role="menuitem"
               disabled={Boolean(indexingFolders[folderContextMenu.path])}
               onClick={() => {

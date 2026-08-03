@@ -70,15 +70,23 @@ Opening a workspace folder activates it as the default Search and Ask scope
 without opening the corpus. Activation is instantaneous: it sets the active
 library path, clears file-selection overrides, and refreshes the index badge
 in the background. The corpus is opened on the first Search or Ask request.
-Cached library summaries from an earlier Deep inspect are restored for status
-metrics when available; otherwise page/chunk counts stay blank until an
-explicit inspect. The active library and Search/Ask scope are independent from
-the document viewer: selecting a `.vera` file or library folder for scope does
-not clear or replace the open source preview, and previewing an archive does
-not replace the library scope. Checking one or more archives in Explorer
+Cached library summaries from an earlier Inspect are restored when
+available. Selecting a library folder activates its Search/Ask scope and resets
+the viewer to an empty document view; selecting an individual `.vera` scope
+does not replace an open preview. Previewing an archive does not replace the
+library scope. Checking one or more archives in Explorer
 explicitly narrows retrieval to those files; clearing the checks restores
 whole-library search. Chat sessions persist the scope path so reopening a
 library-backed conversation restores its context.
+
+The center workspace has **Chat** and **Search** modes. Chat keeps LLM-backed
+conversations and their history, while Search runs direct hybrid, semantic, or
+keyword retrieval without adding turns to a conversation. Both modes use the
+same thread-and-composer layout. Search renders the query as a user message and
+ranked passage results as selectable response cards; selecting a result opens
+and highlights its source in the document viewer. Retrieval controls remain
+available beneath the Search composer. Explorer, chat history, and conversion
+remain sidebar views.
 
 The app checks the folder's local collection index when the folder is added,
 activated, refreshed, changed by the watcher, or receives a newly converted
@@ -88,11 +96,24 @@ archive:
 - **Stale** means files changed after the last build.
 - **No index** means no collection index has been built yet.
 
-A fresh persistent index is used automatically for Search and Ask. The Info
-view's **Deep inspect** action remains available for an explicit validation
-scan and populates library metrics. Libraries with at least 100 discovered
-archives prompt to build or update an unavailable index, while smaller
-libraries expose build, update, rescan, show-in-system-folder, activate, and
+A fresh persistent index is used automatically for Search and Ask. The document
+viewer's **Info** tab keeps **Inspect** available for an explicit validation
+scan of a library and shows document inspection, validation, export, and page
+text details beside the source they describe. Individual archive metadata is
+inspected automatically when Document Info opens, so only Library Info exposes
+the explicit **Inspect** action. Double-clicking a library opens a dedicated
+**Library Info** state; single-clicking only changes the active Search/Ask
+scope and leaves the viewer on its document view, empty when no document is
+loaded. Library Info does not expose a Document tab or pass the directory to
+the source-document loader, and its **Models**
+field lists every embedding-model group represented in the library index. It
+also shows document and chunk coverage, index freshness and reasons,
+recursive/exclusion settings, skipped archives, storage usage,
+generation/build/check timestamps, and per-model dimensions and counts. Its
+close action clears the viewer in the same way as closing a document preview.
+Libraries with at least 100
+discovered archives prompt to build or update an unavailable index, while smaller
+libraries expose build, update, rescan, show-in-system-folder, and
 close actions in the folder row's context menu. File rows offer show-in-system-
 folder (and preview/trash where applicable). Clicking a PDF selects it and
 seeds Convert defaults without switching to the Convert view; Ctrl/Cmd+click
@@ -113,7 +134,9 @@ background; after completion, a warning badge opens the report when archives
 were skipped. Choosing **Search anyway** never blocks retrieval: the sidecar
 performs recursive fan-out search and the app keeps a slower-search banner
 visible. Watcher events and completed directory conversions update badges but
-never start a build automatically.
+never start a build automatically. Double-clicking a library folder activates
+it and opens its Library Info view, clearing any document preview while leaving
+the library available as the Search/Ask scope.
 
 Any readable folder can remain active even before it contains a `.vera`
 archive. Search and Ask open the corpus on demand; an empty library returns a
@@ -204,7 +227,14 @@ choice continues to reflow on resize. Pages render at device pixel ratio for
 sharper output on HiDPI displays. Citation passage and figure highlights can be
 toggled, with a compact color legend when both are present. The viewer chrome
 can hide the pane (keeping a right-edge toggle) or expand it by hiding chat so
-the document fills from the left sidebar to the window edge.
+the document fills from the left sidebar to the window edge. Closing the open
+document clears its preview, selection, and highlights while leaving the viewer
+pane, active library, and Search/Ask scope intact. When the displayed source
+was extracted from a `.vera` archive, the viewer's **Info** tab
+that inspects that archive and shows its format, source, page and chunk counts,
+embedding model and dimensions, creation time, archive size, parser and
+chunking settings, OCR summary, attachment count, validation status, and
+export controls alongside the PDF.
 
 ## Near-Term App Work
 

@@ -50,7 +50,10 @@ and does not accept `OUTPUT`.
 
 ## `vera inspect FILE`
 
-Print archive metadata and summary counts.
+Print archive metadata and summary counts, including archive size, creation
+time, embedding dimensions and normalization policy, parser/chunking settings,
+OCR diagnostics, and attachment count when recorded. Normalization is `l2`,
+`none`, or `unknown`.
 
 Options: `--json`.
 
@@ -98,7 +101,10 @@ Options: `--json`.
 ## `vera index status DIRECTORY`
 
 Report whether an index exists and is fresh, including the paths, categories,
-and reasons retained for files skipped by the active index.
+and reasons retained for files skipped by the active index. Existing-index
+reports also include generation/build/check/verification timestamps, storage
+sizes, source-versus-indexed chunk coverage, and per-model dimensions and
+document/chunk counts.
 
 Options: `--json`.
 

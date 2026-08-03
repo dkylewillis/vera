@@ -5,7 +5,13 @@ import json
 import sqlite3
 from typing import Any
 
+import numpy as np
+
 from .schema import FORMAT_VERSION, REQUIRED_METADATA_KEYS
+
+_EMBEDDING_NORMALIZATIONS = {"l2", "none", "unknown"}
+_L2_NORMALIZATION_RTOL = 1e-4
+_L2_NORMALIZATION_ATOL = 1e-6
 
 
 def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -57,6 +63,16 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
         for key in REQUIRED_METADATA_KEYS:
             if key not in metadata:
                 issues.append(f"Missing required metadata key: {key}")
+        embedding_normalization = metadata.get(
+            "default_embedding_normalization", "unknown"
+        )
+        if embedding_normalization not in _EMBEDDING_NORMALIZATIONS:
+            issues.append(
+                "Invalid default_embedding_normalization: "
+                f"{embedding_normalization!r}"
+            )
+    else:
+        embedding_normalization = "unknown"
 
     if counts["embeddings"] != counts["chunks"]:
         issues.append(f"Embedding count ({counts['embeddings']}) does not match chunk count ({counts['chunks']})")
@@ -98,6 +114,28 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
             if expected <= 0 or actual != expected:
                 issues.append(
                     f"Invalid embedding blob for {row['chunk_id']}: expected {expected} bytes, got {actual}"
+                )
+                continue
+            vector = np.frombuffer(row["vector"], dtype="<f4")
+            if not np.isfinite(vector).all():
+                issues.append(
+                    f"Embedding vector for {row['chunk_id']} contains non-finite values"
+                )
+                continue
+            norm = float(np.linalg.norm(vector))
+            if (
+                embedding_normalization == "l2"
+                and norm != 0.0
+                and not np.isclose(
+                    norm,
+                    1.0,
+                    rtol=_L2_NORMALIZATION_RTOL,
+                    atol=_L2_NORMALIZATION_ATOL,
+                )
+            ):
+                issues.append(
+                    f"Embedding vector for {row['chunk_id']} is not L2-normalized "
+                    f"(norm {norm:.8g})"
                 )
 
     foreign_key_issues = conn.execute("PRAGMA foreign_key_check").fetchall()

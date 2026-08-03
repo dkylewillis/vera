@@ -147,6 +147,11 @@ search. The JSON response sets `index.used` to false and lists the reason:
 
 This preserves correctness while making the performance change visible.
 
+`vera index status --json` also reports the active generation and timestamps,
+database/vector/total storage, embedded-versus-source chunk coverage, discovery
+settings, skipped files, and a `model_groups` array with dimensions and
+document/chunk counts. These fields power the desktop app's Library Info view.
+
 ## Mixed embedding models
 
 A library may contain archives created with different embedding models.

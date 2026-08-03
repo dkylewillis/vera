@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, Protocol, Sequence
+from typing import Any, Literal, Protocol, Sequence, cast
 
 import numpy as np
 
@@ -28,6 +28,10 @@ from .models import (
 
 OpenMode = Literal["read", "write"]
 SearchMode = Literal["semantic", "keyword", "hybrid"]
+EmbeddingNormalization = Literal["l2", "none", "unknown"]
+_EMBEDDING_NORMALIZATIONS = frozenset({"l2", "none", "unknown"})
+_L2_NORMALIZATION_RTOL = 1e-4
+_L2_NORMALIZATION_ATOL = 1e-6
 
 
 class EmbeddingFunction(Protocol):
@@ -36,6 +40,9 @@ class EmbeddingFunction(Protocol):
     Attributes:
         model_name: Identifier stored in the archive metadata.
         dimension: Vector length expected by the database.
+        Implementations may also expose a ``normalization`` attribute
+        (``"l2"``, ``"none"``, or ``"unknown"``). Embedders without it are
+        recorded as ``"unknown"``.
     """
 
     model_name: str
@@ -77,6 +84,18 @@ def _normalize_scores(scores: Mapping[str, float]) -> dict[str, float]:
     if high == low:
         return {key: 1.0 for key in scores}
     return {key: (value - low) / (high - low) for key, value in scores.items()}
+
+
+def _embedding_normalization(
+    value: str | None,
+    *,
+    default: str = "unknown",
+) -> EmbeddingNormalization:
+    normalization = (value or default).strip().lower()
+    if normalization not in _EMBEDDING_NORMALIZATIONS:
+        choices = ", ".join(sorted(_EMBEDDING_NORMALIZATIONS))
+        raise ValueError(f"embedding normalization must be one of: {choices}")
+    return cast(EmbeddingNormalization, normalization)
 
 
 class VeraDocument:
@@ -122,6 +141,7 @@ class VeraDocument:
         *,
         embedding_function: EmbeddingFunction | None = None,
         model: str = "hashing",
+        embedding_normalization: EmbeddingNormalization | None = None,
         metadata: JsonObject | None = None,
         overwrite: bool = False,
     ) -> "VeraDocument":
@@ -132,6 +152,8 @@ class VeraDocument:
             embedding_function: Custom embedder. When omitted, ``model`` selects
                 the default embedder.
             model: Default embedding model name (for example ``"hashing"``).
+            embedding_normalization: Stored-vector normalization policy. When
+                omitted, use the embedder's declared policy or ``"unknown"``.
             metadata: Caller-controlled JSON metadata stored in the archive.
             overwrite: When ``False`` (default), raise :class:`FileExistsError`
                 if ``path`` already exists.
@@ -145,8 +167,25 @@ class VeraDocument:
         target = Path(path)
         if target.exists() and not overwrite:
             raise FileExistsError(str(target))
-        target.parent.mkdir(parents=True, exist_ok=True)
         embedder = embedding_function or get_embedder(model)
+        embedder_normalization = _embedding_normalization(
+            getattr(embedder, "normalization", None)
+        )
+        normalization = _embedding_normalization(
+            embedding_normalization,
+            default=embedder_normalization,
+        )
+        if (
+            normalization != "unknown"
+            and embedder_normalization != "unknown"
+            and normalization != embedder_normalization
+        ):
+            raise ValueError(
+                "embedding normalization "
+                f"{normalization!r} does not match embedding function "
+                f"normalization {embedder_normalization!r}"
+            )
+        target.parent.mkdir(parents=True, exist_ok=True)
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=f".{target.name}.",
             suffix=".tmp",
@@ -168,6 +207,7 @@ class VeraDocument:
                 "creator_library": f"vera-doc/{FORMAT_VERSION}",
                 "default_embedding_model": embedder.model_name,
                 "default_embedding_dimension": str(embedder.dimension),
+                "default_embedding_normalization": normalization,
                 "archive_metadata": metadata_to_json(metadata or {}),
             }
             conn.executemany(
@@ -255,6 +295,22 @@ class VeraDocument:
                     raise ValueError(
                         "embedding function dimension "
                         f"{embedding_function.dimension} does not match database dimension {expected}"
+                    )
+                stored_normalization = _embedding_normalization(
+                    stored.get("default_embedding_normalization")
+                )
+                embedder_normalization = _embedding_normalization(
+                    getattr(embedding_function, "normalization", None)
+                )
+                if (
+                    stored_normalization != "unknown"
+                    and embedder_normalization != "unknown"
+                    and embedder_normalization != stored_normalization
+                ):
+                    raise ValueError(
+                        "embedding function normalization "
+                        f"{embedder_normalization!r} does not match database "
+                        f"normalization {stored_normalization!r}"
                     )
             return cls(
                 target,
@@ -417,7 +473,11 @@ class VeraDocument:
                 )
 
     def _vectors_for(self, records: Sequence[ChunkRecord]) -> list[np.ndarray]:
-        expected = int(self._metadata_values()["default_embedding_dimension"])
+        metadata = self._metadata_values()
+        expected = int(metadata["default_embedding_dimension"])
+        normalization = _embedding_normalization(
+            metadata.get("default_embedding_normalization")
+        )
         generated_indices = [
             index for index, record in enumerate(records) if record.vector is None
         ]
@@ -446,6 +506,21 @@ class VeraDocument:
                 )
             if not np.isfinite(vector).all():
                 raise ValueError(f"record {record.id!r} vector is not finite")
+            norm = float(np.linalg.norm(vector))
+            if (
+                normalization == "l2"
+                and norm != 0.0
+                and not np.isclose(
+                    norm,
+                    1.0,
+                    rtol=_L2_NORMALIZATION_RTOL,
+                    atol=_L2_NORMALIZATION_ATOL,
+                )
+            ):
+                raise ValueError(
+                    f"record {record.id!r} vector is not L2-normalized "
+                    f"(norm {norm:.8g})"
+                )
             vectors.append(vector)
         return vectors
 
@@ -776,9 +851,14 @@ class VeraDocument:
         self._ensure_open()
         metadata = self._metadata_values()
         archive_metadata = self.metadata
+        try:
+            archive_size = self.path.stat().st_size
+        except OSError:
+            archive_size = None
         return {
             **archive_metadata,
             "path": str(self.path),
+            "archive_size_bytes": archive_size,
             "format_name": metadata.get("format_name"),
             "format_version": metadata.get("format_version"),
             "created_at": metadata.get("created_at"),
@@ -789,6 +869,12 @@ class VeraDocument:
             ),
             "default_embedding_dimension": int(
                 metadata.get("default_embedding_dimension", 0)
+            ),
+            "embedding_normalization": metadata.get(
+                "default_embedding_normalization", "unknown"
+            ),
+            "default_embedding_normalization": metadata.get(
+                "default_embedding_normalization", "unknown"
             ),
             "chunks": self._conn.execute(
                 "SELECT COUNT(*) FROM chunks"

@@ -108,6 +108,26 @@ class TestBuildAndSearch:
         assert status["fresh"] is True
         assert status["recursive"] is True
         assert status["excludes"] == ["archive"]
+        assert status["generation_id"].startswith("generation-")
+        assert status["created_at"]
+        assert status["checked_at"]
+        assert status["verified_at"] == status["checked_at"]
+        assert status["index_size_bytes"] > 0
+        assert status["database_size_bytes"] > 0
+        assert status["vector_size_bytes"] > 0
+        assert status["indexed_chunks"] == report["chunks"]
+        assert status["source_chunks"] >= status["indexed_chunks"]
+        assert status["model_groups"] == [
+            {
+                "model": "vera-hashing-384",
+                "dimension": 384,
+                "documents": 2,
+                "chunks": report["chunks"],
+                "vector_file": status["model_groups"][0]["vector_file"],
+                "vector_size_bytes": status["model_groups"][0]["vector_size_bytes"],
+            }
+        ]
+        assert status["model_groups"][0]["vector_size_bytes"] > 0
 
         with VeraCorpus.open(str(nested_library)) as corpus:
             assert corpus.uses_index is True
@@ -155,6 +175,14 @@ class TestBuildAndSearch:
         _convert_topic(root, "two.vera", "Road Planning", "Roadway planning project experience.", model="alternate-model")
         report = build_library_index(str(root))
         assert report["indexed"] == 2
+        status = library_index_status(str(root))
+        assert {
+            (group["model"], group["dimension"], group["documents"])
+            for group in status["model_groups"]
+        } == {
+            ("alternate-model", 384, 1),
+            ("vera-hashing-384", 384, 1),
+        }
         with VeraCorpus.open(str(root)) as corpus:
             results = corpus.search("roadway project experience", mode="semantic", top_k=2)
             assert {Path(result.file).name for result in results} == {"one.vera", "two.vera"}

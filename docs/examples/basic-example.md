@@ -73,7 +73,10 @@ with VeraDocument.open("example.vera") as db:
 
     # Inspect and validate.
     info = db.inspect()
-    print(f"Archive: {info['chunks']} chunks, model={info['embedding_model']}")
+    print(
+        f"Archive: {info['chunks']} chunks, model={info['embedding_model']}, "
+        f"normalization={info['embedding_normalization']}"
+    )
     report = db.validate()
     assert report["ok"], report["issues"]
 ```

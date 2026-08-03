@@ -10,7 +10,9 @@ vera inspect "manual.vera"
 ```
 
 Inspection reports the format version, source filename, page and chunk counts,
-embedding model and dimensions, parser, and creation time.
+embedding model, dimensions, and normalization policy, parser, and creation
+time. Normalization is `l2`, `none`, or `unknown`; older archives without the
+field report `unknown`.
 
 For structured output:
 
@@ -35,6 +37,7 @@ Validation checks:
 - document, page, chunk, embedding, FTS, and asset counts;
 - one embedding and one FTS row per chunk;
 - embedding blob dimensions;
+- finite vectors and compliance with a declared L2 normalization policy;
 - page references;
 - presence of the original source document.
 

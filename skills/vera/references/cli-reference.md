@@ -106,19 +106,33 @@ so agents must tolerate additional keys.
   "format_name": "VERA",
   "format_version": "0.2",
   "created_at": "2026-01-01T00:00:00+00:00",
+  "title": "manual",
   "source_file_name": "manual.pdf",
   "default_embedding_model": "hashing",
-  "default_embedding_dimension": "384",
+  "default_embedding_dimension": 384,
+  "default_embedding_normalization": "l2",
   "parser_name": "pymupdf",
+  "parser_version": "pymupdf",
+  "chunking_strategy": "heading_block_sliding_window:500:75",
+  "ocr": {
+    "ocr_engine": "tesseract",
+    "ocr_mode": "auto",
+    "ocr_language": "eng",
+    "ocr_dpi": 300,
+    "ocr_pages": []
+  },
+  "archive_size_bytes": 2457600,
   "source": "manual.pdf",
   "pages": 120,
   "chunks": 480,
-  "embeddings": 480
+  "attachments": 3
 }
 ```
 
-Values read from `vera_metadata`, including numeric-looking values, may be
-strings. `pages`, `chunks`, and `embeddings` are integers.
+Metadata is extensible. `default_embedding_normalization` is `l2`, `none`, or
+`unknown`; archives created before this field was introduced report `unknown`.
+Summary counts, embedding dimensions, attachment counts, and
+`archive_size_bytes` are integers.
 
 ### `vera search FILE_OR_DIRECTORY QUERY`
 
@@ -330,17 +344,38 @@ Existing index:
   "exists": true,
   "fresh": true,
   "reasons": [],
+  "generation_id": "generation-abc123",
+  "created_at": "2026-08-02T22:55:00+00:00",
+  "checked_at": "2026-08-02T22:56:00+00:00",
+  "verified_at": "2026-08-02T22:56:00+00:00",
+  "index_size_bytes": 24117248,
+  "database_size_bytes": 1048576,
+  "vector_size_bytes": 23068672,
   "recursive": true,
   "excludes": [],
   "file_count": 12,
   "skipped": 0,
   "skipped_files": [],
-  "discovered": 12
+  "discovered": 12,
+  "indexed_chunks": 1500,
+  "source_chunks": 1500,
+  "model_groups": [
+    {
+      "model": "vera-hashing-384",
+      "dimension": 384,
+      "documents": 12,
+      "chunks": 1500,
+      "vector_file": "vectors-abc123-384.npy",
+      "vector_size_bytes": 23068672
+    }
+  ]
 }
 ```
 
 Exit code is 0 only when `fresh` is true. A missing, stale, corrupt, or
 unsupported index still prints this JSON report and exits 1.
+Existing indexes built before these metrics were introduced report indexed
+chunks as their source-chunk count until the next rebuild.
 
 ### `vera validate FILE`
 

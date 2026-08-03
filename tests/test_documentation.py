@@ -140,7 +140,7 @@ def test_hardening_json_contracts_are_documented():
     assert "does not rebuild" in libraries
     assert "summary_complete" in libraries
     assert "Collection indexes are persistent" in desktop
-    assert "Deep inspect" in desktop
+    assert "Use **Inspect** in the Info view" in desktop
     assert "corpus opens on the first" in desktop
     assert "indexing runs in the background" in desktop
     assert "PyMuPDF parser" in desktop

@@ -40,6 +40,14 @@ Required keys:
 - `default_embedding_dimension`: decimal vector dimension
 - `archive_metadata`: a JSON object controlled by the caller
 
+Optional keys:
+
+- `default_embedding_normalization`: stored-vector normalization policy:
+  `l2`, `none`, or `unknown`. Readers MUST treat an absent key as `unknown`.
+  These are case-sensitive canonical ASCII tokens. Writers MUST store exactly
+  one of these values, and readers and validators MUST reject any other
+  present value. APIs MAY canonicalize user input before storing it.
+
 Source names, hashes, parser settings, OCR diagnostics, page counts, and
 viewer configuration belong in `archive_metadata`; the storage engine does
 not interpret them.
@@ -148,6 +156,15 @@ are removed. Unreferenced attachments MAY be deleted.
 - One database uses one configured embedding dimension.
 - Callers MAY supply vectors. Otherwise the writer MAY invoke its configured
   embedding function.
+- Writers SHOULD record `default_embedding_normalization`. `l2` means every
+  non-zero stored vector has unit L2 norm, within normal float32 tolerance;
+  zero vectors are permitted. `none` means the writer intentionally applied no
+  normalization, although individual vectors may coincidentally have unit
+  norm. `unknown` means the writer makes no claim.
+- Writers declaring `l2` MUST reject non-zero vectors that are not unit
+  normalized. Validators MUST report such vectors as invalid. Writers and
+  validators SHOULD use relative tolerance `1e-4` and absolute tolerance
+  `1e-6`.
 - Queries MUST use a compatible model and dimension.
 - `vera-hashing-384` retains the normative algorithm defined by the
   [0.1 specification](vera-spec-v0.1.md#62-the-vera-hashing-384-embedder-normative).

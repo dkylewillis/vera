@@ -329,9 +329,11 @@ info = document.inspect()
 report = document.validate()
 ```
 
-Inspection reports the format, model, dimension, counts, and archive metadata.
-Validation checks SQLite integrity, required tables and metadata, embedding and
-FTS parity, vector lengths, JSON payloads, foreign keys, and attachment hashes.
+Inspection reports the format, model, dimension, normalization policy, counts,
+and archive metadata. Validation checks SQLite integrity, required tables and
+metadata, embedding and FTS parity, vector lengths, declared L2 normalization,
+JSON payloads, foreign keys, and attachment hashes. Older archives without a
+normalization policy report `unknown` and remain valid.
 
 ### Close
 

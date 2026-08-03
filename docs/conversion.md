@@ -115,9 +115,10 @@ python -m pip install "vera-cli>=0.2.2" "vera-doc[ml]>=0.2.2"
 vera convert "input.pdf" --model sentence-transformers/all-MiniLM-L6-v2
 ```
 
-The model name and vector dimension are recorded in the archive. Search uses
-the recorded model, so the `ml` extra must also be installed on machines that
-search an archive created with a Sentence Transformers model.
+The model name, vector dimension, and stored-vector normalization policy are
+recorded in the archive. Both built-in embedders use L2 normalization. Search
+uses the recorded model, so the `ml` extra must also be installed on machines
+that search an archive created with a Sentence Transformers model.
 
 Use only `hashing`, `vera-hashing-384`, `all-MiniLM-L6-v2`, or a
 `sentence-transformers/...` name. An unrecognized model name falls

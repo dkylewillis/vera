@@ -10,6 +10,7 @@ from .corpus import CorpusSearchResult, VeraCorpus
 from .document import (
     DuplicateRecordError,
     EmbeddingFunction,
+    EmbeddingNormalization,
     ReadOnlyError,
     RecordNotFoundError,
     VeraDocument,
@@ -25,6 +26,7 @@ __all__ = [
     "update_library_index",
     "library_index_status",
     "EmbeddingFunction",
+    "EmbeddingNormalization",
     "ChunkRecord",
     "AttachmentRecord",
     "AttachmentRef",
