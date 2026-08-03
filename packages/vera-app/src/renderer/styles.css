@@ -1202,8 +1202,8 @@ select option {
 
 .infoList div {
   display: grid;
-  grid-template-columns: 84px 1fr;
-  gap: 10px;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 14px;
   padding: 8px 0;
   border-top: 1px solid var(--border-faint);
 }
@@ -3217,6 +3217,43 @@ details.traceEntry[open] > summary {
   color: var(--text);
   font-size: 14px;
   line-height: 1.6;
+}
+
+.chunkNavigator {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.chunkNavigator select {
+  min-width: 0;
+  width: 100%;
+  padding: 5px 8px;
+  color: var(--text-strong);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.chunkNavButton {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--text-muted);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.chunkNavButton:hover:not(:disabled) {
+  color: var(--text-strong);
+  background: var(--bg-surface-3);
 }
 
 /* Disclosures */

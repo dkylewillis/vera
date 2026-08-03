@@ -14,7 +14,7 @@ const CITATION_ONLY_CODE = /^\s*\[C\d+\](\s*[,;]?\s*\[C\d+\])*\s*$/;
 function renderAnswerWithCitations(
   answerText: string,
   citations: ChatCitationResult[],
-  selectCitation: (citation: ChatCitationResult) => void,
+  selectCitation: (citation: ChatCitationResult, citationGroup?: ChatCitationResult[]) => void,
 ) {
   const citationById = new Map(citations.map((citation) => [citation.id, citation]));
 
@@ -29,7 +29,7 @@ function renderAnswerWithCitations(
         const citation = id ? citationById.get(id) : null;
         if (!citation) return <React.Fragment key={`t-${index}-${partIndex}`}>{part}</React.Fragment>;
         return (
-          <button className="inlineCitation" key={`c-${index}-${partIndex}`} onClick={() => selectCitation(citation)}>
+          <button className="inlineCitation" key={`c-${index}-${partIndex}`} onClick={() => selectCitation(citation, citations)}>
             {part}
           </button>
         );
@@ -96,7 +96,7 @@ export const ChatTurn = React.memo(function ChatTurn({
   // Includes citations retrieved by earlier turns so a follow-up can link a
   // reused `[C#]` marker without claiming it retrieved sources again.
   linkableCitations?: ChatCitationResult[];
-  selectCitation: (citation: ChatCitationResult) => void;
+  selectCitation: (citation: ChatCitationResult, citationGroup?: ChatCitationResult[]) => void;
   selectedChunkId?: string;
   showTrace: boolean;
 }) {
@@ -124,7 +124,7 @@ export const ChatTurn = React.memo(function ChatTurn({
         searches={turn.searches}
         citations={turn.citations}
         selectedPaths={turn.selected_paths}
-        selectCitation={selectCitation}
+        selectCitation={(citation) => selectCitation(citation, answerCitations)}
         selectedChunkId={selectedChunkId}
       />
       {turn.answer_mode === 'retrieval' ? <div className="noteBanner">The active API route rejected tool calling, so VERA used a single retrieval pass instead of agentic search.</div> : null}

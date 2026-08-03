@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Download,
   Database,
@@ -354,6 +355,16 @@ function App() {
     const source = selected.file || selected.source_filename || 'document';
     return `${source} · p. ${formatPages(selected.page_start, selected.page_end)}`;
   }, [selected]);
+  const selectedChunkIndex = useMemo(() => {
+    if (!selected) return -1;
+    const exactIndex = results.indexOf(selected);
+    if (exactIndex >= 0) return exactIndex;
+    const selectedSource = selected.file || selected.source_filename || '';
+    return results.findIndex((result) => (
+      result.chunk_id === selected.chunk_id
+      && (result.file || result.source_filename || '') === selectedSource
+    ));
+  }, [results, selected]);
 
   const selectedSourcePath = selected?.file || path;
   const selectedTargetPage = selected?.regions?.find((region) => region.page_number)?.page_number ?? selected?.page_start ?? null;
@@ -1320,7 +1331,7 @@ function App() {
       setSelected(null);
       if (sessionPath) void loadSourceDocument(sessionPath, false);
     }
-    setViewerMode('selection');
+    setViewerMode('document');
   }
 
   async function removeSession(id: string) {
@@ -1722,7 +1733,17 @@ function App() {
     }
   }
 
-  function selectCitation(citation: ChatCitationResult) {
+  function selectChunkResult(index: number) {
+    const result = results[index];
+    if (!result) return;
+    selectSearchResult(result);
+    setCitationJumpVersion((version) => version + 1);
+  }
+
+  function selectCitation(citation: ChatCitationResult, citationGroup?: ChatCitationResult[]) {
+    if (citationGroup?.length) {
+      setResults(citationGroup.map((entry) => entry.result));
+    }
     selectSearchResult(citation.result);
     setCitationJumpVersion((version) => version + 1);
     setViewerMode('document');
@@ -1733,7 +1754,10 @@ function App() {
   // a permanently stable function identity while still always invoking the latest logic.
   const selectCitationRef = useRef(selectCitation);
   selectCitationRef.current = selectCitation;
-  const stableSelectCitation = useMemo(() => (citation: ChatCitationResult) => selectCitationRef.current(citation), []);
+  const stableSelectCitation = useMemo(
+    () => (citation: ChatCitationResult, citationGroup?: ChatCitationResult[]) => selectCitationRef.current(citation, citationGroup),
+    [],
+  );
 
   async function loadPage(targetPath = path) {
     const result = await call<PageResult>({ action: 'page', path: targetPath, page_number: pageNumber }, 'Loading page');
@@ -2946,9 +2970,9 @@ function App() {
               {!viewerCollapsed && (selected || viewerInfoPath) ? (
                 <div className="viewerModeToggle">
                   {!viewerInfoIsCorpus ? (
-                    <button className={viewerMode === 'document' ? 'active' : ''} onClick={() => { setViewerMode('document'); if (!sourceDocument && selectedSourcePath) void loadSourceDocument(selectedSourcePath, false); }} title="Show full document">Document</button>
+                    <button className={viewerMode === 'document' ? 'active' : ''} onClick={() => { setViewerMode('document'); if (!sourceDocument && selectedSourcePath) void loadSourceDocument(selectedSourcePath, false); }} title="Show document viewer">Viewer</button>
                   ) : null}
-                  {selected ? <button className={viewerMode === 'selection' ? 'active' : ''} onClick={() => setViewerMode('selection')} title="Show chunk debug data">Details</button> : null}
+                  {selected ? <button className={viewerMode === 'selection' ? 'active' : ''} onClick={() => setViewerMode('selection')} title="Show chunk details">Chunk</button> : null}
                   <button
                     className={viewerMode === 'info' ? 'active' : ''}
                     onClick={() => {
@@ -2962,7 +2986,7 @@ function App() {
                     }}
                     title={viewerInfoIsArchive ? 'Inspect VERA archive metadata' : 'Inspect document metadata'}
                   >
-                    Info
+                    {viewerInfoIsCorpus ? 'Library Info' : 'Document Info'}
                   </button>
                 </div>
               ) : null}
@@ -3145,6 +3169,50 @@ function App() {
               </article>
             ) : selected && viewerMode === 'selection' ? (
               <article className="sourceDetails sourceViewerOnly">
+                {results.length > 1 ? (
+                  <nav className="chunkNavigator" aria-label="Chunk navigation">
+                    <button
+                      type="button"
+                      className="chunkNavButton"
+                      onClick={() => selectChunkResult(selectedChunkIndex - 1)}
+                      disabled={selectedChunkIndex <= 0}
+                      title="Previous chunk"
+                      aria-label="Previous chunk"
+                    >
+                      <ChevronLeft size={15} />
+                    </button>
+                    <select
+                      value={selectedChunkIndex >= 0 ? String(selectedChunkIndex) : ''}
+                      onChange={(event) => selectChunkResult(Number(event.target.value))}
+                      aria-label="Selected chunk"
+                    >
+                      {selectedChunkIndex < 0 ? <option value="">Select a chunk</option> : null}
+                      {results.map((result, index) => {
+                        const source = result.file || result.source_filename;
+                        const location = `p. ${formatPages(result.page_start, result.page_end)}`;
+                        const context = [
+                          result.heading_path,
+                          source ? fileName(source) : null,
+                        ].filter(Boolean).join(' · ') || result.chunk_id;
+                        return (
+                          <option key={`${source || 'document'}-${result.chunk_id}-${index}`} value={index}>
+                            {`${index + 1} of ${results.length} · ${location} · ${context}`}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <button
+                      type="button"
+                      className="chunkNavButton"
+                      onClick={() => selectChunkResult(selectedChunkIndex + 1)}
+                      disabled={selectedChunkIndex < 0 || selectedChunkIndex >= results.length - 1}
+                      title="Next chunk"
+                      aria-label="Next chunk"
+                    >
+                      <ChevronRight size={15} />
+                    </button>
+                  </nav>
+                ) : null}
                 <details className="sourceDisclosure" open>
                   <summary>Passage Text</summary>
                   <p>{selected.text?.trim() ? selected.text : 'No passage text was returned for this citation.'}</p>
