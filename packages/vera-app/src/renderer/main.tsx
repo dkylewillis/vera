@@ -427,9 +427,6 @@ function App() {
   }, [selectedPdfs, convertMode]);
 
   function selectExplorerFolder(folderPath: string) {
-    sourceDocumentLoadRef.current += 1;
-    setSourceDocument(null);
-    setSourceDocumentPath('');
     setLibraryInfoPath('');
     setSelected(null);
     setViewerMode('document');
@@ -615,6 +612,9 @@ function App() {
       // Selecting a document sets Search/Ask scope only; the document viewer is
       // unchanged until double-click / Preview / a citation loads a source.
       // Metadata inspection is deferred until the user opens the Info panel.
+      setActiveLibraryPath('');
+      try { localStorage.removeItem('vera.activeLibraryPath'); } catch { /* ignore persistence errors */ }
+      setSelectedFiles([]);
       updateTargetPath(entry.path);
       return;
     }
@@ -766,7 +766,6 @@ function App() {
       try { localStorage.setItem('vera.activeLibraryPath', value); } catch { /* ignore persistence errors */ }
       setSelectedFiles([]);
       setPath(value);
-      if (!sourceDocument) setViewerMode('info');
       setValidation(null);
       setExportResult(null);
       setPageResult(null);
@@ -2557,7 +2556,7 @@ function App() {
                     {selectedFiles.length > 0
                       ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
                       : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
-                      : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? 'Current document' : 'No search scope'}
+                      : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? `Current document: “${fileName(path)}”` : 'No search scope'}
                   </span>
                   {selectedFiles.length > 0 ? (
                     <button type="button" onClick={() => setSelectedFiles([])}>Clear</button>
@@ -2674,7 +2673,7 @@ function App() {
                         </details>
                       )
                       : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
-                      : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? 'Current document' : 'No search scope'}
+                      : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? `Current document: “${fileName(path)}”` : 'No search scope'}
                 </div>
                 <ChatComposer
                   attachments={attachments}

@@ -330,11 +330,18 @@ function PdfSourceViewerImpl({
     const container = pagesRef.current;
     if (!container || !pageCount) return;
     let rafId: number | null = null;
+    const trackingIsSuppressed = () => (
+      suppressPageTrackingRef.current || scrollAnchorRef.current !== null
+    );
     const onScroll = () => {
-      if (suppressPageTrackingRef.current) return;
+      // Fit/zoom renders temporarily rebuild every page at a new height. Keep
+      // showing the captured page until that layout's scroll anchor is restored.
+      if (trackingIsSuppressed()) return;
       if (rafId != null) return;
       rafId = requestAnimationFrame(() => {
         rafId = null;
+        // A resize may have started after this frame was queued.
+        if (trackingIsSuppressed()) return;
         setCurrentPage(pageFromScroll(container));
       });
     };
@@ -513,9 +520,9 @@ function PdfSourceViewerImpl({
       ? null
       : (scrollAnchorRef.current ?? captureScrollAnchor(container));
 
-    // Drop stale shells immediately so a cancelled prior load cannot leave pages
-    // marked rendered without canvases/highlights.
-    container?.replaceChildren();
+    // Clear immediately when changing documents. Scale-only renders keep the
+    // existing page stack visible until its replacement is ready.
+    if (sourceChanged) container?.replaceChildren();
 
     async function load() {
       setError(null);
@@ -559,9 +566,8 @@ function PdfSourceViewerImpl({
         const defaultW = Math.floor(defaultViewport.width);
         const defaultH = Math.floor(defaultViewport.height);
 
-        container.replaceChildren();
-
         const shells: HTMLElement[] = [];
+        const fragment = document.createDocumentFragment();
         for (let i = 1; i <= pdf.numPages; i++) {
           const shell = document.createElement('article');
           shell.className = 'pdfPage pdfPage--pending';
@@ -573,7 +579,7 @@ function PdfSourceViewerImpl({
           surface.style.width = `${defaultW}px`;
           surface.style.height = `${defaultH}px`;
           shell.append(label, surface);
-          container.append(shell);
+          fragment.append(shell);
           shells.push(shell);
           if (i % 40 === 0) {
             await new Promise<void>((resolve) => {
@@ -582,6 +588,11 @@ function PdfSourceViewerImpl({
             if (canceled) return;
           }
         }
+
+        // Swap the complete layout in one operation and restore its position
+        // before the browser can paint an intermediate scroll location.
+        container.replaceChildren(fragment);
+        if (anchor) restoreScrollAnchor(container, anchor);
 
         const outputScale = window.devicePixelRatio || 1;
 
