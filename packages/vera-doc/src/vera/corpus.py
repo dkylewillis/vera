@@ -7,7 +7,7 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .collection import VeraCollectionIndex, discover_vera_files, library_index_status
 from .document import VeraDocument
@@ -217,37 +217,78 @@ class VeraCorpus:
         """Whether searches are currently served by the local collection index."""
         return self._collection_index is not None
 
-    def inspect(self) -> dict[str, Any]:
-        """Summarize the corpus: file count, total pages/chunks, models used."""
+    def inspect(
+        self,
+        *,
+        progress: Callable[[dict[str, Any]], None] | None = None,
+    ) -> dict[str, Any]:
+        """Summarize the corpus and optionally report per-archive progress."""
         files = []
         total_pages = 0
         total_chunks = 0
         models = set()
-        for path in self.paths:
-            if self._is_invalid(path):
-                continue
-            try:
-                doc = self.document(path)
-                validation = doc.validate()
-                if not validation["ok"]:
-                    self._record_invalid(path, "; ".join(validation["issues"]))
-                    continue
-                info = doc.inspect()
-            except Exception as exc:
-                self._record_invalid(path, str(exc))
-                continue
-            files.append(
+        processed = 0
+        if progress:
+            progress(
                 {
-                    "file": path,
-                    "source": info.get("source"),
-                    "pages": info.get("pages"),
-                    "chunks": info.get("chunks"),
-                    "embedding_model": info.get("default_embedding_model"),
+                    "phase": "inspecting",
+                    "completed": 0,
+                    "total": len(self.paths),
+                    "input": "",
+                    "chunks": 0,
+                    "skipped": len(self.invalid_files),
                 }
             )
-            total_pages += info.get("pages") or 0
-            total_chunks += info.get("chunks") or 0
-            models.add(info.get("default_embedding_model"))
+        for path in self.paths:
+            try:
+                if progress:
+                    progress(
+                        {
+                            "phase": "inspecting",
+                            "completed": processed,
+                            "total": len(self.paths),
+                            "input": path,
+                            "chunks": total_chunks,
+                            "skipped": len(self.invalid_files),
+                        }
+                    )
+                if self._is_invalid(path):
+                    continue
+                try:
+                    doc = self.document(path)
+                    validation = doc.validate()
+                    if not validation["ok"]:
+                        self._record_invalid(path, "; ".join(validation["issues"]))
+                        continue
+                    info = doc.inspect()
+                except Exception as exc:
+                    self._record_invalid(path, str(exc))
+                    continue
+                files.append(
+                    {
+                        "file": path,
+                        "source": info.get("source"),
+                        "pages": info.get("pages"),
+                        "chunks": info.get("chunks"),
+                        "embedding_model": info.get("default_embedding_model"),
+                    }
+                )
+                total_pages += info.get("pages") or 0
+                total_chunks += info.get("chunks") or 0
+                models.add(info.get("default_embedding_model"))
+            finally:
+                processed += 1
+                if progress:
+                    progress(
+                        {
+                            "phase": "inspecting",
+                            "completed": processed,
+                            "total": len(self.paths),
+                            "input": path,
+                            "chunks": total_chunks,
+                            "skipped": len(self.invalid_files),
+                        }
+                    )
         return {
             "directory": self.directory,
             "file_count": len(files),

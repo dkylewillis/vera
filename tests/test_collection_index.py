@@ -14,7 +14,7 @@ import pytest
 from vera import VeraCorpus, VeraDocument, build_library_index, library_index_status, update_library_index
 from vera_ingest import convert
 from vera_ingest.viewer import regions_for
-from vera.collection import INDEX_DIRECTORY, discover_vera_files
+from vera.collection import discover_vera_files
 from test_corpus import make_topic_pdf
 
 
@@ -97,6 +97,38 @@ class TestDiscovery:
 
 
 class TestBuildAndSearch:
+    def test_reports_factual_progress_through_index_publication(self, nested_library):
+        events = []
+
+        report = build_library_index(
+            str(nested_library),
+            recursive=True,
+            excludes=["archive"],
+            progress=events.append,
+        )
+
+        assert events[0] == {
+            "phase": "discovering",
+            "completed": 0,
+            "total": 0,
+            "input": str(nested_library.resolve()),
+            "chunks": 0,
+            "skipped": 0,
+        }
+        indexing = [event for event in events if event["phase"] == "indexing"]
+        assert [event["completed"] for event in indexing] == [0, 0, 1, 1, 2]
+        assert indexing[-1]["total"] == report["discovered"] == 2
+        assert indexing[-1]["chunks"] == report["chunks"]
+        assert indexing[-1]["skipped"] == 0
+        assert events[-1] == {
+            "phase": "finalizing",
+            "completed": 2,
+            "total": 2,
+            "input": "",
+            "chunks": report["chunks"],
+            "skipped": 0,
+        }
+
     def test_builds_fresh_index_and_searches_it_automatically(self, nested_library):
         report = build_library_index(str(nested_library), recursive=True, excludes=["archive"])
         assert report["ok"] is True

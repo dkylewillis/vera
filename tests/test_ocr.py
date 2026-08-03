@@ -141,6 +141,29 @@ def test_force_ocr_processes_native_text_page(tmp_path, monkeypatch):
     assert diagnostics["ocr_pages"] == [1, 2]
 
 
+def test_ocr_honors_cancellation_immediately_after_page_returns(tmp_path, monkeypatch):
+    pdf = tmp_path / "scan.pdf"
+    make_scanned_pdf(pdf)
+
+    class Token:
+        cancelled = False
+
+        def raise_if_interrupted(self):
+            if self.cancelled:
+                raise RuntimeError("Conversion cancelled")
+
+    cancel = Token()
+
+    def fake_ocr(_page, *, language, dpi):
+        cancel.cancelled = True
+        return _recognized_content()
+
+    monkeypatch.setattr(pdf_parser, "_ocr_page_content", fake_ocr)
+
+    with pytest.raises(RuntimeError, match="Conversion cancelled"):
+        pdf_parser.parse_pdf_structured(str(pdf), ocr_mode="force", cancel=cancel)
+
+
 def test_convert_records_ocr_metadata_and_searchable_regions(tmp_path, monkeypatch):
     pdf = tmp_path / "scan.pdf"
     out = tmp_path / "scan.vera"

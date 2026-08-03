@@ -39,6 +39,7 @@ export interface VeraApi {
   showMenu(menuId: string, x: number, y: number): Promise<boolean>;
   request<T = unknown>(payload: Record<string, unknown>, requestId?: string): Promise<VeraResponse<T>>;
   cancelAnswer(requestId: string): Promise<{ cancelled: boolean } | void>;
+  cancelRequest(requestId: string): Promise<boolean>;
   skipConversion(requestId: string): Promise<{ skipped: boolean }>;
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;

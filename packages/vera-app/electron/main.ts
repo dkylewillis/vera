@@ -161,6 +161,19 @@ class PythonSidecar {
     return { skipped: Boolean(result.skipped) };
   }
 
+  cancelRequest(requestId: string): boolean {
+    const pending = this.pending.get(requestId);
+    if (!pending) return false;
+    this.pending.delete(requestId);
+    pending.reject(new Error('Request cancelled'));
+    pending.child.stdin.write(`${JSON.stringify({
+      id: null,
+      action: 'cancel',
+      target_id: requestId,
+    })}\n`);
+    return true;
+  }
+
   private rejectPending(reason: Error, child?: ChildProcessWithoutNullStreams): void {
     for (const [id, entry] of this.pending) {
       if (child && entry.child !== child) continue;
@@ -816,6 +829,7 @@ app.whenReady().then(() => {
     return response;
   });
   ipcMain.handle('vera:cancelAnswer', (_event, requestId: string) => sidecar.cancelAnswer(requestId));
+  ipcMain.handle('vera:cancelRequest', (_event, requestId: string) => sidecar.cancelRequest(requestId));
   ipcMain.handle('vera:skipConversion', (_event, requestId: string) => sidecar.skipConversion(requestId));
   ipcMain.handle('vera:listModes', async () => sidecar.request({ action: 'list_modes', modes_dir: modesDir() }));
   ipcMain.handle('vera:openModesFolder', async () => shell.openPath(modesDir()));

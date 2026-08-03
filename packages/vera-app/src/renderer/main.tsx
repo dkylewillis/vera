@@ -1,4 +1,4 @@
-import React, { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
+import React, { type CSSProperties, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { ActivityTrace } from './components/activity/ActivityTrace';
 import { TraceView } from './components/activity/TraceView';
+import { AppStatusBar } from './components/AppStatusBar';
 import { ChatComposer } from './components/ChatComposer';
 import { ChatTurn } from './components/ChatTurn';
 import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexModal';
@@ -43,7 +44,9 @@ import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { ModelManager, ProviderManager } from './components/ProviderManagers';
 import { VeraIcon } from './components/VeraIcon';
 import { firstCitationInAnswer } from './lib/citations';
+import { backgroundTasksReducer, type BackgroundTask } from './lib/backgroundTasks';
 import { EMPTY_FIGURES, EMPTY_REGIONS } from './lib/constants';
+import { awaitConversionRequest } from './lib/conversion';
 import {
   convertDefaultsFromSelection,
   defaultVeraPath,
@@ -64,6 +67,10 @@ type ViewerMode = 'selection' | 'document' | 'info';
 type FolderContextMenu = { path: string; x: number; y: number };
 type EntryContextMenu = { entry: FolderEntry; folderPath: string; x: number; y: number };
 type ExplorerFileFilter = 'all' | FolderEntry['type'];
+type ActionCallOptions = { scope?: string; timeoutMs?: number };
+
+const DEFAULT_ACTION_TIMEOUT_MS = 5 * 60 * 1000;
+const SOURCE_LOAD_TIMEOUT_MS = 2 * 60 * 1000;
 
 // In-memory store for LLM traces. Traces are large (full prompt/response dumps),
 // so we keep them only for the lifetime of this app window instead of writing them
@@ -128,6 +135,8 @@ function stripTrace(turn: SessionTurn): SessionTurn {
 function App() {
   const customTitlebar = Boolean(window.vera.platform && window.vera.platform !== 'darwin');
   const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const [backgroundTasks, dispatchBackgroundTask] = useReducer(backgroundTasksReducer, []);
+  const actionScopesRef = useRef(new Map<string, string>());
   const [sideView, setSideView] = useState<SideView>('explorer');
   const [centerView, setCenterView] = useState<CenterView>('chat');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -137,7 +146,6 @@ function App() {
   const [activeLibraryPath, setActiveLibraryPath] = useState('');
   const [indexStatuses, setIndexStatuses] = useState<Record<string, LibraryIndexStatus>>({});
   const [indexStatusChecking, setIndexStatusChecking] = useState<Record<string, boolean>>({});
-  const [indexingFolders, setIndexingFolders] = useState<Record<string, 'build' | 'update'>>({});
   const [indexReports, setIndexReports] = useState<Record<string, LibraryIndexBuildReport>>({});
   const [folderContextMenu, setFolderContextMenu] = useState<FolderContextMenu | null>(null);
   const folderContextMenuFirstActionRef = useRef<HTMLButtonElement | null>(null);
@@ -199,18 +207,15 @@ function App() {
   const [storeOriginal, setStoreOriginal] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [providerErrorDetail, setProviderErrorDetail] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<string | null>(null);
   const [busyFolderPath, setBusyFolderPath] = useState('');
   const [inspect, setInspect] = useState<InspectResult | null>(null);
   const libraryInspectCache = useRef(new Map<string, InspectResult>());
   const [validation, setValidation] = useState<ValidateResult | null>(null);
   const [convertResult, setConvertResult] = useState<ConvertResult | null>(null);
   const [batchConvertResult, setBatchConvertResult] = useState<BatchConvertResult | null>(null);
-  const [conversionInProgress, setConversionInProgress] = useState(false);
-  const [conversionStatus, setConversionStatus] = useState<string | null>(null);
-  const [conversionCurrentFile, setConversionCurrentFile] = useState<string | null>(null);
   const [conversionError, setConversionError] = useState<string | null>(null);
   const conversionRequestIdRef = useRef<string | null>(null);
+  const conversionProgressCleanupRef = useRef<{ requestId: string; off: () => void } | null>(null);
   const conversionCanceledRef = useRef(false);
   const conversionInterruptRef = useRef<'stop' | 'skip' | null>(null);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
@@ -302,6 +307,23 @@ function App() {
     return stored >= 200 && stored <= 600 ? stored : 260;
   });
   const [isResizingSide, setIsResizingSide] = useState(false);
+  const indexingFolders = useMemo(
+    () => Object.fromEntries(
+      backgroundTasks
+        .filter((task) => task.kind === 'index' && task.path && task.operation)
+        .map((task) => [task.path as string, task.operation as 'build' | 'update']),
+    ) as Record<string, 'build' | 'update'>,
+    [backgroundTasks],
+  );
+  const conversionTask = backgroundTasks.find((task) => task.kind === 'conversion') ?? null;
+  const operationTasks = backgroundTasks.filter((task) => task.kind === 'operation');
+  const inspectionTasks = backgroundTasks.filter((task) => task.kind === 'inspection');
+  const activeOperation = operationTasks[operationTasks.length - 1] ?? null;
+  const conversionInProgress = Boolean(conversionTask);
+  const conversionStatus = conversionTask?.message ?? null;
+  const busyAction = activeOperation?.label ?? null;
+  const chatBusy = operationTasks.some((task) => task.label === 'Asking');
+  const searchBusy = operationTasks.some((task) => task.label === 'Searching');
 
   const searchScopePath = activeLibraryPath || path;
   const activeIndexStatus = activeLibraryPath ? indexStatuses[activeLibraryPath] : undefined;
@@ -338,8 +360,7 @@ function App() {
   const viewerIndexStatus = viewerInfoIsCorpus
     ? indexStatuses[viewerInfoPath] ?? viewerInspect?.index
     : undefined;
-  const busy = Boolean(busyAction);
-  const chatBusy = busyAction === 'Asking';
+  const busy = operationTasks.length > 0 || inspectionTasks.length > 0;
   const activeProvider = useMemo(
     () => providers.find((profile) => profile.id === activeProviderId) ?? null,
     [providers, activeProviderId],
@@ -447,6 +468,7 @@ function App() {
 
   async function openLibraryInfo(folderPath: string) {
     selectExplorerFolder(folderPath);
+    cancelActionScope('source');
     sourceDocumentLoadRef.current += 1;
     setSourceDocument(null);
     setSourceDocumentPath('');
@@ -570,9 +592,10 @@ function App() {
     });
   }
 
-  async function refreshFolder(folderPath: string) {
+  async function refreshFolder(folderPath: string, options: { showBusy?: boolean } = {}) {
+    const showBusy = options.showBusy ?? true;
     libraryInspectCache.current.delete(folderPath);
-    setBusyFolderPath(folderPath);
+    if (showBusy) setBusyFolderPath(folderPath);
     try {
       const folder = await window.vera.listFolder(folderPath);
       if (folder) setFolders((prev) => prev.map((entry) => (entry.path === folderPath ? folder : entry)));
@@ -581,7 +604,9 @@ function App() {
         setInspect(null);
       }
     } finally {
-      setBusyFolderPath('');
+      if (showBusy) {
+        setBusyFolderPath((current) => (current === folderPath ? '' : current));
+      }
     }
   }
 
@@ -693,6 +718,7 @@ function App() {
       if (path === entry.path) updateTargetPath(activeLibraryPath || '');
       // Scope and viewer are independent — only blank the viewer when its open file is gone.
       if (sourceDocumentPath === entry.path) {
+        cancelActionScope('source');
         sourceDocumentLoadRef.current += 1;
         setSourceDocument(null);
         setSourceDocumentPath('');
@@ -733,18 +759,53 @@ function App() {
     setSourcePaneWidth(clampSourcePaneWidth((widthFromRight / bounds.width) * 100));
   }
 
+  function cancelActionScope(scope: string) {
+    const requestId = actionScopesRef.current.get(scope);
+    if (!requestId) return;
+    actionScopesRef.current.delete(scope);
+    dispatchBackgroundTask({ type: 'finish', id: requestId });
+    void window.vera.cancelRequest(requestId);
+  }
+
   async function call<T>(
     payload: Record<string, unknown>,
     label: string,
     requestId?: string,
+    options: ActionCallOptions = {},
   ): Promise<T | null> {
-    setBusyAction(label);
+    const activityId = requestId || crypto.randomUUID();
+    const scope = options.scope || String(payload.action || label);
+    const timeoutMs = options.timeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS;
+    const previousRequestId = actionScopesRef.current.get(scope);
+    if (previousRequestId && previousRequestId !== activityId) {
+      dispatchBackgroundTask({ type: 'finish', id: previousRequestId });
+      void window.vera.cancelRequest(previousRequestId);
+    }
+    actionScopesRef.current.set(scope, activityId);
+    dispatchBackgroundTask({
+      type: 'start',
+      task: {
+        id: activityId,
+        kind: 'operation',
+        label,
+      },
+    });
     setErrorMessage(null);
     setProviderErrorDetail(null);
+    let timeout: ReturnType<typeof setTimeout> | null = null;
     try {
-      const response = await window.vera.request<T>(payload, requestId);
+      const request = window.vera.request<T>(payload, activityId);
+      const response = timeoutMs > 0
+        ? await new Promise<Awaited<typeof request>>((resolve, reject) => {
+            timeout = setTimeout(() => {
+              void window.vera.cancelRequest(activityId);
+              reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)} seconds`));
+            }, timeoutMs);
+            request.then(resolve, reject);
+          })
+        : await request;
       if (!response.ok) {
-        if (response.cancelled || response.error?.includes('Answer cancelled')) {
+        if (response.cancelled || response.error?.toLowerCase().includes('cancelled')) {
           return null;
         }
         setErrorMessage(response.error || 'Request failed');
@@ -754,14 +815,18 @@ function App() {
       return (response.result || null) as T | null;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Request failed';
-      if (message.includes('Answer cancelled')) {
+      if (message.toLowerCase().includes('cancelled')) {
         return null;
       }
       setErrorMessage(message);
       setProviderErrorDetail(null);
       return null;
     } finally {
-      setBusyAction(null);
+      if (timeout) clearTimeout(timeout);
+      if (actionScopesRef.current.get(scope) === activityId) {
+        actionScopesRef.current.delete(scope);
+      }
+      dispatchBackgroundTask({ type: 'finish', id: activityId });
     }
   }
 
@@ -840,20 +905,74 @@ function App() {
   }
 
   async function inspectTarget(targetPath = path) {
+    if (backgroundTasks.some((task) => task.kind === 'inspection' && task.path === targetPath)) return;
     const isLibrary = folders.some((folder) => folder.path === targetPath);
-    const [result, refreshedStatus] = await Promise.all([
-      call<InspectResult>({
+    const inspectionRequestId = crypto.randomUUID();
+    dispatchBackgroundTask({
+      type: 'start',
+      task: {
+        id: inspectionRequestId,
+        kind: 'inspection',
+        label: 'Inspecting library',
+        path: targetPath,
+        phase: 'inspecting',
+        completed: 0,
+        total: 0,
+        chunks: 0,
+        skipped: 0,
+      },
+    });
+    const offProgress = window.vera.onAnswerEvent((event) => {
+      if (event.id !== inspectionRequestId || event.event !== 'inspection_progress') return;
+      dispatchBackgroundTask({
+        type: 'update',
+        id: inspectionRequestId,
+        update: {
+          phase: event.phase,
+          completed: event.completed,
+          total: event.total,
+          currentItem: event.input?.trim() || undefined,
+          chunks: event.chunks,
+          skipped: event.skipped,
+        },
+      });
+    });
+    setErrorMessage(null);
+    setProviderErrorDetail(null);
+    try {
+      const response = await window.vera.request<InspectResult>({
         action: 'inspect',
         path: targetPath,
         ...(targetPath === activeLibraryPath ? { recursive: activeIndexStatus?.recursive ?? true, excludes: activeIndexStatus?.excludes ?? [] } : {}),
-      }, 'Inspecting'),
-      isLibrary ? refreshIndexStatus(targetPath, true) : Promise.resolve(null),
-    ]);
-    if (result) {
-      if (refreshedStatus) result.index = refreshedStatus;
+      }, inspectionRequestId);
+      if (!response.ok || !response.result) {
+        throw new Error(response.error || 'Library inspection failed');
+      }
+      const result = response.result;
       if (result.directory) libraryInspectCache.current.set(targetPath, result);
       setInspect(result);
       setValidation(null);
+      if (isLibrary) {
+        void refreshIndexStatus(targetPath, true).then((refreshedStatus) => {
+          if (!refreshedStatus) return;
+          const cached = libraryInspectCache.current.get(targetPath);
+          if (cached) {
+            libraryInspectCache.current.set(targetPath, { ...cached, index: refreshedStatus });
+          }
+          setInspect((current) => {
+            const currentPath = current?.directory || current?.path || current?.file || '';
+            return currentPath.replace(/\\/g, '/').toLowerCase()
+              === targetPath.replace(/\\/g, '/').toLowerCase()
+              ? { ...current, index: refreshedStatus }
+              : current;
+          });
+        });
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Library inspection failed');
+    } finally {
+      offProgress();
+      dispatchBackgroundTask({ type: 'finish', id: inspectionRequestId });
     }
   }
 
@@ -890,7 +1009,7 @@ function App() {
     const folderPath = indexPrompt.path;
     if (indexingFolders[folderPath]) return;
     const action = indexPrompt.status.exists ? 'index_update' : 'index_build';
-    const actionLabel = action === 'index_build' ? 'Building' : 'Updating';
+    const operation = action === 'index_build' ? 'build' : 'update';
     const excludes = indexExcludes.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
     setIndexPrompt(null);
     setIndexReport(null);
@@ -899,7 +1018,44 @@ function App() {
       delete next[folderPath];
       return next;
     });
-    setIndexingFolders((prev) => ({ ...prev, [folderPath]: action === 'index_build' ? 'build' : 'update' }));
+    const indexRequestId = crypto.randomUUID();
+    dispatchBackgroundTask({
+      type: 'start',
+      task: {
+        id: indexRequestId,
+        kind: 'index',
+        label: operation === 'build' ? 'Building index' : 'Updating index',
+        path: folderPath,
+        operation,
+        phase: 'discovering',
+        completed: 0,
+        total: 0,
+        chunks: 0,
+        skipped: 0,
+      },
+    });
+    const offProgress = window.vera.onAnswerEvent((event) => {
+      if (event.id !== indexRequestId || event.event !== 'index_progress') return;
+      dispatchBackgroundTask({
+        type: 'update',
+        id: indexRequestId,
+        update: {
+          phase: event.phase,
+          completed: event.completed,
+          total: event.total,
+          currentItem: event.input?.trim() || undefined,
+          chunks: event.chunks,
+          skipped: event.skipped,
+        },
+      });
+    });
+    let taskActive = true;
+    const finishIndexTask = () => {
+      if (!taskActive) return;
+      offProgress();
+      taskActive = false;
+      dispatchBackgroundTask({ type: 'finish', id: indexRequestId });
+    };
     setErrorMessage(null);
     try {
       const response = await window.vera.request<LibraryIndexBuildReport>({
@@ -911,13 +1067,14 @@ function App() {
               excludes,
             }
           : {}),
-      });
+      }, indexRequestId);
       if (!response.ok || !response.result) {
         throw new Error(response.error || 'Library indexing failed');
       }
       const result = response.result;
       dismissedIndexStates.current.delete(folderPath);
       setIndexReports((prev) => ({ ...prev, [folderPath]: result }));
+      finishIndexTask();
       libraryInspectCache.current.delete(folderPath);
       const [refreshed, inspectedResponse] = await Promise.all([
         refreshIndexStatus(folderPath),
@@ -940,11 +1097,7 @@ function App() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Library indexing failed');
     } finally {
-      setIndexingFolders((prev) => {
-        const next = { ...prev };
-        delete next[folderPath];
-        return next;
-      });
+      finishIndexTask();
     }
   }
 
@@ -1023,7 +1176,7 @@ function App() {
 
   function stopAnswer() {
     const requestId = activeAnswerRequestIdRef.current;
-    if (busyAction !== 'Asking' || !requestId) return;
+    if (!chatBusy || !requestId) return;
     answerCanceledRef.current = true;
     void window.vera.cancelAnswer(requestId).catch((error) => {
       answerCanceledRef.current = false;
@@ -1167,7 +1320,7 @@ function App() {
       ...(pendingAttachments.length
         ? { attachments: pendingAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })) }
         : {}),
-    }, 'Asking', answerRequestId);
+    }, 'Asking', answerRequestId, { timeoutMs: 0 });
     offEvents();
     const wasCancelled = answerCanceledRef.current;
     const partialAnswer = streamingAnswerRef.current.trim();
@@ -1474,23 +1627,33 @@ function App() {
     await persistSettings({ providers, active_provider_id: activeProviderId, active_model: activeModel, active_mode_id: modeId });
   }
 
+  function updateConversionTask(
+    update: Partial<Omit<BackgroundTask, 'id' | 'kind'>>,
+    requestId = conversionRequestIdRef.current,
+  ) {
+    if (!requestId) return;
+    dispatchBackgroundTask({ type: 'update', id: requestId, update });
+  }
+
   function stopConversion() {
     const requestId = conversionRequestIdRef.current;
     if (!conversionInProgress || !requestId) return;
     conversionCanceledRef.current = true;
     conversionInterruptRef.current = 'stop';
-    setConversionStatus('Stopping…');
+    updateConversionTask({ message: 'Stopping…' }, requestId);
     void window.vera.cancelAnswer(requestId).then((result) => {
       if (result && 'cancelled' in result && !result.cancelled) {
         conversionCanceledRef.current = false;
         conversionInterruptRef.current = null;
-        setConversionStatus('Converting…');
+        updateConversionTask({ message: 'Converting…' }, requestId);
         setConversionError('Unable to stop conversion (request was not found). Restart the app if this persists.');
+      } else if (result && 'cancelled' in result && result.cancelled) {
+        clearConversionUi(requestId);
       }
     }).catch((error) => {
       conversionCanceledRef.current = false;
       conversionInterruptRef.current = null;
-      setConversionStatus('Converting…');
+      updateConversionTask({ message: 'Converting…' }, requestId);
       setConversionError(error instanceof Error ? error.message : 'Unable to stop conversion');
     });
   }
@@ -1500,21 +1663,21 @@ function App() {
     if (!conversionInProgress || !requestId || (convertMode !== 'batch' && convertMode !== 'selected')) return;
     if (conversionInterruptRef.current === 'stop') return;
     conversionInterruptRef.current = 'skip';
-    setConversionStatus('Skipping…');
+    updateConversionTask({ message: 'Skipping…' }, requestId);
     void window.vera.skipConversion(requestId).then((result) => {
       if (!result.skipped) {
         conversionInterruptRef.current = null;
-        setConversionStatus('Converting…');
+        updateConversionTask({ message: 'Converting…' }, requestId);
         setConversionError('Unable to skip file (request was not found). Restart the app if this persists.');
       }
     }).catch((error) => {
       conversionInterruptRef.current = null;
-      setConversionStatus('Converting…');
+      updateConversionTask({ message: 'Converting…' }, requestId);
       setConversionError(error instanceof Error ? error.message : 'Unable to skip file');
     });
   }
 
-  function applyConversionProgress(event: StreamEvent, mode: 'single' | 'batch') {
+  function applyConversionProgress(requestId: string, event: StreamEvent, mode: 'single' | 'batch') {
     // Keep "Stopping…" visible until the request ends.
     if (conversionInterruptRef.current === 'stop') return;
     // After skip is acknowledged, the next progress event means we moved on.
@@ -1525,29 +1688,71 @@ function App() {
     const completed = event.completed ?? 0;
     const currentFile = event.input?.trim() || null;
     if (event.phase === 'discovering') {
-      setConversionStatus('Discovering PDFs…');
-      if (currentFile) setConversionCurrentFile(currentFile);
+      updateConversionTask({
+        phase: event.phase,
+        message: 'Discovering PDFs…',
+        completed,
+        total,
+        currentItem: currentFile || undefined,
+      }, requestId);
       return;
     }
-    if (currentFile) setConversionCurrentFile(currentFile);
+    const update = {
+      phase: event.phase,
+      completed,
+      total,
+      currentItem: currentFile || undefined,
+    };
     if (!total) {
-      setConversionStatus(mode === 'batch' ? 'No PDFs found to convert.' : 'Converting…');
+      updateConversionTask({
+        ...update,
+        message: mode === 'batch' ? 'No PDFs found to convert.' : 'Converting…',
+      }, requestId);
       return;
     }
     if (completed >= total) {
-      setConversionStatus(mode === 'batch' ? `Converted ${completed} of ${total}` : 'Converted');
+      updateConversionTask({
+        ...update,
+        message: mode === 'batch' ? `Converted ${completed} of ${total}` : 'Converted',
+      }, requestId);
       return;
     }
     const current = completed + 1;
-    setConversionStatus(`${current} of ${total}`);
+    updateConversionTask({ ...update, message: `${current} of ${total}` }, requestId);
   }
 
   async function refreshFoldersForPath(target: string) {
     await Promise.all(
       folders
         .filter((folder) => isPathInsideFolder(target, folder.path))
-        .map((folder) => refreshFolder(folder.path)),
+        .map((folder) => refreshFolder(folder.path, { showBusy: false })),
     );
+  }
+
+  function refreshFoldersAfterConversion(target: string) {
+    void refreshFoldersForPath(target).catch((error) => {
+      console.error('Unable to refresh folders after conversion', error);
+    });
+  }
+
+  function clearConversionUi(requestId: string) {
+    if (conversionProgressCleanupRef.current?.requestId === requestId) {
+      conversionProgressCleanupRef.current.off();
+      conversionProgressCleanupRef.current = null;
+    }
+    if (conversionRequestIdRef.current !== requestId) return;
+    conversionRequestIdRef.current = null;
+    dispatchBackgroundTask({ type: 'finish', id: requestId });
+    conversionInterruptRef.current = null;
+  }
+
+  function settleConversionRequest(requestId: string) {
+    clearConversionUi(requestId);
+  }
+
+  function conversionRequestWasSuperseded(requestId: string) {
+    const activeRequestId = conversionRequestIdRef.current;
+    return activeRequestId !== null && activeRequestId !== requestId;
   }
 
   async function convertPdf() {
@@ -1559,30 +1764,42 @@ function App() {
     setOutputPath(output);
     conversionCanceledRef.current = false;
     conversionInterruptRef.current = null;
-    setConversionInProgress(true);
-    setConversionStatus('Starting…');
-    setConversionCurrentFile(pdfPath.trim() || null);
     setConversionError(null);
     setConvertResult(null);
     const conversionRequestId = crypto.randomUUID();
     conversionRequestIdRef.current = conversionRequestId;
+    dispatchBackgroundTask({
+      type: 'start',
+      task: {
+        id: conversionRequestId,
+        kind: 'conversion',
+        label: 'Conversion',
+        message: 'Starting…',
+        currentItem: pdfPath.trim() || undefined,
+      },
+    });
     const offProgress = window.vera.onAnswerEvent((event) => {
       if (event.id !== conversionRequestId || event.event !== 'conversion_progress') return;
-      applyConversionProgress(event, 'single');
+      applyConversionProgress(conversionRequestId, event, 'single');
     });
+    conversionProgressCleanupRef.current = { requestId: conversionRequestId, off: offProgress };
     try {
-      const response = await window.vera.request<ConvertResult>({
-        action: 'convert',
-        input: pdfPath,
-        output,
-        model: 'hashing',
-        parser: 'pymupdf',
-        chunk_size: chunkSize,
-        overlap,
-        store_original: storeOriginal,
-      }, conversionRequestId);
+      const response = await awaitConversionRequest(
+        window.vera.request<ConvertResult>({
+          action: 'convert',
+          input: pdfPath,
+          output,
+          model: 'hashing',
+          parser: 'pymupdf',
+          chunk_size: chunkSize,
+          overlap,
+          store_original: storeOriginal,
+        }, conversionRequestId),
+        () => settleConversionRequest(conversionRequestId),
+      );
+      if (conversionRequestWasSuperseded(conversionRequestId)) return;
       if (response.cancelled || response.error?.includes('cancelled')) {
-        await refreshFoldersForPath(output);
+        refreshFoldersAfterConversion(output);
         setConversionError(null);
         return;
       }
@@ -1591,26 +1808,23 @@ function App() {
       }
       const result = response.result;
       setConvertResult(result);
-      await refreshFoldersForPath(result.output);
+      refreshFoldersAfterConversion(result.output);
       updateTargetPath(result.output);
     } catch (error) {
+      if (conversionRequestWasSuperseded(conversionRequestId)) return;
       const message = error instanceof Error ? error.message : 'PDF conversion failed';
       if (conversionCanceledRef.current || message.toLowerCase().includes('cancelled')) {
-        await refreshFoldersForPath(output);
+        refreshFoldersAfterConversion(output);
         setConversionError(null);
         return;
       }
       setConversionError(message);
     } finally {
-      offProgress();
-      if (conversionRequestIdRef.current === conversionRequestId) {
-        conversionRequestIdRef.current = null;
+      settleConversionRequest(conversionRequestId);
+      if (conversionRequestIdRef.current === null) {
+        conversionCanceledRef.current = false;
+        conversionInterruptRef.current = null;
       }
-      setConversionInProgress(false);
-      setConversionStatus(null);
-      setConversionCurrentFile(null);
-      conversionCanceledRef.current = false;
-      conversionInterruptRef.current = null;
     }
   }
 
@@ -1625,33 +1839,44 @@ function App() {
     }
     conversionCanceledRef.current = false;
     conversionInterruptRef.current = null;
-    setConversionInProgress(true);
-    setConversionStatus('Starting…');
-    setConversionCurrentFile(null);
     setConversionError(null);
     setBatchConvertResult(null);
     const conversionRequestId = crypto.randomUUID();
     conversionRequestIdRef.current = conversionRequestId;
+    dispatchBackgroundTask({
+      type: 'start',
+      task: {
+        id: conversionRequestId,
+        kind: 'conversion',
+        label: 'Conversion',
+        message: 'Starting…',
+      },
+    });
     const refreshRoot = selectedPaths[0] || directory;
     const offProgress = window.vera.onAnswerEvent((event) => {
       if (event.id !== conversionRequestId || event.event !== 'conversion_progress') return;
-      applyConversionProgress(event, 'batch');
+      applyConversionProgress(conversionRequestId, event, 'batch');
     });
+    conversionProgressCleanupRef.current = { requestId: conversionRequestId, off: offProgress };
     try {
-      const response = await window.vera.request<BatchConvertResult>({
-        action: 'batch_convert',
-        ...(selectedPaths.length
-          ? { paths: selectedPaths }
-          : { directory, recursive: batchRecursive }),
-        overwrite: batchOverwrite,
-        model: 'hashing',
-        parser: 'pymupdf',
-        chunk_size: chunkSize,
-        overlap,
-        store_original: storeOriginal,
-      }, conversionRequestId);
+      const response = await awaitConversionRequest(
+        window.vera.request<BatchConvertResult>({
+          action: 'batch_convert',
+          ...(selectedPaths.length
+            ? { paths: selectedPaths }
+            : { directory, recursive: batchRecursive }),
+          overwrite: batchOverwrite,
+          model: 'hashing',
+          parser: 'pymupdf',
+          chunk_size: chunkSize,
+          overlap,
+          store_original: storeOriginal,
+        }, conversionRequestId),
+        () => settleConversionRequest(conversionRequestId),
+      );
+      if (conversionRequestWasSuperseded(conversionRequestId)) return;
       if (response.cancelled || response.error?.includes('cancelled')) {
-        await refreshFoldersForPath(refreshRoot);
+        refreshFoldersAfterConversion(refreshRoot);
         setConversionError(null);
         return;
       }
@@ -1661,31 +1886,28 @@ function App() {
       const result = response.result;
       setBatchConvertResult(result);
       setConvertResult(null);
-      await refreshFoldersForPath(result.directory || refreshRoot);
+      refreshFoldersAfterConversion(result.directory || refreshRoot);
       if (selectedPaths.length) {
         setSelectedPdfs([]);
         if (convertMode === 'selected') setConvertMode('single');
       }
     } catch (error) {
+      if (conversionRequestWasSuperseded(conversionRequestId)) return;
       const message = error instanceof Error
         ? error.message
         : (selectedPaths.length ? 'Selected PDF conversion failed' : 'PDF directory conversion failed');
       if (conversionCanceledRef.current || message.toLowerCase().includes('cancelled')) {
-        await refreshFoldersForPath(refreshRoot);
+        refreshFoldersAfterConversion(refreshRoot);
         setConversionError(null);
         return;
       }
       setConversionError(message);
     } finally {
-      offProgress();
-      if (conversionRequestIdRef.current === conversionRequestId) {
-        conversionRequestIdRef.current = null;
+      settleConversionRequest(conversionRequestId);
+      if (conversionRequestIdRef.current === null) {
+        conversionCanceledRef.current = false;
+        conversionInterruptRef.current = null;
       }
-      setConversionInProgress(false);
-      setConversionStatus(null);
-      setConversionCurrentFile(null);
-      conversionCanceledRef.current = false;
-      conversionInterruptRef.current = null;
     }
   }
 
@@ -1704,7 +1926,12 @@ function App() {
     if (folders.some((folder) => folder.path === targetPath)) {
       return;
     }
-    const result = await call<SourceDocumentResult>({ action: 'source', path: targetPath }, 'Loading source');
+    const result = await call<SourceDocumentResult>(
+      { action: 'source', path: targetPath },
+      'Loading source',
+      undefined,
+      { scope: 'source', timeoutMs: SOURCE_LOAD_TIMEOUT_MS },
+    );
     if (result && requestId === sourceDocumentLoadRef.current) {
       setLibraryInfoPath('');
       setSourceDocument(result);
@@ -1714,6 +1941,7 @@ function App() {
   }
 
   function closeSourceDocument() {
+    cancelActionScope('source');
     sourceDocumentLoadRef.current += 1;
     setSourceDocument(null);
     setSourceDocumentPath('');
@@ -1730,6 +1958,8 @@ function App() {
     const requestId = ++sourceDocumentLoadRef.current;
     if (resultPath && (resultPath !== sourceDocumentPath || !sourceDocument)) {
       void loadSourceDocument(resultPath, false, requestId);
+    } else {
+      cancelActionScope('source');
     }
   }
 
@@ -2423,14 +2653,6 @@ function App() {
                       </button>
                     ) : null}
                   </div>
-                  {conversionInProgress && conversionStatus ? (
-                    <p className="conversionStatusText">{conversionStatus}</p>
-                  ) : null}
-                  {conversionInProgress && conversionCurrentFile ? (
-                    <p className="conversionCurrentFile" title={conversionCurrentFile}>
-                      {conversionCurrentFile}
-                    </p>
-                  ) : null}
                   {conversionError ? <p className="sideMuted" role="alert">{conversionError}</p> : null}
                   {convertMode === 'single' && convertResult ? <p className="sideMuted">Created {convertResult.output}</p> : null}
                   {(convertMode === 'batch' || convertMode === 'selected') && batchConvertResult ? (
@@ -2607,7 +2829,7 @@ function App() {
                     disabled={!hasSearchableScope || !searchQuery.trim() || busy}
                     aria-label="Search"
                   >
-                    {busyAction === 'Searching' ? <span className="askSpinner" /> : <Search size={14} />}
+                    {searchBusy ? <span className="askSpinner" /> : <Search size={14} />}
                   </button>
                 </div>
                 <div className="searchOptionsBar">
@@ -3307,6 +3529,10 @@ function App() {
           ) : null}
         </aside>
       </div>
+      <AppStatusBar
+        tasks={backgroundTasks}
+        busyFolderPath={busyFolderPath}
+      />
       {folderContextMenu ? (
         <div className="folderContextMenuBackdrop" onClick={() => setFolderContextMenu(null)}>
           <div

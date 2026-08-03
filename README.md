@@ -43,7 +43,8 @@ key. You only connect a model provider when you want AI answers.
    - **Entire library** — choose **PDF Directory** to batch-convert a folder
      of PDFs, then use **File > Open Folder** to activate it. On your first
      Search or Ask, VERA shows **Build library index?** — select
-     **Build index** to make the library fast.
+     **Build index** to make the library fast. The footer reports completed
+     files, total files, the current archive, and indexed chunks as it runs.
 3. **Connect a model.** Go to **File > LLM Providers**, select a provider,
    paste your **API Key**, select **Save Key**, then **Save & Close**. Keys
    are stored encrypted on your machine. Local **Ollama** and **LM Studio**
@@ -57,6 +58,8 @@ The desktop app converts with local hashing embeddings; the model provider is
 only used for Ask responses. Use the CLI when you need a Sentence Transformers
 embedding model or explicit OCR control. For the complete walkthrough and
 troubleshooting, see [Run the desktop app](docs/desktop-app-getting-started.md).
+Long library inspections report per-archive progress in the same footer used
+for conversion and indexing.
 
 ## How it works
 

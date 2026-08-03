@@ -129,13 +129,17 @@ class TestSearch:
 
 class TestInspect:
     def test_summary(self, corpus_dir):
+        progress = []
         with VeraCorpus.open(str(corpus_dir)) as corpus:
-            info = corpus.inspect()
+            info = corpus.inspect(progress=progress.append)
             assert info["file_count"] == 2
             assert info["pages"] == 2
             assert info["chunks"] >= 2
             assert info["embedding_models"] == ["vera-hashing-384"]
             assert len(info["files"]) == 2
+        assert [event["completed"] for event in progress] == [0, 0, 1, 1, 2]
+        assert progress[-1]["total"] == 2
+        assert progress[-1]["chunks"] == info["chunks"]
 
     def test_mixed_library_reports_and_skips_invalid_files(self, corpus_dir):
         malformed = corpus_dir / "malformed.vera"

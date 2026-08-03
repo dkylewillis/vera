@@ -5,7 +5,7 @@ from typing import Any
 
 
 class CancelledError(RuntimeError):
-    """Raised when a user cancels an in-flight answer or conversion."""
+    """Raised when a user cancels in-flight sidecar work."""
 
 
 class SkipCurrentError(RuntimeError):
@@ -31,7 +31,7 @@ class CancellationToken:
 
     def raise_if_cancelled(self) -> None:
         if self.cancelled:
-            raise CancelledError("Answer cancelled")
+            raise CancelledError()
 
     def raise_if_interrupted(self) -> None:
         """Cancel takes precedence; otherwise raise if the current item should be skipped."""

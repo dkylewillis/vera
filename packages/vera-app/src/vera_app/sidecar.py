@@ -139,17 +139,40 @@ def _result_payload(result: Any) -> dict[str, Any]:
     return payload
 
 
-def _inspect(request: Request) -> dict[str, Any]:
+def _inspect(
+    request: Request,
+    write_event=None,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
+    if cancel:
+        cancel.raise_if_cancelled()
     path = str(request["path"])
     if Path(path).is_dir():
         corpus = _open_corpus(path, request)
         try:
-            return corpus.inspect_summary() if request.get("summary_only") else corpus.inspect()
+            if request.get("summary_only"):
+                result = corpus.inspect_summary()
+                if cancel:
+                    cancel.raise_if_cancelled()
+                return result
+
+            def report_progress(update: dict[str, Any]) -> None:
+                if cancel:
+                    cancel.raise_if_cancelled()
+                if write_event:
+                    write_event({"event": "inspection_progress", **update})
+
+            return corpus.inspect(
+                progress=report_progress if write_event or cancel else None,
+            )
         finally:
             corpus.close()
     doc = _open_document(path)
     try:
-        return doc.inspect()
+        result = doc.inspect()
+        if cancel:
+            cancel.raise_if_cancelled()
+        return result
     finally:
         doc.close()
 
@@ -169,17 +192,26 @@ def _index_status(request: Request) -> dict[str, Any]:
     )
 
 
-def _index_build(request: Request) -> dict[str, Any]:
+def _index_build(request: Request, write_event=None) -> dict[str, Any]:
+    def report_progress(update: dict[str, Any]) -> None:
+        if write_event:
+            write_event({"event": "index_progress", **update})
+
     excludes = request.get("excludes")
     return build_library_index(
         str(request["path"]),
         recursive=bool(request.get("recursive", True)),
         excludes=[str(value) for value in excludes] if isinstance(excludes, list) else (),
+        progress=report_progress,
     )
 
 
-def _index_update(request: Request) -> dict[str, Any]:
-    return update_library_index(str(request["path"]))
+def _index_update(request: Request, write_event=None) -> dict[str, Any]:
+    def report_progress(update: dict[str, Any]) -> None:
+        if write_event:
+            write_event({"event": "index_progress", **update})
+
+    return update_library_index(str(request["path"]), progress=report_progress)
 
 
 def _search(request: Request) -> list[dict[str, Any]]:
@@ -1080,8 +1112,14 @@ def _source_cache_dir(request: Request) -> Path:
     return Path(tempfile.gettempdir()) / "vera-source-cache"
 
 
-def _materialize_source_cache(source: AttachmentRecord, cache_dir: Path) -> Path:
+def _materialize_source_cache(
+    source: AttachmentRecord,
+    cache_dir: Path,
+    cancel: CancellationToken | None = None,
+) -> Path:
     """Write source bytes to a hash-keyed cache file; reuse when unchanged."""
+    if cancel:
+        cancel.raise_if_cancelled()
     cache_dir.mkdir(parents=True, exist_ok=True)
     digest = str(source.checksum or hashlib.sha256(source.data).hexdigest())
     suffix = Path(source.filename or "source.bin").suffix or ".bin"
@@ -1093,6 +1131,8 @@ def _materialize_source_cache(source: AttachmentRecord, cache_dir: Path) -> Path
     tmp_path = cache_path.with_name(f"{cache_path.name}.{threading.get_ident()}.tmp")
     try:
         tmp_path.write_bytes(source.data)
+        if cancel:
+            cancel.raise_if_cancelled()
         tmp_path.replace(cache_path)
     finally:
         if tmp_path.exists():
@@ -1100,11 +1140,19 @@ def _materialize_source_cache(source: AttachmentRecord, cache_dir: Path) -> Path
     return cache_path
 
 
-def _source_from_pdf(path: Path, cache_dir: Path) -> dict[str, Any]:
+def _source_from_pdf(
+    path: Path,
+    cache_dir: Path,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
     """Materialize a filesystem PDF into the source cache for the document viewer."""
+    if cancel:
+        cancel.raise_if_cancelled()
     if not path.is_file():
         raise FileNotFoundError(f"PDF not found: {path}")
     data = path.read_bytes()
+    if cancel:
+        cancel.raise_if_cancelled()
     if not data.startswith(b"%PDF"):
         raise ValueError(f"Not a PDF file: {path}")
     source = AttachmentRecord(
@@ -1113,7 +1161,7 @@ def _source_from_pdf(path: Path, cache_dir: Path) -> dict[str, Any]:
         media_type="application/pdf",
         filename=path.name,
     )
-    cache_path = _materialize_source_cache(source, cache_dir)
+    cache_path = _materialize_source_cache(source, cache_dir, cancel)
     return {
         "filename": source.filename,
         "mime_type": source.media_type,
@@ -1123,16 +1171,23 @@ def _source_from_pdf(path: Path, cache_dir: Path) -> dict[str, Any]:
     }
 
 
-def _source(request: Request) -> dict[str, Any]:
+def _source(
+    request: Request,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
+    if cancel:
+        cancel.raise_if_cancelled()
     path = Path(str(request["path"]))
     cache_dir = _source_cache_dir(request)
     if path.suffix.lower() == ".pdf":
-        return _source_from_pdf(path, cache_dir)
+        return _source_from_pdf(path, cache_dir, cancel)
     doc = _open_document(str(path))
     try:
         source = get_source_document(doc)
+        if cancel:
+            cancel.raise_if_cancelled()
         mime_type = source.media_type or "application/octet-stream"
-        cache_path = _materialize_source_cache(source, cache_dir)
+        cache_path = _materialize_source_cache(source, cache_dir, cancel)
         return {
             "filename": source.filename,
             "mime_type": mime_type,
@@ -1191,6 +1246,10 @@ def _cancelled_error_message(action: str, exc: BaseException | None = None) -> s
         return str(exc)
     if action in {"convert", "batch_convert"}:
         return "Conversion cancelled"
+    if action == "inspect":
+        return "Inspection cancelled"
+    if action == "source":
+        return "Source loading cancelled"
     return "Answer cancelled"
 
 
@@ -1217,6 +1276,16 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
             result = HANDLERS[action](request, write_event=_emit, cancel=cancel)
+        elif action == "inspect":
+            def _emit(data: dict[str, Any]) -> None:
+                _write_response({**data, "id": request_id})
+            result = _inspect(request, write_event=_emit, cancel=cancel)
+        elif action in {"index_build", "index_update"}:
+            def _emit(data: dict[str, Any]) -> None:
+                _write_response({**data, "id": request_id})
+            result = HANDLERS[action](request, write_event=_emit)
+        elif action == "source":
+            result = _source(request, cancel=cancel)
         else:
             result = HANDLERS[action](request)
         return {"id": request_id, "ok": True, "result": result}
@@ -1308,6 +1377,7 @@ def main() -> int:
                 "answer",
                 "convert",
                 "batch_convert",
+                "inspect",
                 "index_build",
                 "index_update",
                 "source",
@@ -1320,7 +1390,7 @@ def main() -> int:
                         "error": f"{action} requests require an id",
                     }
                 else:
-                    if action in {"answer", "convert", "batch_convert"}:
+                    if action in {"answer", "convert", "batch_convert", "inspect", "source"}:
                         cancel = CancellationToken()
                         with _inflight_lock:
                             _inflight_requests[request_id] = cancel

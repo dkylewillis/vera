@@ -53,13 +53,18 @@ Open a PDF from the app's Convert view to create a `.vera` archive, or use the
 native File menu to open an existing archive or document library.
 Desktop conversions use the supported PyMuPDF parser and deterministic
 local hashing embeddings. Use the CLI when you need a Sentence Transformers
-model or explicit OCR controls.
+model or explicit OCR controls. Conversion progress and the current filename
+appear in the footer status bar, so progress remains visible when you switch
+away from the Convert view.
 
 Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,
 and keyword modes from its composer options. Its ranked passage cards open and
 highlight the matching source in the document viewer without adding the query
-to chat history.
+to chat history. Source loading remains independent of library inspection,
+conversion, and indexing. Selecting another citation supersedes the earlier
+source request, and a source load that does not settle within two minutes is
+cancelled with an error instead of leaving a permanent footer status.
 
 ## Large document libraries
 
@@ -71,13 +76,18 @@ stale, the first Search or Ask prompts you to build or update it; choose
 **Don&apos;t ask again** to keep using recursive search without future prompts for
 that library. Use **Inspect** in the Info view only when you need library
 metrics or to revalidate every archive; that operation can take substantially
-longer for large libraries.
+longer for large libraries. Inspection runs on a sidecar worker and the footer
+reports completed and total archives, the current filename, cumulative chunks,
+and skipped files. Its request-scoped status clears on either success or
+failure, independently of simultaneous indexing or conversion activity.
 
-After you confirm a build or update, indexing runs in the background and the
-folder's index badge spins until it finishes. You can continue browsing and
-using Search or Ask while the existing index, or recursive fallback search,
-remains available. A completed warning badge means some archives were skipped;
-select it to review the latest indexing report.
+After you confirm a build or update, indexing runs in the background. The
+folder's index badge spins. The footer shows completed archives, total archives,
+the current phase and filename, indexed chunks, and skipped-file count. It
+switches to a finalizing phase while the validated generation is published. You
+can continue browsing and using Search or Ask while the existing index, or
+recursive fallback search, remains available. A completed warning badge means
+some archives were skipped; select it to review the latest indexing report.
 
 On startup, folders show their last verified badge state while VERA checks the
 current filesystem in the background. A neutral spinner is shown when there is

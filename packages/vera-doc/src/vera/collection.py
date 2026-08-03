@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import numpy as np
 
@@ -265,15 +265,43 @@ def build_library_index(
     recursive: bool = False,
     excludes: Iterable[str] = (),
     operation: str = "build",
+    progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
-    """Build an index atomically and return a machine-readable report."""
+    """Build an index atomically and return a machine-readable report.
+
+    ``progress`` receives factual phase updates with per-file counts. Callers
+    can surface these updates without inspecting an index while it is being
+    assembled.
+    """
     root = Path(directory).resolve()
     if not root.is_dir():
         raise NotADirectoryError(directory)
     exclude_patterns = tuple(dict.fromkeys(str(pattern) for pattern in excludes))
+    if progress:
+        progress(
+            {
+                "phase": "discovering",
+                "completed": 0,
+                "total": 0,
+                "input": str(root),
+                "chunks": 0,
+                "skipped": 0,
+            }
+        )
     paths = discover_vera_files(root, recursive=recursive, excludes=exclude_patterns)
     if not paths:
         raise FileNotFoundError(f"No .vera files found in {directory}")
+    if progress:
+        progress(
+            {
+                "phase": "indexing",
+                "completed": 0,
+                "total": len(paths),
+                "input": "",
+                "chunks": 0,
+                "skipped": 0,
+            }
+        )
 
     old_files = _read_existing_files(root)
     target = _index_path(root)
@@ -288,6 +316,7 @@ def build_library_index(
     indexed_files = 0
     indexed_chunks = 0
     source_chunks = 0
+    processed_files = 0
 
     def record_skipped(path: Path, relative_path: str, category: str, reason: str) -> None:
         try:
@@ -320,6 +349,17 @@ def build_library_index(
 
         for path in paths:
             relative_path = _relative(path, root)
+            if progress:
+                progress(
+                    {
+                        "phase": "indexing",
+                        "completed": processed_files,
+                        "total": len(paths),
+                        "input": relative_path,
+                        "chunks": indexed_chunks,
+                        "skipped": processed_files - indexed_files,
+                    }
+                )
             vector_lengths = {group: len(values) for group, values in vectors.items()}
             conn.execute("SAVEPOINT index_file")
             try:
@@ -465,9 +505,33 @@ def build_library_index(
                 reason = str(exc)
                 invalid.append({"file": relative_path, "reason": reason})
                 record_skipped(path, relative_path, "invalid", reason)
+            finally:
+                processed_files += 1
+                if progress:
+                    progress(
+                        {
+                            "phase": "indexing",
+                            "completed": processed_files,
+                            "total": len(paths),
+                            "input": relative_path,
+                            "chunks": indexed_chunks,
+                            "skipped": processed_files - indexed_files,
+                        }
+                    )
 
         if not indexed_files:
             raise ValueError("No valid .vera files could be indexed")
+        if progress:
+            progress(
+                {
+                    "phase": "finalizing",
+                    "completed": processed_files,
+                    "total": len(paths),
+                    "input": "",
+                    "chunks": indexed_chunks,
+                    "skipped": processed_files - indexed_files,
+                }
+            )
 
         for (model_name, dimension), group_vectors in vectors.items():
             filename = _group_filename(model_name, dimension)
@@ -553,7 +617,11 @@ def _load_config(root: Path) -> dict[str, Any] | None:
         return None
 
 
-def update_library_index(directory: str) -> dict[str, Any]:
+def update_library_index(
+    directory: str,
+    *,
+    progress: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
     """Rebuild an existing library index using its persisted discovery settings."""
     root = Path(directory).resolve()
     config = _load_config(root)
@@ -564,6 +632,7 @@ def update_library_index(directory: str) -> dict[str, Any]:
         recursive=bool(config.get("recursive", False)),
         excludes=config.get("excludes", ()),
         operation="update",
+        progress=progress,
     )
 
 

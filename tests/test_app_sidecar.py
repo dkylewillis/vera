@@ -186,23 +186,88 @@ def test_index_actions_and_recursive_folder_search(nested_app_library):
     assert updated["result"]["indexed"] == 3
 
 
-def test_index_build_does_not_block_other_sidecar_requests(monkeypatch):
+def test_index_build_streams_request_scoped_progress(monkeypatch, nested_app_library):
     sidecar = importlib.import_module("vera_app.sidecar")
-    index_started = threading.Event()
-    release_index = threading.Event()
-    index_finished = threading.Event()
+    emitted = []
+    monkeypatch.setattr(sidecar, "_write_response", emitted.append)
+
+    response = sidecar.handle({
+        "id": "index-progress",
+        "action": "index_build",
+        "path": str(nested_app_library),
+        "recursive": True,
+    })
+
+    assert response["ok"] is True
+    progress = [event for event in emitted if event.get("event") == "index_progress"]
+    assert progress
+    assert {event["id"] for event in progress} == {"index-progress"}
+    assert progress[0]["phase"] == "discovering"
+    assert progress[-1]["phase"] == "finalizing"
+    assert progress[-1]["completed"] == progress[-1]["total"] == 2
+    assert progress[-1]["chunks"] == response["result"]["chunks"]
+
+
+def test_library_inspect_streams_request_scoped_progress(monkeypatch, nested_app_library):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    emitted = []
+    monkeypatch.setattr(sidecar, "_write_response", emitted.append)
+
+    response = sidecar.handle({
+        "id": "inspection-progress",
+        "action": "inspect",
+        "path": str(nested_app_library),
+        "recursive": True,
+    })
+
+    assert response["ok"] is True
+    progress = [event for event in emitted if event.get("event") == "inspection_progress"]
+    assert progress
+    assert {event["id"] for event in progress} == {"inspection-progress"}
+    assert progress[-1]["completed"] == progress[-1]["total"] == 2
+    assert progress[-1]["chunks"] == response["result"]["chunks"]
+
+
+@pytest.mark.parametrize(
+    ("action", "expected_error"),
+    [
+        ("inspect", "Inspection cancelled"),
+        ("source", "Source loading cancelled"),
+    ],
+)
+def test_inspection_and_source_honor_cancellation(action, expected_error):
+    cancel = CancellationToken()
+    cancel.cancel()
+
+    response = handle({
+        "id": f"cancel-{action}",
+        "action": action,
+        "path": "unused",
+    }, cancel=cancel)
+
+    assert response["ok"] is False
+    assert response["cancelled"] is True
+    assert response["error"] == expected_error
+
+
+@pytest.mark.parametrize("background_action", ["index_build", "inspect"])
+def test_library_work_does_not_block_other_sidecar_requests(monkeypatch, background_action):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    work_started = threading.Event()
+    release_work = threading.Event()
+    work_finished = threading.Event()
     all_responses = threading.Event()
     responses = []
-    observed = {"ping_while_indexing": False}
+    observed = {"ping_while_working": False}
 
     def fake_handle(request, cancel=None):
-        if request["action"] == "index_build":
-            index_started.set()
-            release_index.wait(timeout=1)
-            index_finished.set()
+        if request["action"] == background_action:
+            work_started.set()
+            release_work.wait(timeout=1)
+            work_finished.set()
         elif request["action"] == "ping":
-            observed["ping_while_indexing"] = index_started.is_set() and not index_finished.is_set()
-            release_index.set()
+            observed["ping_while_working"] = work_started.is_set() and not work_finished.is_set()
+            release_work.set()
         return {"id": request["id"], "ok": True, "result": request["action"]}
 
     def capture_response(response):
@@ -216,15 +281,15 @@ def test_index_build_does_not_block_other_sidecar_requests(monkeypatch):
         sidecar.sys,
         "stdin",
         io.StringIO(
-            '{"id":"index","action":"index_build","path":"library"}\n'
+            f'{{"id":"work","action":"{background_action}","path":"library"}}\n'
             '{"id":"ping","action":"ping"}\n'
         ),
     )
 
     assert sidecar.main() == 0
     assert all_responses.wait(timeout=1)
-    assert observed["ping_while_indexing"] is True
-    assert {response["id"] for response in responses} == {"index", "ping"}
+    assert observed["ping_while_working"] is True
+    assert {response["id"] for response in responses} == {"work", "ping"}
 
 
 @pytest.mark.parametrize(
@@ -607,7 +672,7 @@ def test_conversion_actions_can_be_cancelled(monkeypatch):
     assert batch_response == {
         "id": "batch",
         "ok": False,
-        "error": "Answer cancelled",
+        "error": "Conversion cancelled",
         "cancelled": True,
     }
 
@@ -636,7 +701,7 @@ def test_convert_action_returns_structured_cancellation(monkeypatch):
     assert response == {
         "id": "convert-cancelled",
         "ok": False,
-        "error": "Answer cancelled",
+        "error": "Conversion cancelled",
         "cancelled": True,
     }
 

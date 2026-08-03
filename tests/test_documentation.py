@@ -143,6 +143,12 @@ def test_hardening_json_contracts_are_documented():
     assert "Use **Inspect** in the Info view" in desktop
     assert "corpus opens on the first" in desktop
     assert "indexing runs in the background" in desktop
+    assert "completed archives" in desktop
+    assert "finalizing phase" in desktop
+    assert "Inspection runs on a sidecar worker" in desktop
+    assert "independently of simultaneous indexing or conversion" in desktop
+    assert "Selecting another citation supersedes" in desktop
+    assert "within two minutes" in desktop
     assert "PyMuPDF parser" in desktop
     assert "local hashing embeddings" in desktop
     assert "allow_empty=True" in libraries

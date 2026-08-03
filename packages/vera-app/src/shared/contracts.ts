@@ -18,7 +18,7 @@ export interface TraceToolCall {
 
 export interface StreamEvent {
   id: string;
-  event: 'search_start' | 'search_done' | 'llm_request' | 'llm_response' | 'tool_call' | 'answer_delta' | 'answer_reset' | 'conversion_progress';
+  event: 'search_start' | 'search_done' | 'llm_request' | 'llm_response' | 'tool_call' | 'answer_delta' | 'answer_reset' | 'conversion_progress' | 'index_progress' | 'inspection_progress';
   turn?: number;
   query?: string;
   mode?: string;
@@ -38,6 +38,8 @@ export interface StreamEvent {
   total?: number;
   input?: string;
   phase?: string;
+  chunks?: number;
+  skipped?: number;
 }
 
 export interface FigureResult {

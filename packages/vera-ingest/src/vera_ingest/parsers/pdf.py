@@ -230,6 +230,9 @@ def _collect_raw_blocks(
                     language=ocr_language,
                     dpi=ocr_dpi,
                 )
+                # Tesseract runs inside PyMuPDF and cannot be interrupted in the
+                # middle of this call. Honor stop/skip as soon as it returns.
+                _raise_if_cancelled(cancel)
                 ocr_pages.append(idx)
             else:
                 page_text = native_text
