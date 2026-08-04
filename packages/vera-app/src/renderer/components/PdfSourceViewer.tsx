@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { FigureResult, RegionResult, SourceDocumentResult } from '../types';
 import { EMPTY_REGIONS } from '../lib/constants';
+import { fitScaleFor, pageSizeForNumber, type PdfPageSize } from '../lib/pdfZoom';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -30,15 +31,10 @@ function regionStyle(region: RegionResult): CSSProperties {
 
 const PDF_ZOOM_MIN = 0.5;
 const PDF_ZOOM_MAX = 2.5;
-const PDF_FIT_ZOOM_MIN = 0.25;
 const PDF_ZOOM_DEFAULT = 1;
 const PDF_ZOOM_STEP = 0.25;
 /** Wheel/trackpad delta accumulated before applying one discrete zoom step. */
 const PDF_ZOOM_WHEEL_THRESHOLD = 80;
-/** Horizontal padding inside `.pdfCanvasWrap` (matches CSS). */
-const PDF_CANVAS_PAD_X = 32;
-/** Vertical padding inside `.pdfCanvasWrap` (matches CSS). */
-const PDF_CANVAS_PAD_Y = 32;
 type ZoomMode = 'manual' | 'fit-width' | 'fit-page';
 
 type ScrollAnchor = {
@@ -46,20 +42,11 @@ type ScrollAnchor = {
   fraction: number;
 };
 
-type PageSize = {
-  width: number;
-  height: number;
-};
-
 function clampPdfZoom(value: number, snap = true): number {
   const clamped = Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, value));
   if (!snap) return clamped;
   const steps = Math.round((clamped - PDF_ZOOM_MIN) / PDF_ZOOM_STEP);
   return Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, PDF_ZOOM_MIN + steps * PDF_ZOOM_STEP));
-}
-
-function clampPdfFitZoom(value: number): number {
-  return Math.min(PDF_ZOOM_MAX, Math.max(PDF_FIT_ZOOM_MIN, value));
 }
 
 function captureScrollAnchor(container: HTMLElement | null): ScrollAnchor | null {
@@ -158,13 +145,6 @@ function pageFromScroll(container: HTMLElement): number {
   return Number(pages[pages.length - 1].dataset.pageNumber) || pages.length;
 }
 
-function fitScaleFor(mode: 'fit-width' | 'fit-page', pageSize: PageSize, container: HTMLElement): number {
-  const availW = Math.max(80, container.clientWidth - PDF_CANVAS_PAD_X);
-  const availH = Math.max(80, container.clientHeight - PDF_CANVAS_PAD_Y);
-  if (mode === 'fit-width') return clampPdfFitZoom(availW / pageSize.width);
-  return clampPdfFitZoom(Math.min(availW / pageSize.width, availH / pageSize.height));
-}
-
 function PdfSourceViewerImpl({
   source,
   highlightRegions = EMPTY_REGIONS,
@@ -182,11 +162,12 @@ function PdfSourceViewerImpl({
 }) {
   const pagesRef = useRef<HTMLDivElement | null>(null);
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
+  const pageSizesRef = useRef<PdfPageSize[]>([]);
   const renderedSourceRef = useRef('');
   const scrollAnchorRef = useRef<ScrollAnchor | null>(null);
   const pageInputFocusedRef = useRef(false);
   const suppressPageTrackingRef = useRef(false);
-  const citationJumpPendingRef = useRef(false);
+  const fitWidthPageRef = useRef(1);
   const scaleRef = useRef(PDF_ZOOM_DEFAULT);
   const zoomModeRef = useRef<ZoomMode>('fit-width');
   const [scale, setScale] = useState(PDF_ZOOM_DEFAULT);
@@ -196,7 +177,7 @@ function PdfSourceViewerImpl({
   const [pageCount, setPageCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInput, setPageInput] = useState('1');
-  const [pageSize, setPageSize] = useState<PageSize | null>(null);
+  const [pageSizes, setPageSizes] = useState<PdfPageSize[]>([]);
   const [rendering, setRendering] = useState(false);
   const [showHighlights, setShowHighlights] = useState(() => {
     try { return localStorage.getItem('vera.showHighlights') !== '0'; } catch { return true; }
@@ -207,6 +188,17 @@ function PdfSourceViewerImpl({
   );
   const hasPassageHighlights = highlightRegions.some((region) => region.bbox?.length === 4);
   const hasFigureHighlights = highlightFigures.some((figure) => figure.bbox?.length === 4);
+  const currentPageSize = pageSizeForNumber(pageSizes, currentPage);
+  const fitContainer = pagesRef.current;
+  const currentPageFitScale = currentPageSize && fitContainer
+    ? fitScaleFor('fit-width', [currentPageSize], {
+        width: fitContainer.clientWidth,
+        height: fitContainer.clientHeight,
+      })
+    : null;
+  const isCurrentPageFitWidth = zoomMode === 'fit-width'
+    && currentPageFitScale !== null
+    && Math.abs(scale - currentPageFitScale) <= 0.005;
 
   scaleRef.current = scale;
 
@@ -214,7 +206,7 @@ function PdfSourceViewerImpl({
     // A resize can fire again while the scale render is rebuilding page shells.
     // Keep the anchor captured from the stable, pre-resize layout instead of
     // replacing it with a page inferred from the half-rebuilt document.
-    if (citationJumpPendingRef.current || scrollAnchorRef.current) return;
+    if (scrollAnchorRef.current) return;
     scrollAnchorRef.current = captureScrollAnchor(pagesRef.current);
   }, []);
 
@@ -234,14 +226,21 @@ function PdfSourceViewerImpl({
 
   const applyFitScale = useCallback((mode: 'fit-width' | 'fit-page') => {
     const container = pagesRef.current;
-    if (!container || !pageSize) {
+    if (!container || pageSizes.length === 0) {
       commitZoomMode(mode);
       return;
     }
+    const fitSizes = mode === 'fit-width'
+      ? [pageSizeForNumber(pageSizes, currentPage)!]
+      : pageSizes;
+    if (mode === 'fit-width') fitWidthPageRef.current = currentPage;
     rememberAnchor();
     commitZoomMode(mode);
-    setScale(fitScaleFor(mode, pageSize, container));
-  }, [commitZoomMode, pageSize, rememberAnchor]);
+    setScale(fitScaleFor(mode, fitSizes, {
+      width: container.clientWidth,
+      height: container.clientHeight,
+    }));
+  }, [commitZoomMode, currentPage, pageSizes, rememberAnchor]);
 
   const goToPage = (page: number, behavior: ScrollBehavior = 'smooth') => {
     if (!pageCount) return;
@@ -289,12 +288,18 @@ function PdfSourceViewerImpl({
   // scrollbar changes cannot masquerade as a pane resize. Manual zoom is
   // temporary: a real resize returns to fit-width; fit-page stays fit-page.
   useEffect(() => {
-    if (!pageSize) return;
+    if (pageSizes.length === 0) return;
     const container = pagesRef.current;
     if (!container) return;
 
     const applyFit = (mode: 'fit-width' | 'fit-page') => {
-      const next = fitScaleFor(mode, pageSize, container);
+      const fitSizes = mode === 'fit-width'
+        ? [pageSizeForNumber(pageSizes, fitWidthPageRef.current)!]
+        : pageSizes;
+      const next = fitScaleFor(mode, fitSizes, {
+        width: container.clientWidth,
+        height: container.clientHeight,
+      });
       commitZoomMode(mode);
       if (Math.abs(next - scaleRef.current) <= 0.005) return;
       rememberAnchor();
@@ -323,7 +328,7 @@ function PdfSourceViewerImpl({
     const observer = new ResizeObserver(onResize);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [commitZoomMode, pageSize, rememberAnchor, source.url]);
+  }, [commitZoomMode, pageSizes, rememberAnchor, source.url]);
 
   // Track the page nearest the top of the viewport while scrolling.
   useEffect(() => {
@@ -473,38 +478,8 @@ function PdfSourceViewerImpl({
       paintHighlights(surface, pageNum);
     }
     if (!targetPage) return undefined;
-    let canceled = false;
-    const fitAndJump = async () => {
-      const pdf = pdfRef.current;
-      const container = pagesRef.current;
-      if (
-        zoomModeRef.current === 'fit-width'
-        && pdf
-        && container
-        && renderedSourceRef.current === source.url
-      ) {
-        const pageNum = Math.min(pdf.numPages, Math.max(1, Math.round(targetPage)));
-        const page = await pdf.getPage(pageNum);
-        if (canceled || pdf !== pdfRef.current) return;
-        const viewport = page.getViewport({ scale: 1 });
-        const targetSize = { width: viewport.width, height: viewport.height };
-        setPageSize(targetSize);
-        const nextScale = fitScaleFor('fit-width', targetSize, container);
-        if (Math.abs(nextScale - scaleRef.current) > 0.005) {
-          citationJumpPendingRef.current = true;
-          scrollAnchorRef.current = null;
-          setScale(nextScale);
-          return;
-        }
-      }
-      goToHighlight(targetPage, 'auto');
-    };
-    void fitAndJump().catch((err: unknown) => {
-      if (!canceled) setError(err instanceof Error ? err.message : 'Unable to fit cited PDF page');
-    });
-    return () => {
-      canceled = true;
-    };
+    goToHighlight(targetPage, 'auto');
+    return undefined;
   }, [goToHighlight, highlightKey, jumpVersion, pageCount, paintHighlights, source.url, targetPage]);
 
   // Main render effect: load PDF + set up virtualized rendering.
@@ -515,14 +490,17 @@ function PdfSourceViewerImpl({
     const renderTasks = new Set<{ cancel: () => void }>();
     const sourceChanged = renderedSourceRef.current !== source.url;
     const container = pagesRef.current;
-    const citationJumpPending = citationJumpPendingRef.current;
-    const anchor = sourceChanged || citationJumpPending
+    const anchor = sourceChanged
       ? null
       : (scrollAnchorRef.current ?? captureScrollAnchor(container));
 
     // Clear immediately when changing documents. Scale-only renders keep the
     // existing page stack visible until its replacement is ready.
-    if (sourceChanged) container?.replaceChildren();
+    if (sourceChanged) {
+      container?.replaceChildren();
+      pageSizesRef.current = [];
+      setPageSizes([]);
+    }
 
     async function load() {
       setError(null);
@@ -552,23 +530,29 @@ function PdfSourceViewerImpl({
 
         setPageCount(pdf.numPages);
 
-        const firstPage = await pdf.getPage(1);
-        if (canceled) return;
-        const baseViewport = firstPage.getViewport({ scale: 1 });
-        setPageSize((prev) => (
-          prev
-          && Math.abs(prev.width - baseViewport.width) < 0.5
-          && Math.abs(prev.height - baseViewport.height) < 0.5
-            ? prev
-            : { width: baseViewport.width, height: baseViewport.height }
-        ));
-        const defaultViewport = firstPage.getViewport({ scale });
-        const defaultW = Math.floor(defaultViewport.width);
-        const defaultH = Math.floor(defaultViewport.height);
+        let documentPageSizes = pageSizesRef.current;
+        if (documentPageSizes.length !== pdf.numPages) {
+          documentPageSizes = [];
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            if (canceled) return;
+            const viewport = page.getViewport({ scale: 1 });
+            documentPageSizes.push({ width: viewport.width, height: viewport.height });
+            if (i % 40 === 0) {
+              await new Promise<void>((resolve) => {
+                requestAnimationFrame(() => resolve());
+              });
+              if (canceled) return;
+            }
+          }
+          pageSizesRef.current = documentPageSizes;
+          setPageSizes(documentPageSizes);
+        }
 
         const shells: HTMLElement[] = [];
         const fragment = document.createDocumentFragment();
         for (let i = 1; i <= pdf.numPages; i++) {
+          const pageSize = documentPageSizes[i - 1];
           const shell = document.createElement('article');
           shell.className = 'pdfPage pdfPage--pending';
           shell.dataset.pageNumber = String(i);
@@ -576,8 +560,8 @@ function PdfSourceViewerImpl({
           label.textContent = `Page ${i}`;
           const surface = document.createElement('div');
           surface.className = 'pdfPageSurface';
-          surface.style.width = `${defaultW}px`;
-          surface.style.height = `${defaultH}px`;
+          surface.style.width = `${Math.floor(pageSize.width * scale)}px`;
+          surface.style.height = `${Math.floor(pageSize.height * scale)}px`;
           shell.append(label, surface);
           fragment.append(shell);
           shells.push(shell);
@@ -686,7 +670,6 @@ function PdfSourceViewerImpl({
           );
           setCurrentPage(jump);
           scrollAnchorRef.current = null;
-          citationJumpPendingRef.current = false;
         }
 
         observer = new IntersectionObserver(
@@ -709,7 +692,6 @@ function PdfSourceViewerImpl({
         if (!canceled) setError(err instanceof Error ? err.message : 'Unable to render PDF');
       } finally {
         if (!canceled) {
-          citationJumpPendingRef.current = false;
           setRendering(false);
         }
       }
@@ -739,6 +721,9 @@ function PdfSourceViewerImpl({
     setPageCount(0);
     setCurrentPage(1);
     setPageInput('1');
+    fitWidthPageRef.current = targetPageRef.current
+      ? Math.max(1, Math.round(targetPageRef.current))
+      : 1;
     commitZoomMode('fit-width');
     setScale(PDF_ZOOM_DEFAULT);
     scrollAnchorRef.current = null;
@@ -829,11 +814,11 @@ function PdfSourceViewerImpl({
           </button>
           <button
             type="button"
-            className={zoomMode === 'fit-width' ? 'viewerToolButton activeNow' : 'viewerToolButton'}
+            className={isCurrentPageFitWidth ? 'viewerToolButton activeNow' : 'viewerToolButton'}
             onClick={() => applyFitScale('fit-width')}
             title="Fit width"
             aria-label="Fit width"
-            aria-pressed={zoomMode === 'fit-width'}
+            aria-pressed={isCurrentPageFitWidth}
           >
             <Scan size={14} />
             <span className="viewerToolLabel">Width</span>

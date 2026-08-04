@@ -6,9 +6,9 @@ agents.
 Install with the MCP extra:
 
 ```bash
-python -m pip install "vera-cli[mcp]>=0.2.2"
+python -m pip install "vera-cli[mcp]>=0.2.3"
 # or
-python -m pip install "vera-mcp>=0.2.2"
+python -m pip install "vera-mcp>=0.2.3"
 ```
 
 Run the server:

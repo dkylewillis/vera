@@ -7,13 +7,13 @@ retrieval evaluation.
 ## Install
 
 ```bash
-python -m pip install "vera-cli>=0.2.2"
+python -m pip install "vera-cli>=0.2.3"
 ```
 
 Install the `mcp` extra to enable `vera mcp`:
 
 ```bash
-python -m pip install "vera-cli[mcp]>=0.2.2"
+python -m pip install "vera-cli[mcp]>=0.2.3"
 ```
 
 See the [vera-cli documentation](https://dkylewillis.github.io/vera/packages/vera-cli/)

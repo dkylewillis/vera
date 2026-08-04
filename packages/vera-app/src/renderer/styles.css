@@ -3165,12 +3165,17 @@ details.traceEntry[open] > summary {
 
 .viewerTitleGroup {
   display: grid;
+  flex: 1;
   gap: 1px;
   min-width: 0;
 }
 
 .viewerTitleGroup h2 {
   margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 13px;
   font-weight: 700;
   color: var(--text-strong);
@@ -3214,6 +3219,24 @@ details.traceEntry[open] > summary {
   color: var(--text-strong);
   background: var(--bg-surface);
   box-shadow: var(--shadow-sm);
+}
+
+.viewerModeLabel--short {
+  display: none;
+}
+
+@container (max-width: 500px) {
+  .viewerModeLabel--full {
+    display: none;
+  }
+
+  .viewerModeLabel--short {
+    display: inline;
+  }
+
+  .viewerModeToggle button {
+    padding: 4px 8px;
+  }
 }
 
 .sourceViewer {
@@ -3568,8 +3591,11 @@ input.viewerPageInput:focus {
 
 .pdfCanvasWrap {
   display: grid;
+  /* Keep the grid track tied to the viewport instead of its widest page. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
-  justify-items: center;
+  /* Center fitting pages; oversized pages safely align left for scrolling. */
+  justify-items: safe center;
   gap: 16px;
   min-height: 0;
   overflow: auto;
