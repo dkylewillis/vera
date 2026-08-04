@@ -111,7 +111,7 @@ For neural embeddings, install the optional dependency and name a
 Sentence Transformers model:
 
 ```bash
-python -m pip install "vera-cli>=0.2.2" "vera-doc[ml]>=0.2.2"
+python -m pip install "vera-cli>=0.2.3" "vera-doc[ml]>=0.2.3"
 vera convert "input.pdf" --model sentence-transformers/all-MiniLM-L6-v2
 ```
 

@@ -180,7 +180,7 @@ subcommands.
 Install:
 
 ```bash
-python -m pip install "vera-cli[mcp]>=0.2.2"
+python -m pip install "vera-cli[mcp]>=0.2.3"
 ```
 
 Ensure the configured command runs in the same environment.
