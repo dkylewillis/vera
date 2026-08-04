@@ -772,6 +772,60 @@ class VeraDocument:
             raise RecordNotFoundError(attachment_id)
         return self._row_to_attachment(row)
 
+    def attachment_metadata(
+        self,
+        ids: Iterable[str] | None = None,
+        *,
+        where: Mapping[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return attachment descriptors without reading binary payloads.
+
+        Args:
+            ids: Specific attachment IDs. When omitted, inspect all attachments.
+            where: Exact equality filter on top-level attachment metadata keys.
+
+        Returns:
+            Matching descriptors in storage order, or requested ID order when
+            ``ids`` is provided.
+        """
+        self._ensure_open()
+        requested = tuple(ids) if ids is not None else None
+        if requested is not None and not requested:
+            return []
+        sql = """
+            SELECT attachment_id, mime_type, filename, hash, metadata_json
+            FROM attachments
+        """
+        params: list[Any] = []
+        if requested is not None:
+            placeholders = ",".join("?" for _ in requested)
+            sql += f" WHERE attachment_id IN ({placeholders})"
+            params.extend(requested)
+        sql += " ORDER BY attachment_id"
+        items = [
+            {
+                "id": str(row["attachment_id"]),
+                "media_type": str(row["mime_type"]),
+                "filename": row["filename"],
+                "checksum": row["hash"],
+                "metadata": metadata_from_json(row["metadata_json"]),
+            }
+            for row in self._conn.execute(sql, params)
+        ]
+        if where:
+            items = [
+                item
+                for item in items
+                if all(
+                    thaw_json(item["metadata"]).get(key) == expected
+                    for key, expected in where.items()
+                )
+            ]
+        if requested is not None:
+            by_id = {str(item["id"]): item for item in items}
+            items = [by_id[item] for item in requested if item in by_id]
+        return items
+
     def attachments(
         self,
         *,

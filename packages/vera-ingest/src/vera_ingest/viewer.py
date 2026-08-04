@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -84,8 +85,15 @@ def figures(
     page_start: int | None = None,
     page_end: int | None = None,
     include_data: bool = False,
+    attachment_ids: Iterable[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Return figure attachments produced during ingest."""
+    attachments = document.attachment_metadata(
+        attachment_ids,
+        where={"role": "figure"},
+    )
+    if not attachments:
+        return []
     pages = {
         page["page_number"]: page
         for page in _viewer_payload(document, "viewer_pages_attachment_id")
@@ -96,8 +104,8 @@ def figures(
         if block.get("block_type") == "caption"
     }
     results: list[dict[str, Any]] = []
-    for attachment in document.attachments(where={"role": "figure"}):
-        metadata = thaw_json(attachment.metadata)
+    for attachment in attachments:
+        metadata = thaw_json(attachment["metadata"])
         page_number = metadata.get("page_number")
         if (
             page_start is not None
@@ -113,18 +121,18 @@ def figures(
             continue
         page = pages.get(page_number, {})
         figure: dict[str, Any] = {
-            "block_id": attachment.id.removeprefix("image_"),
+            "block_id": attachment["id"].removeprefix("image_"),
             "page_number": page_number,
             "bbox": metadata.get("bbox"),
             "page_width": page.get("width"),
             "page_height": page.get("height"),
-            "asset_id": attachment.id,
-            "mime_type": attachment.media_type,
-            "filename": attachment.filename,
+            "asset_id": attachment["id"],
+            "mime_type": attachment["media_type"],
+            "filename": attachment["filename"],
             "caption": captions.get(page_number),
         }
         if include_data:
-            figure["data"] = attachment.data
+            figure["data"] = document.get_attachment(attachment["id"]).data
         results.append(figure)
     return results
 
@@ -140,11 +148,11 @@ def figures_for(
         for ref in result.record.attachments
         if ref.role == "figure"
     }
-    return [
-        figure
-        for figure in figures(document, include_data=include_data)
-        if figure["asset_id"] in attachment_ids
-    ]
+    return figures(
+        document,
+        include_data=include_data,
+        attachment_ids=sorted(attachment_ids),
+    )
 
 
 def _viewer_payload(document: VeraDocument, metadata_key: str) -> list[dict[str, Any]]:

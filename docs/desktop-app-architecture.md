@@ -52,6 +52,7 @@ Initial actions:
 - `inspect`
 - `validate`
 - `search`
+- `figure_data`
 - `answer`
 - `convert`
 - `batch_convert`
@@ -87,6 +88,15 @@ ranked passage results as selectable response cards; selecting a result opens
 and highlights its source in the document viewer. Retrieval controls remain
 available beneath the Search composer. Explorer, chat history, and conversion
 remain sidebar views.
+
+Figure-aware searches return metadata without image bytes. The renderer calls
+`figure_data` only after selecting a result and caches the returned image data
+by archive path and attachment ID. `vera_ingest.viewer.figures_for` queries the
+result's linked figure attachment IDs directly; metadata queries omit the
+attachment `data` column, and byte reads are limited to explicitly requested
+IDs. Figure-enabled Ask modes use the same targeted reads for the bounded set
+of images offered to a vision-capable model, then remove image data from stored
+citations.
 
 The app checks the folder's local collection index when the folder is added,
 activated, refreshed, changed by the watcher, or receives a newly converted
@@ -158,6 +168,12 @@ shown first in the footer. Interactive requests have a five-minute watchdog;
 source loads use a two-minute limit, while answers retain their explicit Stop
 control instead of an automatic deadline. Sidecar exit, cancellation, timeout,
 success, and failure all converge on the same task cleanup path.
+
+Provider answer text is forwarded through request-scoped `answer_delta` events
+as tokens arrive. A small sidecar filter holds partial `<tool_call>` and
+`<functions.*>` markers until the provider response is parsed. Tool turns clear
+any provisional prose with `answer_reset`; ordinary and final synthesis turns
+remain incrementally visible without exposing inline tool syntax.
 
 Builds and updates run on a sidecar worker thread without using the app's global
 busy state, so document browsing, Search, and Ask remain available. The folder

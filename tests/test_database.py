@@ -80,6 +80,22 @@ def test_database_attachments_and_references(tmp_path: Path) -> None:
         )
         stored = database.get_attachment("source")
         assert stored.data == attachment.data
+        descriptors = database.attachment_metadata(
+            ["source"],
+            where={"purpose": "missing"},
+        )
+        assert descriptors == []
+        descriptors = database.attachment_metadata(["source"])
+        assert descriptors == [
+            {
+                "id": "source",
+                "media_type": "application/pdf",
+                "filename": "source.pdf",
+                "checksum": attachment.checksum,
+                "metadata": attachment.metadata,
+            }
+        ]
+        assert "data" not in descriptors[0]
         assert database.get(["chunk"])[0].attachments == (
             AttachmentRef("source", role="source"),
         )

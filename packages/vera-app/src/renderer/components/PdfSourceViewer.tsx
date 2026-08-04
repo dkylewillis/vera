@@ -624,6 +624,9 @@ function PdfSourceViewerImpl({
 
             const textLayerContainer = document.createElement('div');
             textLayerContainer.className = 'textLayer';
+            // PDF.js positions text in page-relative percentages, but sizes the
+            // invisible selectable glyphs with this viewport scale.
+            textLayerContainer.style.setProperty('--total-scale-factor', String(scale));
 
             surface.replaceChildren(canvas, textLayerContainer);
             paintHighlightsRef.current(surface, pageNum);

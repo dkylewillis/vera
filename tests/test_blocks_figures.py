@@ -238,11 +238,40 @@ class TestFiguresAPI:
         assert len(figures(vera_doc, page_start=1, page_end=1)) == 1
         assert figures(vera_doc, page_start=2, page_end=2) == []
 
-    def test_figures_for_search_result(self, vera_doc):
+    def test_figures_for_search_result_reads_only_linked_image_data(
+        self,
+        vera_doc,
+        monkeypatch,
+    ):
         result = vera_doc.search("restaurant parking", mode="keyword", top_k=1)[0]
         assert result.page_start == 1
+        image_ids = {
+            ref.attachment_id
+            for ref in result.record.attachments
+            if ref.role == "figure"
+        }
+        loaded_ids = []
+        get_attachment = vera_doc.get_attachment
+        monkeypatch.setattr(
+            vera_doc,
+            "get_attachment",
+            lambda attachment_id: (
+                loaded_ids.append(attachment_id),
+                get_attachment(attachment_id),
+            )[1],
+        )
+
         items = figures_for(vera_doc, result)
         assert len(items) == 1
+        assert image_ids
+        assert image_ids.isdisjoint(loaded_ids)
+
+        items_with_data = figures_for(vera_doc, result, include_data=True)
+        assert items_with_data[0]["data"]
+        assert image_ids <= set(loaded_ids)
+        assert not (set(loaded_ids) - image_ids) & {
+            item["asset_id"] for item in figures(vera_doc)
+        }
 
     def test_no_figures_for_other_page_result(self, vera_doc):
         result = vera_doc.search("detention impervious", mode="keyword", top_k=1)[0]

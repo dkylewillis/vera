@@ -2071,6 +2071,9 @@ select option {
   padding: 6px 10px;
   border: 1px solid var(--border);
   text-align: left;
+  /* Override .markdownBody overflow-wrap: anywhere so "68" cannot split to 6/8. */
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .markdownBody th {
@@ -3648,11 +3651,20 @@ input.viewerPageInput:focus {
 .textLayer {
   position: absolute;
   inset: 0;
-  overflow: hidden;
+  overflow: clip;
   line-height: 1;
   opacity: 1;
+  text-align: initial;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  forced-color-adjust: none;
   transform-origin: 0 0;
-  --total-scale-factor: 1;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
   z-index: 2;
 }
 
@@ -3664,6 +3676,25 @@ input.viewerPageInput:focus {
   cursor: text;
   transform-origin: 0% 0%;
   user-select: text;
+}
+
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.textLayer .markedContent {
+  display: contents;
+}
+
+.textLayer span[role='img'] {
+  cursor: default;
+  user-select: none;
 }
 
 .textLayer ::selection {

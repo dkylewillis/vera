@@ -122,7 +122,9 @@ See [Contributing and architecture](docs/architecture.md) and the
   hundreds or even thousands of documents possible; update it as documents
   change.
 - **Source-first review** — inspect pages and figures, validate archives, and
-  export the original PDF back out at any time.
+  export the original PDF back out at any time. The desktop app keeps figure
+  search results lightweight and loads image previews only for the selected
+  result.
 
 <!-- TODO(assets): uncomment when captured — see docs/assets/readme/README.md
 <img src="docs/assets/readme/convert-single-pdf.png" alt="Convert PDF view converting a single PDF into a .vera archive" width="45%">

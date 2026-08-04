@@ -117,7 +117,7 @@ export function ActivityTrace({
     ...(citations || []).map((citation): ActivityStep => ({ kind: 'source', citation })),
     ...(citations || []).flatMap((citation): ActivityStep[] =>
       (citation.result.figures || [])
-        .filter((figure) => figure.data_url && figure.included_in_context)
+        .filter((figure) => figure.included_in_context)
         .map((figure): ActivityStep => ({ kind: 'image', citation, figure })),
     ),
   ];

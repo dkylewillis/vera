@@ -48,6 +48,7 @@ export interface FigureResult {
   page_width?: number;
   page_height?: number;
   asset_id?: string;
+  mime_type?: string;
   filename?: string;
   caption?: string | null;
   data_url?: string;

@@ -24,6 +24,7 @@ from vera.corpus import VeraCorpus
 from vera_ingest import batch_convert, convert
 from vera_ingest.viewer import (
     export_source_document,
+    figures,
     figures_for,
     get_page,
     get_source_document,
@@ -137,6 +138,74 @@ def _result_payload(result: Any) -> dict[str, Any]:
                 for item in payload[key]
             ]
     return payload
+
+
+class _AnswerStream:
+    """Publish answer text incrementally without exposing inline tool syntax."""
+
+    _TOOL_MARKERS = ("<tool_call", "<functions.")
+
+    def __init__(self, write_event: Callable[[dict[str, Any]], None] | None):
+        self._write_event = write_event
+        self._pending = ""
+        self._visible = ""
+        self._blocked = False
+
+    @property
+    def callback(self) -> Callable[[str], None] | None:
+        return self.feed if self._write_event else None
+
+    def feed(self, text: str) -> None:
+        if not text or not self._write_event or self._blocked:
+            return
+        self._pending += text
+        while self._pending:
+            marker_start = self._pending.find("<")
+            if marker_start < 0:
+                self._emit(self._pending)
+                self._pending = ""
+                return
+            if marker_start:
+                self._emit(self._pending[:marker_start])
+                self._pending = self._pending[marker_start:]
+            lowered = self._pending.lower()
+            if any(marker.startswith(lowered) for marker in self._TOOL_MARKERS):
+                return
+            if any(lowered.startswith(marker) for marker in self._TOOL_MARKERS):
+                self._pending = ""
+                self._blocked = True
+                return
+            self._emit(self._pending[0])
+            self._pending = self._pending[1:]
+
+    def finish(self, response: ChatResponse) -> None:
+        """Reconcile streamed text with the provider's parsed canonical response."""
+        if not self._write_event:
+            return
+        if response.tool_calls:
+            if self._visible:
+                self._write_event({"event": "answer_reset"})
+            return
+        if not self._blocked and self._pending:
+            self._emit(self._pending)
+            self._pending = ""
+        if not self._blocked and self._visible.strip() == response.content:
+            return
+        if self._visible:
+            self._write_event({"event": "answer_reset"})
+        if response.content:
+            self._write_event({"event": "answer_delta", "text": response.content})
+
+    def abandon(self) -> None:
+        """Discard a partial attempt before retrying the provider request."""
+        if self._write_event and self._visible:
+            self._write_event({"event": "answer_reset"})
+
+    def _emit(self, text: str) -> None:
+        if not text or not self._write_event:
+            return
+        self._visible += text
+        self._write_event({"event": "answer_delta", "text": text})
 
 
 def _inspect(
@@ -255,6 +324,30 @@ def _search(request: Request) -> list[dict[str, Any]]:
         return payload
     finally:
         target.close()
+
+
+def _figure_data(request: Request) -> list[dict[str, Any]]:
+    """Return image payloads for explicitly selected figure attachments."""
+    raw_ids = request.get("asset_ids")
+    asset_ids = (
+        list(dict.fromkeys(str(value) for value in raw_ids if str(value).strip()))
+        if isinstance(raw_ids, list)
+        else []
+    )
+    if not asset_ids:
+        return []
+    doc = _open_document(str(request["path"]))
+    try:
+        return [
+            _figure_payload(figure)
+            for figure in figures(
+                doc,
+                include_data=True,
+                attachment_ids=asset_ids,
+            )
+        ]
+    finally:
+        doc.close()
 
 
 def _compact_text(text: str, limit: int = 420) -> str:
@@ -540,10 +633,8 @@ class _SearchTool:
                 # Queue the actual images (bounded by the remaining budget) so the
                 # agent loop can show them to the LLM alongside this citation.
                 for fig in result.get("figures", []):
-                    if self._image_budget <= 0:
-                        break
-                    data_url = fig.get("data_url")
-                    if not data_url:
+                    data_url = fig.pop("data_url", None)
+                    if self._image_budget <= 0 or not data_url:
                         continue
                     fig["included_in_context"] = True
                     page = fig.get("page_number") or result.get("page_start") or "-"
@@ -611,10 +702,8 @@ def _retrieval_payload(request: Request, mode: Mode, instructions: str) -> dict[
         })
         if mode.include_figures:
             for fig in result.get("figures") or []:
-                if image_budget <= 0:
-                    break
-                data_url = fig.get("data_url")
-                if not data_url:
+                data_url = fig.pop("data_url", None)
+                if image_budget <= 0 or not data_url:
                     continue
                 fig["included_in_context"] = True
                 fig_page = fig.get("page_number") or page
@@ -746,10 +835,7 @@ def _answer(
                 cancel.raise_if_cancelled()
             force_answer = turn >= mode.max_searches or tool.chunk_count >= mode.max_chunks
             offered_tools = None if force_answer else [SEARCH_TOOL]
-            # Providers can emit textual/XML tool syntax in any turn, even when
-            # tools were not offered. Buffer every response until parsing removes
-            # that syntax and confirms whether the turn is a tool call or an answer.
-            stream_delta = None
+            answer_stream = _AnswerStream(write_event)
             record({
                 "event": "llm_request",
                 "turn": turn,
@@ -763,13 +849,15 @@ def _answer(
                     config,
                     tools=offered_tools,
                     tool_choice="auto",
-                    on_delta=stream_delta,
+                    on_delta=answer_stream.callback,
                     **({"cancel": cancel} if cancel else {}),
                 )
             except VisionUnsupportedError:
                 # Neutralize every image-bearing message (user attachments and/or
                 # figure images) and retry this turn once, text-only, without ever
                 # offering images again this answer.
+                answer_stream.abandon()
+                answer_stream = _AnswerStream(write_event)
                 _strip_image_parts(messages)
                 vision_available = False
                 vision_fallback = True
@@ -778,11 +866,12 @@ def _answer(
                     config,
                     tools=offered_tools,
                     tool_choice="auto",
-                    on_delta=stream_delta,
+                    on_delta=answer_stream.callback,
                     **({"cancel": cancel} if cancel else {}),
                 )
             if cancel:
                 cancel.raise_if_cancelled()
+            answer_stream.finish(response)
             last_response = response
             record({
                 "event": "llm_response",
@@ -803,10 +892,6 @@ def _answer(
                 flush=True,
             )
             if force_answer or not response.tool_calls:
-                # Publish only the parsed, canonical answer. Raw streaming fragments
-                # may contain malformed tool-call syntax and must never reach the UI.
-                if write_event and response.content:
-                    write_event({"event": "answer_delta", "text": response.content})
                 break
             # Build the assistant message to append — ensure content is not None.
             assistant_msg = dict(response.message)
@@ -850,6 +935,7 @@ def _answer(
             )
     except ToolsUnsupportedError:
         # Provider can't do tool-calling: fall back to one-shot retrieve-then-answer.
+        answer_stream.abandon()
         fallback = _retrieval_payload(request, mode, instructions)
         fallback_user_content: Any = fallback["llm_prompt"]
         if attachment_parts:
@@ -873,13 +959,35 @@ def _answer(
             "tools": [],
             "messages": _redact_messages_for_trace(fallback_messages),
         })
+        fallback_stream = _AnswerStream(write_event)
         try:
-            llm_result = generate(fallback_messages, config, **({"cancel": cancel} if cancel else {}))
+            llm_result = generate(
+                fallback_messages,
+                config,
+                on_delta=fallback_stream.callback,
+                **({"cancel": cancel} if cancel else {}),
+            )
         except VisionUnsupportedError:
             # This provider also can't take image input; retry once, text-only.
+            fallback_stream.abandon()
+            fallback_stream = _AnswerStream(write_event)
             _strip_image_parts(fallback_messages)
             vision_fallback = True
-            llm_result = generate(fallback_messages, config, **({"cancel": cancel} if cancel else {}))
+            llm_result = generate(
+                fallback_messages,
+                config,
+                on_delta=fallback_stream.callback,
+                **({"cancel": cancel} if cancel else {}),
+            )
+        fallback_stream.finish(
+            ChatResponse(
+                content=llm_result.answer,
+                tool_calls=[],
+                message={"role": "assistant", "content": llm_result.answer},
+                model=llm_result.model,
+                usage=llm_result.usage,
+            )
+        )
         record({
             "event": "llm_response",
             "turn": 0,
@@ -911,6 +1019,7 @@ def _answer(
         # The model returned empty content on the final turn (common when the tool
         # budget runs out and tools are dropped from the payload, leaving some models
         # momentarily confused).  Send a short nudge to get the synthesis.
+        nudge_stream = _AnswerStream(write_event)
         try:
             nudge_messages = [
                 *messages,
@@ -934,9 +1043,10 @@ def _answer(
                 config,
                 tools=None,
                 tool_choice="auto",
-                on_delta=stream_delta,
+                on_delta=nudge_stream.callback,
                 **({"cancel": cancel} if cancel else {}),
             )
+            nudge_stream.finish(nudge)
             record({
                 "event": "llm_response",
                 "turn": mode.max_searches + 1,
@@ -951,6 +1061,7 @@ def _answer(
         except CancelledError:
             raise
         except Exception:
+            nudge_stream.abandon()
             pass
     if not answer:
         answer = "I could not produce an answer from the selected VERA source."
@@ -1221,6 +1332,7 @@ HANDLERS: dict[str, Handler] = {
     "index_build": _index_build,
     "index_update": _index_update,
     "search": _search,
+    "figure_data": _figure_data,
     "answer": _answer,
     "convert": _convert,
     "batch_convert": _batch_convert,

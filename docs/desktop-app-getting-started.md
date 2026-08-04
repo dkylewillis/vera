@@ -66,6 +66,11 @@ conversion, and indexing. Selecting another citation supersedes the earlier
 source request, and a source load that does not settle within two minutes is
 cancelled with an error instead of leaving a permanent footer status.
 
+When **Figures** is enabled, Search initially returns only figure metadata and
+captions. Selecting a result loads image previews for that result's referenced
+figures on demand; unselected result images are not read or sent through the
+sidecar connection.
+
 ## Large document libraries
 
 Collection indexes are persistent: the app checks their freshness when a
@@ -168,7 +173,10 @@ that the images were omitted.
 While an answer is generating, the send button becomes a stop button. Selecting
 it cancels only that answer, stops its active provider stream, and saves the
 user prompt plus any streamed response received so far without restarting the
-local sidecar.
+local sidecar. Answer prose appears incrementally as provider tokens arrive.
+VERA withholds inline tool-call markup and clears any provisional prose from a
+turn that ultimately invokes a retrieval tool, so only the final grounded
+answer remains visible.
 
 For implementation details and the sidecar protocol, see the
 [desktop app architecture](desktop-app-architecture.md).

@@ -131,6 +131,7 @@ def test_hardening_json_contracts_are_documented():
     libraries = (DOCS / "document-libraries.md").read_text(encoding="utf-8")
     desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
     mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
+    python_api = (DOCS / "python-api.md").read_text(encoding="utf-8")
 
     assert "malformed_existing" in conversion
     assert "requires OCR" in conversion
@@ -149,8 +150,14 @@ def test_hardening_json_contracts_are_documented():
     assert "independently of simultaneous indexing or conversion" in desktop
     assert "Selecting another citation supersedes" in desktop
     assert "within two minutes" in desktop
+    assert "Answer prose appears incrementally" in desktop
+    assert "withholds inline tool-call markup" in desktop
+    assert "initially returns only figure metadata" in desktop
+    assert "loads image previews" in desktop
     assert "PyMuPDF parser" in desktop
     assert "local hashing embeddings" in desktop
+    assert "`attachment_metadata()`" in python_api
+    assert "do not contain a `data` field" in python_api
     assert "allow_empty=True" in libraries
     assert "`skipped_files`" in mcp
     assert "`skipped_semantic_model_groups`" in mcp

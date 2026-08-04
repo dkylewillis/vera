@@ -157,6 +157,20 @@ with VeraDocument.create("manual.vera") as document:
 Referenced attachments cannot be deleted until their links are removed.
 Checksums are computed and validated automatically.
 
+Use `attachment_metadata()` when attachment IDs, MIME types, filenames,
+checksums, and metadata are needed without reading binary payloads:
+
+```python
+with VeraDocument.open("manual.vera") as document:
+    descriptors = document.attachment_metadata(
+        ["image_block_000042"],
+        where={"role": "figure"},
+    )
+```
+
+The returned descriptors do not contain a `data` field. Call
+`get_attachment()` only for the IDs whose bytes are actually needed.
+
 ## Search modes and filters
 
 ```python

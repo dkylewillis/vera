@@ -194,7 +194,13 @@ def _provider_error_message(detail: str, limit: int = 320) -> str:
 
 
 class LlmProvider(Protocol):
-    def generate(self, messages: list[Message], config: LlmConfig) -> LlmResult: ...
+    def generate(
+        self,
+        messages: list[Message],
+        config: LlmConfig,
+        on_delta: Callable[[str], None] | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> LlmResult: ...
 
 
 def _chat_completions_url(base_url: str) -> str:
@@ -756,9 +762,10 @@ class OpenAiCompatibleProvider:
         self,
         messages: list[Message],
         config: LlmConfig,
+        on_delta: Callable[[str], None] | None = None,
         cancel: CancellationToken | None = None,
     ) -> LlmResult:
-        response = self.chat(messages, config, cancel=cancel)
+        response = self.chat(messages, config, on_delta=on_delta, cancel=cancel)
         if not response.content:
             raise RuntimeError("LLM provider returned no message content")
         return LlmResult(
@@ -867,9 +874,10 @@ class OpenAiResponsesProvider:
         self,
         messages: list[Message],
         config: LlmConfig,
+        on_delta: Callable[[str], None] | None = None,
         cancel: CancellationToken | None = None,
     ) -> LlmResult:
-        response = self.chat(messages, config, cancel=cancel)
+        response = self.chat(messages, config, on_delta=on_delta, cancel=cancel)
         if not response.content:
             raise RuntimeError("LLM provider returned no message content")
         return LlmResult(
@@ -908,13 +916,24 @@ def chat(
 def generate(
     messages: list[Message],
     config: LlmConfig,
+    on_delta: Callable[[str], None] | None = None,
     cancel: CancellationToken | None = None,
 ) -> LlmResult:
     provider = config.provider.strip().lower()
     if provider in _SUPPORTED_PROVIDERS:
         if _uses_openai_responses(config):
-            return OpenAiResponsesProvider().generate(messages, config, cancel=cancel)
-        return OpenAiCompatibleProvider().generate(messages, config, cancel=cancel)
+            return OpenAiResponsesProvider().generate(
+                messages,
+                config,
+                on_delta=on_delta,
+                cancel=cancel,
+            )
+        return OpenAiCompatibleProvider().generate(
+            messages,
+            config,
+            on_delta=on_delta,
+            cancel=cancel,
+        )
     raise ValueError(f"Unsupported LLM provider: {config.provider}")
 
 

@@ -208,6 +208,42 @@ def test_index_build_streams_request_scoped_progress(monkeypatch, nested_app_lib
     assert progress[-1]["chunks"] == response["result"]["chunks"]
 
 
+def test_search_defers_figure_bytes_until_requested(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_structured_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", store_original=True)
+
+    searched = handle({
+        "id": "search",
+        "action": "search",
+        "path": str(out),
+        "query": "restaurant parking",
+        "mode": "keyword",
+        "top_k": 1,
+        "include_figures": True,
+        "include_figure_data": False,
+    })
+
+    assert searched["ok"] is True
+    figures = searched["result"][0]["figures"]
+    assert figures
+    assert "data_url" not in figures[0]
+
+    loaded = handle({
+        "id": "figure-data",
+        "action": "figure_data",
+        "path": str(out),
+        "asset_ids": [figures[0]["asset_id"]],
+    })
+
+    assert loaded["ok"] is True
+    assert [figure["asset_id"] for figure in loaded["result"]] == [
+        figures[0]["asset_id"]
+    ]
+    assert loaded["result"][0]["data_url"].startswith("data:image/")
+
+
 def test_library_inspect_streams_request_scoped_progress(monkeypatch, nested_app_library):
     sidecar = importlib.import_module("vera_app.sidecar")
     emitted = []
@@ -778,10 +814,13 @@ def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):
 
     def fake_chat(messages, config, tools=None, tool_choice="auto", on_delta=None):
         calls["n"] += 1
+        assert on_delta is not None
         if calls["n"] == 1:
             assert tools, "tools should be offered on the first turn"
             assert config.model == "test-model"
-            assert on_delta is None, "tool-deciding turns must not stream raw content"
+            on_delta("Checking the library. ")
+            on_delta("<tool_")
+            on_delta('call>{"query":"restaurant parking"}</tool_call>')
             return ChatResponse(
                 content='<tool_call>{"query":"restaurant parking"}</tool_call>',
                 tool_calls=[ToolCall(id="call_1", name="search", arguments={"query": "restaurant parking", "mode": "keyword", "top_k": 1})],
@@ -792,6 +831,8 @@ def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):
         joined = json.dumps(messages)
         assert "C1" in joined, "tool result with citation should be fed back to the model"
         assert "parking" in joined.lower()
+        on_delta("Restaurant parking requirements ")
+        on_delta("are in the cited passage. [C1]")
         return ChatResponse(
             content="Restaurant parking requirements are in the cited passage. [C1]",
             tool_calls=[],
@@ -813,8 +854,17 @@ def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):
     assert result["citations"][0]["result"]["regions"]
     assert result["searches"][0]["query"] == "restaurant parking"
     assert result["llm"]["model"] == "test-model"
-    visible_deltas = [event.get("text") for event in emitted if event.get("event") == "answer_delta"]
-    assert visible_deltas == ["Restaurant parking requirements are in the cited passage. [C1]"]
+    answer_events = [
+        (event.get("event"), event.get("text"))
+        for event in emitted
+        if event.get("event") in {"answer_delta", "answer_reset"}
+    ]
+    assert answer_events == [
+        ("answer_delta", "Checking the library. "),
+        ("answer_reset", None),
+        ("answer_delta", "Restaurant parking requirements "),
+        ("answer_delta", "are in the cited passage. [C1]"),
+    ]
     assert all("<tool_call>" not in str(event.get("text", "")) for event in emitted)
 
 
@@ -863,9 +913,14 @@ def test_answer_action_falls_back_when_tools_unsupported(tmp_path, monkeypatch):
     def fake_chat(messages, config, tools=None, tool_choice="auto", on_delta=None):
         raise ToolsUnsupportedError("this model does not support tools")
 
-    def fake_generate(messages, config):
+    emitted: list[dict] = []
+
+    def fake_generate(messages, config, on_delta=None, cancel=None):
         assert "restaurant parking" in messages[-1]["content"]
         assert "[C1]" in messages[-1]["content"]
+        assert on_delta is not None
+        on_delta("Parking is covered ")
+        on_delta("in the cited passage. [C1]")
 
         class Result:
             answer = "Parking is covered in the cited passage. [C1]"
@@ -877,6 +932,7 @@ def test_answer_action_falls_back_when_tools_unsupported(tmp_path, monkeypatch):
 
     monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
     monkeypatch.setattr("vera_app.sidecar.generate", fake_generate)
+    monkeypatch.setattr("vera_app.sidecar._write_response", emitted.append)
 
     response = handle({"id": "1", "action": "answer", "path": str(out), "prompt": "restaurant parking", "llm": _llm_payload()})
 
@@ -885,6 +941,9 @@ def test_answer_action_falls_back_when_tools_unsupported(tmp_path, monkeypatch):
     assert result["answer_mode"] == "retrieval"
     assert result["answer"].endswith("[C1]")
     assert result["citations"][0]["id"] == "C1"
+    assert [
+        event["text"] for event in emitted if event.get("event") == "answer_delta"
+    ] == ["Parking is covered ", "in the cited passage. [C1]"]
 
 
 def _figures_mode_dir(tmp_path, max_figure_images=4):
@@ -956,6 +1015,9 @@ def test_answer_action_sends_figure_images_to_llm(tmp_path, monkeypatch):
     assert result["answer"].endswith("[C1]")
     # The response reports how many images actually reached the model.
     assert result["images_sent"] == 1
+    # Persisted citations retain figure metadata without duplicating image bytes.
+    assert result["citations"][0]["result"]["figures"]
+    assert "data_url" not in result["citations"][0]["result"]["figures"][0]
     # Trace must redact image bytes rather than embedding the raw data URL.
     request_trace = next(e for e in result["trace"] if e["event"] == "llm_request" and e["turn"] == 1)
     traced_image_parts = [

@@ -57,8 +57,9 @@ import {
   showInFolderLabel,
   type ExplorerSelection,
 } from './lib/formatting';
+import { figureCacheKey, mergeFigureData, sameSearchResult } from './lib/figures';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from './lib/providers';
-import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ConvertResult, ExportResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
+import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ConvertResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
 import './styles.css';
 
 type SideView = 'explorer' | 'chats' | 'convert';
@@ -223,6 +224,8 @@ function App() {
   const [sourceDocumentPath, setSourceDocumentPath] = useState('');
   const [libraryInfoPath, setLibraryInfoPath] = useState('');
   const sourceDocumentLoadRef = useRef(0);
+  const figureDataLoadRef = useRef(0);
+  const figureDataCache = useRef(new Map<string, FigureResult>());
   const [pageNumber, setPageNumber] = useState(1);
   const [pageResult, setPageResult] = useState<PageResult | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -1120,7 +1123,7 @@ function App() {
       context_chunks: contextChunks,
       include_regions: true,
       include_figures: includeFigures,
-      include_figure_data: includeFigures,
+      include_figure_data: false,
     }, 'Searching');
     if (result) {
       setSubmittedSearchQuery(searchQuery.trim());
@@ -1951,8 +1954,56 @@ function App() {
   }
 
   function selectSearchResult(result: SearchResult) {
-    setSelected(result);
     const resultPath = result.file || path;
+    const figureRequestId = ++figureDataLoadRef.current;
+    const cachedFigures: FigureResult[] = [];
+    for (const figure of result.figures || []) {
+      if (!figure.asset_id) continue;
+      if (figure.data_url) {
+        figureDataCache.current.set(
+          figureCacheKey(resultPath, figure.asset_id),
+          figure,
+        );
+        cachedFigures.push(figure);
+        continue;
+      }
+      const cached = figureDataCache.current.get(
+        figureCacheKey(resultPath, figure.asset_id),
+      );
+      if (cached) cachedFigures.push(cached);
+    }
+    const hydratedResult = mergeFigureData(result, cachedFigures);
+    setSelected(hydratedResult);
+    const missingAssetIds = (hydratedResult.figures || [])
+      .filter((figure) => figure.asset_id && !figure.data_url)
+      .map((figure) => figure.asset_id as string);
+    if (resultPath && missingAssetIds.length) {
+      void window.vera.request<FigureResult[]>({
+        action: 'figure_data',
+        path: resultPath,
+        asset_ids: missingAssetIds,
+      }).then((response) => {
+        if (!response.ok || figureRequestId !== figureDataLoadRef.current) return;
+        const loadedFigures = response.result || [];
+        for (const figure of loadedFigures) {
+          if (!figure.asset_id || !figure.data_url) continue;
+          figureDataCache.current.set(
+            figureCacheKey(resultPath, figure.asset_id),
+            figure,
+          );
+        }
+        setSelected((current) => (
+          current && sameSearchResult(current, result)
+            ? mergeFigureData(current, loadedFigures)
+            : current
+        ));
+        setResults((current) => current.map((entry) => (
+          sameSearchResult(entry, result)
+            ? mergeFigureData(entry, loadedFigures)
+            : entry
+        )));
+      }).catch(() => undefined);
+    }
     // Every selection supersedes earlier document requests, including a click
     // back to the document that is already visible while another load is pending.
     const requestId = ++sourceDocumentLoadRef.current;
