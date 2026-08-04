@@ -138,7 +138,7 @@ Applications with ready-made chunks can use `vera-doc` directly without
 installing PDF/OCR dependencies:
 
 ```bash
-python -m pip install "vera-doc>=0.2.3"
+python -m pip install "vera-doc>=0.2.4"
 ```
 
 ```python
@@ -167,7 +167,7 @@ PDF extraction and chunking live in the separate `vera-ingest` package and
 are composed by `vera convert`:
 
 ```bash
-python -m pip install "vera-cli>=0.2.3"
+python -m pip install "vera-cli>=0.2.4"
 ```
 
 ```bash

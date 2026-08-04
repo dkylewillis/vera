@@ -12,7 +12,7 @@ packages directly.
 From PyPI:
 
 ```bash
-python -m pip install "vera-cli>=0.2.3"
+python -m pip install "vera-cli>=0.2.4"
 ```
 
 From a repository checkout:
