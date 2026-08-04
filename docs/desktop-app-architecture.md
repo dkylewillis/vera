@@ -236,14 +236,28 @@ shipping multi‑MB base64 through the JSON-Lines IPC channel (which previously
 froze the UI on large PDFs).
 
 The renderer PDF viewer (PDF.js) defaults to fit-width zoom so pages fill the
-source pane without horizontal cropping, and also supports fit-page, page
-navigation (previous/next and an editable page field), discrete zoom steps with
-Ctrl/Cmd+wheel and standard zoom hotkeys, and viewport-preserving zoom so the
-visible page stays put when scale changes. Manual zoom is temporary: resizing
-the source pane (or window) snaps back to fit-width, while an explicit fit-page
-choice continues to reflow on resize. Pages render at device pixel ratio for
-sharper output on HiDPI displays. Citation passage and figure highlights can be
-toggled, with a compact color legend when both are present. The viewer chrome
+source pane without horizontal cropping. Clicking **Width** calculates the
+scale from the currently active page; that scale remains stable while scrolling
+through documents with mixed page sizes or orientations until the user clicks
+**Width** again. Pages that fit the viewport are horizontally centered, while
+oversized pages align to the left so their full width remains scrollable.
+The Width control is highlighted only when the currently active page is
+actually fit to the available width, so moving to a differently sized page
+clears the highlight until that page is refit.
+Resizing the pane refits the page that established the current fit-width scale.
+Fit-page accounts for both the widest and tallest pages. The
+viewer also supports page navigation (previous/next and an editable page field),
+discrete zoom steps with Ctrl/Cmd+wheel and standard zoom hotkeys, and
+viewport-preserving zoom so the visible page stays put when scale changes.
+Manual zoom is temporary: resizing the source pane (or window) snaps back to
+fit-width, while an explicit fit-page choice continues to reflow on resize.
+Pages render at device pixel ratio for sharper output on HiDPI displays.
+Citation passage and figure highlights can be
+toggled, with a compact color legend when both are present. The viewer header
+promotes the document basename (with the full path in a tooltip) instead of a
+static "Document Viewer" label, shows page range as a secondary line in chunk
+mode, and shortens mode tabs to View / Info below about 500px so the title
+stays readable in a narrow pane. The viewer chrome
 can hide the pane (keeping a right-edge toggle) or expand it by hiding chat so
 the document fills from the left sidebar to the window edge. Closing the open
 document clears its preview, selection, and highlights while leaving the viewer

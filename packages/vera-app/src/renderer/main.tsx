@@ -376,6 +376,52 @@ function App() {
     const source = selected.file || selected.source_filename || 'document';
     return `${source} · p. ${formatPages(selected.page_start, selected.page_end)}`;
   }, [selected]);
+  const viewerTitle = useMemo(() => {
+    if (viewerMode === 'info') {
+      if (viewerInfoIsCorpus) {
+        return {
+          primary: viewerInfoPath ? fileName(viewerInfoPath) : 'Library Info',
+          secondary: viewerInfoPath ? 'Library Info' : 'No library selected',
+          title: viewerInfoPath,
+        };
+      }
+      const pathOrName = viewerInfoPath || sourceDocument?.filename || '';
+      return {
+        primary: pathOrName ? fileName(pathOrName) : 'Document Info',
+        secondary: pathOrName ? 'Document Info' : 'No document loaded',
+        title: pathOrName,
+      };
+    }
+    if (selected && viewerMode === 'selection') {
+      const source = selected.file || selected.source_filename || sourceDocument?.filename || '';
+      return {
+        primary: source ? fileName(source) : 'Chunk Details',
+        secondary: `p. ${formatPages(selected.page_start, selected.page_end)}`,
+        title: citation,
+      };
+    }
+    const name = sourceDocument?.filename || sourceDocumentPath || '';
+    if (name) {
+      return {
+        primary: fileName(name),
+        secondary: null as string | null,
+        title: sourceDocumentPath || name,
+      };
+    }
+    return {
+      primary: 'Document Viewer',
+      secondary: 'No document loaded',
+      title: '',
+    };
+  }, [
+    citation,
+    selected,
+    sourceDocument?.filename,
+    sourceDocumentPath,
+    viewerInfoIsCorpus,
+    viewerInfoPath,
+    viewerMode,
+  ]);
   const selectedChunkIndex = useMemo(() => {
     if (!selected) return -1;
     const exactIndex = results.indexOf(selected);
@@ -3182,19 +3228,26 @@ function App() {
           <div className="viewerHeader">
             {!viewerCollapsed ? (
               <div className="viewerTitleGroup">
-                <h2>{viewerMode === 'info' ? viewerInfoIsCorpus ? 'Library Info' : 'Document Info' : selected && viewerMode === 'selection' ? 'Chunk Details' : 'Document Viewer'}</h2>
-                <span title={viewerMode === 'info' ? viewerInfoPath : selected ? citation : sourceDocument?.filename || ''}>
-                  {viewerMode === 'info' ? viewerInfoPath || 'No document loaded' : selected && viewerMode === 'selection' ? citation : sourceDocument?.filename || 'No document loaded'}
-                </span>
+                <h2 title={viewerTitle.title || undefined}>{viewerTitle.primary}</h2>
+                {viewerTitle.secondary ? (
+                  <span title={viewerTitle.title || undefined}>{viewerTitle.secondary}</span>
+                ) : null}
               </div>
             ) : null}
             <div className="viewerHeaderActions">
               {!viewerCollapsed && (selected || viewerInfoPath) ? (
                 <div className="viewerModeToggle">
                   {!viewerInfoIsCorpus ? (
-                    <button className={viewerMode === 'document' ? 'active' : ''} onClick={() => { setViewerMode('document'); if (!sourceDocument && selectedSourcePath) void loadSourceDocument(selectedSourcePath, false); }} title="Show document viewer">Viewer</button>
+                    <button className={viewerMode === 'document' ? 'active' : ''} onClick={() => { setViewerMode('document'); if (!sourceDocument && selectedSourcePath) void loadSourceDocument(selectedSourcePath, false); }} title="Show document viewer">
+                      <span className="viewerModeLabel viewerModeLabel--full">Viewer</span>
+                      <span className="viewerModeLabel viewerModeLabel--short">View</span>
+                    </button>
                   ) : null}
-                  {selected ? <button className={viewerMode === 'selection' ? 'active' : ''} onClick={() => setViewerMode('selection')} title="Show chunk details">Chunk</button> : null}
+                  {selected ? (
+                    <button className={viewerMode === 'selection' ? 'active' : ''} onClick={() => setViewerMode('selection')} title="Show chunk details">
+                      Chunk
+                    </button>
+                  ) : null}
                   <button
                     className={viewerMode === 'info' ? 'active' : ''}
                     onClick={() => {
@@ -3206,9 +3259,19 @@ function App() {
                         void inspectTarget(viewerInfoPath);
                       }
                     }}
-                    title={viewerInfoIsArchive ? 'Inspect VERA archive metadata' : 'Inspect document metadata'}
+                    title={viewerInfoIsArchive ? 'Inspect VERA archive metadata' : viewerInfoIsCorpus ? 'Inspect library metadata' : 'Inspect document metadata'}
                   >
-                    {viewerInfoIsCorpus ? 'Library Info' : 'Document Info'}
+                    {viewerInfoIsCorpus ? (
+                      <>
+                        <span className="viewerModeLabel viewerModeLabel--full">Library Info</span>
+                        <span className="viewerModeLabel viewerModeLabel--short">Info</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="viewerModeLabel viewerModeLabel--full">Document Info</span>
+                        <span className="viewerModeLabel viewerModeLabel--short">Info</span>
+                      </>
+                    )}
                   </button>
                 </div>
               ) : null}
