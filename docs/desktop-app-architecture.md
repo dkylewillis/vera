@@ -175,6 +175,11 @@ as tokens arrive. A small sidecar filter holds partial `<tool_call>` and
 any provisional prose with `answer_reset`; ordinary and final synthesis turns
 remain incrementally visible without exposing inline tool syntax.
 
+The optional LLM trace renders only explicit `search_start` and `search_done`
+events as retrieval activity. Token-level `answer_delta` and `answer_reset`
+events update the streamed answer but are omitted from the diagnostic trace.
+Completed traces retain the real search events shown during generation.
+
 Builds and updates run on a sidecar worker thread without using the app's global
 busy state, so document browsing, Search, and Ask remain available. The folder
 badge carries completion state instead of leaving a modal open. Request-scoped

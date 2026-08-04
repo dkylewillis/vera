@@ -81,12 +81,17 @@ export function TraceView({ events }: { events: StreamEvent[] }) {
             </details>
           );
         }
-        return (
-          <div className="traceEntry traceSearch" key={index}>
-            <span className={ev.event === 'search_done' ? 'traceBadge search done' : 'traceBadge search'}>{ev.event === 'search_done' ? 'search done' : 'searching'}</span>
-            <span className="traceMeta">{ev.query}{ev.event === 'search_done' ? ` · ${ev.mode}, ${ev.hits} hits` : ' …'}</span>
-          </div>
-        );
+        if (ev.event === 'search_start' || ev.event === 'search_done') {
+          return (
+            <div className="traceEntry traceSearch" key={index}>
+              <span className={ev.event === 'search_done' ? 'traceBadge search done' : 'traceBadge search'}>{ev.event === 'search_done' ? 'search done' : 'searching'}</span>
+              <span className="traceMeta">{ev.query}{ev.event === 'search_done' ? ` · ${ev.mode}, ${ev.hits} hits` : ' …'}</span>
+            </div>
+          );
+        }
+        // Streaming answer/reset and unrelated progress events update other UI;
+        // they are not diagnostic search operations.
+        return null;
       })}
     </div>
   );

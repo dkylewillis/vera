@@ -854,6 +854,11 @@ def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):
     assert result["citations"][0]["result"]["regions"]
     assert result["searches"][0]["query"] == "restaurant parking"
     assert result["llm"]["model"] == "test-model"
+    trace_events = [event["event"] for event in result["trace"]]
+    assert trace_events.count("search_start") == 1
+    assert trace_events.count("search_done") == 1
+    assert "answer_delta" not in trace_events
+    assert "answer_reset" not in trace_events
     answer_events = [
         (event.get("event"), event.get("text"))
         for event in emitted

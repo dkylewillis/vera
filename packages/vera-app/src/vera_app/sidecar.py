@@ -796,10 +796,19 @@ def _answer(
             if role in {"user", "assistant"} and content:
                 history.append({"role": role, "content": content})
 
+    # Collect a structured trace of every LLM request/response and search/tool
+    # call so the completed trace matches the events shown while answering.
+    trace: list[dict[str, Any]] = []
+
+    def record(entry: dict[str, Any]) -> None:
+        trace.append(entry)
+        if write_event:
+            write_event(entry)
+
     # Seed the citation labeller with ids already assigned in earlier turns so the
     # same chunk keeps its `[C#]` id across the whole session.
     label_registry, label_start = _prior_citation_labels(request)
-    tool = _SearchTool(request, mode, write_event=write_event, label_registry=label_registry, label_start=label_start)
+    tool = _SearchTool(request, mode, write_event=record, label_registry=label_registry, label_start=label_start)
     # Images the user attached to this message (via the composer's attach button
     # or drag-and-drop) ride along in the initial user message, alongside any
     # figure images the agent surfaces later while searching.
@@ -812,15 +821,6 @@ def _answer(
         *history,
         {"role": "user", "content": user_content},
     ]
-
-    # Collect a structured trace of every LLM request/response and tool call so the
-    # UI can show exactly what was sent to and received from the model.
-    trace: list[dict[str, Any]] = []
-
-    def record(entry: dict[str, Any]) -> None:
-        trace.append(entry)
-        if write_event:
-            write_event(entry)
 
     last_response: ChatResponse | None = None
     # Whether the active provider still appears to accept image content. Flipped
