@@ -37,12 +37,13 @@ _L2_NORMALIZATION_ATOL = 1e-6
 class EmbeddingFunction(Protocol):
     """Protocol for embedding functions used when writing records.
 
+    Implementations may also expose a ``normalization`` attribute
+    (``"l2"``, ``"none"``, or ``"unknown"``). Embedders without it are
+    recorded as ``"unknown"``.
+
     Attributes:
         model_name: Identifier stored in the archive metadata.
         dimension: Vector length expected by the database.
-        Implementations may also expose a ``normalization`` attribute
-        (``"l2"``, ``"none"``, or ``"unknown"``). Embedders without it are
-        recorded as ``"unknown"``.
     """
 
     model_name: str
