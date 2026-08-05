@@ -186,8 +186,6 @@ function App() {
   const [activeModel, setActiveModel] = useState('');
   const [modes, setModes] = useState<Mode[]>([]);
   const [activeModeId, setActiveModeId] = useState('');
-  const [embeddingModel, setEmbeddingModel] = useState('hashing');
-  const [embeddingProviders, setEmbeddingProviders] = useState<string[]>([]);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
@@ -1552,7 +1550,6 @@ function App() {
     setActiveProviderId(saved.active_provider_id);
     setActiveModel(saved.active_model || '');
     setActiveModeId(saved.active_mode_id || '');
-    setEmbeddingModel(saved.embedding_model || 'hashing');
     return saved;
   }
 
@@ -1562,33 +1559,14 @@ function App() {
     setActiveProviderId(saved.active_provider_id);
     setActiveModel(saved.active_model || '');
     setActiveModeId(saved.active_mode_id || '');
-    setEmbeddingModel(saved.embedding_model || 'hashing');
     return saved;
-  }
-
-  async function saveEmbeddingModel(model: string) {
-    const nextModel = model.trim() || 'hashing';
-    setEmbeddingModel(nextModel);
-    await persistSettings({
-      providers,
-      active_provider_id: activeProviderId,
-      active_model: activeModel,
-      active_mode_id: activeModeId,
-      embedding_model: nextModel,
-    });
   }
 
   async function selectActiveModel(providerId: string, model: string) {
     setModelPickerOpen(false);
     setActiveProviderId(providerId);
     setActiveModel(model);
-    await persistSettings({
-      providers,
-      active_provider_id: providerId,
-      active_model: model,
-      active_mode_id: activeModeId,
-      embedding_model: embeddingModel,
-    });
+    await persistSettings({ providers, active_provider_id: providerId, active_model: model, active_mode_id: activeModeId });
   }
 
   async function refreshProviderModels(providerId: string) {
@@ -1627,7 +1605,6 @@ function App() {
         active_provider_id: activeProviderId,
         active_model: nextActiveModel,
         active_mode_id: activeModeId,
-        embedding_model: embeddingModel,
       });
       setModelRefreshMessage(discovered.length
         ? `Found ${discovered.length} models from ${providerDisplayName(profile)}.`
@@ -1652,7 +1629,6 @@ function App() {
       active_provider_id: activeProviderId,
       active_model: nextActiveModel,
       active_mode_id: activeModeId,
-      embedding_model: embeddingModel,
     });
   }
 
@@ -1675,7 +1651,6 @@ function App() {
       active_provider_id: activeProviderId,
       active_model: activeModel,
       active_mode_id: activeModeId,
-      embedding_model: embeddingModel,
     });
   }
 
@@ -1693,18 +1668,12 @@ function App() {
     };
     window.addEventListener('keydown', cycleReasoning);
     return () => window.removeEventListener('keydown', cycleReasoning);
-  }, [activeProvider, activeModel, providers, activeProviderId, activeModeId, embeddingModel]);
+  }, [activeProvider, activeModel, providers, activeProviderId, activeModeId]);
 
   async function selectActiveMode(modeId: string) {
     setModePickerOpen(false);
     setActiveModeId(modeId);
-    await persistSettings({
-      providers,
-      active_provider_id: activeProviderId,
-      active_model: activeModel,
-      active_mode_id: modeId,
-      embedding_model: embeddingModel,
-    });
+    await persistSettings({ providers, active_provider_id: activeProviderId, active_model: activeModel, active_mode_id: modeId });
   }
 
   function updateConversionTask(
@@ -1869,7 +1838,7 @@ function App() {
           action: 'convert',
           input: pdfPath,
           output,
-          model: embeddingModel,
+          model: 'hashing',
           parser: 'pymupdf',
           chunk_size: chunkSize,
           overlap,
@@ -1946,7 +1915,7 @@ function App() {
             ? { paths: selectedPaths }
             : { directory, recursive: batchRecursive }),
           overwrite: batchOverwrite,
-          model: embeddingModel,
+          model: 'hashing',
           parser: 'pymupdf',
           chunk_size: chunkSize,
           overlap,
@@ -2157,15 +2126,6 @@ function App() {
       setActiveProviderId(saved.active_provider_id);
       setActiveModel(saved.active_model || '');
       setActiveModeId(saved.active_mode_id || '');
-      setEmbeddingModel(saved.embedding_model || 'hashing');
-    }
-    async function loadEmbeddingProviders() {
-      const response = await window.vera.request<{ providers: string[] }>({
-        action: 'list_embedding_providers',
-      });
-      if (!canceled && response.ok) {
-        setEmbeddingProviders(response.result?.providers ?? []);
-      }
     }
     async function loadSessions() {
       const saved = await window.vera.getSessions();
@@ -2215,7 +2175,6 @@ function App() {
       }
     }
     void loadSettings();
-    void loadEmbeddingProviders();
     void loadSessions();
     void loadFolders();
     return () => {
@@ -2726,28 +2685,7 @@ function App() {
                       <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Existing archives are skipped unless overwrite is enabled.</p>
                     </>
                   ) : null}
-                  <label className="field">
-                    <span>Embedding model</span>
-                    <input
-                      list="embedding-provider-specs"
-                      value={embeddingModel}
-                      onChange={(event) => setEmbeddingModel(event.target.value)}
-                      onBlur={() => void saveEmbeddingModel(embeddingModel)}
-                      placeholder="hashing or provider:model-id"
-                      disabled={conversionInProgress}
-                    />
-                    <datalist id="embedding-provider-specs">
-                      <option value="hashing" />
-                      <option value="hashing:vera-hashing-384" />
-                      {embeddingProviders.map((provider) => (
-                        <option key={provider} value={`${provider}:`} />
-                      ))}
-                    </datalist>
-                  </label>
-                  <p className="sideMuted">
-                    Use <code>provider:model-id</code> for plugins. The selected embedding model is independent
-                    of the chat model and is saved when this field loses focus.
-                  </p>
+                  <p className="sideMuted">Conversions use the PyMuPDF parser and local hashing embeddings.</p>
                   <div className="convertGrid">
                     <label className="miniField">
                       <span>Chunk Size</span>
@@ -3839,7 +3777,6 @@ function App() {
           activeProviderId={activeProviderId}
           activeModel={activeModel}
           activeModeId={activeModeId}
-          embeddingModel={embeddingModel}
           onPersist={persistSettings}
           onRefresh={refreshSettings}
           onClose={() => setSettingsOpen(false)}

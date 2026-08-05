@@ -23,9 +23,7 @@ python -m pip install ./packages/vera-doc
 
 Python 3.10 or newer is required. The default hashing embedder works locally
 without a model download or API key. Neural embeddings are available through
-the optional `ml` extra. Additional providers can be registered with
-`register_embedder` or discovered through the `vera.embedders` entry-point
-group; unknown model specs raise `UnknownEmbeddingModelError`.
+the optional `ml` extra.
 
 ## Start here
 

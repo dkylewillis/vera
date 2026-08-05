@@ -51,16 +51,11 @@ to stop both processes.
 
 Open a PDF from the app's Convert view to create a `.vera` archive, or use the
 native File menu to open an existing archive or document library.
-Desktop conversions use the supported PyMuPDF parser. The Convert view stores
-an independent embedding-model spec, defaulting to deterministic local
-`hashing`; it does not use the selected Chat model. Enter a
-`provider:model-id` spec such as `sentence-transformers:all-MiniLM-L6-v2` or
-`openai:text-embedding-3-small` after installing the provider in the Python
-environment used by the sidecar. Provider plugins appear as suggestions after
-the sidecar starts, and an unavailable provider produces the conversion error
-from the resolver. Conversion progress and the current filename appear in the
-footer status bar, so progress remains visible when you switch away from the
-Convert view.
+Desktop conversions use the supported PyMuPDF parser and deterministic
+local hashing embeddings. Use the CLI when you need a Sentence Transformers
+model or explicit OCR controls. Conversion progress and the current filename
+appear in the footer status bar, so progress remains visible when you switch
+away from the Convert view.
 
 Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,

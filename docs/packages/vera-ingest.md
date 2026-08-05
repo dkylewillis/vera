@@ -40,9 +40,6 @@ convert(
 )
 ```
 
-Pass `embedding_function=` for a custom embedder, or use a
-`provider:model-id` model spec resolved by `vera.get_embedder`.
-
 ## Concepts
 
 - **Extraction** identifies page text, layout blocks, headings, tables, images,
