@@ -14,7 +14,9 @@ from vera import (
     AttachmentRecord,
     AttachmentRef,
     ChunkRecord,
+    EmbeddingFunction,
     VeraDocument,
+    get_embedder,
 )
 from vera.core.validation import validate_document
 
@@ -94,6 +96,7 @@ def convert(
     output_path: str,
     *,
     model: str = "hashing",
+    embedding_function: EmbeddingFunction | None = None,
     parser: str = "pymupdf",
     chunk_size: int = 500,
     overlap: int = 75,
@@ -112,7 +115,12 @@ def convert(
     Args:
         input_path: Source PDF path.
         output_path: Destination ``.vera`` path.
-        model: Embedding model name (default ``"hashing"``).
+        model: Embedding model spec (default ``"hashing"``). Ignored when
+            ``embedding_function`` is provided. Accepts ``provider:model-id``
+            or built-in legacy aliases.
+        embedding_function: Optional custom embedder satisfying
+            :class:`~vera.EmbeddingFunction`. When omitted, ``model`` is
+            resolved via :func:`~vera.get_embedder` before parsing begins.
         parser: PDF parser backend (currently only ``"pymupdf"``).
         chunk_size: Target chunk size in characters.
         overlap: Character overlap between consecutive chunks.
@@ -128,6 +136,7 @@ def convert(
     Raises:
         FileNotFoundError: When ``input_path`` does not exist.
         ValueError: When no searchable text is extracted or the parser is unsupported.
+        UnknownEmbeddingModelError: When ``model`` cannot be resolved.
     """
     source = Path(input_path)
     target = Path(output_path)
@@ -135,6 +144,8 @@ def convert(
         raise FileNotFoundError(input_path)
     if parser != "pymupdf":
         raise ValueError("v0.1 currently supports parser='pymupdf'")
+
+    embedder = embedding_function if embedding_function is not None else get_embedder(model)
 
     _raise_if_cancelled(cancel)
     source_data = source.read_bytes()
@@ -311,7 +322,7 @@ def convert(
 
         document = VeraDocument.create(
             temporary,
-            model=model,
+            embedding_function=embedder,
             metadata=archive_metadata,
         )
         with document.transaction():
@@ -398,6 +409,7 @@ def batch_convert(
     recursive: bool = False,
     overwrite: bool = False,
     model: str = "hashing",
+    embedding_function: EmbeddingFunction | None = None,
     parser: str = "pymupdf",
     chunk_size: int = 500,
     overlap: int = 75,
@@ -416,7 +428,8 @@ def batch_convert(
             is skipped and ``recursive`` is ignored.
         recursive: When ``True``, scan subdirectories (directory mode only).
         overwrite: When ``True``, replace existing ``.vera`` outputs.
-        model: Embedding model name passed to :func:`convert`.
+        model: Embedding model spec passed to :func:`convert`.
+        embedding_function: Optional custom embedder passed to :func:`convert`.
         parser: PDF parser backend passed to :func:`convert`.
         chunk_size: Target chunk size passed to :func:`convert`.
         overlap: Chunk overlap passed to :func:`convert`.
@@ -436,7 +449,11 @@ def batch_convert(
         NotADirectoryError: When ``directory`` is not a directory.
         FileNotFoundError: When a path in ``paths`` is missing.
         ValueError: When neither ``directory`` nor ``paths`` is usable.
+        UnknownEmbeddingModelError: When ``model`` cannot be resolved.
     """
+    # Resolve once up front so a bad model fails before any PDF work.
+    embedder = embedding_function if embedding_function is not None else get_embedder(model)
+
     root, pdfs = _resolve_batch_pdfs(
         directory,
         paths=paths,
@@ -476,7 +493,7 @@ def batch_convert(
                 convert(
                     str(pdf),
                     str(output),
-                    model=model,
+                    embedding_function=embedder,
                     parser=parser,
                     chunk_size=chunk_size,
                     overlap=overlap,

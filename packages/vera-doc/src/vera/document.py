@@ -8,11 +8,16 @@ from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, Protocol, Sequence, cast
+from typing import Any, Literal, Sequence, cast
 
 import numpy as np
 
-from .core.embeddings import deserialize_vector, get_embedder, serialize_vector
+from .core.embeddings import (
+    EmbeddingFunction,
+    deserialize_vector,
+    get_embedder,
+    serialize_vector,
+)
 from .core.schema import FORMAT_VERSION, create_schema
 from .core.validation import validate_document
 from .models import (
@@ -32,33 +37,6 @@ EmbeddingNormalization = Literal["l2", "none", "unknown"]
 _EMBEDDING_NORMALIZATIONS = frozenset({"l2", "none", "unknown"})
 _L2_NORMALIZATION_RTOL = 1e-4
 _L2_NORMALIZATION_ATOL = 1e-6
-
-
-class EmbeddingFunction(Protocol):
-    """Protocol for embedding functions used when writing records.
-
-    Implementations may also expose a ``normalization`` attribute
-    (``"l2"``, ``"none"``, or ``"unknown"``). Embedders without it are
-    recorded as ``"unknown"``.
-
-    Attributes:
-        model_name: Identifier stored in the archive metadata.
-        dimension: Vector length expected by the database.
-    """
-
-    model_name: str
-    dimension: int
-
-    def embed(self, texts: list[str]) -> np.ndarray:
-        """Embed a batch of texts.
-
-        Args:
-            texts: Strings to embed.
-
-        Returns:
-            A 2-D array of shape ``(len(texts), dimension)``.
-        """
-        ...
 
 
 class DuplicateRecordError(ValueError):

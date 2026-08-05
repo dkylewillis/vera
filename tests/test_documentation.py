@@ -158,7 +158,7 @@ def test_hardening_json_contracts_are_documented():
     assert "only explicit `search_start` and `search_done`" in desktop_architecture
     assert "Token-level `answer_delta`" in desktop_architecture
     assert "PyMuPDF parser" in desktop
-    assert "local hashing embeddings" in desktop
+    assert "provider:model-id" in desktop
     assert "`attachment_metadata()`" in python_api
     assert "do not contain a `data` field" in python_api
     assert "allow_empty=True" in libraries

@@ -72,9 +72,10 @@ python -m pip install "vera-doc[ml]"
 The required Sentence Transformers model may also need to be available in the
 runtime environment. The default hashing model does not require this extra.
 
-An unrecognized model name falls back to hashing but is retained in
-archive metadata. If a custom name was used accidentally, reconvert with
-`--model hashing` or a supported Sentence Transformers name.
+An unrecognized model spec raises an error at convert time. Prefer
+`provider:model-id` (for example `hashing` or
+`sentence-transformers:all-MiniLM-L6-v2`), install any required provider plugin,
+or pass a custom `embedding_function` from Python.
 
 ## Validation fails because the original is missing
 
