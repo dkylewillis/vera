@@ -385,8 +385,6 @@ with VeraDocument.create("manual.vera") as document:
 
 ## Custom embeddings
 
-Pass any object that satisfies the `EmbeddingFunction` protocol:
-
 ```python
 import numpy as np
 
@@ -418,127 +416,6 @@ with VeraDocument.open(
 
 Callers may instead provide `ChunkRecord.vector` and search with a query
 vector.
-
-### Named providers and plugins
-
-Built-in model specs resolve through `get_embedder()`:
-
-| Spec | Provider |
-|------|----------|
-| `hashing` / `vera-hashing-384` / `hashing:vera-hashing-384` | Built-in hashing embedder |
-| `sentence-transformers:all-MiniLM-L6-v2` | Sentence Transformers (`ml` extra) |
-| `sentence-transformers/all-MiniLM-L6-v2` | Legacy alias for the same model |
-| `all-MiniLM-L6-v2` | Legacy alias for the same model |
-
-Unknown specs raise `UnknownEmbeddingModelError` (they no longer fall back to
-hashing).
-
-Register additional providers in-process:
-
-```python
-from vera import get_embedder, register_embedder
-
-
-def factory(model_id: str, **config):
-    return MyEmbedder()  # model_name / dimension / embed(...)
-
-
-register_embedder("example", factory)
-embedder = get_embedder("example:my-embedder")
-```
-
-Or ship a plugin that advertises an entry point in the `vera.embedders` group:
-
-```toml
-[project.entry-points."vera.embedders"]
-example = "my_package.embeddings:factory"
-```
-
-After `pip install`, `get_embedder("example:my-embedder")` resolves the factory
-with no changes to `vera-doc`.
-
-### OpenAI embedding plugin example
-
-VERA does not bundle hosted providers. This minimal third-party package adds an
-OpenAI provider:
-
-```toml
-# pyproject.toml
-[project]
-name = "vera-openai-embeddings"
-dependencies = ["openai>=1"]
-
-[project.entry-points."vera.embedders"]
-openai = "vera_openai_embeddings:factory"
-```
-
-```python
-# vera_openai_embeddings.py
-import os
-
-import numpy as np
-from openai import OpenAI
-
-
-class OpenAIEmbedder:
-    normalization = "l2"
-
-    def __init__(self, model_id: str, **config):
-        self.model_name = f"openai:{model_id}"
-        self._client = OpenAI(
-            api_key=config.get("api_key") or os.environ["OPENAI_API_KEY"]
-        )
-        self._model = model_id
-        self._batch_size = int(config.get("batch_size", 128))
-        self.dimension = len(self.embed(["dimension probe"])[0])
-
-    def embed(self, texts: list[str]) -> list[np.ndarray]:
-        vectors = []
-        for start in range(0, len(texts), self._batch_size):
-            response = self._client.embeddings.create(
-                model=self._model,
-                input=texts[start : start + self._batch_size],
-            )
-            vectors.extend(item.embedding for item in response.data)
-        normalized = []
-        for vector in vectors:
-            array = np.asarray(vector, dtype=np.float32)
-            norm = np.linalg.norm(array)
-            normalized.append(array / norm if norm else array)
-        return normalized
-
-
-def factory(model_id: str, **config):
-    return OpenAIEmbedder(model_id, **config)
-```
-
-After installing the plugin and setting `OPENAI_API_KEY`, use it from the CLI:
-
-```bash
-vera convert "manual.pdf" --model openai:text-embedding-3-small
-```
-
-Or pass provider-specific settings from Python:
-
-```python
-from vera import get_embedder
-from vera_ingest import convert
-
-embedder = get_embedder(
-    "openai:text-embedding-3-large",
-    batch_size=64,
-)
-convert("manual.pdf", "manual.vera", embedding_function=embedder)
-```
-
-### Claude applications
-
-Anthropic's Claude API does not provide an embeddings endpoint. Applications
-that use Claude to answer questions should use a separate embedding provider
-for retrieval, such as Voyage AI. A Voyage plugin follows the same
-`vera.embedders` pattern and can expose a model such as
-`voyage:voyage-3`; keep that full spec as the embedder's `model_name` so search
-can resolve the same provider later.
 
 ## Libraries of `.vera` files
 

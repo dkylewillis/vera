@@ -522,47 +522,10 @@ def test_sidecar_forwards_ocr_options_for_single_and_batch_conversion(monkeypatc
     assert captured["single"][2]["ocr_mode"] == "force"
     assert captured["single"][2]["ocr_language"] == "spa"
     assert captured["single"][2]["ocr_dpi"] == 240
-    assert captured["single"][2]["model"] == "hashing"
     assert batch["ok"] is True
     assert captured["batch"][1]["ocr_mode"] == "off"
     assert captured["batch"][1]["ocr_language"] == "deu"
     assert captured["batch"][1]["ocr_dpi"] == 200
-    assert captured["batch"][1]["model"] == "hashing"
-
-
-def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):
-    sidecar = importlib.import_module("vera_app.sidecar")
-    captured = {}
-
-    def fake_convert(input_path, output_path, **kwargs):
-        captured["model"] = kwargs["model"]
-        return output_path
-
-    monkeypatch.setattr(sidecar, "convert", fake_convert)
-    monkeypatch.setattr(
-        sidecar,
-        "list_embedding_providers",
-        lambda: ["hashing", "openai"],
-    )
-
-    converted = handle(
-        {
-            "id": "openai-convert",
-            "action": "convert",
-            "input": "manual.pdf",
-            "output": "manual.vera",
-            "model": "openai:text-embedding-3-small",
-        }
-    )
-    providers = handle({"id": "embedding-providers", "action": "list_embedding_providers"})
-
-    assert converted["ok"] is True
-    assert captured["model"] == "openai:text-embedding-3-small"
-    assert providers == {
-        "id": "embedding-providers",
-        "ok": True,
-        "result": {"providers": ["hashing", "openai"]},
-    }
 
 
 def test_source_action_materializes_cache_file(tmp_path):

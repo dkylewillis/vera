@@ -214,7 +214,6 @@ uv run --extra docs mkdocs serve
 - [Current VERA 0.2 format specification](docs/vera-spec-v0.2.md)
 - [Legacy VERA 0.1 format specification](docs/vera-spec-v0.1.md)
 - [Contributing and architecture](docs/architecture.md)
-- [Project roadmap](ROADMAP.md)
 
 ## Status and support
 

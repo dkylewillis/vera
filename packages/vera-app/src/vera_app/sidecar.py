@@ -18,7 +18,6 @@ from vera import (
     VeraDocument,
     build_library_index,
     library_index_status,
-    list_embedding_providers,
     update_library_index,
 )
 from vera.corpus import VeraCorpus
@@ -1325,11 +1324,6 @@ def _list_models(request: Request) -> dict[str, Any]:
     return {"models": models}
 
 
-def _list_embedding_providers(request: Request) -> dict[str, Any]:
-    """List registered embedding providers for the conversion settings UI."""
-    return {"providers": list_embedding_providers()}
-
-
 HANDLERS: dict[str, Handler] = {
     "ping": lambda request: {"status": "ok"},
     "inspect": _inspect,
@@ -1346,7 +1340,6 @@ HANDLERS: dict[str, Handler] = {
     "source": _source,
     "page": _page,
     "list_models": _list_models,
-    "list_embedding_providers": _list_embedding_providers,
     "list_modes": _list_modes,
 }
 

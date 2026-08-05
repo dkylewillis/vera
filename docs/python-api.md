@@ -226,10 +226,6 @@ convert(
 )
 ```
 
-`model` accepts `provider:model-id` specs (and legacy aliases). Pass
-`embedding_function=` instead when you already have an embedder object.
-Unknown model names raise `UnknownEmbeddingModelError` before parsing begins.
-
 `vera-ingest` parses and chunks the source, creates `ChunkRecord` objects and
 optional attachments, then writes them through `VeraDocument`.
 

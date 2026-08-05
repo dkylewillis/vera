@@ -149,8 +149,6 @@ export interface AppSettings {
   active_provider_id: string;
   active_model: string;
   active_mode_id: string;
-  /** Model spec used to embed converted documents, independent of chat models. */
-  embedding_model: string;
 }
 
 export interface CredentialResult {

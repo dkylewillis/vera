@@ -64,7 +64,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   active_provider_id: '',
   active_model: '',
   active_mode_id: '',
-  embedding_model: 'hashing',
 };
 
 // Serve materialized source PDFs without shipping base64 through JSON IPC.
@@ -408,9 +407,6 @@ function readSettings(): AppSettings {
       active_provider_id: typeof raw.active_provider_id === 'string' ? raw.active_provider_id : '',
       active_model: activeModel,
       active_mode_id: typeof raw.active_mode_id === 'string' ? raw.active_mode_id : '',
-    embedding_model: typeof raw.embedding_model === 'string' && raw.embedding_model.trim()
-      ? raw.embedding_model.trim()
-      : 'hashing',
     };
     return withRuntime(merged);
   } catch {
@@ -427,7 +423,6 @@ function writeSettings(settings: AppSettings): AppSettings {
     active_provider_id: settings.active_provider_id || '',
     active_model: settings.active_model || '',
     active_mode_id: settings.active_mode_id || '',
-    embedding_model: settings.embedding_model?.trim() || 'hashing',
   };
   const target = settingsPath();
   const temp = `${target}.tmp`;

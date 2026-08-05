@@ -105,51 +105,25 @@ The default model is `hashing`:
 vera convert "input.pdf" --model hashing
 ```
 
-It is deterministic, local, and requires no machine-learning package. Equivalent
-specs include `vera-hashing-384` and `hashing:vera-hashing-384`.
+It is deterministic, local, and requires no machine-learning package.
 
 For neural embeddings, install the optional dependency and name a
 Sentence Transformers model:
 
 ```bash
 python -m pip install "vera-cli>=0.2.4" "vera-doc[ml]>=0.2.4"
-vera convert "input.pdf" --model sentence-transformers:all-MiniLM-L6-v2
+vera convert "input.pdf" --model sentence-transformers/all-MiniLM-L6-v2
 ```
-
-Legacy slash-form names such as `sentence-transformers/all-MiniLM-L6-v2` and the
-bare alias `all-MiniLM-L6-v2` still work.
 
 The model name, vector dimension, and stored-vector normalization policy are
 recorded in the archive. Both built-in embedders use L2 normalization. Search
 uses the recorded model, so the `ml` extra must also be installed on machines
 that search an archive created with a Sentence Transformers model.
 
-Prefer `provider:model-id` specs. An unrecognized provider or model raises an
-error at convert time instead of silently falling back to hashing. Third-party
-plugins can register providers under the Python entry-point group
-`vera.embedders`. From Python, pass a custom `embedding_function` to
-`vera_ingest.convert` or call `vera.register_embedder`.
-
-### Hosted provider plugins
-
-VERA does not bundle hosted embedding providers. Install a plugin that
-registers the desired provider, then use its `provider:model-id` spec:
-
-```bash
-set OPENAI_API_KEY=...
-vera convert "input.pdf" --model openai:text-embedding-3-small
-```
-
-The plugin's embedder must record the full spec (for example,
-`openai:text-embedding-3-small`) as `model_name`, so later semantic searches
-load the matching provider. See the
-[OpenAI plugin example](../packages/vera-doc/README.md#openai-embedding-plugin-example)
-for a complete entry-point implementation.
-
-Claude is an LLM rather than an embedding provider: Anthropic's Claude API has
-no embeddings endpoint. A Claude application can use a separate provider such
-as Voyage AI for retrieval embeddings, exposed through a plugin spec like
-`voyage:voyage-3`.
+Use only `hashing`, `vera-hashing-384`, `all-MiniLM-L6-v2`, or a
+`sentence-transformers/...` name. An unrecognized model name falls
+back to hashing while retaining the requested name in metadata; that can make
+the archive difficult to query consistently on another machine.
 
 ## Chunking options
 
