@@ -1,9 +1,10 @@
 /*
  * VERA documentation theme
  *
- * Keeps Material's behavior and accessibility while borrowing the restrained
- * compact API presentation and symbol-rich navigation used by documentation
- * sites such as Docling, while retaining the VERA desktop app palette.
+ * Keeps Material's behavior and accessibility while borrowing Docling's API
+ * reference body layout: spelled-out kind labels in content, compact TOC
+ * badges, and nested member offsets — without blue object borders — while
+ * retaining the VERA desktop app palette.
  */
 
 :root {
@@ -101,7 +102,7 @@
   border-radius: var(--vera-radius);
 }
 
-.md-typeset .highlight {
+.md-typeset .highlight:not(.doc-signature) {
   border: 1px solid var(--vera-border-light);
   border-radius: var(--vera-radius);
   overflow: hidden;
@@ -125,59 +126,121 @@
   box-shadow: 0 0.15rem 0.45rem rgba(0, 0, 0, 0.1);
 }
 
-/* Make generated API objects easier to scan. */
+/* Nest members with a quiet left offset, like Docling's doc-contents rail. */
+.md-typeset div.doc-contents:not(.first) {
+  border-left: 0.05rem solid var(--md-code-bg-color);
+  margin-left: 0.4rem;
+  padding-left: 0.8rem;
+}
+
 .md-typeset .doc-object {
-  border-left: 0.15rem solid
-    color-mix(in srgb, var(--md-accent-fg-color) 72%, transparent);
   margin: 1.4rem 0;
-  padding-left: 1rem;
 }
 
 .md-typeset .doc-heading {
   scroll-margin-top: 6rem;
 }
 
+/*
+ * API signatures: Docling-like compact code rail.
+ * Wrap long signatures (avoids a horizontal scrollbar that inflates height),
+ * keep copy control chrome-free, and reserve room so the icon never covers text.
+ */
 .md-typeset .doc-signature {
-  background: var(--vera-surface-light);
-  border: 1px solid var(--vera-border-light);
-  border-radius: var(--vera-radius);
-  padding: 0.65rem 0.8rem;
+  background: var(--md-code-bg-color);
+  border-radius: 0.4rem;
+  margin: 0.6em 0;
+  padding: 0;
 }
 
-/* Compact API-kind badges in headings and the table of contents. */
-html body code.doc-symbol-module::after {
+.md-typeset .doc-signature pre {
+  margin: 0;
+}
+
+.md-typeset .doc-signature pre > code {
+  padding: 0.45em 2.6em 0.45em 0.85em;
+  white-space: pre-wrap;
+  overflow-x: hidden;
+}
+
+.md-typeset .doc-signature .md-code__nav {
+  background-color: transparent;
+  padding: 0;
+  right: 0.35em;
+  top: 0.35em;
+}
+
+.md-typeset .doc-signature:hover > .md-code__nav,
+.md-typeset .doc-signature pre:hover > .md-code__nav {
+  background-color: transparent;
+}
+
+/* Body: spell out kind labels. Sidebar/TOC: keep compact badges. */
+.md-content code.doc-symbol-module::after {
+  content: "module";
+}
+
+.md-content code.doc-symbol-class::after {
+  content: "class";
+}
+
+.md-content code.doc-symbol-attribute::after {
+  content: "attribute";
+}
+
+.md-content code.doc-symbol-method::after {
+  content: "method";
+}
+
+.md-content code.doc-symbol-function::after {
+  content: "function";
+}
+
+.md-content code.doc-symbol-parameter::after {
+  content: "param";
+}
+
+.md-content code.doc-symbol-type_parameter::after {
+  content: "type-param";
+}
+
+.md-content code.doc-symbol-type_alias::after {
+  content: "type";
+}
+
+.md-sidebar code.doc-symbol-module::after {
   content: "mod";
 }
 
-html body code.doc-symbol-class::after {
+.md-sidebar code.doc-symbol-class::after {
   content: "c";
 }
 
-html body code.doc-symbol-attribute::after {
+.md-sidebar code.doc-symbol-attribute::after {
   content: "a";
 }
 
-html body code.doc-symbol-method::after {
+.md-sidebar code.doc-symbol-method::after {
   content: "m";
 }
 
-html body code.doc-symbol-function::after {
+.md-sidebar code.doc-symbol-function::after {
   content: "f";
 }
 
-html body code.doc-symbol-parameter::after {
+.md-sidebar code.doc-symbol-parameter::after {
   content: "p";
 }
 
-html body code.doc-symbol-type_parameter::after {
-  content: "tp";
-}
-
-html body code.doc-symbol-type_alias::after {
+.md-sidebar code.doc-symbol-type_parameter::after {
   content: "t";
 }
 
-html body code.doc-symbol:not(.doc-symbol-module) {
+.md-sidebar code.doc-symbol-type_alias::after {
+  content: "t";
+}
+
+.md-sidebar code.doc-symbol:not(.doc-symbol-module) {
   min-width: 1.15rem;
   text-align: center;
 }
