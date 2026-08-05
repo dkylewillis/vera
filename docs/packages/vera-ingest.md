@@ -13,7 +13,7 @@ read those ingest conventions back out for CLI, MCP, and app consumers.
 From PyPI:
 
 ```bash
-python -m pip install "vera-ingest>=0.2.3"
+python -m pip install "vera-ingest>=0.2.4"
 ```
 
 `vera-ingest` may not yet be published to PyPI. If the install fails because the

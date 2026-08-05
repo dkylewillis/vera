@@ -1,6 +1,6 @@
 {
   "name": "@vera/app",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Desktop workspace for VERA documents",
   "author": "Kyle Willis",
   "private": true,

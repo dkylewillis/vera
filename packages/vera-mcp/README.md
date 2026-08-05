@@ -8,9 +8,9 @@ tools without owning retrieval implementation.
 ## Install
 
 ```bash
-python -m pip install "vera-mcp>=0.2.3"
+python -m pip install "vera-mcp>=0.2.4"
 # or
-python -m pip install "vera-cli[mcp]>=0.2.3"
+python -m pip install "vera-cli[mcp]>=0.2.4"
 ```
 
 See the [vera-mcp documentation](https://dkylewillis.github.io/vera/packages/vera-mcp/)
