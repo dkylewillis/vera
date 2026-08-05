@@ -31,7 +31,9 @@ Options:
 - `--model MODEL` (`hashing`; accepts `provider:model-id` specs such as
   `sentence-transformers:all-MiniLM-L6-v2`; unknown providers exit with an
   error)
-- `--parser PARSER` (`pymupdf`)
+- `--parser PARSER` (`pymupdf`; accepts `provider[:variant]` specs such as
+  `docling` / `docling:hybrid` when `vera-ingest-docling` is installed; unknown
+  providers exit with an error)
 - `--chunk-size N` (`500`)
 - `--overlap N` (`75`)
 - `--store-original VALUE` (`true`)

@@ -219,6 +219,7 @@ convert(
     "input.pdf",
     "output.vera",
     model="hashing",
+    parser="pymupdf",
     chunk_size=500,
     overlap=75,
     store_original=True,
@@ -229,9 +230,13 @@ convert(
 `model` accepts `provider:model-id` specs (and legacy aliases). Pass
 `embedding_function=` instead when you already have an embedder object.
 Unknown model names raise `UnknownEmbeddingModelError` before parsing begins.
+`parser` accepts ingest pipeline specs `provider[:variant]` (default
+`pymupdf`). Optional plugins such as `vera-ingest-docling` register additional
+providers; unknown pipelines raise `UnknownIngestPipelineError`.
 
-`vera-ingest` parses and chunks the source, creates `ChunkRecord` objects and
-optional attachments, then writes them through `VeraDocument`.
+`vera-ingest` resolves the pipeline and embedder, parses and chunks the source,
+creates `ChunkRecord` objects and optional attachments, then writes them through
+`VeraDocument`.
 
 ## Corpus and library indexes
 

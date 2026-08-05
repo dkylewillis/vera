@@ -51,7 +51,11 @@ to stop both processes.
 
 Open a PDF from the app's Convert view to create a `.vera` archive, or use the
 native File menu to open an existing archive or document library.
-Desktop conversions use the supported PyMuPDF parser. The Convert view stores
+Desktop conversions default to the built-in PyMuPDF ingest pipeline. The Convert
+view lists pipelines installed in the sidecar Python environment and persists
+the selected `ingest_pipeline`. Packaged releases do not install optional
+plugins such as Docling; source-run environments can enable Docling with
+`uv sync --extra docling`. The Convert view also stores
 an independent embedding-model spec, defaulting to deterministic local
 `hashing`; it does not use the selected Chat model. Enter a
 `provider:model-id` spec such as `sentence-transformers:all-MiniLM-L6-v2` or

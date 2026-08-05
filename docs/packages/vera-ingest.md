@@ -52,8 +52,11 @@ Pass `embedding_function=` for a custom embedder, or use a
 - **Chunking** produces page-bounded text records with citation metadata.
 - **Atomic conversion** validates a temporary archive before publishing it.
 
-The package currently supports the `pymupdf` parser. OCR is designed for
-scanned prose; it does not reconstruct complex scanned forms or tables.
+Built-in conversion uses the `pymupdf` ingest pipeline. Additional pipelines
+register through the `vera.ingest_pipelines` entry-point group; the optional
+[`vera-ingest-docling`](vera-ingest-docling.md) package provides Docling's
+hybrid chunker. OCR in the built-in pipeline is designed for scanned prose and
+does not reconstruct complex scanned forms or tables.
 
 ## Documentation
 
@@ -66,4 +69,4 @@ scanned prose; it does not reconstruct complex scanned forms or tables.
 ## API reference
 
 - [`vera_ingest`](../reference/vera-ingest.md) — curated public conversion,
-  parser, page, block, and chunking interfaces.
+  ingest-pipeline registry, parser, page, block, and chunking interfaces.

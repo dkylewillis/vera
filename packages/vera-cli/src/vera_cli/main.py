@@ -48,7 +48,15 @@ def build_parser() -> argparse.ArgumentParser:
             "Unknown providers exit with an error."
         ),
     )
-    convert_p.add_argument("--parser", default="pymupdf")
+    convert_p.add_argument(
+        "--parser",
+        default="pymupdf",
+        help=(
+            "Ingest pipeline spec: provider[:variant] "
+            "(default pymupdf; optional docling or docling:hybrid when "
+            "vera-ingest-docling is installed). Unknown providers exit with an error."
+        ),
+    )
     convert_p.add_argument("--chunk-size", type=int, default=500)
     convert_p.add_argument("--overlap", type=int, default=75)
     convert_p.add_argument("--store-original", default="true")

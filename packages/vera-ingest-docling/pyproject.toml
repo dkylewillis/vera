@@ -1,0 +1,34 @@
+[project]
+name = "vera-ingest-docling"
+version = "0.2.4"
+description = "Optional Docling HybridChunker ingest pipeline for VERA"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "vera-ingest>=0.2.4",
+  "docling>=2.118,<2.119",
+]
+authors = [{name = "Kyle Willis"}]
+license = {text = "Apache-2.0"}
+keywords = ["docling", "pdf", "chunking", "semantic-search", "vera"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Text Processing :: Indexing",
+]
+
+[project.urls]
+Homepage = "https://github.com/dkylewillis/vera"
+Repository = "https://github.com/dkylewillis/vera"
+Documentation = "https://dkylewillis.github.io/vera/packages/vera-ingest-docling/"
+
+[project.entry-points."vera.ingest_pipelines"]
+docling = "vera_ingest_docling:create_pipeline"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vera_ingest_docling"]

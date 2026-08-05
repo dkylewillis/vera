@@ -12,6 +12,7 @@ Published on PyPI:
 |---------|------------------|------|
 | [`vera-doc`](https://pypi.org/project/vera-doc/) | `import vera` | Storage and search |
 | [`vera-ingest`](https://pypi.org/project/vera-ingest/) | `import vera_ingest` | PDF ingest and conversion |
+| [`vera-ingest-docling`](https://pypi.org/project/vera-ingest-docling/) | `import vera_ingest_docling` | Optional Docling ingest pipeline |
 | [`vera-cli`](https://pypi.org/project/vera-cli/) | `vera` | CLI and evaluation |
 | [`vera-mcp`](https://pypi.org/project/vera-mcp/) | `vera mcp` | MCP adapter |
 
@@ -31,9 +32,16 @@ desktop, or evaluation modules.
 ## `vera-ingest`
 
 Publishes `vera_ingest` and depends on `vera-doc`. Owns PDF parsing, OCR,
-tables, heading detection, chunking, conversion, and ingest-produced viewer
-helpers. It emits ready-made `ChunkRecord` objects and optional opaque
-attachments.
+tables, heading detection, chunking, conversion, the ingest-pipeline registry,
+and ingest-produced viewer helpers. It emits ready-made `ChunkRecord` objects
+and optional opaque attachments. Built-in conversion uses the `pymupdf`
+pipeline; additional providers register through `vera.ingest_pipelines`.
+
+## `vera-ingest-docling`
+
+Optional plugin that depends on `vera-ingest` and Docling. Registers the
+`docling` / `docling:hybrid` ingest pipeline. It is not part of the base
+dependency set and is not bundled into packaged desktop releases.
 
 ## `vera-cli`
 
@@ -55,10 +63,10 @@ Owns the Electron/React desktop app and Python sidecar. Depends directly on
 ## Dependency direction
 
 ```text
-vera-ingest ─┐
-vera-cli ─────┼──> vera-doc
-vera-app ─────┤
-vera-mcp ─────┘
+vera-ingest-docling ──> vera-ingest ─┐
+vera-cli ─────────────────────────────┼──> vera-doc
+vera-app ─────────────────────────────┤
+vera-mcp ─────────────────────────────┘
 ```
 
 The uv workspace provides editable development links. Released packages use

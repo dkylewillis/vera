@@ -7,7 +7,8 @@ from pathlib import Path
 from vera.collection import build_library_index, library_index_status, update_library_index
 from vera.corpus import VeraCorpus
 from vera.document import VeraDocument
-from vera_ingest import batch_convert, convert
+from vera import UnknownEmbeddingModelError
+from vera_ingest import UnknownIngestPipelineError, batch_convert, convert
 from vera_ingest.viewer import (
     export_source_document,
     figures_for,
@@ -41,14 +42,48 @@ def _result_payload(result) -> dict:
 
 def cmd_convert(args) -> int:
     input_path = Path(args.input)
-    if input_path.is_dir():
-        if args.output:
-            print("Directory conversion creates each .vera beside its PDF; do not provide an output path.", file=sys.stderr)
-            return 2
-        report = batch_convert(
+    try:
+        if input_path.is_dir():
+            if args.output:
+                print(
+                    "Directory conversion creates each .vera beside its PDF; "
+                    "do not provide an output path.",
+                    file=sys.stderr,
+                )
+                return 2
+            report = batch_convert(
+                args.input,
+                recursive=args.recursive,
+                overwrite=args.overwrite,
+                model=args.model,
+                parser=args.parser,
+                chunk_size=args.chunk_size,
+                overlap=args.overlap,
+                store_original=str_to_bool(args.store_original),
+                ocr_mode=args.ocr_mode,
+                ocr_language=args.ocr_language,
+                ocr_dpi=args.ocr_dpi,
+            )
+            unsuccessful = report["failed"] + report["malformed"]
+            if args.json:
+                print(json.dumps({"ok": unsuccessful == 0, **report}))
+            else:
+                print(
+                    f"Found {report['discovered']} PDFs: {report['converted']} converted, "
+                    f"{report['skipped']} skipped, {report['malformed']} malformed, "
+                    f"{report['failed']} failed"
+                )
+                for entry in report["malformed_existing"]:
+                    issues = "; ".join(entry["issues"])
+                    print(f"Malformed {entry['output']}: {issues}", file=sys.stderr)
+                for entry in report["errors"]:
+                    print(f"Failed {entry['input']}: {entry['error']}", file=sys.stderr)
+            return 1 if unsuccessful else 0
+
+        output = args.output or str(input_path.with_suffix(".vera"))
+        path = convert(
             args.input,
-            recursive=args.recursive,
-            overwrite=args.overwrite,
+            output,
             model=args.model,
             parser=args.parser,
             chunk_size=args.chunk_size,
@@ -58,35 +93,12 @@ def cmd_convert(args) -> int:
             ocr_language=args.ocr_language,
             ocr_dpi=args.ocr_dpi,
         )
-        unsuccessful = report["failed"] + report["malformed"]
+    except (UnknownIngestPipelineError, UnknownEmbeddingModelError) as exc:
         if args.json:
-            print(json.dumps({"ok": unsuccessful == 0, **report}))
+            print(json.dumps({"ok": False, "error": str(exc)}))
         else:
-            print(
-                f"Found {report['discovered']} PDFs: {report['converted']} converted, "
-                f"{report['skipped']} skipped, {report['malformed']} malformed, "
-                f"{report['failed']} failed"
-            )
-            for entry in report["malformed_existing"]:
-                issues = "; ".join(entry["issues"])
-                print(f"Malformed {entry['output']}: {issues}", file=sys.stderr)
-            for entry in report["errors"]:
-                print(f"Failed {entry['input']}: {entry['error']}", file=sys.stderr)
-        return 1 if unsuccessful else 0
-
-    output = args.output or str(input_path.with_suffix(".vera"))
-    path = convert(
-        args.input,
-        output,
-        model=args.model,
-        parser=args.parser,
-        chunk_size=args.chunk_size,
-        overlap=args.overlap,
-        store_original=str_to_bool(args.store_original),
-        ocr_mode=args.ocr_mode,
-        ocr_language=args.ocr_language,
-        ocr_dpi=args.ocr_dpi,
-    )
+            print(str(exc), file=sys.stderr)
+        return 2
     if args.json:
         print(json.dumps({"ok": True, "output": str(path)}))
     else:

@@ -18,6 +18,7 @@ dev = ["pytest>=8", "reportlab>=4", "vera-mcp"]
 ml = ["sentence-transformers>=2.7"]
 app = ["vera-app"]
 mcp = ["vera-mcp"]
+docling = ["vera-ingest-docling"]
 docs = [
   "mkdocs>=1.6",
   "mkdocs-material>=9.5",
@@ -31,6 +32,7 @@ sidecar = ["pyinstaller>=6"]
 members = [
   "packages/vera-doc",
   "packages/vera-ingest",
+  "packages/vera-ingest-docling",
   "packages/vera-mcp",
   "packages/vera-cli",
   "packages/vera-app",
@@ -39,6 +41,7 @@ members = [
 [tool.uv.sources]
 vera-doc = { workspace = true }
 vera-ingest = { workspace = true }
+vera-ingest-docling = { workspace = true }
 vera-mcp = { workspace = true }
 vera-cli = { workspace = true }
 vera-app = { workspace = true }
@@ -54,9 +57,14 @@ bypass-selection = true
 pythonpath = [
   "packages/vera-doc/src",
   "packages/vera-ingest/src",
+  "packages/vera-ingest-docling/src",
   "packages/vera-mcp/src",
   "packages/vera-cli/src",
   "packages/vera-app/src",
 ]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+  "docling: offline Docling ingest pipeline tests (requires vera-ingest-docling)",
+  "docling_integration: optional live Docling conversion with local models",
+]

@@ -23,3 +23,22 @@ jobs:
 
       - name: Run tests
         run: uv run --extra dev pytest -q
+
+  docling:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install optional Docling pipeline
+        run: uv sync --extra dev --extra docling
+
+      - name: Run Docling pipeline tests
+        env:
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: uv run --extra dev --extra docling pytest -q -m "docling and not docling_integration"

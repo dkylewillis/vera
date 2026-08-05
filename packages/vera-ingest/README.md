@@ -1,7 +1,13 @@
 # vera-ingest
 
-`vera-ingest` contains VERA's source ingestion pipeline: PDF parsing, table
-extraction, selective OCR, heading detection, chunking, and conversion.
+`vera-ingest` contains VERA's source ingestion stack: PDF parsing, table
+extraction, selective OCR, heading detection, chunking, conversion, and a
+strict ingest-pipeline registry.
+
+Built-in conversion uses the `pymupdf` pipeline. Additional providers register
+through the `vera.ingest_pipelines` entry-point group (for example the optional
+`vera-ingest-docling` package). Pipelines return a normalized `IngestResult`;
+`convert()` writes validated archives through one shared atomic path.
 
 It emits ready-made `vera.ChunkRecord` values and optional opaque attachments,
 then stores them through `vera.VeraDocument`. It also provides

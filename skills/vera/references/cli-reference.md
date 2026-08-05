@@ -29,7 +29,10 @@ Options:
   (`hashing`, `vera-hashing-384`, `all-MiniLM-L6-v2`,
   `sentence-transformers/...`). Unknown providers raise and the command
   exits non-zero instead of silently falling back to hashing.
-- `--parser PARSER` defaults to `pymupdf`.
+- `--parser PARSER` defaults to `pymupdf`. Accepts ingest pipeline specs
+  `provider[:variant]` (for example `docling` or `docling:hybrid` when
+  `vera-ingest-docling` is installed). Unknown providers exit with a non-zero
+  status and an install-the-plugin message; there is no silent fallback.
 - `--chunk-size N` defaults to `500`.
 - `--overlap N` defaults to `75`.
 - `--store-original VALUE` defaults to `true`. Values `1`, `true`, `yes`, `y`,

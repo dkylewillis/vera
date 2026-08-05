@@ -62,9 +62,40 @@ schema or normative behavior.
 - [ ] Verify provider availability in packaged sidecar builds.
 - [ ] Add release tests that convert and search with every bundled provider.
 
-## Future — Managed third-party plugins
+## VERA 0.3 — Extensible ingestion pipelines
 
-- [ ] Create a plugin runtime separate from the frozen desktop sidecar.
+### Pipeline foundation
+
+- [x] Define a normalized ingest contract (`IngestResult`) consumed by one
+  shared archive writer.
+- [x] Add a strict ingest-pipeline registry with `provider[:variant]` specs.
+- [x] Discover plugins through the `vera.ingest_pipelines` entry-point group.
+- [x] Keep the compatible built-in `pymupdf` pipeline as the default.
+- [x] Reject unknown pipeline names instead of falling back to PyMuPDF.
+
+### Optional Docling plugin
+
+- [x] Ship `vera-ingest-docling` with Docling conversion and HybridChunker.
+- [x] Map OCR modes, tables, figures, provenance, and contextualized
+  embedding text.
+- [x] Reject Docling partial-success/failure results in the first release.
+- [x] Document first-run model downloads and `DOCLING_ARTIFACTS_PATH`.
+- [ ] Evaluate Docling quality against representative corpora and decide
+  default-vs-optional packaging guidance.
+
+### CLI and source-run desktop
+
+- [x] Expose pipeline selection through `vera convert --parser`.
+- [x] List installed pipelines from the desktop sidecar.
+- [x] Persist Convert-view `ingest_pipeline` settings for source-run apps.
+- [x] Keep packaged-app plugin installation explicitly unsupported for now.
+
+### Future packaged-app plugin runtime
+
+- [ ] Create a plugin runtime separate from the frozen desktop sidecar for
+  ingest pipelines (and embedding providers).
+- [ ] Decide how Docling/Torch/model artifacts are distributed without
+  bloating the base installer.
 - [ ] Let users install, update, enable, disable, and remove plugins from the
   application.
 - [ ] Keep plugins across application upgrades.
@@ -80,7 +111,7 @@ should not require users to locate Python, manage a virtual environment, or run
 
 - Requiring a user-managed Python installation for normal desktop use.
 - Treating an answer model such as Claude as an embedding model.
-- Silently falling back to a different embedding model.
+- Silently falling back to a different embedding model or ingest pipeline.
 - Bundling large machine-learning runtimes in the base installer without a
   clear opt-in and distribution plan.
 

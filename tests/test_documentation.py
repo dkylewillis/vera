@@ -157,7 +157,9 @@ def test_hardening_json_contracts_are_documented():
     assert "loads image previews" in desktop
     assert "only explicit `search_start` and `search_done`" in desktop_architecture
     assert "Token-level `answer_delta`" in desktop_architecture
-    assert "PyMuPDF parser" in desktop
+    assert "PyMuPDF ingest pipeline" in desktop
+    assert "ingest_pipeline" in desktop
+    assert "vera-ingest-docling" in conversion or "docling:hybrid" in conversion
     assert "provider:model-id" in desktop
     assert "`attachment_metadata()`" in python_api
     assert "do not contain a `data` field" in python_api

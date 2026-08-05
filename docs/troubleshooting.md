@@ -160,13 +160,21 @@ temporary output.
 
 ## Conversion fails for a parser name
 
-`vera-ingest` supports:
+`--parser` must name an installed ingest pipeline (`provider[:variant]`). The
+built-in provider is `pymupdf`:
 
 ```bash
 vera convert "input.pdf" --parser pymupdf
 ```
 
-Other parser names are not currently implemented.
+For Docling, install the optional plugin first:
+
+```bash
+uv sync --extra docling
+vera convert "input.pdf" --parser docling
+```
+
+Unknown names fail before parsing and never fall back to another pipeline.
 
 ## Figures are missing or have no caption
 

@@ -108,6 +108,7 @@ export function ProviderManager({
   activeModel,
   activeModeId,
   embeddingModel,
+  ingestPipeline,
   onPersist,
   onRefresh,
   onClose,
@@ -117,6 +118,7 @@ export function ProviderManager({
   activeModel: string;
   activeModeId: string;
   embeddingModel: string;
+  ingestPipeline: string;
   onPersist: (next: AppSettings) => Promise<AppSettings>;
   onRefresh: () => Promise<AppSettings>;
   onClose: () => void;
@@ -159,6 +161,7 @@ export function ProviderManager({
       active_model: nextActiveModel,
       active_mode_id: overrides?.active_mode_id ?? activeModeId,
       embedding_model: overrides?.embedding_model ?? embeddingModel,
+      ingest_pipeline: overrides?.ingest_pipeline ?? ingestPipeline,
     };
   }
 

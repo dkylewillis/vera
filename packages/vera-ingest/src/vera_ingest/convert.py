@@ -6,8 +6,8 @@ import mimetypes
 import os
 import sqlite3
 import tempfile
-from pathlib import Path
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Any
 
 from vera import (
@@ -20,8 +20,9 @@ from vera import (
 )
 from vera.core.validation import validate_document
 
-from .chunking import build_chunks_from_blocks
-from .parsers import ParsedBlock, parse_pdf_structured
+from .parsers import parse_pdf_structured  # noqa: F401 - legacy monkeypatch surface
+from .pipeline import get_ingest_pipeline, parse_ingest_pipeline_spec
+from .types import IngestBlock, IngestOptions, IngestResult
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -40,28 +41,6 @@ def _validate_output(path: Path) -> dict[str, Any]:
         return {"ok": False, "issues": [f"Unable to validate VERA database: {exc}"]}
 
     return report
-
-
-def _drop_repeated_images(
-    block_records: list[tuple[str, ParsedBlock]],
-) -> list[tuple[str, ParsedBlock]]:
-    """Keep only the first occurrence of each distinct image in the document.
-
-    A logo or letterhead mark repeated on every page would otherwise be stored
-    (and surfaced as a "figure") once per page. Keeping just the first
-    occurrence avoids that storage bloat and search-result noise while still
-    preserving genuinely distinct images.
-    """
-    seen_hashes: set[str] = set()
-    kept: list[tuple[str, ParsedBlock]] = []
-    for block_id, block in block_records:
-        if block.block_type == "image" and block.image_bytes:
-            image_hash = _sha256_bytes(block.image_bytes)
-            if image_hash in seen_hashes:
-                continue
-            seen_hashes.add(image_hash)
-        kept.append((block_id, block))
-    return kept
 
 
 def _raise_if_cancelled(cancel: Any | None) -> None:
@@ -89,6 +68,29 @@ def _consume_user_skip(cancel: Any | None, exc: BaseException) -> bool:
     if callable(clear):
         clear()
     return True
+
+
+def _validate_ingest_result(result: IngestResult) -> None:
+    block_ids = [block.block_id for block in result.blocks]
+    chunk_ids = [chunk.chunk_id for chunk in result.chunks]
+    if any(not block_id.strip() for block_id in block_ids):
+        raise ValueError("Ingest pipeline produced an empty block ID")
+    if len(block_ids) != len(set(block_ids)):
+        raise ValueError("Ingest pipeline produced duplicate block IDs")
+    if any(not chunk_id.strip() for chunk_id in chunk_ids):
+        raise ValueError("Ingest pipeline produced an empty chunk ID")
+    if len(chunk_ids) != len(set(chunk_ids)):
+        raise ValueError("Ingest pipeline produced duplicate chunk IDs")
+    known_blocks = set(block_ids)
+    for chunk in result.chunks:
+        unknown = set(chunk.block_ids) - known_blocks
+        if unknown:
+            names = ", ".join(sorted(unknown))
+            raise ValueError(
+                f"Ingest chunk {chunk.chunk_id!r} references unknown block IDs: {names}"
+            )
+        if not chunk.text.strip():
+            raise ValueError(f"Ingest chunk {chunk.chunk_id!r} has no readable text")
 
 
 def convert(
@@ -121,7 +123,7 @@ def convert(
         embedding_function: Optional custom embedder satisfying
             :class:`~vera.EmbeddingFunction`. When omitted, ``model`` is
             resolved via :func:`~vera.get_embedder` before parsing begins.
-        parser: PDF parser backend (currently only ``"pymupdf"``).
+        parser: Ingest pipeline spec in ``provider[:variant]`` form.
         chunk_size: Target chunk size in characters.
         overlap: Character overlap between consecutive chunks.
         store_original: When ``True``, embed the original PDF as an attachment.
@@ -135,37 +137,42 @@ def convert(
 
     Raises:
         FileNotFoundError: When ``input_path`` does not exist.
-        ValueError: When no searchable text is extracted or the parser is unsupported.
+        ValueError: When no searchable text is extracted.
+        UnknownIngestPipelineError: When ``parser`` cannot be resolved.
         UnknownEmbeddingModelError: When ``model`` cannot be resolved.
     """
     source = Path(input_path)
     target = Path(output_path)
     if not source.exists():
         raise FileNotFoundError(input_path)
-    if parser != "pymupdf":
-        raise ValueError("v0.1 currently supports parser='pymupdf'")
 
+    _, pipeline_variant = parse_ingest_pipeline_spec(parser)
+    pipeline = get_ingest_pipeline(parser)
     embedder = embedding_function if embedding_function is not None else get_embedder(model)
 
     _raise_if_cancelled(cancel)
     source_data = source.read_bytes()
     source_hash = _sha256_bytes(source_data)
     mime_type = mimetypes.guess_type(source.name)[0] or "application/pdf"
-    parse_diagnostics: dict[str, Any] = {}
-    pages, parsed_blocks = parse_pdf_structured(
+    ingest_result = pipeline.ingest(
         str(source),
-        ocr_mode=ocr_mode,
-        ocr_language=ocr_language,
-        ocr_dpi=ocr_dpi,
-        diagnostics=parse_diagnostics,
-        cancel=cancel,
+        IngestOptions(
+            chunk_size=chunk_size,
+            overlap=overlap,
+            ocr_mode=ocr_mode,
+            ocr_language=ocr_language,
+            ocr_dpi=ocr_dpi,
+            variant=pipeline_variant,
+            cancel=cancel,
+        ),
     )
     _raise_if_cancelled(cancel)
-    block_records: list[tuple[str, ParsedBlock]] = [
-        (f"block_{idx:06d}", block) for idx, block in enumerate(parsed_blocks, start=1)
+    _validate_ingest_result(ingest_result)
+    pages = ingest_result.pages
+    block_records: list[tuple[str, IngestBlock]] = [
+        (block.block_id, block) for block in ingest_result.blocks
     ]
-    block_records = _drop_repeated_images(block_records)
-    chunks = build_chunks_from_blocks(block_records, chunk_size=chunk_size, overlap=overlap)
+    chunks = ingest_result.chunks
     if not chunks:
         raise ValueError(
             "No searchable text or chunks were extracted; "
@@ -263,37 +270,60 @@ def convert(
             "source_file_name": source.name,
             "source_file_hash": source_hash,
             "source_mime_type": mime_type,
-            "chunking_strategy": f"heading_block_sliding_window:{chunk_size}:{overlap}",
-            "parser_name": parser,
-            "parser_version": "pymupdf",
-            "ocr": parse_diagnostics,
+            "chunking_strategy": ingest_result.chunking_strategy,
+            "parser_name": ingest_result.parser_name,
+            "parser_version": ingest_result.parser_version,
+            "ocr": ingest_result.diagnostics,
             "page_count": len(pages),
             "viewer_pages_attachment_id": "viewer_pages",
             "viewer_blocks_attachment_id": "viewer_blocks",
             "source_attachment_id": source_attachment_id,
         }
+        contextualized_indices = [
+            index
+            for index, chunk in enumerate(chunks)
+            if chunk.embedding_text is not None
+        ]
+        contextualized_vectors: dict[int, Any] = {}
+        if contextualized_indices:
+            vectors = embedder.embed(
+                [chunks[index].embedding_text or "" for index in contextualized_indices]
+            )
+            contextualized_vectors = dict(zip(contextualized_indices, vectors))
+            _raise_if_cancelled(cancel)
         records: list[ChunkRecord] = []
-        for index, chunk in enumerate(chunks, start=1):
+        for index, chunk in enumerate(chunks):
             regions = []
             references: list[AttachmentRef] = []
             for block_id in chunk.block_ids:
                 block = block_lookup.get(block_id)
                 if block is None:
                     continue
-                width, height = page_dimensions.get(
-                    block.page_number,
-                    (None, None),
-                )
-                if block.bbox and block.block_type != "image":
-                    regions.append(
-                        {
-                            "block_id": block_id,
-                            "page_number": block.page_number,
-                            "bbox": list(block.bbox),
-                            "page_width": width,
-                            "page_height": height,
-                        }
-                    )
+                if block.block_type != "image":
+                    explicit_regions = block.regions
+                    if not explicit_regions and block.bbox:
+                        explicit_regions = [
+                            {
+                                "page_number": block.page_number,
+                                "bbox": block.bbox,
+                            }
+                        ]
+                    for explicit in explicit_regions:
+                        page_number = int(explicit["page_number"])
+                        width, height = page_dimensions.get(
+                            page_number,
+                            (None, None),
+                        )
+                        regions.append(
+                            {
+                                **explicit,
+                                "block_id": block_id,
+                                "page_number": page_number,
+                                "bbox": list(explicit["bbox"]),
+                                "page_width": explicit.get("page_width", width),
+                                "page_height": explicit.get("page_height", height),
+                            }
+                        )
                 image_attachment_id = image_attachment_by_block.get(block_id)
                 if image_attachment_id:
                     references.append(
@@ -305,9 +335,10 @@ def convert(
                 )
             records.append(
                 ChunkRecord(
-                    id=f"chunk_{index:06d}",
+                    id=chunk.chunk_id,
                     text=chunk.text,
                     metadata={
+                        **chunk.metadata,
                         "document_id": "document_0001",
                         "source_filename": source.name,
                         "page_start": chunk.page_start,
@@ -317,6 +348,7 @@ def convert(
                         "regions": regions,
                     },
                     attachments=tuple(references),
+                    vector=contextualized_vectors.get(index),
                 )
             )
 
@@ -451,7 +483,8 @@ def batch_convert(
         ValueError: When neither ``directory`` nor ``paths`` is usable.
         UnknownEmbeddingModelError: When ``model`` cannot be resolved.
     """
-    # Resolve once up front so a bad model fails before any PDF work.
+    # Resolve once up front so bad providers fail before discovery or PDF work.
+    get_ingest_pipeline(parser)
     embedder = embedding_function if embedding_function is not None else get_embedder(model)
 
     root, pdfs = _resolve_batch_pdfs(

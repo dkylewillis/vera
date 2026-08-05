@@ -57,9 +57,9 @@ the page and language and preserve any existing destination.
 OCR text is stored as ordinary paragraph blocks with page bounding boxes, so
 search results and highlight regions work normally. This first OCR path targets
 scanned prose. It does not reconstruct scanned tables, forms, or complex
-multi-column reading order. Use an external layout-aware OCR tool for those
-documents; Docling is a candidate for a future optional parser if representative
-corpus testing shows that need.
+multi-column reading order. For layout-aware parsing, install the optional
+[`vera-ingest-docling`](packages/vera-ingest-docling.md) plugin and select
+`--parser docling`.
 
 ## Convert a directory
 
@@ -169,15 +169,33 @@ more context but may reduce retrieval precision; smaller chunks are more
 specific but may separate related clauses. Evaluate changes against a
 representative query set before adopting non-default values.
 
-## Parser
+## Ingest pipelines
 
-`vera-ingest` currently supports the `pymupdf` parser:
+`--parser` accepts an ingest pipeline spec `provider[:variant]`. The built-in
+default is `pymupdf`:
 
 ```bash
 vera convert "input.pdf" --parser pymupdf
 ```
 
-Other parser names currently fail.
+Install the optional Docling plugin for layout-aware HybridChunker output:
+
+```bash
+uv sync --extra docling
+# or: python -m pip install vera-ingest-docling
+vera convert "input.pdf" --parser docling
+vera convert "input.pdf" --parser docling:hybrid
+```
+
+Unknown pipeline names fail before parsing with an install-the-plugin message;
+VERA never silently falls back to PyMuPDF. Docling rejects partial or failed
+conversions. `--chunk-size` becomes HybridChunker's token limit; Docling's
+native merge/split does not apply VERA's sliding-window `--overlap`.
+
+First Docling conversion may download model artifacts. Set
+`DOCLING_ARTIFACTS_PATH` for a local cache. Packaged desktop releases do not
+bundle Docling; source-run apps can select installed pipelines in the Convert
+view.
 
 ## Storing the source PDF
 

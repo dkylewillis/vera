@@ -188,6 +188,8 @@ function App() {
   const [activeModeId, setActiveModeId] = useState('');
   const [embeddingModel, setEmbeddingModel] = useState('hashing');
   const [embeddingProviders, setEmbeddingProviders] = useState<string[]>([]);
+  const [ingestPipeline, setIngestPipeline] = useState('pymupdf');
+  const [ingestPipelines, setIngestPipelines] = useState<string[]>(['pymupdf']);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
@@ -1553,6 +1555,7 @@ function App() {
     setActiveModel(saved.active_model || '');
     setActiveModeId(saved.active_mode_id || '');
     setEmbeddingModel(saved.embedding_model || 'hashing');
+    setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
     return saved;
   }
 
@@ -1563,6 +1566,7 @@ function App() {
     setActiveModel(saved.active_model || '');
     setActiveModeId(saved.active_mode_id || '');
     setEmbeddingModel(saved.embedding_model || 'hashing');
+    setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
     return saved;
   }
 
@@ -1575,6 +1579,20 @@ function App() {
       active_model: activeModel,
       active_mode_id: activeModeId,
       embedding_model: nextModel,
+      ingest_pipeline: ingestPipeline,
+    });
+  }
+
+  async function saveIngestPipeline(pipeline: string) {
+    const nextPipeline = pipeline.trim() || 'pymupdf';
+    setIngestPipeline(nextPipeline);
+    await persistSettings({
+      providers,
+      active_provider_id: activeProviderId,
+      active_model: activeModel,
+      active_mode_id: activeModeId,
+      embedding_model: embeddingModel,
+      ingest_pipeline: nextPipeline,
     });
   }
 
@@ -1588,6 +1606,7 @@ function App() {
       active_model: model,
       active_mode_id: activeModeId,
       embedding_model: embeddingModel,
+      ingest_pipeline: ingestPipeline,
     });
   }
 
@@ -1628,6 +1647,7 @@ function App() {
         active_model: nextActiveModel,
         active_mode_id: activeModeId,
         embedding_model: embeddingModel,
+        ingest_pipeline: ingestPipeline,
       });
       setModelRefreshMessage(discovered.length
         ? `Found ${discovered.length} models from ${providerDisplayName(profile)}.`
@@ -1653,6 +1673,7 @@ function App() {
       active_model: nextActiveModel,
       active_mode_id: activeModeId,
       embedding_model: embeddingModel,
+      ingest_pipeline: ingestPipeline,
     });
   }
 
@@ -1676,6 +1697,7 @@ function App() {
       active_model: activeModel,
       active_mode_id: activeModeId,
       embedding_model: embeddingModel,
+      ingest_pipeline: ingestPipeline,
     });
   }
 
@@ -1704,6 +1726,7 @@ function App() {
       active_model: activeModel,
       active_mode_id: modeId,
       embedding_model: embeddingModel,
+      ingest_pipeline: ingestPipeline,
     });
   }
 
@@ -1870,7 +1893,7 @@ function App() {
           input: pdfPath,
           output,
           model: embeddingModel,
-          parser: 'pymupdf',
+          parser: ingestPipeline,
           chunk_size: chunkSize,
           overlap,
           store_original: storeOriginal,
@@ -1947,7 +1970,7 @@ function App() {
             : { directory, recursive: batchRecursive }),
           overwrite: batchOverwrite,
           model: embeddingModel,
-          parser: 'pymupdf',
+          parser: ingestPipeline,
           chunk_size: chunkSize,
           overlap,
           store_original: storeOriginal,
@@ -2158,6 +2181,7 @@ function App() {
       setActiveModel(saved.active_model || '');
       setActiveModeId(saved.active_mode_id || '');
       setEmbeddingModel(saved.embedding_model || 'hashing');
+      setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
     }
     async function loadEmbeddingProviders() {
       const response = await window.vera.request<{ providers: string[] }>({
@@ -2165,6 +2189,17 @@ function App() {
       });
       if (!canceled && response.ok) {
         setEmbeddingProviders(response.result?.providers ?? []);
+      }
+    }
+    async function loadIngestPipelines() {
+      const response = await window.vera.request<{ pipelines: string[] }>({
+        action: 'list_ingest_pipelines',
+      });
+      if (!canceled && response.ok) {
+        const pipelines = response.result?.pipelines?.length
+          ? response.result.pipelines
+          : ['pymupdf'];
+        setIngestPipelines(pipelines);
       }
     }
     async function loadSessions() {
@@ -2216,6 +2251,7 @@ function App() {
     }
     void loadSettings();
     void loadEmbeddingProviders();
+    void loadIngestPipelines();
     void loadSessions();
     void loadFolders();
     return () => {
@@ -2726,6 +2762,26 @@ function App() {
                       <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Existing archives are skipped unless overwrite is enabled.</p>
                     </>
                   ) : null}
+                  <label className="field">
+                    <span>Ingest pipeline</span>
+                    <select
+                      value={ingestPipeline}
+                      onChange={(event) => void saveIngestPipeline(event.target.value)}
+                      disabled={conversionInProgress}
+                    >
+                      {(ingestPipelines.includes(ingestPipeline)
+                        ? ingestPipelines
+                        : [...ingestPipelines, ingestPipeline]
+                      ).map((pipeline) => (
+                        <option key={pipeline} value={pipeline}>{pipeline}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="sideMuted">
+                    Installed pipelines from the sidecar Python environment. Packaged app releases
+                    do not install optional plugins such as Docling; use a source-run environment
+                    with <code>uv sync --extra docling</code> for that pipeline.
+                  </p>
                   <label className="field">
                     <span>Embedding model</span>
                     <input
@@ -3840,6 +3896,7 @@ function App() {
           activeModel={activeModel}
           activeModeId={activeModeId}
           embeddingModel={embeddingModel}
+          ingestPipeline={ingestPipeline}
           onPersist={persistSettings}
           onRefresh={refreshSettings}
           onClose={() => setSettingsOpen(false)}

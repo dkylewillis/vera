@@ -151,6 +151,8 @@ export interface AppSettings {
   active_mode_id: string;
   /** Model spec used to embed converted documents, independent of chat models. */
   embedding_model: string;
+  /** Ingest pipeline spec (`provider[:variant]`) for PDF conversion. */
+  ingest_pipeline: string;
 }
 
 export interface CredentialResult {

@@ -22,7 +22,7 @@ from vera import (
     update_library_index,
 )
 from vera.corpus import VeraCorpus
-from vera_ingest import batch_convert, convert
+from vera_ingest import batch_convert, convert, list_ingest_pipelines
 from vera_ingest.viewer import (
     export_source_document,
     figures,
@@ -1330,6 +1330,11 @@ def _list_embedding_providers(request: Request) -> dict[str, Any]:
     return {"providers": list_embedding_providers()}
 
 
+def _list_ingest_pipelines(request: Request) -> dict[str, Any]:
+    """List installed ingest pipeline providers for the Convert view."""
+    return {"pipelines": list_ingest_pipelines()}
+
+
 HANDLERS: dict[str, Handler] = {
     "ping": lambda request: {"status": "ok"},
     "inspect": _inspect,
@@ -1347,6 +1352,7 @@ HANDLERS: dict[str, Handler] = {
     "page": _page,
     "list_models": _list_models,
     "list_embedding_providers": _list_embedding_providers,
+    "list_ingest_pipelines": _list_ingest_pipelines,
     "list_modes": _list_modes,
 }
 

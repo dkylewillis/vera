@@ -126,6 +126,8 @@ that no usable diagnostic exists.
 commands write or replace local files and require normal user authorization:
 
 - `convert` creates a validated `.vera` archive and publishes it atomically;
+  `--parser` selects an installed ingest pipeline (`pymupdf` by default;
+  `docling` when `vera-ingest-docling` is installed);
   image-based low-text pages use selective local OCR by default. Use
   `--ocr off` only when explicitly requested, or `--ocr force` when automatic
   detection misses a scan. English OCR is bundled; other languages require

@@ -65,6 +65,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   active_model: '',
   active_mode_id: '',
   embedding_model: 'hashing',
+  ingest_pipeline: 'pymupdf',
 };
 
 // Serve materialized source PDFs without shipping base64 through JSON IPC.
@@ -411,6 +412,9 @@ function readSettings(): AppSettings {
     embedding_model: typeof raw.embedding_model === 'string' && raw.embedding_model.trim()
       ? raw.embedding_model.trim()
       : 'hashing',
+    ingest_pipeline: typeof raw.ingest_pipeline === 'string' && raw.ingest_pipeline.trim()
+      ? raw.ingest_pipeline.trim()
+      : 'pymupdf',
     };
     return withRuntime(merged);
   } catch {
@@ -428,6 +432,7 @@ function writeSettings(settings: AppSettings): AppSettings {
     active_model: settings.active_model || '',
     active_mode_id: settings.active_mode_id || '',
     embedding_model: settings.embedding_model?.trim() || 'hashing',
+    ingest_pipeline: settings.ingest_pipeline?.trim() || 'pymupdf',
   };
   const target = settingsPath();
   const temp = `${target}.tmp`;
