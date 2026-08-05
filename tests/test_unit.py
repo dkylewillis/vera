@@ -5,10 +5,17 @@ import pytest
 from vera_ingest.chunking import chunk_pages, detect_heading
 from vera.core.embeddings import (
     HashingEmbedder,
+    UnknownEmbeddingModelError,
+    clear_embedder_cache,
     cosine_similarity,
     deserialize_vector,
     get_embedder,
+    list_embedding_providers,
+    parse_model_spec,
+    register_embedder,
+    reset_embedding_registry,
     serialize_vector,
+    unregister_embedder,
 )
 from vera import ChunkRecord, QueryResult, VeraDocument
 from vera_cli import str_to_bool
@@ -172,18 +179,99 @@ class TestHashingEmbedder:
 
 
 # ---------------------------------------------------------------------------
-# get_embedder
+# get_embedder / registry
 # ---------------------------------------------------------------------------
 
 class TestGetEmbedder:
     def test_hashing_keyword_returns_hashing_embedder(self):
         e = get_embedder("hashing")
         assert isinstance(e, HashingEmbedder)
+        assert e.model_name == "vera-hashing-384"
 
-    def test_unknown_model_falls_back_to_hashing_with_custom_name(self):
-        e = get_embedder("my-custom-model-xyz")
+    def test_provider_model_id_spec(self):
+        e = get_embedder("hashing:vera-hashing-384")
         assert isinstance(e, HashingEmbedder)
-        assert e.model_name == "my-custom-model-xyz"
+        assert e.model_name == "vera-hashing-384"
+
+    def test_legacy_sentence_transformers_slash_spec(self):
+        provider, model_id = parse_model_spec("sentence-transformers/all-MiniLM-L6-v2")
+        assert provider == "sentence-transformers"
+        assert model_id == "all-MiniLM-L6-v2"
+
+    def test_colon_sentence_transformers_spec(self):
+        provider, model_id = parse_model_spec("sentence-transformers:all-MiniLM-L6-v2")
+        assert provider == "sentence-transformers"
+        assert model_id == "all-MiniLM-L6-v2"
+
+    def test_unknown_model_raises(self):
+        with pytest.raises(UnknownEmbeddingModelError, match="Unknown embedding"):
+            get_embedder("my-custom-model-xyz")
+
+    def test_unknown_provider_raises_after_entry_point_scan(self):
+        with pytest.raises(UnknownEmbeddingModelError, match="Unknown embedding provider"):
+            get_embedder("not-a-real-provider:some-model")
+
+    def test_register_custom_provider(self):
+        def factory(model_id: str, **config):
+            return HashingEmbedder(model_name=f"custom/{model_id or 'default'}")
+
+        register_embedder("unit-test-custom", factory, replace=True)
+        try:
+            embedder = get_embedder("unit-test-custom:alpha")
+            assert embedder.model_name == "custom/alpha"
+            assert "unit-test-custom" in list_embedding_providers()
+        finally:
+            unregister_embedder("unit-test-custom")
+            clear_embedder_cache()
+
+    def test_config_keyed_cache(self):
+        calls: list[tuple[str, dict]] = []
+
+        def factory(model_id: str, **config):
+            calls.append((model_id, dict(config)))
+            return HashingEmbedder(
+                dimension=int(config.get("dimension", 384)),
+                model_name=f"cache-test/{model_id}",
+            )
+
+        register_embedder("cache-test", factory, replace=True)
+        try:
+            clear_embedder_cache()
+            a = get_embedder("cache-test:one", dimension=128)
+            b = get_embedder("cache-test:one", dimension=128)
+            c = get_embedder("cache-test:one", dimension=256)
+            assert a is b
+            assert a is not c
+            assert a.dimension == 128
+            assert c.dimension == 256
+            assert len(calls) == 2
+        finally:
+            unregister_embedder("cache-test")
+            clear_embedder_cache()
+
+    def test_entry_point_discovery(self, monkeypatch):
+        class FakeEntry:
+            name = "ep-test"
+
+            def load(self):
+                return lambda model_id, **config: HashingEmbedder(
+                    model_name=f"ep/{model_id or 'default'}"
+                )
+
+        def fake_entry_points(*, group=None):
+            assert group == "vera.embedders"
+            return [FakeEntry()]
+
+        reset_embedding_registry(builtins=True)
+        monkeypatch.setattr(
+            "vera.core.embeddings.entry_points",
+            fake_entry_points,
+        )
+        try:
+            embedder = get_embedder("ep-test:widget")
+            assert embedder.model_name == "ep/widget"
+        finally:
+            reset_embedding_registry(builtins=True)
 
 
 # ---------------------------------------------------------------------------

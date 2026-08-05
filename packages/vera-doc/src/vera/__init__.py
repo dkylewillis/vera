@@ -7,9 +7,16 @@ from .collection import (
     update_library_index,
 )
 from .corpus import CorpusSearchResult, VeraCorpus
+from .core.embeddings import (
+    EmbeddingFunction,
+    UnknownEmbeddingModelError,
+    clear_embedder_cache,
+    get_embedder,
+    list_embedding_providers,
+    register_embedder,
+)
 from .document import (
     DuplicateRecordError,
-    EmbeddingFunction,
     EmbeddingNormalization,
     ReadOnlyError,
     RecordNotFoundError,
@@ -27,6 +34,11 @@ __all__ = [
     "library_index_status",
     "EmbeddingFunction",
     "EmbeddingNormalization",
+    "UnknownEmbeddingModelError",
+    "get_embedder",
+    "register_embedder",
+    "list_embedding_providers",
+    "clear_embedder_cache",
     "ChunkRecord",
     "AttachmentRecord",
     "AttachmentRef",

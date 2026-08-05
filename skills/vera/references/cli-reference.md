@@ -23,7 +23,12 @@ Convert one PDF or a directory of PDFs.
 
 Options:
 
-- `--model MODEL` defaults to `hashing`.
+- `--model MODEL` defaults to `hashing`. Accepts `provider:model-id` specs
+  (for example `hashing:vera-hashing-384` or
+  `sentence-transformers:all-MiniLM-L6-v2`) plus legacy aliases
+  (`hashing`, `vera-hashing-384`, `all-MiniLM-L6-v2`,
+  `sentence-transformers/...`). Unknown providers raise and the command
+  exits non-zero instead of silently falling back to hashing.
 - `--parser PARSER` defaults to `pymupdf`.
 - `--chunk-size N` defaults to `500`.
 - `--overlap N` defaults to `75`.

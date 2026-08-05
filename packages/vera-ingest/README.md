@@ -25,3 +25,16 @@ See the [vera-ingest documentation](https://dkylewillis.github.io/vera/packages/
 for concepts, examples, and API reference.
 
 See the [conversion guide](https://github.com/dkylewillis/vera/blob/main/docs/conversion.md).
+
+## Embedding model selection
+
+`convert()` and `batch_convert()` accept either:
+
+- `model="hashing"` / `model="sentence-transformers:all-MiniLM-L6-v2"` — resolved
+  through `vera.get_embedder` before PDF parsing begins, or
+- `embedding_function=<object>` — any object with `model_name`, `dimension`, and
+  `embed(texts)`.
+
+Unknown model specs raise `vera.UnknownEmbeddingModelError`. To add a named
+provider without forking VERA, register a factory with
+`vera.register_embedder` or ship a `vera.embedders` entry-point plugin.

@@ -38,7 +38,16 @@ def build_parser() -> argparse.ArgumentParser:
     convert_p = sub.add_parser("convert", help="Convert a PDF or a directory of PDFs to VERA files")
     convert_p.add_argument("input", help="PDF file or directory containing PDFs")
     convert_p.add_argument("output", nargs="?", default=None, help="Output .vera path for a single PDF")
-    convert_p.add_argument("--model", default="hashing")
+    convert_p.add_argument(
+        "--model",
+        default="hashing",
+        help=(
+            "Embedding model spec: provider:model-id "
+            "(e.g. hashing, hashing:vera-hashing-384, "
+            "sentence-transformers:all-MiniLM-L6-v2). "
+            "Unknown providers exit with an error."
+        ),
+    )
     convert_p.add_argument("--parser", default="pymupdf")
     convert_p.add_argument("--chunk-size", type=int, default=500)
     convert_p.add_argument("--overlap", type=int, default=75)

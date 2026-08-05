@@ -15,6 +15,10 @@ queries, and library indexes for `.vera` archives.
         - QueryResult
         - CorpusSearchResult
         - EmbeddingFunction
+        - UnknownEmbeddingModelError
+        - get_embedder
+        - register_embedder
+        - list_embedding_providers
         - build_library_index
         - update_library_index
         - library_index_status

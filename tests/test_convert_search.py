@@ -83,6 +83,57 @@ def test_convert_pdf_populates_vera_and_searches(tmp_path):
     doc.close()
 
 
+def test_convert_accepts_custom_embedding_function(tmp_path):
+    import numpy as np
+
+    class TinyEmbedder:
+        model_name = "example/tiny-convert"
+        dimension = 2
+        normalization = "l2"
+
+        def embed(self, texts: list[str]):
+            return np.asarray([[1.0, 0.0] for _ in texts], dtype=np.float32)
+
+    pdf = tmp_path / "custom.pdf"
+    out = tmp_path / "custom.vera"
+    make_pdf(pdf)
+    embedder = TinyEmbedder()
+    convert(str(pdf), str(out), embedding_function=embedder, chunk_size=40, overlap=5)
+
+    with VeraDocument.open(str(out), embedding_function=embedder) as doc:
+        info = doc.inspect()
+        assert info["embedding_model"] == "example/tiny-convert"
+        assert info["embedding_dimension"] == 2
+        results = doc.search("detention", mode="semantic", top_k=1)
+        assert results
+
+
+def test_convert_rejects_unknown_model_before_parsing(tmp_path, monkeypatch):
+    from vera import UnknownEmbeddingModelError
+
+    pdf = tmp_path / "bad-model.pdf"
+    out = tmp_path / "bad-model.vera"
+    make_pdf(pdf)
+
+    def boom(*args, **kwargs):
+        raise AssertionError("PDF parsing should not run for unknown models")
+
+    convert_module = importlib.import_module("vera_ingest.convert")
+    monkeypatch.setattr(convert_module, "parse_pdf_structured", boom)
+    with pytest.raises(UnknownEmbeddingModelError):
+        convert(str(pdf), str(out), model="not-a-real-provider:model")
+    assert not out.exists()
+
+
+def test_batch_convert_rejects_unknown_model_up_front(tmp_path):
+    from vera import UnknownEmbeddingModelError
+
+    pdf = tmp_path / "batch.pdf"
+    make_pdf(pdf)
+    with pytest.raises(UnknownEmbeddingModelError):
+        batch_convert(str(tmp_path), model="not-a-real-provider:model")
+
+
 def test_convert_rejects_textless_pdf_without_publishing_output(tmp_path):
     pdf = tmp_path / "scan.pdf"
     out = tmp_path / "scan.vera"

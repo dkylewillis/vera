@@ -28,7 +28,9 @@ Convert one PDF or a directory of PDFs.
 
 Options:
 
-- `--model MODEL` (`hashing`)
+- `--model MODEL` (`hashing`; accepts `provider:model-id` specs such as
+  `sentence-transformers:all-MiniLM-L6-v2`; unknown providers exit with an
+  error)
 - `--parser PARSER` (`pymupdf`)
 - `--chunk-size N` (`500`)
 - `--overlap N` (`75`)

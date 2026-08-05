@@ -18,12 +18,20 @@ from vera.collection import discover_vera_files
 from test_corpus import make_topic_pdf
 
 
-def _convert_topic(root: Path, relative: str, heading: str, body: str, *, model: str = "hashing") -> Path:
+def _convert_topic(
+    root: Path,
+    relative: str,
+    heading: str,
+    body: str,
+    *,
+    model: str = "hashing",
+    embedding_function=None,
+) -> Path:
     target = root / relative
     target.parent.mkdir(parents=True, exist_ok=True)
     pdf = target.with_suffix(".pdf")
     make_topic_pdf(pdf, heading, body)
-    convert(str(pdf), str(target), model=model)
+    convert(str(pdf), str(target), model=model, embedding_function=embedding_function)
     return target
 
 
@@ -202,25 +210,40 @@ class TestBuildAndSearch:
         assert len(summary["files"]) == 2
 
     def test_mixed_embedding_models_are_rank_fused(self, tmp_path):
-        root = tmp_path / "mixed"
-        _convert_topic(root, "one.vera", "Road Design", "Roadway design project experience.", model="hashing")
-        _convert_topic(root, "two.vera", "Road Planning", "Roadway planning project experience.", model="alternate-model")
-        report = build_library_index(str(root))
-        assert report["indexed"] == 2
-        status = library_index_status(str(root))
-        assert {
-            (group["model"], group["dimension"], group["documents"])
-            for group in status["model_groups"]
-        } == {
-            ("alternate-model", 384, 1),
-            ("vera-hashing-384", 384, 1),
-        }
-        with VeraCorpus.open(str(root)) as corpus:
-            results = corpus.search("roadway project experience", mode="semantic", top_k=2)
-            assert {Path(result.file).name for result in results} == {"one.vera", "two.vera"}
-        with VeraCorpus.open(str(root), use_index=False) as corpus:
-            results = corpus.search("roadway project experience", mode="semantic", top_k=2)
-            assert {Path(result.file).name for result in results} == {"one.vera", "two.vera"}
+        from vera.core.embeddings import HashingEmbedder, register_embedder, unregister_embedder
+
+        def alternate_factory(model_id: str, **config):
+            return HashingEmbedder(model_name=f"alternate:{model_id or 'default'}")
+
+        register_embedder("alternate", alternate_factory, replace=True)
+        try:
+            root = tmp_path / "mixed"
+            _convert_topic(root, "one.vera", "Road Design", "Roadway design project experience.", model="hashing")
+            _convert_topic(
+                root,
+                "two.vera",
+                "Road Planning",
+                "Roadway planning project experience.",
+                model="alternate:default",
+            )
+            report = build_library_index(str(root))
+            assert report["indexed"] == 2
+            status = library_index_status(str(root))
+            assert {
+                (group["model"], group["dimension"], group["documents"])
+                for group in status["model_groups"]
+            } == {
+                ("alternate:default", 384, 1),
+                ("vera-hashing-384", 384, 1),
+            }
+            with VeraCorpus.open(str(root)) as corpus:
+                results = corpus.search("roadway project experience", mode="semantic", top_k=2)
+                assert {Path(result.file).name for result in results} == {"one.vera", "two.vera"}
+            with VeraCorpus.open(str(root), use_index=False) as corpus:
+                results = corpus.search("roadway project experience", mode="semantic", top_k=2)
+                assert {Path(result.file).name for result in results} == {"one.vera", "two.vera"}
+        finally:
+            unregister_embedder("alternate")
 
     def test_unavailable_semantic_model_does_not_break_keyword_search(self, nested_library, monkeypatch):
         import vera.collection as collection
@@ -244,6 +267,35 @@ class TestBuildAndSearch:
             assert corpus.skipped_semantic_model_groups[0]["error"] == "ImportError: vera-hashing-384"
             assert corpus.search("water treatment", mode="keyword")[0].file.endswith("water.vera")
             assert corpus.skipped_semantic_model_groups == []
+
+    def test_unknown_registered_model_is_skipped_at_query_time(self, tmp_path):
+        from vera.core.embeddings import HashingEmbedder, register_embedder, unregister_embedder
+
+        def factory(model_id: str, **config):
+            return HashingEmbedder(model_name=f"ephemeral:{model_id or 'default'}")
+
+        register_embedder("ephemeral", factory, replace=True)
+        try:
+            root = tmp_path / "ephemeral"
+            _convert_topic(
+                root,
+                "doc.vera",
+                "Water Treatment",
+                "Municipal water treatment pumping improvements.",
+                model="ephemeral:default",
+            )
+            build_library_index(str(root))
+        finally:
+            unregister_embedder("ephemeral")
+
+        with VeraCorpus.open(str(root)) as corpus:
+            assert corpus.search("water treatment", mode="semantic") == []
+            assert len(corpus.skipped_semantic_model_groups) == 1
+            skipped = corpus.skipped_semantic_model_groups[0]
+            assert skipped["model_name"] == "ephemeral:default"
+            assert skipped["dimension"] == 384
+            assert "UnknownEmbeddingModelError" in skipped["error"]
+            assert corpus.search("water treatment", mode="keyword")[0].file.endswith("doc.vera")
 
     def test_incompatible_runtime_model_dimension_is_reported(self, nested_library, monkeypatch):
         import vera.collection as collection
