@@ -78,6 +78,9 @@ def test_cli_reference_covers_parser_commands_and_long_options():
 
     documented_options: set[str] = set()
     for path, parser in leaves:
+        # This skill documents the CLI only; mcp is out of scope.
+        if path == ("mcp",):
+            continue
         command = " ".join(path)
         assert f"### `vera {command}" in reference, f"undocumented command: vera {command}"
         for action in parser._actions:

@@ -75,15 +75,16 @@ python -m vera_cli --help
 Optional capabilities:
 
 - Neural embedding models require the `vera-doc` `ml` extra.
-- MCP requires `pip install "vera-cli[mcp]"` or `pip install vera-mcp`.
 - The zero-dependency hashing embedder is the default and needs neither extra.
 
 For a repository checkout:
 
 ```bash
-uv sync --extra dev --extra ml --extra app --extra mcp
+uv sync --extra dev --extra ml --extra app
 uv run vera --help
 ```
+
+This skill documents the CLI only.
 
 ## What the package documents
 
@@ -160,52 +161,6 @@ For maximum reuse:
 Hermes and OpenClaw both implement the Agent Skills package shape. Their
 extended metadata is useful for deployment-specific behavior but is not needed
 to search VERA archives.
-
-## MCP alternative
-
-The CLI skill is appropriate when the agent has shell and file access. An
-MCP-capable agent can instead run VERA as native tools:
-
-```bash
-pip install "vera-cli[mcp]"
-vera mcp
-```
-
-A client configuration typically launches:
-
-```json
-{
-  "command": "vera",
-  "args": ["mcp"]
-}
-```
-
-In a repository checkout, use:
-
-```json
-{
-  "command": "uv",
-  "args": ["run", "--extra", "mcp", "vera", "mcp"]
-}
-```
-
-The server communicates over stdio. Do not launch it as an ordinary one-shot
-shell command and do not add `--json`.
-
-MCP exposes:
-
-- `vera_search`
-- `vera_corpus_search`
-- `vera_inspect`
-- `vera_validate`
-- `vera_figures`
-- `vera_get_page`
-- `vera_get_chunk_regions`
-
-MCP adds direct page, figure-listing, and chunk-region tools that do not have
-standalone CLI subcommands. The CLI and MCP interfaces use the same
-`vera-doc` engine, but a harness should choose one primary integration for a
-workflow rather than launching MCP for each query.
 
 ## Verification prompts
 
