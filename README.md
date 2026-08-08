@@ -1,13 +1,11 @@
-# .vera
+# VERA - Vector-Embedded Retrieval Archive
 
 [![Latest release](https://img.shields.io/github/v/release/dkylewillis/vera)](https://github.com/dkylewillis/vera/releases/latest)
 [![PyPI - vera-doc](https://img.shields.io/pypi/v/vera-doc?label=vera-doc)](https://pypi.org/project/vera-doc/)
 [![License](https://img.shields.io/github/license/dkylewillis/vera)](LICENSE)
 
-**A different approach to RAG.**
 
-**VERA** stands for **Vector-Embedded Retrieval Archive**. A `.vera` file is a
-portable embedded vector database: a self-contained SQLite file containing
+A `.vera` file is a portable embedded vector database: a self-contained SQLite file containing
 ready-made text chunks, embeddings, a keyword index, JSON metadata, and
 optional opaque attachments. Move it, share it, or search it locally without a
 retrieval service.
