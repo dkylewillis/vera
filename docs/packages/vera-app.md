@@ -16,7 +16,7 @@ Download `VERA Setup <version>.exe` from the
 
 ## First workflow
 
-1. Open **Convert PDF** and convert one PDF or a directory.
+1. Open **Convert PDF** and convert selected PDFs or a directory.
 2. Use **File > Open Folder** to activate a document library.
 3. Open **Search** for fully local hybrid retrieval.
 4. To use **Ask**, configure a provider under **File > LLM Providers**.

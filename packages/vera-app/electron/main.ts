@@ -845,13 +845,18 @@ app.whenReady().then(() => {
   ipcMain.handle('vera:setWatchedFolders', async (_event, paths: string[]) => {
     setWatchedFolders(Array.isArray(paths) ? paths : []);
   });
-  ipcMain.handle('vera:pickPdf', async () => {
-    const result = await dialog.showOpenDialog({
-      title: 'Open PDF',
-      properties: ['openFile'],
+  ipcMain.handle('vera:pickPdf', async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    const options: Electron.OpenDialogOptions = {
+      title: 'Open PDFs',
+      buttonLabel: 'Select',
+      properties: ['openFile', 'multiSelections'],
       filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
-    });
-    return result.canceled ? null : result.filePaths[0];
+    };
+    const result = owner
+      ? await dialog.showOpenDialog(owner, options)
+      : await dialog.showOpenDialog(options);
+    return result.canceled ? [] : result.filePaths;
   });
   ipcMain.handle('vera:saveVera', async (_event, defaultPath?: string) => {
     const result = await dialog.showSaveDialog({

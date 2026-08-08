@@ -56,7 +56,7 @@ export interface VeraApi {
   showInFolder(targetPath: string): Promise<void>;
   trashWorkspaceFile(filePath: string, folderPath: string): Promise<'trashed' | 'deleted' | 'cancelled'>;
   setWatchedFolders(paths: string[]): Promise<void>;
-  pickPdf(): Promise<string | null>;
+  pickPdf(): Promise<string[]>;
   saveVera(defaultPath?: string): Promise<string | null>;
   saveAny(): Promise<string | null>;
   onOpenTarget(callback: (path: string) => void): () => void;

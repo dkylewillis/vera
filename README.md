@@ -37,9 +37,10 @@ key. You only connect a model provider when you want AI answers.
    [latest Windows release](https://github.com/dkylewillis/vera/releases/latest)
    and run it.
 2. **Convert your documents.**
-   - **One PDF** — open **Convert PDF**, choose **Single PDF**, pick a PDF,
-     and select **Convert**. VERA writes a portable `.vera` archive beside
-     it.
+   - **One or more PDFs** — in **Convert PDF** → **Individual PDFs**, use
+     **Choose PDFs**, or select files in Explorer and right-click
+     **Convert PDF**. VERA writes a portable `.vera` archive beside
+     each file.
    - **Entire library** — choose **PDF Directory** to batch-convert a folder
      of PDFs, then use **File > Open Folder** to activate it. On your first
      Search or Ask, VERA shows **Build library index?** — select
