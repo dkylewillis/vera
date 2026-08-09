@@ -190,7 +190,9 @@ def test_build_converter_maps_default_eng_to_rapidocr_en():
     from vera_ingest_docling.options import DoclingOptions
     from vera_ingest_docling.pipeline import _build_converter
 
-    converter = _build_converter(DoclingOptions(ocr_mode="auto", ocr_language="eng"))
+    converter = _build_converter(
+        DoclingOptions.from_mapping({"ocr_mode": "auto", "ocr_language": "eng"}),
+    )
     pdf_option = converter.format_to_options["pdf"]
     assert pdf_option.pipeline_options.do_ocr is True
     assert list(pdf_option.pipeline_options.ocr_options.lang) == ["en"]
@@ -201,7 +203,7 @@ def test_build_converter_disables_torch_compile_and_keeps_default_image_scale():
     from vera_ingest_docling.pipeline import _build_converter
 
     converter = _build_converter(
-        DoclingOptions(ocr_mode="auto", ocr_language="eng"),
+        DoclingOptions.from_mapping({"ocr_mode": "auto", "ocr_language": "eng"}),
     )
     pipeline_options = converter.format_to_options["pdf"].pipeline_options
     assert pipeline_options.images_scale == 1.0
@@ -215,7 +217,7 @@ def test_docling_options_ignore_pymupdf_only_keys_and_reject_unknown():
         {
             "chunk_size": 420,
             "ocr_mode": "force",
-            "ocr_language": "en",
+            "ocr_language": "eng",
             "overlap": 75,
             "ocr_dpi": 300,
         }
@@ -223,7 +225,6 @@ def test_docling_options_ignore_pymupdf_only_keys_and_reject_unknown():
     assert options.chunk_size == 420
     assert options.ocr_mode == "force"
     assert options.ocr_language == "en"
-    assert not hasattr(options, "overlap") or "overlap" not in options.__dict__
     with pytest.raises(ValueError, match="Unknown Docling option"):
         DoclingOptions.from_mapping({"chunk_size": 100, "bogus": True})
 

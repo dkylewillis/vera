@@ -19,6 +19,8 @@ from vera_ingest.option_parsing import (
     require_string,
 )
 
+from .languages import map_rapidocr_languages
+
 # Legacy convert()/CLI keys that Docling intentionally ignores.
 _IGNORED_COMPAT_KEYS = {"overlap", "ocr_dpi"}
 _ALLOWED_KEYS = {"chunk_size", "ocr_mode", "ocr_language"}
@@ -50,10 +52,12 @@ class DoclingOptions:
             name="ocr_mode",
             choices=_OCR_MODES,
         )
-        ocr_language = require_string(
+        # Normalize at parse time so Tesseract ``eng`` never reaches RapidOCR.
+        ocr_language_raw = require_string(
             data.get("ocr_language", "en"),
             name="ocr_language",
         )
+        ocr_language = ",".join(map_rapidocr_languages(ocr_language_raw))
         return cls(
             chunk_size=chunk_size,
             ocr_mode=ocr_mode,
