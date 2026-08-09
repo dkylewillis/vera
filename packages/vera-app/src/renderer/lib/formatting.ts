@@ -40,30 +40,22 @@ export type ExplorerSelection =
   | { kind: 'folder'; path: string };
 
 export interface ConvertPathDefaults {
-  mode: 'single' | 'batch';
-  pdfPath?: string;
-  outputPath?: string;
+  mode: 'batch';
   batchDirectory?: string;
 }
 
-/** Prefill Convert PDF fields from the latest Explorer selection. */
+function parentDirectory(filePath: string): string {
+  return filePath.replace(/[/\\][^/\\]+$/, '');
+}
+
+/** Prefill Convert PDF directory fields from the latest Explorer selection. */
 export function convertDefaultsFromSelection(
   selection: ExplorerSelection | null,
   fallbackFolderPath = '',
 ): ConvertPathDefaults | null {
-  if (selection?.kind === 'file' && selection.type === 'pdf') {
-    return {
-      mode: 'single',
-      pdfPath: selection.path,
-      outputPath: defaultVeraPath(selection.path),
-    };
-  }
-  if (selection?.kind === 'file' && selection.type === 'vera') {
-    return {
-      mode: 'single',
-      pdfPath: selection.path.replace(/\.vera$/i, '.pdf'),
-      outputPath: selection.path,
-    };
+  if (selection?.kind === 'file') {
+    const batchDirectory = parentDirectory(selection.path);
+    if (batchDirectory) return { mode: 'batch', batchDirectory };
   }
   if (selection?.kind === 'folder') {
     return { mode: 'batch', batchDirectory: selection.path };

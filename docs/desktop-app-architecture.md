@@ -125,14 +125,13 @@ Libraries with at least 100
 discovered archives prompt to build or update an unavailable index, while smaller
 libraries expose build, update, rescan, show-in-system-folder, and
 close actions in the folder row's context menu. File rows offer show-in-system-
-folder (and preview/trash where applicable). Clicking a PDF selects it and
-seeds Convert defaults without switching to the Convert view; Ctrl/Cmd+click
-toggles additional PDFs into a conversion multi-select (separate from `.vera`
+folder (and preview/trash where applicable). Clicking a PDF selects it for conversion (and Ctrl/Cmd+click
+toggles additional PDFs into the same selection, separate from `.vera`
 search-scope checkboxes). Clicking a `.vera` sets Search/Ask scope without
 changing the document viewer. Double-click or right-click **View in document
 viewer** / **Preview embedded source** loads that PDF or archive original in
-the source pane; when multiple PDFs are selected, right-click also offers
-**Convert selected**. The same menus can be opened from the keyboard with
+the source pane; right-clicking a PDF also offers **Convert PDF** /
+**Convert PDFs** for the current selection (one or more files). The same menus can be opened from the keyboard with
 Shift+F10 or the Menu key, support arrow key navigation, and close with
 Escape. Show-in-folder opens a library directory in the OS file manager, or
 reveals a selected `.vera`/`.pdf` file in its parent folder. Explorer keeps
@@ -193,12 +192,12 @@ is published, and a failed build does not replace it.
 
 ## Batch PDF Conversion
 
-The Convert PDF view supports a single archive, an Explorer multi-selection of
-PDFs, or an entire directory. Opening the view (or switching Single PDF /
-Selected / PDF Directory) prefills paths from the latest Explorer selection: a
-PDF or `.vera` seeds single-file conversion, a non-empty PDF multi-select opens
-**Selected**, and a folder or active library seeds directory conversion.
-Directory conversion can include nested folders. Selected and directory modes
+The Convert PDF view supports an Explorer selection of one or more PDFs, or an
+entire directory. Opening the view (or switching Individual PDFs / PDF Directory)
+prefills from the latest Explorer selection: a non-empty PDF selection opens
+**Individual PDFs**, and a folder or active library seeds directory conversion.
+**Individual PDFs** also offers **Choose PDFs** to browse for one or more files
+without using Explorer. Directory conversion can include nested folders. Individual and directory modes
 create each `.vera` archive beside its source PDF using the same base filename
 (`proposal.pdf` becomes `proposal.vera`). Existing archives are validated
 before they are skipped; malformed outputs are reported separately, and
