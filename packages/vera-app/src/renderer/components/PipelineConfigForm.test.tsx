@@ -102,7 +102,8 @@ describe('PipelineConfigForm', () => {
       />,
     );
     expect(html).toContain('Chunk size (tokens)');
-    expect(html).not.toContain('Overlap');
+    expect(html).not.toContain('Overlap (characters)');
+    expect(html).not.toContain('>Overlap<');
     expect(html).toContain('Overlap is not applied by Docling HybridChunker.');
   });
 });
