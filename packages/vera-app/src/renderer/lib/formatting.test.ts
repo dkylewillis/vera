@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { convertDefaultsFromSelection, defaultVeraPath, showInFolderLabel } from './formatting';
+import { convertDefaultsFromSelection, showInFolderLabel } from './formatting';
 
 describe('showInFolderLabel', () => {
   it('uses platform-specific wording', () => {
@@ -10,19 +10,17 @@ describe('showInFolderLabel', () => {
 });
 
 describe('convertDefaultsFromSelection', () => {
-  it('prefills single-PDF mode from a selected PDF', () => {
+  it('prefills directory mode from a selected PDF parent folder', () => {
     expect(convertDefaultsFromSelection({ kind: 'file', type: 'pdf', path: 'C:\\docs\\manual.pdf' })).toEqual({
-      mode: 'single',
-      pdfPath: 'C:\\docs\\manual.pdf',
-      outputPath: defaultVeraPath('C:\\docs\\manual.pdf'),
+      mode: 'batch',
+      batchDirectory: 'C:\\docs',
     });
   });
 
-  it('suggests a sibling PDF for a selected .vera archive', () => {
+  it('prefills directory mode from a selected .vera parent folder', () => {
     expect(convertDefaultsFromSelection({ kind: 'file', type: 'vera', path: 'C:\\docs\\manual.vera' })).toEqual({
-      mode: 'single',
-      pdfPath: 'C:\\docs\\manual.pdf',
-      outputPath: 'C:\\docs\\manual.vera',
+      mode: 'batch',
+      batchDirectory: 'C:\\docs',
     });
   });
 

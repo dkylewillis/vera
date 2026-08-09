@@ -1,13 +1,11 @@
-# .vera
+# VERA - Vector-Embedded Retrieval Archive
 
 [![Latest release](https://img.shields.io/github/v/release/dkylewillis/vera)](https://github.com/dkylewillis/vera/releases/latest)
 [![PyPI - vera-doc](https://img.shields.io/pypi/v/vera-doc?label=vera-doc)](https://pypi.org/project/vera-doc/)
 [![License](https://img.shields.io/github/license/dkylewillis/vera)](LICENSE)
 
-**A different approach to RAG.**
 
-**VERA** stands for **Vector-Embedded Retrieval Archive**. A `.vera` file is a
-portable embedded vector database: a self-contained SQLite file containing
+A `.vera` file is a portable embedded vector database: a self-contained SQLite file containing
 ready-made text chunks, embeddings, a keyword index, JSON metadata, and
 optional opaque attachments. Move it, share it, or search it locally without a
 retrieval service.
@@ -37,9 +35,10 @@ key. You only connect a model provider when you want AI answers.
    [latest Windows release](https://github.com/dkylewillis/vera/releases/latest)
    and run it.
 2. **Convert your documents.**
-   - **One PDF** — open **Convert PDF**, choose **Single PDF**, pick a PDF,
-     and select **Convert**. VERA writes a portable `.vera` archive beside
-     it.
+   - **One or more PDFs** — in **Convert PDF** → **Individual PDFs**, use
+     **Choose PDFs**, or select files in Explorer and right-click
+     **Convert PDF**. VERA writes a portable `.vera` archive beside
+     each file.
    - **Entire library** — choose **PDF Directory** to batch-convert a folder
      of PDFs, then use **File > Open Folder** to activate it. On your first
      Search or Ask, VERA shows **Build library index?** — select
