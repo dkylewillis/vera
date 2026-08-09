@@ -10,17 +10,25 @@ from vera_ingest import (
     IngestBlock,
     IngestChunk,
     IngestOptions,
+    IngestRequest,
     IngestResult,
     ParsedPage,
+    PipelineDescriptor,
+    PipelineField,
     UnknownIngestPipelineError,
     batch_convert,
     convert,
+    describe_ingest_pipeline,
     get_chunk_regions,
     get_ingest_pipeline,
+    list_ingest_pipeline_descriptors,
     list_ingest_pipelines,
+    prepare_pipeline_options,
     register_ingest_pipeline,
+    register_ingest_pipeline_descriptor,
     reset_ingest_pipeline_registry,
 )
+from vera_ingest.pipelines.pymupdf_options import PyMuPDFOptions
 
 
 @pytest.fixture(autouse=True)
@@ -95,11 +103,14 @@ def test_entry_points_are_discovered_lazily(monkeypatch):
             return lambda variant: Pipeline()
 
     reset_ingest_pipeline_registry()
-    monkeypatch.setattr(
-        pipeline_module,
-        "entry_points",
-        lambda **kwargs: [EntryPoint()],
-    )
+
+    def fake_entry_points(**kwargs):
+        group = kwargs.get("group")
+        if group == "vera.ingest_pipelines":
+            return [EntryPoint()]
+        return []
+
+    monkeypatch.setattr(pipeline_module, "entry_points", fake_entry_points)
 
     assert loaded == []
     assert "example" in list_ingest_pipelines()
@@ -251,4 +262,205 @@ def test_pipeline_result_rejects_unknown_block_references(tmp_path):
                 },
             )(),
         )
+
+
+def test_pymupdf_descriptor_and_strict_options():
+    descriptor = describe_ingest_pipeline("pymupdf")
+    assert descriptor.spec == "pymupdf"
+    assert {field.key for field in descriptor.fields} == {
+        "chunk_size",
+        "overlap",
+        "ocr_mode",
+        "ocr_language",
+        "ocr_dpi",
+    }
+    assert descriptor.as_dict()["capabilities"]["ocr_engine"] == "tesseract"
+    options = PyMuPDFOptions.from_mapping({"chunk_size": 250, "overlap": 10})
+    assert options.chunk_size == 250
+    assert options.overlap == 10
+    assert options.ocr_mode == "auto"
+    with pytest.raises(ValueError, match="Unknown PyMuPDF option"):
+        PyMuPDFOptions.from_mapping({"chunk_size": 250, "bogus": 1})
+    with pytest.raises(ValueError, match="chunk_size must be positive"):
+        PyMuPDFOptions.from_mapping({"chunk_size": 0})
+
+
+def test_descriptor_fallback_for_undescribed_plugins():
+    register_ingest_pipeline("opaque", lambda _variant: object())
+    descriptor = describe_ingest_pipeline("opaque")
+    assert isinstance(descriptor, PipelineDescriptor)
+    assert descriptor.fields == ()
+    assert "did not publish" in descriptor.notes[0]
+    specs = [item.spec for item in list_ingest_pipeline_descriptors()]
+    assert "opaque" in specs
+    assert "pymupdf" in specs
+
+
+def test_prepare_pipeline_options_respects_descriptor_and_explicit_overrides():
+    merged = prepare_pipeline_options(
+        spec="pymupdf",
+        legacy_options={
+            "chunk_size": 400,
+            "overlap": 50,
+            "ocr_mode": "force",
+            "ocr_language": "eng",
+            "ocr_dpi": 200,
+        },
+        pipeline_options={"chunk_size": 900, "ocr_language": "deu"},
+    )
+    assert merged == {
+        "chunk_size": 900,
+        "overlap": 50,
+        "ocr_mode": "force",
+        "ocr_language": "deu",
+        "ocr_dpi": 200,
+    }
+
+
+def test_convert_forwards_thin_request_and_isolates_legacy_keys(tmp_path):
+    pdf = tmp_path / "source.pdf"
+    pdf.write_bytes(b"%PDF isolated")
+
+    class Capturing:
+        def __init__(self):
+            self.request = None
+
+        def ingest(self, source_path, options):
+            self.request = options
+            return IngestResult(
+                pages=[ParsedPage(1, 1.0, 1.0, "readable")],
+                blocks=[
+                    IngestBlock(
+                        block_id="b1",
+                        page_number=1,
+                        block_type="paragraph",
+                        text="readable",
+                    )
+                ],
+                chunks=[
+                    IngestChunk(
+                        chunk_id="c1",
+                        text="readable",
+                        page_start=1,
+                        page_end=1,
+                        heading_path="",
+                        token_count=1,
+                        block_ids=["b1"],
+                    )
+                ],
+                parser_name="capture",
+                parser_version="1",
+                chunking_strategy="capture",
+            )
+
+    undescribed = Capturing()
+    described = Capturing()
+    register_ingest_pipeline("undescribed", lambda _variant: undescribed)
+    register_ingest_pipeline("described", lambda _variant: described)
+    register_ingest_pipeline_descriptor(
+        "described",
+        lambda _variant: PipelineDescriptor(
+            provider="described",
+            variant="",
+            spec="described",
+            label="described",
+            fields=(
+                PipelineField(
+                    key="chunk_size",
+                    label="Chunk size",
+                    type="integer",
+                    default=500,
+                ),
+            ),
+        ),
+    )
+
+    class Embedder:
+        model_name = "isolation-test"
+        dimension = 2
+        normalization = "l2"
+
+        def embed(self, texts):
+            return np.asarray([[1.0, 0.0] for _ in texts], dtype=np.float32)
+
+    convert(
+        str(pdf),
+        str(tmp_path / "u.vera"),
+        parser="undescribed",
+        embedding_function=Embedder(),
+        overlap=33,
+        ocr_dpi=222,
+        store_original=False,
+    )
+    convert(
+        str(pdf),
+        str(tmp_path / "d.vera"),
+        parser="described",
+        embedding_function=Embedder(),
+        overlap=33,
+        ocr_dpi=222,
+        chunk_size=321,
+        pipeline_options={"chunk_size": 654},
+        store_original=False,
+    )
+
+    assert isinstance(undescribed.request, IngestRequest)
+    assert undescribed.request.pipeline_options["overlap"] == 33
+    assert undescribed.request.pipeline_options["ocr_dpi"] == 222
+    assert isinstance(described.request, IngestRequest)
+    assert described.request.pipeline_options == {"chunk_size": 654}
+    assert "overlap" not in described.request.pipeline_options
+    assert "ocr_dpi" not in described.request.pipeline_options
+
+
+def test_ingest_options_to_request_preserves_explicit_pipeline_options():
+    request = IngestOptions(
+        chunk_size=100,
+        overlap=1,
+        pipeline_options={"chunk_size": 777, "custom": True},
+    ).to_request()
+    assert request.pipeline_options["chunk_size"] == 777
+    assert request.pipeline_options["custom"] is True
+    assert request.pipeline_options["overlap"] == 1
+
+
+def test_descriptor_entry_points_are_discovered_lazily(monkeypatch):
+    pipeline_module = importlib.import_module("vera_ingest.pipeline")
+
+    class Pipeline:
+        def ingest(self, source_path, options):
+            raise AssertionError("not called")
+
+    class PipelineEntry:
+        name = "hinted"
+
+        def load(self):
+            return lambda variant: Pipeline()
+
+    class DescriptorEntry:
+        name = "hinted"
+
+        def load(self):
+            return lambda variant: PipelineDescriptor(
+                provider="hinted",
+                variant="",
+                spec="hinted",
+                label="hinted",
+                fields=(),
+            )
+
+    reset_ingest_pipeline_registry()
+
+    def fake_entry_points(**kwargs):
+        group = kwargs.get("group")
+        if group == "vera.ingest_pipelines":
+            return [PipelineEntry()]
+        if group == "vera.ingest_pipeline_descriptors":
+            return [DescriptorEntry()]
+        return []
+
+    monkeypatch.setattr(pipeline_module, "entry_points", fake_entry_points)
+    descriptor = describe_ingest_pipeline("hinted")
+    assert descriptor.spec == "hinted"
+    assert descriptor.label == "hinted"
 

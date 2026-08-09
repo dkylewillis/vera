@@ -27,6 +27,9 @@ Documentation = "https://dkylewillis.github.io/vera/packages/vera-ingest-docling
 [project.entry-points."vera.ingest_pipelines"]
 docling = "vera_ingest_docling:create_pipeline"
 
+[project.entry-points."vera.ingest_pipeline_descriptors"]
+docling = "vera_ingest_docling:create_descriptor"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

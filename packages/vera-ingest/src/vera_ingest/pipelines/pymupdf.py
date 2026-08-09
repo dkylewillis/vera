@@ -5,7 +5,10 @@ from importlib.metadata import PackageNotFoundError, version
 
 from ..chunking import build_chunks_from_blocks
 from ..parsers import ParsedBlock, parse_pdf_structured
-from ..types import IngestBlock, IngestChunk, IngestOptions, IngestResult
+from ..types import IngestBlock, IngestChunk, IngestRequest, IngestResult, coerce_ingest_request
+from .pymupdf_options import PyMuPDFOptions, describe_pipeline
+
+__all__ = ["PyMuPDFPipeline", "PyMuPDFOptions", "describe_pipeline"]
 
 
 def _pymupdf_version() -> str:
@@ -33,15 +36,17 @@ def _drop_repeated_images(
 class PyMuPDFPipeline:
     """Compatible built-in implementation of VERA's original PDF ingestion."""
 
-    def ingest(self, source_path: str, options: IngestOptions) -> IngestResult:
+    def ingest(self, source_path: str, options: IngestRequest) -> IngestResult:
+        request = coerce_ingest_request(options)
+        config = PyMuPDFOptions.from_mapping(request.pipeline_options)
         diagnostics: dict[str, object] = {}
         pages, parsed_blocks = parse_pdf_structured(
             source_path,
-            ocr_mode=options.ocr_mode,
-            ocr_language=options.ocr_language,
-            ocr_dpi=options.ocr_dpi,
+            ocr_mode=config.ocr_mode,
+            ocr_language=config.ocr_language,
+            ocr_dpi=config.ocr_dpi,
             diagnostics=diagnostics,
-            cancel=options.cancel,
+            cancel=request.cancel,
         )
         block_records = _drop_repeated_images(
             [
@@ -51,8 +56,8 @@ class PyMuPDFPipeline:
         )
         chunks = build_chunks_from_blocks(
             block_records,
-            chunk_size=options.chunk_size,
-            overlap=options.overlap,
+            chunk_size=config.chunk_size,
+            overlap=config.overlap,
         )
         return IngestResult(
             pages=pages,
@@ -84,8 +89,7 @@ class PyMuPDFPipeline:
             parser_name="pymupdf",
             parser_version=_pymupdf_version(),
             chunking_strategy=(
-                f"heading_block_sliding_window:{options.chunk_size}:{options.overlap}"
+                f"heading_block_sliding_window:{config.chunk_size}:{config.overlap}"
             ),
             diagnostics=diagnostics,
         )
-

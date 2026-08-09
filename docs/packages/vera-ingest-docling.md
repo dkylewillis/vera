@@ -50,26 +50,30 @@ The default Docling variant is `hybrid`. Unknown variants fail before parsing.
 
 - Parses PDFs with Docling's `DocumentConverter` (tables and picture crops on).
 - Chunks with Docling `HybridChunker` and an explicit whitespace tokenizer so
-  `--chunk-size` maps to a token limit without downloading a HuggingFace
+  `chunk_size` maps to a token limit without downloading a HuggingFace
   tokenizer.
+- Owns typed defaults: `chunk_size=500` tokens, `ocr_mode=auto`,
+  `ocr_language=en`. Descriptor fields do **not** include `overlap` or
+  `ocr_dpi`, so those legacy convert/CLI aliases are not forwarded.
 - Stores readable chunk text for keyword search and contextualized text for
   embeddings.
 - Maps provenance boxes from Docling bottom-left coordinates to VERA top-left
   page points.
 - Rejects Docling failure and partial-success results instead of publishing an
   incomplete archive.
-- Records that VERA `--overlap` is not applied by Docling's native merge/split.
 - Maps VERA/Tesseract OCR language codes to RapidOCR (for example `eng` → `en`)
   before configuring Docling OCR.
 - Disables Docling's `torch.compile` path so Windows conversions do not require
-  Visual Studio's `cl.exe`, and keeps Docling's default `images_scale` (VERA's
-  Tesseract `--ocr-dpi` is not applied as a multi-page raster multiplier).
+  Visual Studio's `cl.exe`, and keeps Docling's default `images_scale`.
 
 ## Desktop app
 
 Source-run desktop conversions can select installed pipelines in the Convert
-view when this package is present in the sidecar Python environment. Packaged
-desktop releases do **not** install or bundle Docling plugins in this milestone.
+view when this package is present in the sidecar Python environment. Convert
+controls are schema-driven from Docling's pipeline descriptor
+(`describe_ingest_pipelines` / `PipelineConfigForm`), so overlap and OCR DPI
+controls are not shown. Packaged desktop releases do **not** install or bundle
+Docling plugins in this milestone.
 
 ## See also
 

@@ -9,7 +9,9 @@ from typing import Any
 
 from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
 from vera_ingest.pipeline import UnknownIngestPipelineError
-from vera_ingest.types import IngestBlock, IngestChunk, IngestOptions, IngestResult, ParsedPage
+from vera_ingest.types import IngestBlock, IngestChunk, IngestRequest, IngestResult, ParsedPage, coerce_ingest_request
+
+from .options import DoclingOptions
 
 
 def _docling_version() -> str:
@@ -516,15 +518,12 @@ def _disable_torch_compile() -> None:
         pass
 
 
-def _build_converter(options: IngestOptions) -> Any:
+def _build_converter(options: DoclingOptions) -> Any:
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import PdfPipelineOptions, RapidOcrOptions
     from docling.document_converter import DocumentConverter, PdfFormatOption
 
-    ocr_mode = (options.ocr_mode or "auto").strip().lower()
-    if ocr_mode not in {"auto", "off", "force"}:
-        raise ValueError(f"Unsupported OCR mode {options.ocr_mode!r}; use auto, off, or force.")
-
+    ocr_mode = options.ocr_mode
     # Must run before PdfPipelineOptions() so default_factory compile flags are False.
     _disable_torch_compile()
 
@@ -610,7 +609,7 @@ def _assert_conversion_ok(result: Any) -> Any:
 def _chunk_document(
     document: Any,
     blocks: list[IngestBlock],
-    options: IngestOptions,
+    options: DoclingOptions,
 ) -> list[IngestChunk]:
     from docling.chunking import HybridChunker
 
@@ -661,7 +660,6 @@ def _chunk_document(
                 metadata={
                     "chunker": "docling_hybrid",
                     "overlap_ignored": True,
-                    "overlap_requested": int(options.overlap),
                 },
             )
         )
@@ -671,47 +669,44 @@ def _chunk_document(
 class DoclingHybridPipeline:
     """Optional Docling parsing pipeline with HybridChunker output."""
 
-    def ingest(self, source_path: str, options: IngestOptions) -> IngestResult:
-        variant = (options.variant or "hybrid").strip().lower()
+    def ingest(self, source_path: str, options: IngestRequest) -> IngestResult:
+        request = coerce_ingest_request(options)
+        variant = (request.variant or "hybrid").strip().lower()
         if variant not in {"", "hybrid"}:
             raise UnknownIngestPipelineError(
-                f"Unknown Docling pipeline variant {options.variant!r}; use 'docling' or 'docling:hybrid'."
+                f"Unknown Docling pipeline variant {request.variant!r}; use 'docling' or 'docling:hybrid'."
             )
-        _raise_if_cancelled(options.cancel)
-        converter = _build_converter(options)
-        _raise_if_cancelled(options.cancel)
+        config = DoclingOptions.from_mapping(request.pipeline_options)
+        _raise_if_cancelled(request.cancel)
+        converter = _build_converter(config)
+        _raise_if_cancelled(request.cancel)
         conversion = converter.convert(source=source_path)
-        _raise_if_cancelled(options.cancel)
+        _raise_if_cancelled(request.cancel)
         document = _assert_conversion_ok(conversion)
         pages, blocks = map_docling_document(document)
-        _raise_if_cancelled(options.cancel)
-        chunks = _chunk_document(document, blocks, options)
-        _raise_if_cancelled(options.cancel)
+        _raise_if_cancelled(request.cancel)
+        chunks = _chunk_document(document, blocks, config)
+        _raise_if_cancelled(request.cancel)
         return IngestResult(
             pages=pages,
             blocks=blocks,
             chunks=chunks,
             parser_name="docling",
             parser_version=_docling_version(),
-            chunking_strategy=(
-                f"docling_hybrid:{int(options.chunk_size)}"
-                f"(overlap_ignored:{int(options.overlap)})"
-            ),
+            chunking_strategy=f"docling_hybrid:{int(config.chunk_size)}",
             diagnostics={
                 "engine": "docling",
                 "variant": "hybrid",
-                "ocr_mode": options.ocr_mode,
-                "ocr_language": options.ocr_language,
+                "ocr_mode": config.ocr_mode,
+                "ocr_language": config.ocr_language,
                 "ocr_language_rapidocr": (
-                    map_rapidocr_languages(options.ocr_language)
-                    if (options.ocr_mode or "auto").strip().lower() != "off"
+                    map_rapidocr_languages(config.ocr_language)
+                    if config.ocr_mode != "off"
                     else []
                 ),
-                "ocr_dpi": options.ocr_dpi,
                 "images_scale": 1.0,
                 "torch_compile": False,
                 "overlap_ignored": True,
-                "overlap_requested": int(options.overlap),
                 "artifacts_path_env": "DOCLING_ARTIFACTS_PATH",
             },
         )

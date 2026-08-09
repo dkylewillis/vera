@@ -73,6 +73,11 @@ schema or normative behavior.
 - [x] Discover plugins through the `vera.ingest_pipelines` entry-point group.
 - [x] Keep the compatible built-in `pymupdf` pipeline as the default.
 - [x] Reject unknown pipeline names instead of falling back to PyMuPDF.
+- [x] Move chunking/OCR defaults into pipeline-owned typed options with a thin
+  shared `IngestRequest` / opaque `pipeline_options` bag.
+- [x] Publish pipeline descriptors for discovery and schema-driven UI forms.
+- [x] Keep legacy convert kwargs and CLI flags as compatibility aliases;
+  descriptor fields control which aliases are forwarded.
 
 ### Optional Docling plugin
 
@@ -81,13 +86,19 @@ schema or normative behavior.
   embedding text.
 - [x] Reject Docling partial-success/failure results in the first release.
 - [x] Document first-run model downloads and `DOCLING_ARTIFACTS_PATH`.
+- [x] Own Docling defaults (`chunk_size` tokens, `ocr_mode`, `ocr_language`)
+  without advertising overlap or OCR DPI.
 - [ ] Evaluate Docling quality against representative corpora and decide
   default-vs-optional packaging guidance.
 
 ### CLI and source-run desktop
 
 - [x] Expose pipeline selection through `vera convert --parser`.
+- [x] Expose provider-owned settings through repeatable
+  `vera convert --pipeline-option KEY=VALUE`.
 - [x] List installed pipelines from the desktop sidecar.
+- [x] Drive Convert settings from `describe_ingest_pipelines` descriptors and
+  `PipelineConfigForm`.
 - [x] Persist Convert-view `ingest_pipeline` settings for source-run apps.
 - [x] Show Docling in the Convert pipeline dropdown when the plugin is installed.
 - [x] Keep packaged-app plugin installation explicitly unsupported for now.

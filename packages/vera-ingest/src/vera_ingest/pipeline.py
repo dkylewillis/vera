@@ -3,13 +3,16 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 from importlib.metadata import entry_points
-from typing import Protocol
+from typing import Any, Protocol
 
-from .types import IngestOptions, IngestResult
+from .descriptors import PipelineDescriptor, generic_pipeline_descriptor
+from .types import IngestRequest, IngestResult
 
 _ENTRY_POINT_GROUP = "vera.ingest_pipelines"
+_DESCRIPTOR_ENTRY_POINT_GROUP = "vera.ingest_pipeline_descriptors"
 _REGISTRY_LOCK = threading.RLock()
 _PIPELINE_FACTORIES: dict[str, Callable[[str], IngestPipeline]] = {}
+_DESCRIPTOR_FACTORIES: dict[str, Callable[[str], PipelineDescriptor]] = {}
 _PIPELINE_CACHE: dict[tuple[str, str], IngestPipeline] = {}
 _ENTRY_POINTS_LOADED = False
 _DEFAULT_VARIANTS = {"docling": "hybrid"}
@@ -18,7 +21,7 @@ _DEFAULT_VARIANTS = {"docling": "hybrid"}
 class IngestPipeline(Protocol):
     """Pipeline that normalizes a source document into an ingest bundle."""
 
-    def ingest(self, source_path: str, options: IngestOptions) -> IngestResult:
+    def ingest(self, source_path: str, options: IngestRequest) -> IngestResult:
         """Parse and chunk ``source_path`` without writing an archive."""
         ...
 
@@ -53,6 +56,15 @@ def parse_ingest_pipeline_spec(spec: str | None) -> tuple[str, str]:
     return provider, variant
 
 
+def format_ingest_pipeline_spec(provider: str, variant: str = "") -> str:
+    """Build a canonical ``provider[:variant]`` spec string."""
+    key = _normalize_provider(provider)
+    normalized_variant = (variant or "").strip().lower()
+    if not normalized_variant or normalized_variant == "default":
+        return key
+    return f"{key}:{normalized_variant}"
+
+
 def register_ingest_pipeline(
     provider: str,
     factory: Callable[[str], IngestPipeline],
@@ -72,6 +84,24 @@ def register_ingest_pipeline(
                 _PIPELINE_CACHE.pop(cache_key, None)
 
 
+def register_ingest_pipeline_descriptor(
+    provider: str,
+    factory: Callable[[str], PipelineDescriptor],
+    *,
+    replace: bool = False,
+) -> None:
+    """Register a descriptor factory called with the requested variant."""
+    key = _normalize_provider(provider)
+    if not callable(factory):
+        raise TypeError("ingest pipeline descriptor factory must be callable")
+    with _REGISTRY_LOCK:
+        if key in _DESCRIPTOR_FACTORIES and not replace:
+            raise ValueError(
+                f"ingest pipeline descriptor for {provider!r} is already registered"
+            )
+        _DESCRIPTOR_FACTORIES[key] = factory
+
+
 def _pymupdf_factory(variant: str) -> IngestPipeline:
     from .pipelines.pymupdf import PyMuPDFPipeline
 
@@ -82,9 +112,28 @@ def _pymupdf_factory(variant: str) -> IngestPipeline:
     return PyMuPDFPipeline()
 
 
+def _pymupdf_descriptor_factory(variant: str) -> PipelineDescriptor:
+    from .pipelines.pymupdf import describe_pipeline
+
+    if variant not in {"", "default"}:
+        raise UnknownIngestPipelineError(
+            f"Unknown PyMuPDF pipeline variant {variant!r}; use 'pymupdf'."
+        )
+    return describe_pipeline(variant or "default")
+
+
 def _register_builtins() -> None:
     with _REGISTRY_LOCK:
         _PIPELINE_FACTORIES.setdefault("pymupdf", _pymupdf_factory)
+        _DESCRIPTOR_FACTORIES.setdefault("pymupdf", _pymupdf_descriptor_factory)
+
+
+def _load_entry_point_group(group: str) -> list[Any]:
+    try:
+        selected = entry_points(group=group)
+    except TypeError:  # pragma: no cover - Python <3.10 compatibility path
+        selected = entry_points().get(group, [])  # type: ignore[index]
+    return list(selected)
 
 
 def _ensure_entry_points_loaded() -> None:
@@ -93,11 +142,7 @@ def _ensure_entry_points_loaded() -> None:
         if _ENTRY_POINTS_LOADED:
             return
         _register_builtins()
-        try:
-            selected = entry_points(group=_ENTRY_POINT_GROUP)
-        except TypeError:  # pragma: no cover - Python <3.10 compatibility path
-            selected = entry_points().get(_ENTRY_POINT_GROUP, [])  # type: ignore[index]
-        for entry in selected:
+        for entry in _load_entry_point_group(_ENTRY_POINT_GROUP):
             provider = entry.name.strip().lower()
             if not provider or provider in _PIPELINE_FACTORIES:
                 continue
@@ -107,6 +152,16 @@ def _ensure_entry_points_loaded() -> None:
                 continue
             if callable(factory):
                 _PIPELINE_FACTORIES[provider] = factory
+        for entry in _load_entry_point_group(_DESCRIPTOR_ENTRY_POINT_GROUP):
+            provider = entry.name.strip().lower()
+            if not provider or provider in _DESCRIPTOR_FACTORIES:
+                continue
+            try:
+                factory = entry.load()
+            except Exception:  # noqa: BLE001, S112
+                continue
+            if callable(factory):
+                _DESCRIPTOR_FACTORIES[provider] = factory
         _ENTRY_POINTS_LOADED = True
 
 
@@ -141,11 +196,46 @@ def get_ingest_pipeline(spec: str = "pymupdf") -> IngestPipeline:
         return pipeline
 
 
+def describe_ingest_pipeline(spec: str = "pymupdf") -> PipelineDescriptor:
+    """Return metadata for an installed pipeline without instantiating it."""
+    provider, variant = parse_ingest_pipeline_spec(spec)
+    _ensure_entry_points_loaded()
+    with _REGISTRY_LOCK:
+        if provider not in _PIPELINE_FACTORIES:
+            available = ", ".join(sorted(_PIPELINE_FACTORIES)) or "(none)"
+            raise UnknownIngestPipelineError(
+                f"Unknown ingest parser pipeline {spec!r}. "
+                f"Installed providers: {available}. "
+                f"Install a plugin registered under the '{_ENTRY_POINT_GROUP}' "
+                "entry-point group, or call register_ingest_pipeline()."
+            )
+        factory = _DESCRIPTOR_FACTORIES.get(provider)
+        if factory is None:
+            return generic_pipeline_descriptor(provider, variant)
+        descriptor = factory(variant)
+        if not isinstance(descriptor, PipelineDescriptor):
+            raise TypeError(
+                f"Ingest pipeline descriptor for {provider!r} must return PipelineDescriptor."
+            )
+        return descriptor
+
+
 def list_ingest_pipelines() -> list[str]:
     """Return sorted installed provider names."""
     _ensure_entry_points_loaded()
     with _REGISTRY_LOCK:
         return sorted(_PIPELINE_FACTORIES)
+
+
+def list_ingest_pipeline_descriptors() -> list[PipelineDescriptor]:
+    """Return descriptors for each installed provider using its default variant."""
+    providers = list_ingest_pipelines()
+    descriptors: list[PipelineDescriptor] = []
+    for provider in providers:
+        variant = _DEFAULT_VARIANTS.get(provider, "")
+        spec = format_ingest_pipeline_spec(provider, variant)
+        descriptors.append(describe_ingest_pipeline(spec))
+    return descriptors
 
 
 def clear_ingest_pipeline_cache() -> None:
@@ -159,11 +249,39 @@ def reset_ingest_pipeline_registry(*, builtins: bool = True) -> None:
     global _ENTRY_POINTS_LOADED
     with _REGISTRY_LOCK:
         _PIPELINE_FACTORIES.clear()
+        _DESCRIPTOR_FACTORIES.clear()
         _PIPELINE_CACHE.clear()
         _ENTRY_POINTS_LOADED = False
         if builtins:
             _register_builtins()
 
 
-_register_builtins()
+def prepare_pipeline_options(
+    *,
+    spec: str,
+    pipeline_options: dict[str, Any] | None = None,
+    legacy_options: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Merge legacy convert kwargs with explicit pipeline options.
 
+    When a pipeline publishes descriptor fields, only those legacy keys are
+    forwarded so PyMuPDF defaults such as ``overlap`` and ``ocr_dpi`` do not
+    leak into plugins that omit them. Undescribed plugins receive the full
+    compatibility bag. Explicit ``pipeline_options`` always win.
+    """
+    descriptor = describe_ingest_pipeline(spec)
+    allowed = descriptor.field_keys()
+    merged: dict[str, Any] = {}
+    legacy = legacy_options or {}
+    if allowed:
+        for key, value in legacy.items():
+            if key in allowed:
+                merged[key] = value
+    else:
+        merged.update(legacy)
+    if pipeline_options:
+        merged.update(pipeline_options)
+    return merged
+
+
+_register_builtins()

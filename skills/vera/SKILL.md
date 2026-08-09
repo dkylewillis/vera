@@ -130,8 +130,11 @@ commands write or replace local files and require normal user authorization:
   `docling` when `vera-ingest-docling` is installed);
   image-based low-text pages use selective local OCR by default. Use
   `--ocr off` only when explicitly requested, or `--ocr force` when automatic
-  detection misses a scan. English OCR is bundled; other languages require
-  installed Tesseract language data.
+  detection misses a scan. Prefer `--pipeline-option KEY=VALUE` for
+  provider-owned settings; `--chunk-size`, `--overlap`, `--ocr`,
+  `--ocr-language`, and `--ocr-dpi` remain compatibility aliases (Docling does
+  not receive overlap/DPI). English OCR is bundled for PyMuPDF; other
+  languages require installed Tesseract language data.
 - `convert --overwrite` replaces existing batch outputs.
 - `index build` and `index update` write `.vera-index/`.
 - `export` writes the embedded source document.

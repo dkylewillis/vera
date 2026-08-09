@@ -40,8 +40,28 @@ def _result_payload(result) -> dict:
     return payload
 
 
+def _pipeline_options_from_args(args) -> dict[str, object]:
+    options: dict[str, object] = {}
+    for key, raw in getattr(args, "pipeline_options", []) or []:
+        text = str(raw).strip()
+        lowered = text.lower()
+        if lowered in {"true", "false"}:
+            options[key] = lowered == "true"
+            continue
+        try:
+            if "." in text:
+                options[key] = float(text)
+            else:
+                options[key] = int(text)
+            continue
+        except ValueError:
+            options[key] = text
+    return options
+
+
 def cmd_convert(args) -> int:
     input_path = Path(args.input)
+    pipeline_options = _pipeline_options_from_args(args)
     try:
         if input_path.is_dir():
             if args.output:
@@ -63,6 +83,7 @@ def cmd_convert(args) -> int:
                 ocr_mode=args.ocr_mode,
                 ocr_language=args.ocr_language,
                 ocr_dpi=args.ocr_dpi,
+                pipeline_options=pipeline_options or None,
             )
             unsuccessful = report["failed"] + report["malformed"]
             if args.json:
@@ -92,6 +113,7 @@ def cmd_convert(args) -> int:
             ocr_mode=args.ocr_mode,
             ocr_language=args.ocr_language,
             ocr_dpi=args.ocr_dpi,
+            pipeline_options=pipeline_options or None,
         )
     except (UnknownIngestPipelineError, UnknownEmbeddingModelError) as exc:
         if args.json:

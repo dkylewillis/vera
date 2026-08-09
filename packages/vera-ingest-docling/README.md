@@ -45,13 +45,15 @@ convert("manual.pdf", "manual.vera", parser="docling")
 
 ## Notes
 
-- `--chunk-size` maps to HybridChunker's token limit. Docling's native
-  merge/split strategy does **not** apply VERA's sliding-window `--overlap`.
+- Defaults: `chunk_size=500` tokens, `ocr_mode=auto`, `ocr_language=en`.
+  Docling does **not** advertise `overlap` or `ocr_dpi`, so those legacy
+  convert/CLI aliases are not forwarded.
+- Prefer `pipeline_options=` / `--pipeline-option KEY=VALUE` for provider-owned
+  settings; `--chunk-size` and `--ocr*` remain compatibility aliases.
 - OCR modes map to Docling/RapidOCR: `off`, `auto` (default), and `force`
-  (full-page OCR). VERA's default `--ocr-language eng` (Tesseract) is mapped to
-  RapidOCR's `en`; other common Tesseract aliases are translated the same way.
+  (full-page OCR). Tesseract-style codes such as `eng` are mapped to RapidOCR
+  `en`.
 - Torch model compilation is disabled so Windows does not need MSVC `cl.exe`.
-  `--ocr-dpi` does not inflate Docling page rasters (avoids OOM on large PDFs).
 - Partial or failed Docling conversions are rejected rather than publishing an
   incomplete archive.
 

@@ -214,6 +214,47 @@ def test_cli_forwards_ocr_conversion_options(tmp_path, monkeypatch):
     assert captured["ocr_dpi"] == 240
 
 
+def test_cli_parses_and_forwards_pipeline_options(tmp_path, monkeypatch):
+    pdf = tmp_path / "scan.pdf"
+    output = tmp_path / "scan.vera"
+    pdf.write_bytes(b"%PDF-test-placeholder")
+    captured = {}
+
+    def fake_convert(input_path, output_path, **kwargs):
+        captured.update(kwargs)
+        return output_path
+
+    monkeypatch.setattr(cli_commands, "convert", fake_convert)
+    args = build_parser().parse_args(
+        [
+            "convert",
+            str(pdf),
+            str(output),
+            "--chunk-size",
+            "400",
+            "--pipeline-option",
+            "chunk_size=900",
+            "--pipeline-option",
+            "ocr_mode=force",
+            "--pipeline-option",
+            "custom_flag=true",
+        ]
+    )
+
+    assert args.pipeline_options == [
+        ("chunk_size", "900"),
+        ("ocr_mode", "force"),
+        ("custom_flag", "true"),
+    ]
+    assert args.func(args) == 0
+    assert captured["chunk_size"] == 400
+    assert captured["pipeline_options"] == {
+        "chunk_size": 900,
+        "ocr_mode": "force",
+        "custom_flag": True,
+    }
+
+
 def test_cli_rejects_non_positive_ocr_dpi():
     parser = build_parser()
 

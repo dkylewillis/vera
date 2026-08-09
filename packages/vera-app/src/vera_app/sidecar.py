@@ -22,7 +22,7 @@ from vera import (
     update_library_index,
 )
 from vera.corpus import VeraCorpus
-from vera_ingest import batch_convert, convert, list_ingest_pipelines
+from vera_ingest import batch_convert, convert, list_ingest_pipeline_descriptors, list_ingest_pipelines
 from vera_ingest.viewer import (
     export_source_document,
     figures,
@@ -1105,6 +1105,12 @@ def _convert(
                 "input": input_path,
             }
         )
+    raw_pipeline_options = request.get("pipeline_options")
+    pipeline_options = (
+        dict(raw_pipeline_options)
+        if isinstance(raw_pipeline_options, dict)
+        else None
+    )
     output = convert(
         input_path,
         str(request["output"]),
@@ -1116,6 +1122,7 @@ def _convert(
         ocr_mode=str(request.get("ocr_mode", "auto")),
         ocr_language=str(request.get("ocr_language", "eng")),
         ocr_dpi=int(request.get("ocr_dpi", 300)),
+        pipeline_options=pipeline_options,
         cancel=cancel,
     )
     if write_event:
@@ -1187,6 +1194,11 @@ def _batch_convert(
         ocr_mode=str(request.get("ocr_mode", "auto")),
         ocr_language=str(request.get("ocr_language", "eng")),
         ocr_dpi=int(request.get("ocr_dpi", 300)),
+        pipeline_options=(
+            dict(request["pipeline_options"])
+            if isinstance(request.get("pipeline_options"), dict)
+            else None
+        ),
         progress=report_progress,
         cancel=cancel,
     )
@@ -1335,6 +1347,13 @@ def _list_ingest_pipelines(request: Request) -> dict[str, Any]:
     return {"pipelines": list_ingest_pipelines()}
 
 
+def _describe_ingest_pipelines(request: Request) -> dict[str, Any]:
+    """Return installed pipeline descriptors for schema-driven Convert controls."""
+    return {
+        "pipelines": [descriptor.as_dict() for descriptor in list_ingest_pipeline_descriptors()],
+    }
+
+
 HANDLERS: dict[str, Handler] = {
     "ping": lambda request: {"status": "ok"},
     "inspect": _inspect,
@@ -1353,6 +1372,7 @@ HANDLERS: dict[str, Handler] = {
     "list_models": _list_models,
     "list_embedding_providers": _list_embedding_providers,
     "list_ingest_pipelines": _list_ingest_pipelines,
+    "describe_ingest_pipelines": _describe_ingest_pipelines,
     "list_modes": _list_modes,
 }
 

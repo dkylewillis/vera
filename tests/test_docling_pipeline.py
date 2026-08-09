@@ -187,25 +187,55 @@ def test_map_rapidocr_languages_translates_tesseract_defaults():
 
 
 def test_build_converter_maps_default_eng_to_rapidocr_en():
-    from vera_ingest.types import IngestOptions
+    from vera_ingest_docling.options import DoclingOptions
     from vera_ingest_docling.pipeline import _build_converter
 
-    converter = _build_converter(IngestOptions(ocr_mode="auto", ocr_language="eng"))
+    converter = _build_converter(DoclingOptions(ocr_mode="auto", ocr_language="eng"))
     pdf_option = converter.format_to_options["pdf"]
     assert pdf_option.pipeline_options.do_ocr is True
     assert list(pdf_option.pipeline_options.ocr_options.lang) == ["en"]
 
 
 def test_build_converter_disables_torch_compile_and_keeps_default_image_scale():
-    from vera_ingest.types import IngestOptions
+    from vera_ingest_docling.options import DoclingOptions
     from vera_ingest_docling.pipeline import _build_converter
 
     converter = _build_converter(
-        IngestOptions(ocr_mode="auto", ocr_language="eng", ocr_dpi=300),
+        DoclingOptions(ocr_mode="auto", ocr_language="eng"),
     )
     pipeline_options = converter.format_to_options["pdf"].pipeline_options
     assert pipeline_options.images_scale == 1.0
     assert pipeline_options.layout_options.engine_options.compile_model is False
+
+
+def test_docling_options_ignore_pymupdf_only_keys_and_reject_unknown():
+    from vera_ingest_docling.options import DoclingOptions, describe_pipeline
+
+    options = DoclingOptions.from_mapping(
+        {
+            "chunk_size": 420,
+            "ocr_mode": "force",
+            "ocr_language": "en",
+            "overlap": 75,
+            "ocr_dpi": 300,
+        }
+    )
+    assert options.chunk_size == 420
+    assert options.ocr_mode == "force"
+    assert options.ocr_language == "en"
+    assert not hasattr(options, "overlap") or "overlap" not in options.__dict__
+    with pytest.raises(ValueError, match="Unknown Docling option"):
+        DoclingOptions.from_mapping({"chunk_size": 100, "bogus": True})
+
+    descriptor = describe_pipeline()
+    assert {field.key for field in descriptor.fields} == {
+        "chunk_size",
+        "ocr_mode",
+        "ocr_language",
+    }
+    assert descriptor.capabilities.overlap_supported is False
+    assert descriptor.capabilities.ocr_dpi_supported is False
+    assert descriptor.capabilities.chunk_unit == "tokens"
 
 
 def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, tmp_path):
@@ -230,21 +260,48 @@ def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, 
     pdf = tmp_path / "fixture.pdf"
     pdf.write_bytes(b"%PDF-1.4 fixture")
     pipeline = DoclingHybridPipeline()
-    from vera_ingest.types import IngestOptions
+    from vera_ingest.types import IngestRequest
 
     result = pipeline.ingest(
         str(pdf),
-        IngestOptions(chunk_size=40, overlap=10, ocr_mode="auto"),
+        IngestRequest(
+            pipeline_options={"chunk_size": 40, "ocr_mode": "auto"},
+        ),
     )
 
     assert result.parser_name == "docling"
     assert result.parser_version
     assert "docling_hybrid" in result.chunking_strategy
     assert result.diagnostics["overlap_ignored"] is True
+    assert "ocr_dpi" not in result.diagnostics
+    assert "overlap_requested" not in result.diagnostics
     assert result.chunks
     assert any(chunk.heading_path for chunk in result.chunks)
     assert any(chunk.embedding_text for chunk in result.chunks)
     assert {block.block_id for block in result.blocks}
+
+
+def test_prepare_does_not_forward_pymupdf_overlap_dpi_to_docling():
+    from vera_ingest import prepare_pipeline_options
+
+    merged = prepare_pipeline_options(
+        spec="docling",
+        legacy_options={
+            "chunk_size": 500,
+            "overlap": 75,
+            "ocr_mode": "auto",
+            "ocr_language": "eng",
+            "ocr_dpi": 300,
+        },
+        pipeline_options={"chunk_size": 250},
+    )
+    assert merged == {
+        "chunk_size": 250,
+        "ocr_mode": "auto",
+        "ocr_language": "eng",
+    }
+    assert "overlap" not in merged
+    assert "ocr_dpi" not in merged
 
 
 def test_partial_success_is_rejected(monkeypatch, tmp_path):
@@ -266,11 +323,10 @@ def test_partial_success_is_rejected(monkeypatch, tmp_path):
     )
     pdf = tmp_path / "partial.pdf"
     pdf.write_bytes(b"%PDF-1.4")
+    from vera_ingest.types import IngestRequest
+
     with pytest.raises(ValueError, match="did not fully succeed"):
-        DoclingHybridPipeline().ingest(
-            str(pdf),
-            __import__("vera_ingest.types", fromlist=["IngestOptions"]).IngestOptions(),
-        )
+        DoclingHybridPipeline().ingest(str(pdf), IngestRequest())
 
 
 def test_convert_uses_docling_pipeline_end_to_end(monkeypatch, tmp_path):

@@ -21,8 +21,8 @@ from vera import (
 from vera.core.validation import validate_document
 
 from .parsers import parse_pdf_structured  # noqa: F401 - legacy monkeypatch surface
-from .pipeline import get_ingest_pipeline, parse_ingest_pipeline_spec
-from .types import IngestBlock, IngestOptions, IngestResult
+from .pipeline import get_ingest_pipeline, parse_ingest_pipeline_spec, prepare_pipeline_options
+from .types import IngestBlock, IngestRequest, IngestResult
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -106,6 +106,7 @@ def convert(
     ocr_mode: str = "auto",
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
+    pipeline_options: dict[str, Any] | None = None,
     cancel: Any | None = None,
 ) -> str:
     """Convert a PDF into a validated ``.vera`` archive.
@@ -124,12 +125,16 @@ def convert(
             :class:`~vera.EmbeddingFunction`. When omitted, ``model`` is
             resolved via :func:`~vera.get_embedder` before parsing begins.
         parser: Ingest pipeline spec in ``provider[:variant]`` form.
-        chunk_size: Target chunk size in characters.
-        overlap: Character overlap between consecutive chunks.
+        chunk_size: Compatibility alias forwarded only when the selected
+            pipeline advertises a ``chunk_size`` field.
+        overlap: Compatibility alias forwarded only when advertised by the
+            selected pipeline (PyMuPDF). Ignored by Docling.
         store_original: When ``True``, embed the original PDF as an attachment.
-        ocr_mode: ``"auto"`` (default), ``"off"``, or ``"force"``.
-        ocr_language: Tesseract language code (default ``"eng"``).
-        ocr_dpi: Rasterization DPI for OCR.
+        ocr_mode: Compatibility OCR mode alias when advertised by the pipeline.
+        ocr_language: Compatibility OCR language alias when advertised.
+        ocr_dpi: Compatibility OCR DPI alias when advertised (PyMuPDF).
+        pipeline_options: Explicit provider-owned options. These override
+            compatibility aliases for the same keys.
         cancel: Optional cancellation token with ``raise_if_cancelled()``.
 
     Returns:
@@ -149,6 +154,17 @@ def convert(
     _, pipeline_variant = parse_ingest_pipeline_spec(parser)
     pipeline = get_ingest_pipeline(parser)
     embedder = embedding_function if embedding_function is not None else get_embedder(model)
+    resolved_options = prepare_pipeline_options(
+        spec=parser,
+        pipeline_options=pipeline_options,
+        legacy_options={
+            "chunk_size": chunk_size,
+            "overlap": overlap,
+            "ocr_mode": ocr_mode,
+            "ocr_language": ocr_language,
+            "ocr_dpi": ocr_dpi,
+        },
+    )
 
     _raise_if_cancelled(cancel)
     source_data = source.read_bytes()
@@ -156,14 +172,10 @@ def convert(
     mime_type = mimetypes.guess_type(source.name)[0] or "application/pdf"
     ingest_result = pipeline.ingest(
         str(source),
-        IngestOptions(
-            chunk_size=chunk_size,
-            overlap=overlap,
-            ocr_mode=ocr_mode,
-            ocr_language=ocr_language,
-            ocr_dpi=ocr_dpi,
+        IngestRequest(
             variant=pipeline_variant,
             cancel=cancel,
+            pipeline_options=resolved_options,
         ),
     )
     _raise_if_cancelled(cancel)
@@ -449,6 +461,7 @@ def batch_convert(
     ocr_mode: str = "auto",
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
+    pipeline_options: dict[str, Any] | None = None,
     progress: Callable[[int, int, str], None] | None = None,
     cancel: Any | None = None,
 ) -> dict[str, Any]:
@@ -469,6 +482,7 @@ def batch_convert(
         ocr_mode: OCR mode passed to :func:`convert`.
         ocr_language: OCR language passed to :func:`convert`.
         ocr_dpi: OCR DPI passed to :func:`convert`.
+        pipeline_options: Explicit provider-owned options passed to :func:`convert`.
         progress: Optional ``(current, total, filename)`` callback.
         cancel: Optional cancellation token.
 
@@ -534,6 +548,7 @@ def batch_convert(
                     ocr_mode=ocr_mode,
                     ocr_language=ocr_language,
                     ocr_dpi=ocr_dpi,
+                    pipeline_options=pipeline_options,
                     cancel=cancel,
                 )
             )

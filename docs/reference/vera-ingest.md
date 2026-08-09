@@ -10,12 +10,17 @@ PDF parsing, chunking, and conversion to `.vera` archives.
         - Chunk
         - IngestBlock
         - IngestChunk
+        - IngestRequest
         - IngestOptions
         - IngestPipeline
         - IngestResult
+        - PipelineDescriptor
         - UnknownIngestPipelineError
+        - describe_ingest_pipeline
         - get_ingest_pipeline
         - list_ingest_pipelines
+        - list_ingest_pipeline_descriptors
+        - prepare_pipeline_options
         - register_ingest_pipeline
         - ParsedBlock
         - ParsedPage
@@ -36,7 +41,10 @@ PDF parsing, chunking, and conversion to `.vera` archives.
       show_if_no_docstring: true
 
 Conversion writes through [`VeraDocument`](vera-document.md). Viewer helpers
-interpret ingest-produced attachments and metadata. See the
+interpret ingest-produced attachments and metadata. Shared convert accepts
+opaque `pipeline_options` on a thin `IngestRequest`; pipelines own typed
+defaults and descriptors. Prefer `IngestRequest` / `pipeline_options` over the
+deprecated `IngestOptions` compatibility bag. See the
 [conversion guide](../conversion.md) and
 [figures and regions](../figures-and-regions.md).
 

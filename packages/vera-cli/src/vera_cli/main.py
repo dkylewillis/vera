@@ -30,6 +30,17 @@ def positive_int(value: str) -> int:
     return parsed
 
 
+def pipeline_option(value: str) -> tuple[str, str]:
+    """Parse ``KEY=VALUE`` pairs for ``--pipeline-option``."""
+    if "=" not in value:
+        raise argparse.ArgumentTypeError("must be KEY=VALUE")
+    key, raw = value.split("=", 1)
+    key = key.strip()
+    if not key:
+        raise argparse.ArgumentTypeError("option key must be non-empty")
+    return key, raw
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the ``vera`` command-line argument parser."""
     parser = argparse.ArgumentParser(prog="vera", description="Vector-Embedded Retrieval Archive CLI")
@@ -67,8 +78,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="OCR mode: auto scans image-based pages, off disables OCR, force OCRs every page",
     )
-    convert_p.add_argument("--ocr-language", default="eng", help="Tesseract language code")
-    convert_p.add_argument("--ocr-dpi", type=positive_int, default=300, help="OCR render resolution")
+    convert_p.add_argument("--ocr-language", default="eng", help="Tesseract language code (compatibility alias)")
+    convert_p.add_argument("--ocr-dpi", type=positive_int, default=300, help="OCR render resolution (compatibility alias)")
+    convert_p.add_argument(
+        "--pipeline-option",
+        dest="pipeline_options",
+        action="append",
+        type=pipeline_option,
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "Provider-owned ingest option (repeatable). Overrides compatibility "
+            "aliases for the same key when the selected pipeline accepts it."
+        ),
+    )
     convert_p.add_argument("--recursive", action="store_true", help="Discover PDFs recursively when input is a directory")
     convert_p.add_argument("--overwrite", action="store_true", help="Overwrite existing .vera files during directory conversion")
     convert_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")

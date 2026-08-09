@@ -7,17 +7,34 @@ from .chunking import (
     detect_heading,
 )
 from .convert import batch_convert, convert
+from .descriptors import (
+    PipelineCapabilities,
+    PipelineDescriptor,
+    PipelineField,
+    PipelineFieldChoice,
+)
 from .parsers import ParsedBlock, ParsedPage, parse_pdf, parse_pdf_structured
 from .pipeline import (
     IngestPipeline,
     UnknownIngestPipelineError,
     clear_ingest_pipeline_cache,
+    describe_ingest_pipeline,
     get_ingest_pipeline,
+    list_ingest_pipeline_descriptors,
     list_ingest_pipelines,
+    prepare_pipeline_options,
     register_ingest_pipeline,
+    register_ingest_pipeline_descriptor,
     reset_ingest_pipeline_registry,
 )
-from .types import IngestBlock, IngestChunk, IngestOptions, IngestResult
+from .types import (
+    IngestBlock,
+    IngestChunk,
+    IngestOptions,
+    IngestRequest,
+    IngestResult,
+    coerce_ingest_request,
+)
 from .viewer import (
     export_source_document,
     figures,
@@ -35,15 +52,22 @@ __all__ = [
     "IngestChunk",
     "IngestOptions",
     "IngestPipeline",
+    "IngestRequest",
     "IngestResult",
     "ParsedBlock",
     "ParsedPage",
+    "PipelineCapabilities",
+    "PipelineDescriptor",
+    "PipelineField",
+    "PipelineFieldChoice",
     "UnknownIngestPipelineError",
     "batch_convert",
     "build_chunks_from_blocks",
     "chunk_pages",
     "clear_ingest_pipeline_cache",
+    "coerce_ingest_request",
     "convert",
+    "describe_ingest_pipeline",
     "detect_heading",
     "export_source_document",
     "figures",
@@ -53,10 +77,13 @@ __all__ = [
     "get_ingest_pipeline",
     "get_page",
     "get_source_document",
+    "list_ingest_pipeline_descriptors",
     "list_ingest_pipelines",
     "parse_pdf",
     "parse_pdf_structured",
+    "prepare_pipeline_options",
     "regions_for",
     "register_ingest_pipeline",
+    "register_ingest_pipeline_descriptor",
     "reset_ingest_pipeline_registry",
 ]

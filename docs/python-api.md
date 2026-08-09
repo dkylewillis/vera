@@ -213,17 +213,20 @@ expose parser, chunking, and OCR diagnostics through their metadata.
 Conversion is not part of `vera-doc`:
 
 ```python
-from vera_ingest import batch_convert, convert
+from vera_ingest import convert
 
 convert(
     "input.pdf",
     "output.vera",
     model="hashing",
     parser="pymupdf",
+    # Legacy compatibility aliases (forwarded when advertised by the pipeline):
     chunk_size=500,
     overlap=75,
     store_original=True,
     ocr_mode="auto",
+    # Prefer explicit provider-owned options for new code:
+    # pipeline_options={"chunk_size": 700, "ocr_mode": "force"},
 )
 ```
 
@@ -233,6 +236,12 @@ Unknown model names raise `UnknownEmbeddingModelError` before parsing begins.
 `parser` accepts ingest pipeline specs `provider[:variant]` (default
 `pymupdf`). Optional plugins such as `vera-ingest-docling` register additional
 providers; unknown pipelines raise `UnknownIngestPipelineError`.
+
+Shared convert builds a thin `IngestRequest` and merges legacy kwargs with
+`pipeline_options` according to each pipeline's descriptor. Explicit
+`pipeline_options` always win. Pipelines own typed defaults and validation
+(PyMuPDF: chunk size/overlap/OCR/DPI; Docling: token `chunk_size`, OCR mode,
+and language — no overlap/DPI).
 
 `vera-ingest` resolves the pipeline and embedder, parses and chunks the source,
 creates `ChunkRecord` objects and optional attachments, then writes them through

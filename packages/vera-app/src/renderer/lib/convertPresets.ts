@@ -1,4 +1,6 @@
-/** Convert-view presets for source-run testing of embedding and ingest plugins. */
+/** Convert-view presets for embedding models and optional pipeline install hints. */
+
+import type { PipelineDescriptor } from '../../shared/contracts';
 
 export type ConvertPresetOption = {
   value: string;
@@ -19,17 +21,13 @@ export const EMBEDDING_MODEL_PRESETS: ConvertPresetOption[] = [
   },
 ];
 
-export const INGEST_PIPELINE_PRESETS: ConvertPresetOption[] = [
-  {
-    value: 'pymupdf',
-    label: 'pymupdf — built-in (default)',
-  },
-  {
-    value: 'docling',
+/** Optional pipelines that should appear disabled with an install hint when missing. */
+export const PIPELINE_INSTALL_HINTS: Record<string, { label: string; hint: string }> = {
+  docling: {
     label: 'docling — HybridChunker',
-    requiresProvider: 'docling',
+    hint: 'From the repo root run `uv sync --extra docling` and restart the app.',
   },
-];
+};
 
 export const CUSTOM_EMBEDDING_VALUE = '__custom__';
 
@@ -50,10 +48,32 @@ export function presetOptionAvailable(
   return installed.includes(option.requiresProvider);
 }
 
-export function mergePipelineOptions(installed: string[]): ConvertPresetOption[] {
-  const known = new Set(INGEST_PIPELINE_PRESETS.map((preset) => preset.value));
-  const extras = installed
-    .filter((name) => !known.has(name))
-    .map((name) => ({ value: name, label: name }));
-  return [...INGEST_PIPELINE_PRESETS, ...extras];
+export function pipelineSelectOptions(
+  descriptors: PipelineDescriptor[],
+): ConvertPresetOption[] {
+  const installed = descriptors.map((descriptor) => ({
+    value: descriptor.spec,
+    label: descriptor.label || descriptor.spec,
+  }));
+  const known = new Set(installed.map((option) => option.value));
+  const missingHints = Object.entries(PIPELINE_INSTALL_HINTS)
+    .filter(([provider]) => !known.has(provider) && !descriptors.some((item) => item.provider === provider))
+    .map(([provider, meta]) => ({
+      value: provider,
+      label: meta.label,
+      requiresProvider: provider,
+    }));
+  return [...installed, ...missingHints];
+}
+
+export function pipelineInstallHint(
+  pipeline: string,
+  descriptors: PipelineDescriptor[],
+): string | null {
+  const descriptor = descriptors.find((item) => item.spec === pipeline || item.provider === pipeline);
+  if (descriptor?.installed) {
+    return descriptor.description || null;
+  }
+  const hint = PIPELINE_INSTALL_HINTS[pipeline];
+  return hint?.hint ?? null;
 }

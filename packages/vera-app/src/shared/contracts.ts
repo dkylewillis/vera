@@ -144,6 +144,60 @@ export interface ProviderProfile {
   has_api_key?: boolean;
 }
 
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+export type PipelineFieldType = 'string' | 'enum' | 'integer' | 'number' | 'boolean';
+
+export interface PipelineFieldChoice {
+  value: string;
+  label: string;
+}
+
+export interface PipelineFieldDescriptor {
+  key: string;
+  label: string;
+  type: PipelineFieldType;
+  default?: JsonValue | null;
+  description?: string;
+  unit?: string | null;
+  choices?: PipelineFieldChoice[];
+  minimum?: number | null;
+  maximum?: number | null;
+  step?: number | null;
+  placeholder?: string | null;
+}
+
+export interface PipelineCapabilities {
+  chunk_unit?: 'characters' | 'tokens';
+  overlap_supported?: boolean;
+  ocr_supported?: boolean;
+  ocr_engine?: string | null;
+  ocr_dpi_supported?: boolean;
+  store_original_supported?: boolean;
+  source_formats?: string[];
+}
+
+export interface PipelineDescriptor {
+  provider: string;
+  variant: string;
+  spec: string;
+  label: string;
+  description: string;
+  installed: boolean;
+  capabilities: PipelineCapabilities;
+  fields: PipelineFieldDescriptor[];
+  notes?: string[];
+}
+
+/** Opaque JSON-compatible options owned by the selected ingest pipeline. */
+export type PipelineOptions = Record<string, JsonValue>;
+
 export interface AppSettings {
   providers: ProviderProfile[];
   active_provider_id: string;
@@ -153,6 +207,8 @@ export interface AppSettings {
   embedding_model: string;
   /** Ingest pipeline spec (`provider[:variant]`) for PDF conversion. */
   ingest_pipeline: string;
+  /** Per-pipeline Convert settings keyed by pipeline spec. */
+  ingest_pipeline_configs: Record<string, PipelineOptions>;
 }
 
 export interface CredentialResult {

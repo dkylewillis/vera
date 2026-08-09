@@ -146,6 +146,15 @@ to expose OCR errors:
 vera convert "scan.pdf" "scan.vera" --ocr force --ocr-language eng --ocr-dpi 300
 ```
 
+Equivalent provider-owned form:
+
+```bash
+vera convert "scan.pdf" "scan.vera" \
+  --pipeline-option ocr_mode=force \
+  --pipeline-option ocr_language=eng \
+  --pipeline-option ocr_dpi=300
+```
+
 If an English error says the bundled model is missing, reinstall VERA. Languages
 other than `eng` are not bundled: install the requested `.traineddata` file and
 set `TESSDATA_PREFIX` to its containing directory. `--ocr-language` accepts

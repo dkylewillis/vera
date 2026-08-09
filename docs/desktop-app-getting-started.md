@@ -55,14 +55,17 @@ Desktop conversions default to the built-in PyMuPDF ingest pipeline and the
 offline `hashing` embedder. The Convert view exposes dropdowns for
 `ingest_pipeline` (including Docling when installed) and embedding model
 presets such as `sentence-transformers:all-MiniLM-L6-v2`, plus a custom
-`provider:model-id` field. These settings are independent of the Chat model and
-are persisted in app settings. `npm run app:dev` installs the `app`, `ml`, and
-`docling` extras into the workspace environment so both plugins are available
-for GUI testing. Packaged releases do not bundle optional ingest plugins or
-Sentence Transformers; an unavailable selection is disabled or fails with the
-resolver error. Conversion progress and the current filename appear in the
-footer status bar, so progress remains visible when you switch away from the
-Convert view.
+`provider:model-id` field. Chunking and OCR controls are schema-driven: the
+sidecar `describe_ingest_pipelines` action supplies descriptors, and
+`PipelineConfigForm` renders only advertised fields (PyMuPDF includes overlap
+and OCR DPI; Docling does not). These settings are independent of the Chat
+model and are persisted in app settings. `npm run app:dev` installs the `app`,
+`ml`, and `docling` extras into the workspace environment so both plugins are
+available for GUI testing. Packaged releases do not bundle optional ingest
+plugins or Sentence Transformers; an unavailable selection is disabled or fails
+with the resolver error. Conversion progress and the current filename appear in
+the footer status bar, so progress remains visible when you switch away from
+the Convert view.
 
 Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,

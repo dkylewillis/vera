@@ -530,6 +530,71 @@ def test_sidecar_forwards_ocr_options_for_single_and_batch_conversion(monkeypatc
     assert captured["batch"][1]["model"] == "hashing"
 
 
+def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    captured = {}
+
+    class FakeDescriptor:
+        def as_dict(self):
+            return {
+                "provider": "pymupdf",
+                "variant": "",
+                "spec": "pymupdf",
+                "label": "pymupdf",
+                "description": "built-in",
+                "installed": True,
+                "capabilities": {"overlap_supported": True},
+                "fields": [{"key": "chunk_size", "type": "integer", "default": 500}],
+                "notes": [],
+            }
+
+    def fake_convert(input_path, output_path, **kwargs):
+        captured["single"] = kwargs
+        return output_path
+
+    def fake_batch_convert(directory, **kwargs):
+        captured["batch"] = kwargs
+        return {"converted": 0, "failed": 0}
+
+    monkeypatch.setattr(sidecar, "convert", fake_convert)
+    monkeypatch.setattr(sidecar, "batch_convert", fake_batch_convert)
+    monkeypatch.setattr(
+        sidecar,
+        "list_ingest_pipeline_descriptors",
+        lambda: [FakeDescriptor()],
+    )
+
+    described = handle({"id": "desc", "action": "describe_ingest_pipelines"})
+    single = handle(
+        {
+            "id": "opts-single",
+            "action": "convert",
+            "input": "scan.pdf",
+            "output": "scan.vera",
+            "parser": "pymupdf",
+            "pipeline_options": {"chunk_size": 800, "ocr_mode": "force"},
+        }
+    )
+    batch = handle(
+        {
+            "id": "opts-batch",
+            "action": "batch_convert",
+            "directory": "scans",
+            "parser": "docling",
+            "pipeline_options": {"chunk_size": 250, "ocr_language": "en"},
+        }
+    )
+
+    assert described["ok"] is True
+    assert described["result"]["pipelines"][0]["spec"] == "pymupdf"
+    assert described["result"]["pipelines"][0]["fields"][0]["key"] == "chunk_size"
+    assert single["ok"] is True
+    assert captured["single"]["pipeline_options"] == {"chunk_size": 800, "ocr_mode": "force"}
+    assert batch["ok"] is True
+    assert captured["batch"]["pipeline_options"] == {"chunk_size": 250, "ocr_language": "en"}
+    assert captured["batch"]["parser"] == "docling"
+
+
 def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):
     sidecar = importlib.import_module("vera_app.sidecar")
     captured = {}

@@ -33,19 +33,34 @@ Options:
   `provider[:variant]` (for example `docling` or `docling:hybrid` when
   `vera-ingest-docling` is installed). Unknown providers exit with a non-zero
   status and an install-the-plugin message; there is no silent fallback.
-- `--chunk-size N` defaults to `500`.
-- `--overlap N` defaults to `75`.
+- `--chunk-size N` defaults to `500`. Compatibility alias forwarded only when
+  the selected pipeline advertises a `chunk_size` field.
+- `--overlap N` defaults to `75`. Compatibility alias forwarded only when the
+  pipeline advertises `overlap` (PyMuPDF). Docling does not receive overlap.
 - `--store-original VALUE` defaults to `true`. Values `1`, `true`, `yes`, `y`,
   and `on` are true, case-insensitively; other values are false.
-- `--ocr auto|off|force` defaults to `auto`. Automatic mode OCRs only
-  image-dominant low-text pages.
-- `--ocr-language CODE` defaults to `eng` and accepts Tesseract language
-  selections such as `eng+spa`. With `--parser docling`, VERA maps those codes
-  to RapidOCR (for example `eng` → `en`) before configuring OCR.
-- `--ocr-dpi N` defaults to `300` and must be positive.
+- `--ocr auto|off|force` defaults to `auto`. Compatibility alias for
+  `ocr_mode`. Automatic mode OCRs only image-dominant low-text pages.
+- `--ocr-language CODE` defaults to `eng` (PyMuPDF/Tesseract). Compatibility
+  alias. With `--parser docling`, VERA maps Tesseract-style codes to RapidOCR
+  (for example `eng` → `en`) before configuring OCR; Docling's own default is
+  `en`.
+- `--ocr-dpi N` defaults to `300` and must be positive. Compatibility alias
+  forwarded only when the pipeline advertises `ocr_dpi` (PyMuPDF). Docling
+  does not receive DPI.
+- `--pipeline-option KEY=VALUE` is repeatable. Sets provider-owned
+  `pipeline_options` entries (for example `--pipeline-option chunk_size=900`).
+  Values coerce to bool (`true`/`false`), int, or float when unambiguous;
+  otherwise they remain strings. Explicit `--pipeline-option` values always
+  override compatibility aliases for the same key.
 - `--recursive` recursively discovers PDFs in directory mode.
 - `--overwrite` replaces existing outputs in directory mode.
 - `--json` emits one JSON object.
+
+Each pipeline owns typed defaults and validation. PyMuPDF defaults:
+`chunk_size=500`, `overlap=75`, `ocr_mode=auto`, `ocr_language=eng`,
+`ocr_dpi=300`. Docling defaults: `chunk_size=500` tokens, `ocr_mode=auto`,
+`ocr_language=en` (no overlap/DPI fields).
 
 For a single PDF, omitted `OUTPUT` defaults to the input basename with a
 `.vera` suffix. Conversion writes and validates a temporary sibling before

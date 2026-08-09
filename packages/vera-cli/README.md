@@ -4,6 +4,11 @@
 `vera-ingest`. It owns command parsing, text and JSON output, exit codes, and
 retrieval evaluation.
 
+`vera convert` accepts repeatable `--pipeline-option KEY=VALUE` flags for
+provider-owned ingest settings. Legacy flags such as `--chunk-size`,
+`--overlap`, `--ocr`, `--ocr-language`, and `--ocr-dpi` remain compatibility
+aliases; explicit `--pipeline-option` values win for the same key.
+
 ## Install
 
 ```bash

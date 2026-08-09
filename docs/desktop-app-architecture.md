@@ -62,6 +62,11 @@ Initial actions:
 - `index_status`
 - `index_build`
 - `index_update`
+- `list_models`
+- `list_embedding_providers`
+- `list_ingest_pipelines`
+- `describe_ingest_pipelines`
+- `list_modes`
 
 This keeps the app UI independent from Python internals while preserving a simple local development loop.
 
@@ -208,9 +213,12 @@ bundled into both `vera-doc` and the packaged sidecar. It publishes a validated
 temporary sibling atomically, preserves an existing destination after failure,
 and rejects PDFs with no searchable text after OCR with an OCR-specific
 message. Sidecar `convert` and `batch_convert` requests accept optional
-`ocr_mode`, `ocr_language`, and `ocr_dpi` fields and otherwise use `auto`,
-`eng`, and `300`. `batch_convert` also accepts an explicit `paths` list of PDF
-files; when present, directory discovery is skipped. The sidecar continues
+`pipeline_options` plus legacy `chunk_size`, `overlap`, `ocr_mode`,
+`ocr_language`, and `ocr_dpi` fields. Descriptor fields determine which legacy
+aliases are forwarded; explicit `pipeline_options` win. The Convert UI loads
+descriptors through `describe_ingest_pipelines` and renders them with
+`PipelineConfigForm`. `batch_convert` also accepts an explicit `paths` list of
+PDF files; when present, directory discovery is skipped. The sidecar continues
 after per-file failures and returns converted, skipped, malformed, and failed
 counts plus individual diagnostics. During multi-file conversion the UI shows
 the current file path and offers **Skip** (continue with the next PDF) and

@@ -174,6 +174,9 @@ python -m pip install "vera-cli>=0.2.4"
 # Convert a PDF to a portable retrieval archive.
 vera convert input.pdf output.vera
 
+# Provider-owned ingest options (repeatable; overrides legacy aliases).
+vera convert input.pdf --pipeline-option chunk_size=700 --pipeline-option ocr_mode=auto
+
 # Build a persistent local index for a document library.
 vera index build ./library --recursive
 

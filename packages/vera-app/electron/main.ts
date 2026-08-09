@@ -5,6 +5,7 @@ import { basename, delimiter, isAbsolute, join, relative, resolve, sep } from 'n
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
   AppSettings,
+  PipelineOptions,
   CredentialResult,
   ProviderProfile,
   Session,
@@ -86,7 +87,41 @@ const DEFAULT_SETTINGS: AppSettings = {
   active_mode_id: '',
   embedding_model: 'hashing',
   ingest_pipeline: 'pymupdf',
+  ingest_pipeline_configs: {},
 };
+
+function isJsonPrimitive(value: unknown): value is string | number | boolean | null {
+  return value === null
+    || typeof value === 'string'
+    || typeof value === 'number'
+    || typeof value === 'boolean';
+}
+
+function normalizePipelineOptions(raw: unknown): PipelineOptions {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const options: PipelineOptions = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!key.trim()) continue;
+    if (isJsonPrimitive(value)) {
+      options[key] = value;
+      continue;
+    }
+    if (Array.isArray(value) && value.every(isJsonPrimitive)) {
+      options[key] = value as Array<string | number | boolean | null>;
+    }
+  }
+  return options;
+}
+
+function normalizePipelineConfigs(raw: unknown): Record<string, PipelineOptions> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const configs: Record<string, PipelineOptions> = {};
+  for (const [spec, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!spec.trim()) continue;
+    configs[spec] = normalizePipelineOptions(value);
+  }
+  return configs;
+}
 
 // Serve materialized source PDFs without shipping base64 through JSON IPC.
 // Must be registered before app.ready so fetch()/PDF.js can use the scheme.
@@ -430,12 +465,13 @@ function readSettings(): AppSettings {
       active_provider_id: typeof raw.active_provider_id === 'string' ? raw.active_provider_id : '',
       active_model: activeModel,
       active_mode_id: typeof raw.active_mode_id === 'string' ? raw.active_mode_id : '',
-    embedding_model: typeof raw.embedding_model === 'string' && raw.embedding_model.trim()
-      ? raw.embedding_model.trim()
-      : 'hashing',
-    ingest_pipeline: typeof raw.ingest_pipeline === 'string' && raw.ingest_pipeline.trim()
-      ? raw.ingest_pipeline.trim()
-      : 'pymupdf',
+      embedding_model: typeof raw.embedding_model === 'string' && raw.embedding_model.trim()
+        ? raw.embedding_model.trim()
+        : 'hashing',
+      ingest_pipeline: typeof raw.ingest_pipeline === 'string' && raw.ingest_pipeline.trim()
+        ? raw.ingest_pipeline.trim()
+        : 'pymupdf',
+      ingest_pipeline_configs: normalizePipelineConfigs(raw.ingest_pipeline_configs),
     };
     return withRuntime(merged);
   } catch {
@@ -454,6 +490,7 @@ function writeSettings(settings: AppSettings): AppSettings {
     active_mode_id: settings.active_mode_id || '',
     embedding_model: settings.embedding_model?.trim() || 'hashing',
     ingest_pipeline: settings.ingest_pipeline?.trim() || 'pymupdf',
+    ingest_pipeline_configs: normalizePipelineConfigs(settings.ingest_pipeline_configs),
   };
   const target = settingsPath();
   const temp = `${target}.tmp`;
