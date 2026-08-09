@@ -9,6 +9,12 @@ through the `vera.ingest_pipelines` entry-point group (for example the optional
 `vera-ingest-docling` package). Pipelines return a normalized `IngestResult`;
 `convert()` writes validated archives through one shared atomic path.
 
+Each pipeline owns typed chunking/OCR defaults, validation, and a descriptor
+of supported fields. Shared convert accepts opaque `pipeline_options` on a thin
+`IngestRequest`. Legacy kwargs (`chunk_size`, `overlap`, `ocr_mode`,
+`ocr_language`, `ocr_dpi`) remain compatibility aliases; descriptor fields
+control which aliases are forwarded, and explicit `pipeline_options` win.
+
 It emits ready-made `vera.ChunkRecord` values and optional opaque attachments,
 then stores them through `vera.VeraDocument`. It also provides
 `vera_ingest.viewer` helpers that interpret ingest-produced page, figure,

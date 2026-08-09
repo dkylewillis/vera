@@ -42,11 +42,20 @@ import { ChatTurn } from './components/ChatTurn';
 import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexModal';
 import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { ModelManager, ProviderManager } from './components/ProviderManagers';
+import { mergePipelineFieldValues, PipelineConfigForm } from './components/PipelineConfigForm';
 import { VeraIcon } from './components/VeraIcon';
 import { firstCitationInAnswer } from './lib/citations';
 import { backgroundTasksReducer, type BackgroundTask } from './lib/backgroundTasks';
 import { EMPTY_FIGURES, EMPTY_REGIONS } from './lib/constants';
 import { awaitConversionRequest } from './lib/conversion';
+import {
+  CUSTOM_EMBEDDING_VALUE,
+  EMBEDDING_MODEL_PRESETS,
+  embeddingSelectValue,
+  pipelineInstallHint,
+  pipelineSelectOptions,
+  presetOptionAvailable,
+} from './lib/convertPresets';
 import {
   convertDefaultsFromSelection,
   formatBox,
@@ -58,7 +67,7 @@ import {
 } from './lib/formatting';
 import { figureCacheKey, mergeFigureData, sameSearchResult } from './lib/figures';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from './lib/providers';
-import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
+import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
 import './styles.css';
 
 type SideView = 'explorer' | 'chats' | 'convert';
@@ -186,7 +195,9 @@ function App() {
   const [embeddingModel, setEmbeddingModel] = useState('hashing');
   const [embeddingProviders, setEmbeddingProviders] = useState<string[]>([]);
   const [ingestPipeline, setIngestPipeline] = useState('pymupdf');
-  const [ingestPipelines, setIngestPipelines] = useState<string[]>(['pymupdf']);
+  const [ingestPipelineDescriptors, setIngestPipelineDescriptors] = useState<PipelineDescriptor[]>([]);
+  const [ingestPipelineConfigs, setIngestPipelineConfigs] = useState<Record<string, PipelineOptions>>({});
+  const [pipelineOptions, setPipelineOptions] = useState<PipelineOptions>({});
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
@@ -204,8 +215,6 @@ function App() {
   const [batchOverwrite, setBatchOverwrite] = useState(false);
   const [explorerSelection, setExplorerSelection] = useState<ExplorerSelection | null>(null);
   const [selectedPdfs, setSelectedPdfs] = useState<string[]>([]);
-  const [chunkSize, setChunkSize] = useState(500);
-  const [overlap, setOverlap] = useState(75);
   const [storeOriginal, setStoreOriginal] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [providerErrorDetail, setProviderErrorDetail] = useState<string | null>(null);
@@ -328,6 +337,18 @@ function App() {
   const busyAction = activeOperation?.label ?? null;
   const chatBusy = operationTasks.some((task) => task.label === 'Asking');
   const searchBusy = operationTasks.some((task) => task.label === 'Searching');
+  const activePipelineDescriptor = useMemo(
+    () => ingestPipelineDescriptors.find((item) => item.spec === ingestPipeline || item.provider === ingestPipeline) ?? null,
+    [ingestPipeline, ingestPipelineDescriptors],
+  );
+  const pipelineOptionsForSelect = useMemo(
+    () => pipelineSelectOptions(ingestPipelineDescriptors),
+    [ingestPipelineDescriptors],
+  );
+  const installedPipelineProviders = useMemo(
+    () => ingestPipelineDescriptors.map((item) => item.provider),
+    [ingestPipelineDescriptors],
+  );
 
   const searchScopePath = activeLibraryPath || path;
   const activeIndexStatus = activeLibraryPath ? indexStatuses[activeLibraryPath] : undefined;
@@ -1537,6 +1558,7 @@ function App() {
     setActiveModeId(saved.active_mode_id || '');
     setEmbeddingModel(saved.embedding_model || 'hashing');
     setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
+    setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
     return saved;
   }
 
@@ -1548,46 +1570,68 @@ function App() {
     setActiveModeId(saved.active_mode_id || '');
     setEmbeddingModel(saved.embedding_model || 'hashing');
     setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
+    setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
     return saved;
+  }
+
+  function settingsSnapshot(overrides?: Partial<AppSettings>): AppSettings {
+    return {
+      providers,
+      active_provider_id: activeProviderId,
+      active_model: activeModel,
+      active_mode_id: activeModeId,
+      embedding_model: embeddingModel,
+      ingest_pipeline: ingestPipeline,
+      ingest_pipeline_configs: ingestPipelineConfigs,
+      ...overrides,
+    };
   }
 
   async function saveEmbeddingModel(model: string) {
     const nextModel = model.trim() || 'hashing';
     setEmbeddingModel(nextModel);
-    await persistSettings({
-      providers,
-      active_provider_id: activeProviderId,
-      active_model: activeModel,
-      active_mode_id: activeModeId,
-      embedding_model: nextModel,
-      ingest_pipeline: ingestPipeline,
-    });
+    await persistSettings(settingsSnapshot({ embedding_model: nextModel }));
   }
 
   async function saveIngestPipeline(pipeline: string) {
     const nextPipeline = pipeline.trim() || 'pymupdf';
+    const nextConfigs = {
+      ...ingestPipelineConfigs,
+      [ingestPipeline]: pipelineOptions,
+    };
+    const nextDescriptor = ingestPipelineDescriptors.find(
+      (item) => item.spec === nextPipeline || item.provider === nextPipeline,
+    ) ?? null;
+    const nextOptions = mergePipelineFieldValues(nextDescriptor, nextConfigs[nextPipeline]);
     setIngestPipeline(nextPipeline);
-    await persistSettings({
-      providers,
-      active_provider_id: activeProviderId,
-      active_model: activeModel,
-      active_mode_id: activeModeId,
-      embedding_model: embeddingModel,
+    setIngestPipelineConfigs(nextConfigs);
+    setPipelineOptions(nextOptions);
+    await persistSettings(settingsSnapshot({
       ingest_pipeline: nextPipeline,
-    });
+      ingest_pipeline_configs: {
+        ...nextConfigs,
+        [nextPipeline]: nextOptions,
+      },
+    }));
+  }
+
+  async function savePipelineOptions(nextOptions: PipelineOptions) {
+    setPipelineOptions(nextOptions);
+    const nextConfigs = {
+      ...ingestPipelineConfigs,
+      [ingestPipeline]: nextOptions,
+    };
+    setIngestPipelineConfigs(nextConfigs);
+    await persistSettings(settingsSnapshot({ ingest_pipeline_configs: nextConfigs }));
   }
   async function selectActiveModel(providerId: string, model: string) {
     setModelPickerOpen(false);
     setActiveProviderId(providerId);
     setActiveModel(model);
-    await persistSettings({
-      providers,
+    await persistSettings(settingsSnapshot({
       active_provider_id: providerId,
       active_model: model,
-      active_mode_id: activeModeId,
-      embedding_model: embeddingModel,
-      ingest_pipeline: ingestPipeline,
-    });
+    }));
   }
 
   async function refreshProviderModels(providerId: string) {
@@ -1621,14 +1665,10 @@ function App() {
       const nextActiveModel = activeProviderId === providerId && !enabled.includes(activeModel)
         ? (enabled[0] ?? '')
         : activeModel;
-      await persistSettings({
+      await persistSettings(settingsSnapshot({
         providers: nextProviders,
-        active_provider_id: activeProviderId,
         active_model: nextActiveModel,
-        active_mode_id: activeModeId,
-        embedding_model: embeddingModel,
-        ingest_pipeline: ingestPipeline,
-      });
+      }));
       setModelRefreshMessage(discovered.length
         ? `Found ${discovered.length} models from ${providerDisplayName(profile)}.`
         : `${providerDisplayName(profile)} returned no models.`);
@@ -1647,14 +1687,10 @@ function App() {
     const nextActiveModel = activeProviderId === providerId && activeModel === model && !enabled.includes(model)
       ? (enabled[0] ?? '')
       : activeModel;
-    await persistSettings({
+    await persistSettings(settingsSnapshot({
       providers: nextProviders,
-      active_provider_id: activeProviderId,
       active_model: nextActiveModel,
-      active_mode_id: activeModeId,
-      embedding_model: embeddingModel,
-      ingest_pipeline: ingestPipeline,
-    });
+    }));
   }
 
   async function updateModelOptions(
@@ -1671,14 +1707,7 @@ function App() {
           },
         }
       : entry);
-    await persistSettings({
-      providers: nextProviders,
-      active_provider_id: activeProviderId,
-      active_model: activeModel,
-      active_mode_id: activeModeId,
-      embedding_model: embeddingModel,
-      ingest_pipeline: ingestPipeline,
-    });
+    await persistSettings(settingsSnapshot({ providers: nextProviders }));
   }
 
   useEffect(() => {
@@ -1700,14 +1729,7 @@ function App() {
   async function selectActiveMode(modeId: string) {
     setModePickerOpen(false);
     setActiveModeId(modeId);
-    await persistSettings({
-      providers,
-      active_provider_id: activeProviderId,
-      active_model: activeModel,
-      active_mode_id: modeId,
-      embedding_model: embeddingModel,
-      ingest_pipeline: ingestPipeline,
-    });
+    await persistSettings(settingsSnapshot({ active_mode_id: modeId }));
   }
 
   function updateConversionTask(
@@ -1878,9 +1900,8 @@ function App() {
           overwrite: batchOverwrite,
           model: embeddingModel,
           parser: ingestPipeline,
-          chunk_size: chunkSize,
-          overlap,
           store_original: storeOriginal,
+          pipeline_options: pipelineOptions,
         }, conversionRequestId),
         () => settleConversionRequest(conversionRequestId),
       );
@@ -2094,6 +2115,7 @@ function App() {
       setActiveModeId(saved.active_mode_id || '');
       setEmbeddingModel(saved.embedding_model || 'hashing');
       setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
+      setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
     }
     async function loadEmbeddingProviders() {
       const response = await window.vera.request<{ providers: string[] }>({
@@ -2104,14 +2126,32 @@ function App() {
       }
     }
     async function loadIngestPipelines() {
-      const response = await window.vera.request<{ pipelines: string[] }>({
+      const response = await window.vera.request<{ pipelines: PipelineDescriptor[] }>({
+        action: 'describe_ingest_pipelines',
+      });
+      if (canceled) return;
+      if (response.ok && response.result?.pipelines?.length) {
+        setIngestPipelineDescriptors(response.result.pipelines);
+        return;
+      }
+      const fallback = await window.vera.request<{ pipelines: string[] }>({
         action: 'list_ingest_pipelines',
       });
-      if (!canceled && response.ok) {
-        const pipelines = response.result?.pipelines?.length
-          ? response.result.pipelines
+      if (!canceled && fallback.ok) {
+        const pipelines = fallback.result?.pipelines?.length
+          ? fallback.result.pipelines
           : ['pymupdf'];
-        setIngestPipelines(pipelines);
+        setIngestPipelineDescriptors(pipelines.map((spec) => ({
+          provider: spec,
+          variant: '',
+          spec,
+          label: spec,
+          description: '',
+          installed: true,
+          capabilities: {},
+          fields: [],
+          notes: [],
+        })));
       }
     }
     async function loadSessions() {
@@ -2170,6 +2210,17 @@ function App() {
       canceled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!ingestPipelineDescriptors.length) return;
+    const descriptor = ingestPipelineDescriptors.find(
+      (item) => item.spec === ingestPipeline || item.provider === ingestPipeline,
+    ) ?? null;
+    setPipelineOptions(mergePipelineFieldValues(
+      descriptor,
+      ingestPipelineConfigs[ingestPipeline],
+    ));
+  }, [ingestPipelineDescriptors, ingestPipeline, ingestPipelineConfigs]);
 
   const loadModes = React.useCallback(async () => {
     const response = await window.vera.listModes();
@@ -2639,54 +2690,95 @@ function App() {
                   <label className="field">
                     <span>Ingest pipeline</span>
                     <select
-                      value={ingestPipeline}
+                      value={
+                        pipelineOptionsForSelect.some((option) => option.value === ingestPipeline)
+                          ? ingestPipeline
+                          : ingestPipeline || 'pymupdf'
+                      }
                       onChange={(event) => void saveIngestPipeline(event.target.value)}
                       disabled={conversionInProgress}
                     >
-                      {(ingestPipelines.includes(ingestPipeline)
-                        ? ingestPipelines
-                        : [...ingestPipelines, ingestPipeline]
-                      ).map((pipeline) => (
-                        <option key={pipeline} value={pipeline}>{pipeline}</option>
-                      ))}
+                      {pipelineOptionsForSelect.map((option) => {
+                        const available = presetOptionAvailable(option, installedPipelineProviders);
+                        return (
+                          <option key={option.value} value={option.value} disabled={!available}>
+                            {available ? option.label : `${option.label} (not installed)`}
+                          </option>
+                        );
+                      })}
+                      {!pipelineOptionsForSelect.some((option) => option.value === ingestPipeline)
+                        && ingestPipeline
+                        ? <option value={ingestPipeline}>{ingestPipeline}</option>
+                        : null}
                     </select>
                   </label>
                   <p className="sideMuted">
-                    Installed pipelines from the sidecar Python environment. Packaged app releases
-                    do not install optional plugins such as Docling; use a source-run environment
-                    with <code>uv sync --extra docling</code> for that pipeline.
+                    {activePipelineDescriptor?.installed
+                      ? (activePipelineDescriptor.description || 'Pipeline ready for conversion.')
+                      : (pipelineInstallHint(ingestPipeline, ingestPipelineDescriptors)
+                        || 'Choose an ingest pipeline.')}
+                    {' '}Packaged releases do not bundle optional ingest plugins.
                   </p>
                   <label className="field">
                     <span>Embedding model</span>
-                    <input
-                      list="embedding-provider-specs"
-                      value={embeddingModel}
-                      onChange={(event) => setEmbeddingModel(event.target.value)}
-                      onBlur={() => void saveEmbeddingModel(embeddingModel)}
-                      placeholder="hashing or provider:model-id"
+                    <select
+                      value={embeddingSelectValue(embeddingModel)}
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        if (next === CUSTOM_EMBEDDING_VALUE) {
+                          if (embeddingSelectValue(embeddingModel) !== CUSTOM_EMBEDDING_VALUE) {
+                            setEmbeddingModel('');
+                          }
+                          return;
+                        }
+                        void saveEmbeddingModel(next);
+                      }}
                       disabled={conversionInProgress}
-                    />
-                    <datalist id="embedding-provider-specs">
-                      <option value="hashing" />
-                      <option value="hashing:vera-hashing-384" />
-                      {embeddingProviders.map((provider) => (
-                        <option key={provider} value={`${provider}:`} />
-                      ))}
-                    </datalist>
+                    >
+                      {EMBEDDING_MODEL_PRESETS.map((option) => {
+                        const available = presetOptionAvailable(option, embeddingProviders);
+                        return (
+                          <option key={option.value} value={option.value} disabled={!available}>
+                            {available ? option.label : `${option.label} (not installed)`}
+                          </option>
+                        );
+                      })}
+                      <option value={CUSTOM_EMBEDDING_VALUE}>Custom provider:model-id…</option>
+                    </select>
                   </label>
+                  {embeddingSelectValue(embeddingModel) === CUSTOM_EMBEDDING_VALUE ? (
+                    <label className="field">
+                      <span>Custom embedding spec</span>
+                      <input
+                        list="embedding-provider-specs"
+                        value={embeddingModel}
+                        onChange={(event) => setEmbeddingModel(event.target.value)}
+                        onBlur={() => void saveEmbeddingModel(embeddingModel)}
+                        placeholder="provider:model-id"
+                        disabled={conversionInProgress}
+                      />
+                      <datalist id="embedding-provider-specs">
+                        <option value="hashing" />
+                        <option value="hashing:vera-hashing-384" />
+                        <option value="sentence-transformers:all-MiniLM-L6-v2" />
+                        {embeddingProviders.map((provider) => (
+                          <option key={provider} value={`${provider}:`} />
+                        ))}
+                      </datalist>
+                    </label>
+                  ) : null}
                   <p className="sideMuted">
-                    Use <code>provider:model-id</code> for plugins. The selected embedding model is independent
-                    of the chat model and is saved when this field loses focus.
-                  </p>                  <div className="convertGrid">
-                    <label className="miniField">
-                      <span>Chunk Size</span>
-                      <input className="numberInput" type="number" min={100} max={3000} step={50} value={chunkSize} onChange={(event) => setChunkSize(Number(event.target.value))} />
-                    </label>
-                    <label className="miniField">
-                      <span>Overlap</span>
-                      <input className="numberInput" type="number" min={0} max={1000} step={25} value={overlap} onChange={(event) => setOverlap(Number(event.target.value))} />
-                    </label>
-                  </div>
+                    {embeddingProviders.includes('sentence-transformers')
+                      ? 'Sentence Transformers is available. The conversion embedding model is independent of Chat.'
+                      : <>Sentence Transformers is not installed. From the repo root run <code>uv sync --extra ml</code> and restart the app.</>}
+                    {' '}Custom specs are saved when the field loses focus.
+                  </p>
+                  <PipelineConfigForm
+                    descriptor={activePipelineDescriptor}
+                    values={pipelineOptions}
+                    disabled={conversionInProgress}
+                    onChange={(next) => { void savePipelineOptions(next); }}
+                  />
                   <label className="miniCheck">
                     <input type="checkbox" checked={storeOriginal} onChange={(event) => setStoreOriginal(event.target.checked)} />
                     <span>Store original PDF</span>
@@ -3781,6 +3873,7 @@ function App() {
           activeModeId={activeModeId}
           embeddingModel={embeddingModel}
           ingestPipeline={ingestPipeline}
+          ingestPipelineConfigs={ingestPipelineConfigs}
           onPersist={persistSettings}
           onRefresh={refreshSettings}
           onClose={() => setSettingsOpen(false)}

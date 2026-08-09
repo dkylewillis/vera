@@ -9,7 +9,10 @@ from typing import Any
 
 from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
 from vera_ingest.pipeline import UnknownIngestPipelineError
-from vera_ingest.types import IngestBlock, IngestChunk, IngestOptions, IngestResult, ParsedPage
+from vera_ingest.types import IngestBlock, IngestChunk, IngestRequest, IngestResult, ParsedPage, coerce_ingest_request
+
+from .languages import map_rapidocr_languages
+from .options import DoclingOptions
 
 
 def _docling_version() -> str:
@@ -309,33 +312,55 @@ def map_docling_document(document: Any) -> tuple[list[ParsedPage], list[IngestBl
     return pages, blocks
 
 
-def _build_converter(options: IngestOptions) -> Any:
+def _disable_torch_compile() -> None:
+    """Avoid torch.compile / Inductor, which requires MSVC ``cl.exe`` on Windows.
+
+    Docling enables ``compile_torch_models`` by default. On machines without Visual
+    Studio Build Tools that fails page-by-page with \"Compiler: cl is not found\"
+    and often cascades into memory exhaustion.
+    """
+    try:
+        from docling.datamodel.settings import settings
+
+        settings.inference.compile_torch_models = False
+    except Exception:  # pragma: no cover - defensive against Docling API drift
+        pass
+    try:
+        import torch._dynamo
+
+        torch._dynamo.config.suppress_errors = True
+    except Exception:  # pragma: no cover - torch optional at import time
+        pass
+
+
+def _build_converter(options: DoclingOptions) -> Any:
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import PdfPipelineOptions, RapidOcrOptions
     from docling.document_converter import DocumentConverter, PdfFormatOption
 
-    ocr_mode = (options.ocr_mode or "auto").strip().lower()
-    if ocr_mode not in {"auto", "off", "force"}:
-        raise ValueError(f"Unsupported OCR mode {options.ocr_mode!r}; use auto, off, or force.")
+    ocr_mode = options.ocr_mode
+    # Must run before PdfPipelineOptions() so default_factory compile flags are False.
+    _disable_torch_compile()
 
     pipeline_options = PdfPipelineOptions()
     pipeline_options.do_table_structure = True
     pipeline_options.generate_picture_images = True
-    # Approximate DPI scaling used by Docling picture crops (72 DPI base).
-    pipeline_options.images_scale = max(1.0, float(options.ocr_dpi) / 72.0)
+    # Keep Docling's default raster scale. Mapping VERA's Tesseract OCR DPI
+    # (default 300) to images_scale (~4.17x) OOMs large manuals.
+    pipeline_options.images_scale = 1.0
+    layout_engine = getattr(getattr(pipeline_options, "layout_options", None), "engine_options", None)
+    if layout_engine is not None and hasattr(layout_engine, "compile_model"):
+        layout_engine.compile_model = False
 
     if ocr_mode == "off":
         pipeline_options.do_ocr = False
     else:
         pipeline_options.do_ocr = True
+        rapid_langs = map_rapidocr_languages(options.ocr_language)
         ocr_options = RapidOcrOptions(
             force_full_page_ocr=(ocr_mode == "force"),
+            lang=rapid_langs,
         )
-        lang = (options.ocr_language or "eng").strip()
-        if lang:
-            # RapidOCR accepts language hints when provided by the installed engine.
-            if hasattr(ocr_options, "lang"):
-                ocr_options.lang = [part for part in lang.replace("+", ",").split(",") if part]
         pipeline_options.ocr_options = ocr_options
 
     return DocumentConverter(
@@ -344,6 +369,35 @@ def _build_converter(options: IngestOptions) -> Any:
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
         },
     )
+
+
+def _format_docling_errors(result: Any) -> str:
+    errors = getattr(result, "errors", None) or []
+    messages: list[str] = []
+    for entry in errors:
+        text = str(getattr(entry, "error_message", None) or entry).strip()
+        if text and text not in messages:
+            messages.append(text)
+    if not messages:
+        return ""
+    joined = " | ".join(messages[:5])
+    if len(messages) > 5:
+        joined = f"{joined} | …(+{len(messages) - 5} more)"
+    hints: list[str] = []
+    blob = " ".join(messages).lower()
+    if "compiler: cl is not found" in blob or "torchdynamo" in blob:
+        hints.append(
+            "Torch compile/Inductor needs MSVC cl.exe on Windows; "
+            "VERA disables torch.compile for Docling — restart the app after updating."
+        )
+    if "bad_alloc" in blob:
+        hints.append(
+            "Docling ran out of memory rasterizing pages; large manuals need the "
+            "default images_scale (not OCR-DPI scaling)."
+        )
+    if hints:
+        return f"{joined} Hint: {' '.join(hints)}"
+    return joined
 
 
 def _assert_conversion_ok(result: Any) -> Any:
@@ -358,16 +412,18 @@ def _assert_conversion_ok(result: Any) -> Any:
             raise ValueError("Docling conversion succeeded but returned no document.")
         return document
     status_name = getattr(status, "name", str(status))
+    detail = _format_docling_errors(result)
+    suffix = f" Errors: {detail}" if detail else ""
     raise ValueError(
         f"Docling conversion did not fully succeed (status={status_name}). "
-        "Partial or failed results are rejected in this release."
+        f"Partial or failed results are rejected in this release.{suffix}"
     )
 
 
 def _chunk_document(
     document: Any,
     blocks: list[IngestBlock],
-    options: IngestOptions,
+    options: DoclingOptions,
 ) -> list[IngestChunk]:
     from docling.chunking import HybridChunker
 
@@ -418,7 +474,6 @@ def _chunk_document(
                 metadata={
                     "chunker": "docling_hybrid",
                     "overlap_ignored": True,
-                    "overlap_requested": int(options.overlap),
                 },
             )
         )
@@ -428,40 +483,44 @@ def _chunk_document(
 class DoclingHybridPipeline:
     """Optional Docling parsing pipeline with HybridChunker output."""
 
-    def ingest(self, source_path: str, options: IngestOptions) -> IngestResult:
-        variant = (options.variant or "hybrid").strip().lower()
+    def ingest(self, source_path: str, options: IngestRequest) -> IngestResult:
+        request = coerce_ingest_request(options)
+        variant = (request.variant or "hybrid").strip().lower()
         if variant not in {"", "hybrid"}:
             raise UnknownIngestPipelineError(
-                f"Unknown Docling pipeline variant {options.variant!r}; use 'docling' or 'docling:hybrid'."
+                f"Unknown Docling pipeline variant {request.variant!r}; use 'docling' or 'docling:hybrid'."
             )
-        _raise_if_cancelled(options.cancel)
-        converter = _build_converter(options)
-        _raise_if_cancelled(options.cancel)
+        config = DoclingOptions.from_mapping(request.pipeline_options)
+        _raise_if_cancelled(request.cancel)
+        converter = _build_converter(config)
+        _raise_if_cancelled(request.cancel)
         conversion = converter.convert(source=source_path)
-        _raise_if_cancelled(options.cancel)
+        _raise_if_cancelled(request.cancel)
         document = _assert_conversion_ok(conversion)
         pages, blocks = map_docling_document(document)
-        _raise_if_cancelled(options.cancel)
-        chunks = _chunk_document(document, blocks, options)
-        _raise_if_cancelled(options.cancel)
+        _raise_if_cancelled(request.cancel)
+        chunks = _chunk_document(document, blocks, config)
+        _raise_if_cancelled(request.cancel)
         return IngestResult(
             pages=pages,
             blocks=blocks,
             chunks=chunks,
             parser_name="docling",
             parser_version=_docling_version(),
-            chunking_strategy=(
-                f"docling_hybrid:{int(options.chunk_size)}"
-                f"(overlap_ignored:{int(options.overlap)})"
-            ),
+            chunking_strategy=f"docling_hybrid:{int(config.chunk_size)}",
             diagnostics={
                 "engine": "docling",
                 "variant": "hybrid",
-                "ocr_mode": options.ocr_mode,
-                "ocr_language": options.ocr_language,
-                "ocr_dpi": options.ocr_dpi,
+                "ocr_mode": config.ocr_mode,
+                "ocr_language": config.ocr_language,
+                "ocr_language_rapidocr": (
+                    map_rapidocr_languages(config.ocr_language)
+                    if config.ocr_mode != "off"
+                    else []
+                ),
+                "images_scale": 1.0,
+                "torch_compile": False,
                 "overlap_ignored": True,
-                "overlap_requested": int(options.overlap),
                 "artifacts_path_env": "DOCLING_ARTIFACTS_PATH",
             },
         )

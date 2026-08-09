@@ -12,16 +12,19 @@ output = convert(
     "manual.pdf",
     "manual.vera",
     model="hashing",
-    chunk_size=500,
-    overlap=75,
     store_original=True,
-    ocr_mode="auto",
+    pipeline_options={
+        "chunk_size": 500,
+        "overlap": 75,
+        "ocr_mode": "auto",
+    },
 )
 print(output)
 ```
 
 The function returns the output path after validating and atomically publishing
-the archive.
+the archive. Legacy kwargs such as `chunk_size=` and `ocr_mode=` remain
+compatibility aliases; explicit `pipeline_options` win for matching keys.
 
 ## Force OCR
 
@@ -31,9 +34,11 @@ from vera_ingest import convert
 convert(
     "scanned-manual.pdf",
     "scanned-manual.vera",
-    ocr_mode="force",
-    ocr_language="eng",
-    ocr_dpi=300,
+    pipeline_options={
+        "ocr_mode": "force",
+        "ocr_language": "eng",
+        "ocr_dpi": 300,
+    },
 )
 ```
 

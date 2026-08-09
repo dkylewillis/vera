@@ -34,12 +34,15 @@ Options:
 - `--parser PARSER` (`pymupdf`; accepts `provider[:variant]` specs such as
   `docling` / `docling:hybrid` when `vera-ingest-docling` is installed; unknown
   providers exit with an error)
-- `--chunk-size N` (`500`)
-- `--overlap N` (`75`)
+- `--chunk-size N` (`500`; compatibility alias)
+- `--overlap N` (`75`; compatibility alias; forwarded only when the pipeline
+  advertises overlap, e.g. PyMuPDF — not Docling)
 - `--store-original VALUE` (`true`)
-- `--ocr auto|off|force` (`auto`)
-- `--ocr-language CODE` (`eng`)
-- `--ocr-dpi N` (`300`, must be positive)
+- `--ocr auto|off|force` (`auto`; compatibility alias)
+- `--ocr-language CODE` (`eng`; compatibility alias)
+- `--ocr-dpi N` (`300`, must be positive; compatibility alias; PyMuPDF only)
+- `--pipeline-option KEY=VALUE` (repeatable; provider-owned options that
+  override compatibility aliases for the same key)
 - `--recursive`
 - `--overwrite`
 - `--json`
@@ -50,7 +53,8 @@ no searchable chunks are extracted. English language data is bundled for
 offline, zero-setup OCR; other selected languages require external Tesseract
 language data. Directory conversion writes archives beside PDFs, validates
 existing outputs before skipping them, reports malformed outputs separately,
-and does not accept `OUTPUT`.
+and does not accept `OUTPUT`. Pipeline-owned defaults and validation live in
+each ingest plugin; see [Convert documents](conversion.md#pipeline-options).
 
 ## `vera inspect FILE`
 

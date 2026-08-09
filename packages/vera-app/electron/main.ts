@@ -5,11 +5,32 @@ import { basename, delimiter, isAbsolute, join, relative, resolve, sep } from 'n
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
   AppSettings,
+  PipelineOptions,
   CredentialResult,
   ProviderProfile,
   Session,
 } from '../src/shared/contracts.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
+
+/** Prefer the workspace uv venv so optional plugins (ml/docling) resolve in source-run. */
+function resolveDevPython(): string {
+  if (process.env.VERA_APP_PYTHON?.trim()) {
+    return process.env.VERA_APP_PYTHON.trim();
+  }
+  const repoRoot = resolve(process.cwd(), '..', '..');
+  const candidates = [
+    join(repoRoot, '.venv', 'Scripts', 'python.exe'),
+    join(repoRoot, '.venv', 'bin', 'python'),
+    join(process.cwd(), '.venv', 'Scripts', 'python.exe'),
+    join(process.cwd(), '.venv', 'bin', 'python'),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return 'python';
+}
 
 interface FolderEntry {
   path: string;
@@ -66,7 +87,41 @@ const DEFAULT_SETTINGS: AppSettings = {
   active_mode_id: '',
   embedding_model: 'hashing',
   ingest_pipeline: 'pymupdf',
+  ingest_pipeline_configs: {},
 };
+
+function isJsonPrimitive(value: unknown): value is string | number | boolean | null {
+  return value === null
+    || typeof value === 'string'
+    || typeof value === 'number'
+    || typeof value === 'boolean';
+}
+
+function normalizePipelineOptions(raw: unknown): PipelineOptions {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const options: PipelineOptions = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!key.trim()) continue;
+    if (isJsonPrimitive(value)) {
+      options[key] = value;
+      continue;
+    }
+    if (Array.isArray(value) && value.every(isJsonPrimitive)) {
+      options[key] = value as Array<string | number | boolean | null>;
+    }
+  }
+  return options;
+}
+
+function normalizePipelineConfigs(raw: unknown): Record<string, PipelineOptions> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const configs: Record<string, PipelineOptions> = {};
+  for (const [spec, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!spec.trim()) continue;
+    configs[spec] = normalizePipelineOptions(value);
+  }
+  return configs;
+}
 
 // Serve materialized source PDFs without shipping base64 through JSON IPC.
 // Must be registered before app.ready so fetch()/PDF.js can use the scheme.
@@ -191,13 +246,14 @@ class PythonSidecar {
 
     const env = { ...process.env };
     const packagedSidecar = join(process.resourcesPath, 'python', 'sidecar', 'vera-sidecar.exe');
-    const executable = app.isPackaged ? packagedSidecar : process.env.VERA_APP_PYTHON || 'python';
+    const executable = app.isPackaged ? packagedSidecar : resolveDevPython();
     const args = app.isPackaged ? [] : ['-m', 'vera_app.sidecar'];
     if (!app.isPackaged) {
       const sourcePaths = [
         join(process.cwd(), 'src'),
         join(process.cwd(), '..', 'vera-doc', 'src'),
         join(process.cwd(), '..', 'vera-ingest', 'src'),
+        join(process.cwd(), '..', 'vera-ingest-docling', 'src'),
       ];
       env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
     }
@@ -409,12 +465,13 @@ function readSettings(): AppSettings {
       active_provider_id: typeof raw.active_provider_id === 'string' ? raw.active_provider_id : '',
       active_model: activeModel,
       active_mode_id: typeof raw.active_mode_id === 'string' ? raw.active_mode_id : '',
-    embedding_model: typeof raw.embedding_model === 'string' && raw.embedding_model.trim()
-      ? raw.embedding_model.trim()
-      : 'hashing',
-    ingest_pipeline: typeof raw.ingest_pipeline === 'string' && raw.ingest_pipeline.trim()
-      ? raw.ingest_pipeline.trim()
-      : 'pymupdf',
+      embedding_model: typeof raw.embedding_model === 'string' && raw.embedding_model.trim()
+        ? raw.embedding_model.trim()
+        : 'hashing',
+      ingest_pipeline: typeof raw.ingest_pipeline === 'string' && raw.ingest_pipeline.trim()
+        ? raw.ingest_pipeline.trim()
+        : 'pymupdf',
+      ingest_pipeline_configs: normalizePipelineConfigs(raw.ingest_pipeline_configs),
     };
     return withRuntime(merged);
   } catch {
@@ -433,6 +490,7 @@ function writeSettings(settings: AppSettings): AppSettings {
     active_mode_id: settings.active_mode_id || '',
     embedding_model: settings.embedding_model?.trim() || 'hashing',
     ingest_pipeline: settings.ingest_pipeline?.trim() || 'pymupdf',
+    ingest_pipeline_configs: normalizePipelineConfigs(settings.ingest_pipeline_configs),
   };
   const target = settingsPath();
   const temp = `${target}.tmp`;

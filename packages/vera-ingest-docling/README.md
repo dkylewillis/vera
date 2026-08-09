@@ -20,9 +20,10 @@ From a repository checkout with uv:
 uv sync --extra docling
 ```
 
-Python 3.10 or newer is required. First conversion may download Docling model
-artifacts. Set `DOCLING_ARTIFACTS_PATH` to a local cache (or prefetch models
-offline) for air-gapped runs.
+Python 3.10 or newer is required. The package depends on Docling's `rapidocr`
+extra so RapidOCR and `onnxruntime` are installed for OCR. First conversion may
+download Docling model artifacts. Set `DOCLING_ARTIFACTS_PATH` to a local cache
+(or prefetch models offline) for air-gapped runs.
 
 This package is **not** bundled with the packaged desktop application. Source-run
 desktop conversions can use it when the optional package is installed in the
@@ -44,10 +45,15 @@ convert("manual.pdf", "manual.vera", parser="docling")
 
 ## Notes
 
-- `--chunk-size` maps to HybridChunker's token limit. Docling's native
-  merge/split strategy does **not** apply VERA's sliding-window `--overlap`.
+- Defaults: `chunk_size=500` tokens, `ocr_mode=auto`, `ocr_language=en`.
+  Docling does **not** advertise `overlap` or `ocr_dpi`, so those legacy
+  convert/CLI aliases are not forwarded.
+- Prefer `pipeline_options=` / `--pipeline-option KEY=VALUE` for provider-owned
+  settings; `--chunk-size` and `--ocr*` remain compatibility aliases.
 - OCR modes map to Docling/RapidOCR: `off`, `auto` (default), and `force`
-  (full-page OCR).
+  (full-page OCR). Tesseract-style codes such as `eng` are mapped to RapidOCR
+  `en`.
+- Torch model compilation is disabled so Windows does not need MSVC `cl.exe`.
 - Partial or failed Docling conversions are rejected rather than publishing an
   incomplete archive.
 

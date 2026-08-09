@@ -41,7 +41,9 @@ convert(
 ```
 
 Pass `embedding_function=` for a custom embedder, or use a
-`provider:model-id` model spec resolved by `vera.get_embedder`.
+`provider:model-id` model spec resolved by `vera.get_embedder`. Prefer
+`pipeline_options={...}` for provider-owned chunking/OCR settings; legacy
+kwargs such as `chunk_size` and `ocr_mode` remain compatibility aliases.
 
 ## Concepts
 
@@ -50,6 +52,9 @@ Pass `embedding_function=` for a custom embedder, or use a
 - **Selective OCR** retains native text where possible and recognizes
   image-based low-text pages.
 - **Chunking** produces page-bounded text records with citation metadata.
+- **Pipeline-owned config** keeps typed defaults, validation, and field
+  descriptors inside each ingest plugin; shared convert passes a thin
+  `IngestRequest` with opaque `pipeline_options`.
 - **Atomic conversion** validates a temporary archive before publishing it.
 
 Built-in conversion uses the `pymupdf` ingest pipeline. Additional pipelines

@@ -91,6 +91,16 @@ def test_documented_cli_examples_parse():
     parser = build_parser()
     examples = [
         ["convert", "input.pdf", "output.vera", "--model", "hashing", "--json"],
+        [
+            "convert",
+            "input.pdf",
+            "output.vera",
+            "--pipeline-option",
+            "chunk_size=700",
+            "--pipeline-option",
+            "ocr_mode=auto",
+            "--json",
+        ],
         ["inspect", "output.vera", "--json"],
         [
             "search",
@@ -133,9 +143,26 @@ def test_hardening_json_contracts_are_documented():
     desktop_architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
     mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
     python_api = (DOCS / "python-api.md").read_text(encoding="utf-8")
+    cli_reference = CLI_REFERENCE.read_text(encoding="utf-8")
+    roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
 
     assert "malformed_existing" in conversion
     assert "requires OCR" in conversion
+    assert "## Pipeline options" in conversion
+    assert "--pipeline-option" in conversion
+    assert "pipeline_options" in conversion
+    assert "IngestRequest" in conversion
+    assert "describe_ingest_pipelines" in conversion
+    assert "PipelineConfigForm" in conversion
+    assert "compatibility alias" in conversion.lower() or "Compatibility aliases" in conversion
+    assert "ocr_language=en" in conversion
+    assert "overlap" in conversion and "ocr_dpi" in conversion
+    assert "`--pipeline-option KEY=VALUE`" in cli_reference
+    assert "compatibility alias" in cli_reference.lower() or "Compatibility alias" in cli_reference
+    assert "pipeline-owned typed options" in roadmap
+    assert "`vera convert --pipeline-option KEY=VALUE`" in roadmap
+    assert "describe_ingest_pipelines" in roadmap
+    assert "PipelineConfigForm" in roadmap
     assert "skipped_files" in libraries
     assert "skipped_semantic_model_groups" in libraries
     assert "does not reopen archives" in libraries
@@ -155,14 +182,21 @@ def test_hardening_json_contracts_are_documented():
     assert "withholds inline tool-call markup" in desktop
     assert "initially returns only figure metadata" in desktop
     assert "loads image previews" in desktop
+    assert "describe_ingest_pipelines" in desktop
+    assert "PipelineConfigForm" in desktop
     assert "only explicit `search_start` and `search_done`" in desktop_architecture
     assert "Token-level `answer_delta`" in desktop_architecture
+    assert "describe_ingest_pipelines" in desktop_architecture
+    assert "pipeline_options" in desktop_architecture
+    assert "PipelineConfigForm" in desktop_architecture
     assert "PyMuPDF ingest pipeline" in desktop
     assert "ingest_pipeline" in desktop
     assert "vera-ingest-docling" in conversion or "docling:hybrid" in conversion
     assert "provider:model-id" in desktop
     assert "`attachment_metadata()`" in python_api
     assert "do not contain a `data` field" in python_api
+    assert "pipeline_options" in python_api
+    assert "IngestRequest" in python_api
     assert "allow_empty=True" in libraries
     assert "`skipped_files`" in mcp
     assert "`skipped_semantic_model_groups`" in mcp

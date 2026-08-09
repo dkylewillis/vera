@@ -133,6 +133,13 @@ def test_portable_skill_documents_hardened_library_contracts():
     assert "`malformed_existing`" in skill
     assert "`skipped_files`" in skill
     assert "`skipped_semantic_model_groups`" in skill
+    assert "--pipeline-option KEY=VALUE" in skill
+    assert "compatibility aliases" in skill
     assert '"malformed_existing": [' in reference
     assert '"skipped_files": [' in reference
     assert '"skipped_semantic_model_groups": [' in reference
+    assert "`--pipeline-option KEY=VALUE`" in reference
+    assert "Compatibility alias" in reference or "compatibility alias" in reference
+    assert "Docling defaults:" in reference
+    assert "ocr_language=en" in reference
+    assert "does not receive" in reference

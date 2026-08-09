@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping
 
 
 @dataclass
@@ -66,8 +66,26 @@ class IngestChunk:
 
 
 @dataclass
+class IngestRequest:
+    """Thin shared request passed to ingest pipelines.
+
+    Provider-specific settings live in ``pipeline_options``. Chunking and OCR
+    defaults are owned by each pipeline, not by this shared request.
+    """
+
+    variant: str = ""
+    cancel: Any | None = None
+    pipeline_options: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class IngestOptions:
-    """Common options passed to an ingest pipeline."""
+    """Deprecated Tesseract-shaped options retained for compatibility.
+
+    Prefer :class:`IngestRequest` with ``pipeline_options``. Constructing this
+    type still works for older plugins and tests; call :meth:`to_request` before
+    invoking modern pipelines.
+    """
 
     chunk_size: int = 500
     overlap: int = 75
@@ -76,6 +94,30 @@ class IngestOptions:
     ocr_dpi: int = 300
     variant: str = ""
     cancel: Any | None = None
+    pipeline_options: dict[str, Any] = field(default_factory=dict)
+
+    def to_request(self) -> IngestRequest:
+        """Convert compatibility fields into a thin :class:`IngestRequest`."""
+        merged = {
+            "chunk_size": self.chunk_size,
+            "overlap": self.overlap,
+            "ocr_mode": self.ocr_mode,
+            "ocr_language": self.ocr_language,
+            "ocr_dpi": self.ocr_dpi,
+        }
+        merged.update(self.pipeline_options)
+        return IngestRequest(
+            variant=self.variant,
+            cancel=self.cancel,
+            pipeline_options=merged,
+        )
+
+
+def coerce_ingest_request(options: IngestRequest | IngestOptions) -> IngestRequest:
+    """Normalize deprecated :class:`IngestOptions` into :class:`IngestRequest`."""
+    if isinstance(options, IngestRequest):
+        return options
+    return options.to_request()
 
 
 @dataclass
@@ -90,3 +132,7 @@ class IngestResult:
     chunking_strategy: str
     diagnostics: dict[str, Any] = field(default_factory=dict)
 
+
+def mapping_without_none(values: Mapping[str, Any]) -> dict[str, Any]:
+    """Copy mapping entries whose values are not ``None``."""
+    return {key: value for key, value in values.items() if value is not None}

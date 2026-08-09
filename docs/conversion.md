@@ -28,24 +28,37 @@ with a message that it may be scanned and requires OCR.
 
 ## OCR
 
-Automatic OCR is the default:
+Automatic OCR is the default for pipelines that advertise OCR fields:
 
 ```bash
 vera convert "scan.pdf" "scan.vera" --ocr auto
 ```
 
-OCR runs only on pages that are mostly a scanned image and have too little
-native text to search reliably. Blank pages are skipped. Mixed PDFs can
-therefore use native extraction on ordinary pages and OCR on scanned pages in
-one conversion.
+With the built-in PyMuPDF pipeline, OCR runs only on pages that are mostly a
+scanned image and have too little native text to search reliably. Blank pages
+are skipped. Mixed PDFs can therefore use native extraction on ordinary pages
+and OCR on scanned pages in one conversion.
 
-Controls:
+Legacy CLI aliases (forwarded only when the selected pipeline advertises the
+matching descriptor field):
 
 - `--ocr auto` selects scanned pages (default);
 - `--ocr off` never invokes OCR;
 - `--ocr force` OCRs every page, replacing native text extraction;
-- `--ocr-language eng` selects Tesseract language data;
-- `--ocr-dpi 300` controls recognition resolution.
+- `--ocr-language eng` selects language data (PyMuPDF/Tesseract default);
+- `--ocr-dpi 300` controls recognition resolution (PyMuPDF only).
+
+Prefer provider-owned options when you need an explicit override:
+
+```bash
+vera convert "scan.pdf" "scan.vera" \
+  --pipeline-option ocr_mode=force \
+  --pipeline-option ocr_language=eng \
+  --pipeline-option ocr_dpi=300
+```
+
+Explicit `--pipeline-option KEY=VALUE` values win over the legacy aliases for
+the same key. See [Pipeline options](#pipeline-options).
 
 VERA bundles the official `tessdata_fast` English model and passes it directly
 to PyMuPDF's Tesseract integration. Default English OCR therefore works
@@ -153,21 +166,61 @@ as Voyage AI for retrieval embeddings, exposed through a plugin spec like
 
 ## Chunking options
 
-Defaults:
+Chunking defaults are owned by each ingest pipeline. The built-in PyMuPDF
+pipeline defaults to:
 
 - `--chunk-size 500`
 - `--overlap 75`
 
-Example:
+Legacy aliases are forwarded only when the selected pipeline advertises those
+fields. Example for PyMuPDF:
 
 ```bash
 vera convert "input.pdf" --chunk-size 700 --overlap 100
 ```
 
-Chunks never span pages, preserving page-precise citations. Larger chunks carry
-more context but may reduce retrieval precision; smaller chunks are more
-specific but may separate related clauses. Evaluate changes against a
-representative query set before adopting non-default values.
+Equivalent provider-owned form (wins over the aliases):
+
+```bash
+vera convert "input.pdf" \
+  --pipeline-option chunk_size=700 \
+  --pipeline-option overlap=100
+```
+
+With PyMuPDF, chunks never span pages, preserving page-precise citations.
+Larger chunks carry more context but may reduce retrieval precision; smaller
+chunks are more specific but may separate related clauses. Evaluate changes
+against a representative query set before adopting non-default values.
+
+## Pipeline options
+
+Shared conversion accepts an opaque `pipeline_options` mapping. Each installed
+pipeline owns typed defaults, validation, and a descriptor of supported fields.
+`vera convert` exposes that mapping as repeatable `--pipeline-option KEY=VALUE`
+flags. Values are coerced to bool/int/float when unambiguous; otherwise they
+remain strings.
+
+```bash
+vera convert "input.pdf" --parser pymupdf \
+  --pipeline-option chunk_size=500 \
+  --pipeline-option overlap=75 \
+  --pipeline-option ocr_mode=auto
+```
+
+Compatibility aliases (`--chunk-size`, `--overlap`, `--ocr`, `--ocr-language`,
+`--ocr-dpi`) still work. Descriptor fields determine which aliases are
+forwarded: Docling does **not** receive `overlap` or `ocr_dpi`. Explicit
+`--pipeline-option` / `pipeline_options` always override aliases for the same
+key.
+
+| Pipeline | Defaults | Notes |
+| --- | --- | --- |
+| PyMuPDF (`pymupdf`) | `chunk_size=500`, `overlap=75`, `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300` | Sliding-window character chunks; Tesseract OCR |
+| Docling (`docling`) | `chunk_size=500` tokens, `ocr_mode=auto`, `ocr_language=en` | No `overlap` / `ocr_dpi` fields; RapidOCR |
+
+Discover descriptors from Python with `describe_ingest_pipeline` /
+`list_ingest_pipeline_descriptors`, or from the desktop sidecar action
+`describe_ingest_pipelines`.
 
 ## Ingest pipelines
 
@@ -178,7 +231,9 @@ default is `pymupdf`:
 vera convert "input.pdf" --parser pymupdf
 ```
 
-Install the optional Docling plugin for layout-aware HybridChunker output:
+Install the optional Docling plugin for layout-aware HybridChunker output.
+The plugin depends on Docling's `rapidocr` extra so RapidOCR and
+`onnxruntime` are available for OCR:
 
 ```bash
 uv sync --extra docling
@@ -189,13 +244,20 @@ vera convert "input.pdf" --parser docling:hybrid
 
 Unknown pipeline names fail before parsing with an install-the-plugin message;
 VERA never silently falls back to PyMuPDF. Docling rejects partial or failed
-conversions. `--chunk-size` becomes HybridChunker's token limit; Docling's
-native merge/split does not apply VERA's sliding-window `--overlap`.
+conversions. Docling's descriptor advertises `chunk_size` (HybridChunker token
+limit), `ocr_mode`, and `ocr_language` only — legacy `--overlap` and
+`--ocr-dpi` are not forwarded. Docling uses RapidOCR rather than Tesseract, so
+VERA maps Tesseract-style language codes such as `eng` to RapidOCR's `en`
+(and similarly for other common aliases); Docling's own default language is
+`en`. Docling layout models run without `torch.compile` (so Windows does not
+need Visual Studio's `cl.exe`).
 
 First Docling conversion may download model artifacts. Set
 `DOCLING_ARTIFACTS_PATH` for a local cache. Packaged desktop releases do not
 bundle Docling; source-run apps can select installed pipelines in the Convert
-view.
+view. The Convert UI is schema-driven: the sidecar
+`describe_ingest_pipelines` action supplies descriptors, and
+`PipelineConfigForm` renders only the fields each pipeline advertises.
 
 ## Storing the source PDF
 
@@ -234,14 +296,20 @@ path = convert(
     "input.pdf",
     "output.vera",
     model="hashing",
+    parser="pymupdf",
+    # Compatibility aliases (forwarded when the pipeline advertises them):
     chunk_size=500,
     overlap=75,
     store_original=True,
     ocr_mode="auto",
     ocr_language="eng",
     ocr_dpi=300,
+    # Explicit provider-owned options win for matching keys:
+    # pipeline_options={"chunk_size": 700, "ocr_mode": "force"},
 )
 print(path)
 ```
 
-See [Python API](python-api.md) for more.
+Pipelines receive a thin `IngestRequest` whose `pipeline_options` dict carries
+provider-owned settings. Prefer `pipeline_options=` for new code; the legacy
+kwargs remain compatibility aliases. See [Python API](python-api.md) for more.

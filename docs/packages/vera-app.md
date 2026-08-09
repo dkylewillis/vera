@@ -16,7 +16,9 @@ Download `VERA Setup <version>.exe` from the
 
 ## First workflow
 
-1. Open **Convert PDF** and convert selected PDFs or a directory.
+1. Open **Convert PDF** and convert selected PDFs or a directory. Pipeline
+   settings are schema-driven from `describe_ingest_pipelines` /
+   `PipelineConfigForm`.
 2. Use **File > Open Folder** to activate a document library.
 3. Open **Search** for fully local hybrid retrieval.
 4. To use **Ask**, configure a provider under **File > LLM Providers**.
@@ -42,5 +44,6 @@ npm run app:install
 npm run app:dev
 ```
 
-The supported packaged target is currently Windows. Use the CLI for Sentence
-Transformers embedding models or explicit OCR controls.
+The supported packaged target is currently Windows. Use the CLI
+`--pipeline-option` flags (or Convert-view pipeline settings in source-run
+builds) for provider-owned chunking and OCR controls.
