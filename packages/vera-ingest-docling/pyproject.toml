@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "vera-ingest>=0.2.4",
-  "docling>=2.118,<2.119",
+  # rapidocr extra pulls RapidOCR + onnxruntime (required for Docling OCR).
+  "docling[rapidocr]>=2.118,<2.119",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}

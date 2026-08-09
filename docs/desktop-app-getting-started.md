@@ -51,18 +51,16 @@ to stop both processes.
 
 Open a PDF from the app's Convert view to create a `.vera` archive, or use the
 native File menu to open an existing archive or document library.
-Desktop conversions default to the built-in PyMuPDF ingest pipeline. The Convert
-view lists pipelines installed in the sidecar Python environment and persists
-the selected `ingest_pipeline`. Packaged releases do not install optional
-plugins such as Docling; source-run environments can enable Docling with
-`uv sync --extra docling`. The Convert view also stores
-an independent embedding-model spec, defaulting to deterministic local
-`hashing`; it does not use the selected Chat model. Enter a
-`provider:model-id` spec such as `sentence-transformers:all-MiniLM-L6-v2` or
-`openai:text-embedding-3-small` after installing the provider in the Python
-environment used by the sidecar. Provider plugins appear as suggestions after
-the sidecar starts, and an unavailable provider produces the conversion error
-from the resolver. Conversion progress and the current filename appear in the
+Desktop conversions default to the built-in PyMuPDF ingest pipeline and the
+offline `hashing` embedder. The Convert view exposes dropdowns for
+`ingest_pipeline` (including Docling when installed) and embedding model
+presets such as `sentence-transformers:all-MiniLM-L6-v2`, plus a custom
+`provider:model-id` field. These settings are independent of the Chat model and
+are persisted in app settings. `npm run app:dev` installs the `app`, `ml`, and
+`docling` extras into the workspace environment so both plugins are available
+for GUI testing. Packaged releases do not bundle optional ingest plugins or
+Sentence Transformers; an unavailable selection is disabled or fails with the
+resolver error. Conversion progress and the current filename appear in the
 footer status bar, so progress remains visible when you switch away from the
 Convert view.
 

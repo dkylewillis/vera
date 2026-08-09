@@ -16,9 +16,10 @@ From a repository checkout:
 uv sync --extra docling
 ```
 
-The package pins Docling to the current supported minor range and pulls a larger
-machine-learning stack (including Torch). Do not add it to base VERA installs
-unless you need layout-aware Docling conversion.
+The package pins Docling to the current supported minor range with the
+`rapidocr` extra (RapidOCR + `onnxruntime`) and pulls a larger machine-learning
+stack (including Torch). Do not add it to base VERA installs unless you need
+layout-aware Docling conversion.
 
 ## First-run models
 
@@ -58,6 +59,11 @@ The default Docling variant is `hybrid`. Unknown variants fail before parsing.
 - Rejects Docling failure and partial-success results instead of publishing an
   incomplete archive.
 - Records that VERA `--overlap` is not applied by Docling's native merge/split.
+- Maps VERA/Tesseract OCR language codes to RapidOCR (for example `eng` → `en`)
+  before configuring Docling OCR.
+- Disables Docling's `torch.compile` path so Windows conversions do not require
+  Visual Studio's `cl.exe`, and keeps Docling's default `images_scale` (VERA's
+  Tesseract `--ocr-dpi` is not applied as a multi-page raster multiplier).
 
 ## Desktop app
 

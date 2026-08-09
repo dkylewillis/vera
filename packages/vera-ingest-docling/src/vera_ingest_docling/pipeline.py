@@ -309,6 +309,213 @@ def map_docling_document(document: Any) -> tuple[list[ParsedPage], list[IngestBl
     return pages, blocks
 
 
+# RapidOCR onnxruntime language codes observed from the installed engine.
+# Keep in sync with RapidOCR's supported recognition languages.
+_RAPIDOCR_LANGS = frozenset(
+    {
+        "af",
+        "arabic",
+        "az",
+        "bs",
+        "ca",
+        "ch",
+        "chinese_cht",
+        "cs",
+        "cy",
+        "cyrillic",
+        "da",
+        "de",
+        "devanagari",
+        "el",
+        "en",
+        "es",
+        "eslav",
+        "et",
+        "eu",
+        "fi",
+        "fr",
+        "french",
+        "ga",
+        "german",
+        "gl",
+        "hr",
+        "hu",
+        "id",
+        "is",
+        "it",
+        "japan",
+        "korean",
+        "ku",
+        "la",
+        "latin",
+        "lb",
+        "lt",
+        "lv",
+        "mi",
+        "ms",
+        "mt",
+        "nl",
+        "no",
+        "oc",
+        "pl",
+        "pt",
+        "qu",
+        "rm",
+        "ro",
+        "rs_latin",
+        "sk",
+        "sl",
+        "sq",
+        "sv",
+        "sw",
+        "ta",
+        "te",
+        "th",
+        "tl",
+        "tr",
+        "uz",
+        "vi",
+    }
+)
+
+# Common Tesseract / ISO-639-3 codes (VERA CLI default is ``eng``) → RapidOCR.
+_TESSERACT_TO_RAPIDOCR = {
+    "afr": "af",
+    "ara": "arabic",
+    "aze": "az",
+    "bos": "bs",
+    "bul": "cyrillic",
+    "cat": "ca",
+    "ces": "cs",
+    "chi_sim": "ch",
+    "chi_tra": "chinese_cht",
+    "cym": "cy",
+    "cze": "cs",
+    "dan": "da",
+    "deu": "de",
+    "dut": "nl",
+    "ell": "el",
+    "eng": "en",
+    "est": "et",
+    "eus": "eu",
+    "baq": "eu",
+    "fin": "fi",
+    "fra": "fr",
+    "fre": "fr",
+    "ger": "de",
+    "gle": "ga",
+    "glg": "gl",
+    "gre": "el",
+    "hin": "devanagari",
+    "hrv": "hr",
+    "hun": "hu",
+    "ice": "is",
+    "ind": "id",
+    "isl": "is",
+    "ita": "it",
+    "jpn": "japan",
+    "kor": "korean",
+    "kur": "ku",
+    "lat": "la",
+    "lav": "lv",
+    "lit": "lt",
+    "ltz": "lb",
+    "may": "ms",
+    "mlt": "mt",
+    "mri": "mi",
+    "msa": "ms",
+    "nld": "nl",
+    "nor": "no",
+    "oci": "oc",
+    "pol": "pl",
+    "por": "pt",
+    "que": "qu",
+    "roh": "rm",
+    "ron": "ro",
+    "rum": "ro",
+    "rus": "cyrillic",
+    "san": "devanagari",
+    "slk": "sk",
+    "slo": "sk",
+    "slv": "sl",
+    "spa": "es",
+    "sqi": "sq",
+    "alb": "sq",
+    "swa": "sw",
+    "swe": "sv",
+    "tam": "ta",
+    "tel": "te",
+    "tgl": "tl",
+    "fil": "tl",
+    "tha": "th",
+    "tur": "tr",
+    "ukr": "cyrillic",
+    "uzb": "uz",
+    "vie": "vi",
+}
+
+
+def map_rapidocr_languages(ocr_language: str | None) -> list[str]:
+    """Map VERA/Tesseract OCR language codes to RapidOCR language codes.
+
+    VERA's default ``eng`` is Tesseract-style; RapidOCR expects ``en``. Accepts
+    ``+`` or ``,`` separated lists and passes through codes that are already
+    RapidOCR-native.
+    """
+    raw = (ocr_language or "eng").strip()
+    if not raw:
+        raw = "eng"
+    parts = [part.strip().lower() for part in raw.replace("+", ",").split(",") if part.strip()]
+    if not parts:
+        parts = ["eng"]
+
+    mapped: list[str] = []
+    unknown: list[str] = []
+    for part in parts:
+        rapid = _TESSERACT_TO_RAPIDOCR.get(part, part)
+        # Prefer canonical short codes when RapidOCR aliases exist.
+        if rapid == "french":
+            rapid = "fr"
+        elif rapid == "german":
+            rapid = "de"
+        if rapid not in _RAPIDOCR_LANGS:
+            unknown.append(part)
+            continue
+        if rapid not in mapped:
+            mapped.append(rapid)
+
+    if unknown:
+        supported = ", ".join(sorted(_RAPIDOCR_LANGS))
+        raise ValueError(
+            "Docling/RapidOCR does not support OCR language "
+            f"{', '.join(unknown)!r} (from {ocr_language!r}). "
+            "Use a RapidOCR code such as 'en', or a mapped Tesseract alias "
+            f"such as 'eng'. Supported RapidOCR codes: {supported}."
+        )
+    return mapped
+
+
+def _disable_torch_compile() -> None:
+    """Avoid torch.compile / Inductor, which requires MSVC ``cl.exe`` on Windows.
+
+    Docling enables ``compile_torch_models`` by default. On machines without Visual
+    Studio Build Tools that fails page-by-page with \"Compiler: cl is not found\"
+    and often cascades into memory exhaustion.
+    """
+    try:
+        from docling.datamodel.settings import settings
+
+        settings.inference.compile_torch_models = False
+    except Exception:  # pragma: no cover - defensive against Docling API drift
+        pass
+    try:
+        import torch._dynamo
+
+        torch._dynamo.config.suppress_errors = True
+    except Exception:  # pragma: no cover - torch optional at import time
+        pass
+
+
 def _build_converter(options: IngestOptions) -> Any:
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import PdfPipelineOptions, RapidOcrOptions
@@ -318,11 +525,18 @@ def _build_converter(options: IngestOptions) -> Any:
     if ocr_mode not in {"auto", "off", "force"}:
         raise ValueError(f"Unsupported OCR mode {options.ocr_mode!r}; use auto, off, or force.")
 
+    # Must run before PdfPipelineOptions() so default_factory compile flags are False.
+    _disable_torch_compile()
+
     pipeline_options = PdfPipelineOptions()
     pipeline_options.do_table_structure = True
     pipeline_options.generate_picture_images = True
-    # Approximate DPI scaling used by Docling picture crops (72 DPI base).
-    pipeline_options.images_scale = max(1.0, float(options.ocr_dpi) / 72.0)
+    # Keep Docling's default raster scale. Mapping VERA's Tesseract OCR DPI
+    # (default 300) to images_scale (~4.17x) OOMs large manuals.
+    pipeline_options.images_scale = 1.0
+    layout_engine = getattr(getattr(pipeline_options, "layout_options", None), "engine_options", None)
+    if layout_engine is not None and hasattr(layout_engine, "compile_model"):
+        layout_engine.compile_model = False
 
     if ocr_mode == "off":
         pipeline_options.do_ocr = False
@@ -331,11 +545,9 @@ def _build_converter(options: IngestOptions) -> Any:
         ocr_options = RapidOcrOptions(
             force_full_page_ocr=(ocr_mode == "force"),
         )
-        lang = (options.ocr_language or "eng").strip()
-        if lang:
-            # RapidOCR accepts language hints when provided by the installed engine.
-            if hasattr(ocr_options, "lang"):
-                ocr_options.lang = [part for part in lang.replace("+", ",").split(",") if part]
+        rapid_langs = map_rapidocr_languages(options.ocr_language)
+        if hasattr(ocr_options, "lang"):
+            ocr_options.lang = rapid_langs
         pipeline_options.ocr_options = ocr_options
 
     return DocumentConverter(
@@ -344,6 +556,35 @@ def _build_converter(options: IngestOptions) -> Any:
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
         },
     )
+
+
+def _format_docling_errors(result: Any) -> str:
+    errors = getattr(result, "errors", None) or []
+    messages: list[str] = []
+    for entry in errors:
+        text = str(getattr(entry, "error_message", None) or entry).strip()
+        if text and text not in messages:
+            messages.append(text)
+    if not messages:
+        return ""
+    joined = " | ".join(messages[:5])
+    if len(messages) > 5:
+        joined = f"{joined} | …(+{len(messages) - 5} more)"
+    hints: list[str] = []
+    blob = " ".join(messages).lower()
+    if "compiler: cl is not found" in blob or "torchdynamo" in blob:
+        hints.append(
+            "Torch compile/Inductor needs MSVC cl.exe on Windows; "
+            "VERA disables torch.compile for Docling — restart the app after updating."
+        )
+    if "bad_alloc" in blob:
+        hints.append(
+            "Docling ran out of memory rasterizing pages; large manuals need the "
+            "default images_scale (not OCR-DPI scaling)."
+        )
+    if hints:
+        return f"{joined} Hint: {' '.join(hints)}"
+    return joined
 
 
 def _assert_conversion_ok(result: Any) -> Any:
@@ -358,9 +599,11 @@ def _assert_conversion_ok(result: Any) -> Any:
             raise ValueError("Docling conversion succeeded but returned no document.")
         return document
     status_name = getattr(status, "name", str(status))
+    detail = _format_docling_errors(result)
+    suffix = f" Errors: {detail}" if detail else ""
     raise ValueError(
         f"Docling conversion did not fully succeed (status={status_name}). "
-        "Partial or failed results are rejected in this release."
+        f"Partial or failed results are rejected in this release.{suffix}"
     )
 
 
@@ -459,7 +702,14 @@ class DoclingHybridPipeline:
                 "variant": "hybrid",
                 "ocr_mode": options.ocr_mode,
                 "ocr_language": options.ocr_language,
+                "ocr_language_rapidocr": (
+                    map_rapidocr_languages(options.ocr_language)
+                    if (options.ocr_mode or "auto").strip().lower() != "off"
+                    else []
+                ),
                 "ocr_dpi": options.ocr_dpi,
+                "images_scale": 1.0,
+                "torch_compile": False,
                 "overlap_ignored": True,
                 "overlap_requested": int(options.overlap),
                 "artifacts_path_env": "DOCLING_ARTIFACTS_PATH",

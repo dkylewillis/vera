@@ -42,6 +42,7 @@ schema or normative behavior.
 - [x] Persist the selected conversion embedding model.
 - [x] Use the selected model for single-file and batch conversion.
 - [x] Show installed embedding providers as model-spec suggestions.
+- [x] Offer Convert-view presets for hashing and Sentence Transformers MiniLM.
 - [ ] Add conversion-time provider and credential preflight checks.
 - [ ] Improve model selection with provider-specific model discovery.
 
@@ -88,6 +89,7 @@ schema or normative behavior.
 - [x] Expose pipeline selection through `vera convert --parser`.
 - [x] List installed pipelines from the desktop sidecar.
 - [x] Persist Convert-view `ingest_pipeline` settings for source-run apps.
+- [x] Show Docling in the Convert pipeline dropdown when the plugin is installed.
 - [x] Keep packaged-app plugin installation explicitly unsupported for now.
 
 ### Future packaged-app plugin runtime

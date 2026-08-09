@@ -32,6 +32,7 @@ from vera_ingest_docling.pipeline import (
     DoclingHybridPipeline,
     WhitespaceTokenizer,
     map_docling_document,
+    map_rapidocr_languages,
 )
 
 
@@ -171,6 +172,40 @@ def test_whitespace_tokenizer_is_deterministic():
     assert tokenizer.count_tokens("one two three") == 3
     assert tokenizer.get_max_tokens() == 12
     assert tokenizer.get_tokenizer()("a b") == 2
+
+
+def test_map_rapidocr_languages_translates_tesseract_defaults():
+    assert map_rapidocr_languages(None) == ["en"]
+    assert map_rapidocr_languages("") == ["en"]
+    assert map_rapidocr_languages("eng") == ["en"]
+    assert map_rapidocr_languages("eng+fra") == ["en", "fr"]
+    assert map_rapidocr_languages("en,de") == ["en", "de"]
+    assert map_rapidocr_languages("jpn") == ["japan"]
+    assert map_rapidocr_languages("chi_sim") == ["ch"]
+    with pytest.raises(ValueError, match="does not support OCR language"):
+        map_rapidocr_languages("not-a-language")
+
+
+def test_build_converter_maps_default_eng_to_rapidocr_en():
+    from vera_ingest.types import IngestOptions
+    from vera_ingest_docling.pipeline import _build_converter
+
+    converter = _build_converter(IngestOptions(ocr_mode="auto", ocr_language="eng"))
+    pdf_option = converter.format_to_options["pdf"]
+    assert pdf_option.pipeline_options.do_ocr is True
+    assert list(pdf_option.pipeline_options.ocr_options.lang) == ["en"]
+
+
+def test_build_converter_disables_torch_compile_and_keeps_default_image_scale():
+    from vera_ingest.types import IngestOptions
+    from vera_ingest_docling.pipeline import _build_converter
+
+    converter = _build_converter(
+        IngestOptions(ocr_mode="auto", ocr_language="eng", ocr_dpi=300),
+    )
+    pipeline_options = converter.format_to_options["pdf"].pipeline_options
+    assert pipeline_options.images_scale == 1.0
+    assert pipeline_options.layout_options.engine_options.compile_model is False
 
 
 def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, tmp_path):

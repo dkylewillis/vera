@@ -40,7 +40,8 @@ Options:
 - `--ocr auto|off|force` defaults to `auto`. Automatic mode OCRs only
   image-dominant low-text pages.
 - `--ocr-language CODE` defaults to `eng` and accepts Tesseract language
-  selections such as `eng+spa`.
+  selections such as `eng+spa`. With `--parser docling`, VERA maps those codes
+  to RapidOCR (for example `eng` → `en`) before configuring OCR.
 - `--ocr-dpi N` defaults to `300` and must be positive.
 - `--recursive` recursively discovers PDFs in directory mode.
 - `--overwrite` replaces existing outputs in directory mode.

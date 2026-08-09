@@ -178,7 +178,9 @@ default is `pymupdf`:
 vera convert "input.pdf" --parser pymupdf
 ```
 
-Install the optional Docling plugin for layout-aware HybridChunker output:
+Install the optional Docling plugin for layout-aware HybridChunker output.
+The plugin depends on Docling's `rapidocr` extra so RapidOCR and
+`onnxruntime` are available for OCR:
 
 ```bash
 uv sync --extra docling
@@ -190,7 +192,12 @@ vera convert "input.pdf" --parser docling:hybrid
 Unknown pipeline names fail before parsing with an install-the-plugin message;
 VERA never silently falls back to PyMuPDF. Docling rejects partial or failed
 conversions. `--chunk-size` becomes HybridChunker's token limit; Docling's
-native merge/split does not apply VERA's sliding-window `--overlap`.
+native merge/split does not apply VERA's sliding-window `--overlap`. Docling
+uses RapidOCR rather than Tesseract, so VERA maps `--ocr-language` values such
+as the default `eng` to RapidOCR's `en` (and similarly for other common
+Tesseract aliases). Docling layout models run without `torch.compile` (so
+Windows does not need Visual Studio's `cl.exe`), and `--ocr-dpi` is not used as
+a Docling page-raster multiplier.
 
 First Docling conversion may download model artifacts. Set
 `DOCLING_ARTIFACTS_PATH` for a local cache. Packaged desktop releases do not

@@ -11,6 +11,26 @@ import type {
 } from '../src/shared/contracts.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
 
+/** Prefer the workspace uv venv so optional plugins (ml/docling) resolve in source-run. */
+function resolveDevPython(): string {
+  if (process.env.VERA_APP_PYTHON?.trim()) {
+    return process.env.VERA_APP_PYTHON.trim();
+  }
+  const repoRoot = resolve(process.cwd(), '..', '..');
+  const candidates = [
+    join(repoRoot, '.venv', 'Scripts', 'python.exe'),
+    join(repoRoot, '.venv', 'bin', 'python'),
+    join(process.cwd(), '.venv', 'Scripts', 'python.exe'),
+    join(process.cwd(), '.venv', 'bin', 'python'),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return 'python';
+}
+
 interface FolderEntry {
   path: string;
   name: string;
@@ -191,13 +211,14 @@ class PythonSidecar {
 
     const env = { ...process.env };
     const packagedSidecar = join(process.resourcesPath, 'python', 'sidecar', 'vera-sidecar.exe');
-    const executable = app.isPackaged ? packagedSidecar : process.env.VERA_APP_PYTHON || 'python';
+    const executable = app.isPackaged ? packagedSidecar : resolveDevPython();
     const args = app.isPackaged ? [] : ['-m', 'vera_app.sidecar'];
     if (!app.isPackaged) {
       const sourcePaths = [
         join(process.cwd(), 'src'),
         join(process.cwd(), '..', 'vera-doc', 'src'),
         join(process.cwd(), '..', 'vera-ingest', 'src'),
+        join(process.cwd(), '..', 'vera-ingest-docling', 'src'),
       ];
       env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
     }

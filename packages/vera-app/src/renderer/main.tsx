@@ -48,6 +48,13 @@ import { backgroundTasksReducer, type BackgroundTask } from './lib/backgroundTas
 import { EMPTY_FIGURES, EMPTY_REGIONS } from './lib/constants';
 import { awaitConversionRequest } from './lib/conversion';
 import {
+  CUSTOM_EMBEDDING_VALUE,
+  EMBEDDING_MODEL_PRESETS,
+  embeddingSelectValue,
+  mergePipelineOptions,
+  presetOptionAvailable,
+} from './lib/convertPresets';
+import {
   convertDefaultsFromSelection,
   defaultVeraPath,
   formatBox,
@@ -2765,44 +2772,87 @@ function App() {
                   <label className="field">
                     <span>Ingest pipeline</span>
                     <select
-                      value={ingestPipeline}
+                      value={
+                        mergePipelineOptions(ingestPipelines).some((option) => option.value === ingestPipeline)
+                          ? ingestPipeline
+                          : ingestPipeline || 'pymupdf'
+                      }
                       onChange={(event) => void saveIngestPipeline(event.target.value)}
                       disabled={conversionInProgress}
                     >
-                      {(ingestPipelines.includes(ingestPipeline)
-                        ? ingestPipelines
-                        : [...ingestPipelines, ingestPipeline]
-                      ).map((pipeline) => (
-                        <option key={pipeline} value={pipeline}>{pipeline}</option>
-                      ))}
+                      {mergePipelineOptions(ingestPipelines).map((option) => {
+                        const available = presetOptionAvailable(option, ingestPipelines);
+                        return (
+                          <option key={option.value} value={option.value} disabled={!available}>
+                            {available ? option.label : `${option.label} (not installed)`}
+                          </option>
+                        );
+                      })}
+                      {!mergePipelineOptions(ingestPipelines).some((option) => option.value === ingestPipeline)
+                        && ingestPipeline
+                        ? <option value={ingestPipeline}>{ingestPipeline}</option>
+                        : null}
                     </select>
                   </label>
                   <p className="sideMuted">
-                    Installed pipelines from the sidecar Python environment. Packaged app releases
-                    do not install optional plugins such as Docling; use a source-run environment
-                    with <code>uv sync --extra docling</code> for that pipeline.
+                    {ingestPipelines.includes('docling')
+                      ? 'Docling is available in this sidecar environment. Choose docling to test HybridChunker ingest.'
+                      : <>Docling is not installed in the sidecar environment. From the repo root run <code>uv sync --extra docling</code> and restart the app.</>}
+                    {' '}Packaged releases do not bundle optional ingest plugins.
                   </p>
                   <label className="field">
                     <span>Embedding model</span>
-                    <input
-                      list="embedding-provider-specs"
-                      value={embeddingModel}
-                      onChange={(event) => setEmbeddingModel(event.target.value)}
-                      onBlur={() => void saveEmbeddingModel(embeddingModel)}
-                      placeholder="hashing or provider:model-id"
+                    <select
+                      value={embeddingSelectValue(embeddingModel)}
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        if (next === CUSTOM_EMBEDDING_VALUE) {
+                          if (embeddingSelectValue(embeddingModel) !== CUSTOM_EMBEDDING_VALUE) {
+                            setEmbeddingModel('');
+                          }
+                          return;
+                        }
+                        void saveEmbeddingModel(next);
+                      }}
                       disabled={conversionInProgress}
-                    />
-                    <datalist id="embedding-provider-specs">
-                      <option value="hashing" />
-                      <option value="hashing:vera-hashing-384" />
-                      {embeddingProviders.map((provider) => (
-                        <option key={provider} value={`${provider}:`} />
-                      ))}
-                    </datalist>
+                    >
+                      {EMBEDDING_MODEL_PRESETS.map((option) => {
+                        const available = presetOptionAvailable(option, embeddingProviders);
+                        return (
+                          <option key={option.value} value={option.value} disabled={!available}>
+                            {available ? option.label : `${option.label} (not installed)`}
+                          </option>
+                        );
+                      })}
+                      <option value={CUSTOM_EMBEDDING_VALUE}>Custom provider:model-id…</option>
+                    </select>
                   </label>
+                  {embeddingSelectValue(embeddingModel) === CUSTOM_EMBEDDING_VALUE ? (
+                    <label className="field">
+                      <span>Custom embedding spec</span>
+                      <input
+                        list="embedding-provider-specs"
+                        value={embeddingModel}
+                        onChange={(event) => setEmbeddingModel(event.target.value)}
+                        onBlur={() => void saveEmbeddingModel(embeddingModel)}
+                        placeholder="provider:model-id"
+                        disabled={conversionInProgress}
+                      />
+                      <datalist id="embedding-provider-specs">
+                        <option value="hashing" />
+                        <option value="hashing:vera-hashing-384" />
+                        <option value="sentence-transformers:all-MiniLM-L6-v2" />
+                        {embeddingProviders.map((provider) => (
+                          <option key={provider} value={`${provider}:`} />
+                        ))}
+                      </datalist>
+                    </label>
+                  ) : null}
                   <p className="sideMuted">
-                    Use <code>provider:model-id</code> for plugins. The selected embedding model is independent
-                    of the chat model and is saved when this field loses focus.
+                    {embeddingProviders.includes('sentence-transformers')
+                      ? 'Sentence Transformers is available. The conversion embedding model is independent of Chat.'
+                      : <>Sentence Transformers is not installed. From the repo root run <code>uv sync --extra ml</code> and restart the app.</>}
+                    {' '}Custom specs are saved when the field loses focus.
                   </p>
                   <div className="convertGrid">
                     <label className="miniField">
