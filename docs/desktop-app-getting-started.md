@@ -53,9 +53,12 @@ Open a PDF from the app's Convert view to create a `.vera` archive, or use the
 native File menu to open an existing archive or document library.
 Desktop conversions use the supported PyMuPDF parser and deterministic
 local hashing embeddings. Use the CLI when you need a Sentence Transformers
-model or explicit OCR controls. Conversion progress and the current filename
-appear in the footer status bar, so progress remains visible when you switch
-away from the Convert view.
+model or explicit OCR controls. Some Hub downloads warn about unauthenticated
+requests; save an optional Hugging Face token under **File > LLM Providers →
+Hugging Face** (or set `HF_TOKEN` / copy `.env.example` to `.env`) to raise
+rate limits. Conversion progress and the current filename appear in the footer
+status bar, so progress remains visible when you switch away from the Convert
+view.
 
 Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,

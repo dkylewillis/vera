@@ -183,6 +183,7 @@ function App() {
   const [activeModel, setActiveModel] = useState('');
   const [modes, setModes] = useState<Mode[]>([]);
   const [activeModeId, setActiveModeId] = useState('');
+  const [hasHfToken, setHasHfToken] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
@@ -1531,6 +1532,7 @@ function App() {
     setActiveProviderId(saved.active_provider_id);
     setActiveModel(saved.active_model || '');
     setActiveModeId(saved.active_mode_id || '');
+    setHasHfToken(Boolean(saved.has_hf_token));
     return saved;
   }
 
@@ -1540,6 +1542,7 @@ function App() {
     setActiveProviderId(saved.active_provider_id);
     setActiveModel(saved.active_model || '');
     setActiveModeId(saved.active_mode_id || '');
+    setHasHfToken(Boolean(saved.has_hf_token));
     return saved;
   }
 
@@ -2039,6 +2042,7 @@ function App() {
       setActiveProviderId(saved.active_provider_id);
       setActiveModel(saved.active_model || '');
       setActiveModeId(saved.active_mode_id || '');
+      setHasHfToken(Boolean(saved.has_hf_token));
     }
     async function loadSessions() {
       const saved = await window.vera.getSessions();
@@ -3663,6 +3667,7 @@ function App() {
           activeProviderId={activeProviderId}
           activeModel={activeModel}
           activeModeId={activeModeId}
+          hasHfToken={hasHfToken}
           onPersist={persistSettings}
           onRefresh={refreshSettings}
           onClose={() => setSettingsOpen(false)}
