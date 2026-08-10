@@ -1162,6 +1162,44 @@ select option {
   gap: 10px;
 }
 
+.convertAdvanced {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.convertAdvanced > summary {
+  width: fit-content;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-muted);
+  list-style: none;
+}
+
+.convertAdvanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.convertAdvanced > summary::after {
+  content: ' ▸';
+  font-size: 11px;
+}
+
+.convertAdvanced[open] > summary::after {
+  content: ' ▾';
+}
+
+.convertAdvanced[open] > summary {
+  margin-bottom: 2px;
+}
+
+.convertAdvanced .pipelineConfigForm {
+  display: grid;
+  gap: 10px;
+}
+
 .convertActions {
   display: flex;
   gap: 8px;

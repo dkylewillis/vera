@@ -257,7 +257,8 @@ First Docling conversion may download model artifacts. Set
 bundle Docling; source-run apps can select installed pipelines in the Convert
 view. The Convert UI is schema-driven: the sidecar
 `describe_ingest_pipelines` action supplies descriptors, and
-`PipelineConfigForm` renders only the fields each pipeline advertises.
+`PipelineConfigForm` renders only the fields each pipeline advertises under a
+collapsed **Advanced pipeline options** section.
 
 ## Storing the source PDF
 
