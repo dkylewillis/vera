@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import {
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   KeyRound,
   ListChecks,
-  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -20,7 +21,6 @@ import {
   PROVIDER_PRESETS,
   providerDisplayName,
   providerPresetFor,
-  providerTypeLabel,
   type ProviderPreset,
   withPresetModels,
 } from '../lib/providers';
@@ -102,6 +102,16 @@ export function ModelManager({
   );
 }
 
+/** One entry in the flat provider list: a preset (configured or not) or a custom profile. */
+type ProviderRowInfo = {
+  key: string;
+  label: string;
+  description: string;
+  kind: 'hosted' | 'local' | 'custom';
+  preset: ProviderPreset | null;
+  profile: ProviderProfile | null;
+};
+
 export function ProviderManager({
   providers,
   activeProviderId,
@@ -110,6 +120,7 @@ export function ProviderManager({
   embeddingModel,
   ingestPipeline,
   ingestPipelineConfigs,
+  hasHfToken = false,
   onPersist,
   onRefresh,
   onClose,
@@ -121,6 +132,7 @@ export function ProviderManager({
   embeddingModel: string;
   ingestPipeline: string;
   ingestPipelineConfigs: AppSettings['ingest_pipeline_configs'];
+  hasHfToken?: boolean;
   onPersist: (next: AppSettings) => Promise<AppSettings>;
   onRefresh: () => Promise<AppSettings>;
   onClose: () => void;
@@ -128,25 +140,48 @@ export function ProviderManager({
   const [list, setList] = useState<ProviderProfile[]>(() => providers.map(withPresetModels));
   const [activeId, setActiveId] = useState(activeProviderId);
   const [activeModelLocal, setActiveModelLocal] = useState(activeModel);
-  const [selectedId, setSelectedId] = useState<string>(providers[0]?.id ?? '');
-  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
+  const [hfTokenInput, setHfTokenInput] = useState('');
+  const [hfTokenStored, setHfTokenStored] = useState(hasHfToken);
   const [modelInput, setModelInput] = useState('');
   const [modelFilter, setModelFilter] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
 
-  const selected = list.find((profile) => profile.id === selectedId) ?? null;
-  const selectedPreset = selected ? providerPresetFor(selected) : null;
-  const enabledModels = new Set(selected?.models ?? []);
+  // Flat Hermes-style row list: hosted presets, local presets, then customs.
+  const rows: ProviderRowInfo[] = [];
+  const matchedIds = new Set<string>();
+  const orderedPresets = [
+    ...PROVIDER_PRESETS.filter((preset) => preset.kind === 'hosted'),
+    ...PROVIDER_PRESETS.filter((preset) => preset.kind === 'local'),
+  ];
+  for (const preset of orderedPresets) {
+    const profile = list.find((entry) => !matchedIds.has(entry.id) && providerPresetFor(entry)?.key === preset.key) ?? null;
+    if (profile) matchedIds.add(profile.id);
+    rows.push({
+      key: preset.key,
+      label: profile ? providerDisplayName(profile) : preset.label,
+      description: preset.description,
+      kind: preset.kind,
+      preset,
+      profile,
+    });
+  }
+  for (const profile of list) {
+    if (matchedIds.has(profile.id)) continue;
+    rows.push({
+      key: profile.id,
+      label: providerDisplayName(profile),
+      description: 'Custom OpenAI-compatible endpoint.',
+      kind: 'custom',
+      preset: null,
+      profile,
+    });
+  }
+
   const normalizedModelFilter = modelFilter.trim().toLowerCase();
-  const modelOptions = Array.from(new Set([
-    ...(selected?.models ?? []),
-    ...(selected?.available_models ?? []),
-    ...availableModels,
-  ]))
-    .filter((model) => !normalizedModelFilter || model.toLowerCase().includes(normalizedModelFilter))
-    .sort((a, b) => a.localeCompare(b));
 
   function settingsPayload(overrides?: Partial<AppSettings>): AppSettings {
     const nextList = overrides?.providers ?? list;
@@ -168,51 +203,55 @@ export function ProviderManager({
     };
   }
 
-  function updateSelected(patch: Partial<ProviderProfile>) {
-    setList((prev) => prev.map((profile) => (profile.id === selectedId ? { ...profile, ...patch } : profile)));
+  /** Materialize a draft profile for an unconfigured preset row on first edit. */
+  function ensureProfile(row: ProviderRowInfo): { nextList: ProviderProfile[]; profile: ProviderProfile } {
+    if (row.profile) return { nextList: list, profile: row.profile };
+    const preset = row.preset!;
+    const profile: ProviderProfile = {
+      ...preset.value,
+      models: [...preset.value.models],
+      preset_key: preset.key,
+      id: newProviderId(),
+    };
+    return { nextList: [...list, profile], profile };
   }
 
-  function toggleModel(model: string) {
-    if (!selected) return;
-    const next = enabledModels.has(model)
-      ? selected.models.filter((value) => value !== model)
-      : [...selected.models, model];
-    updateSelected({ models: next });
+  function patchProfile(row: ProviderRowInfo, patch: Partial<ProviderProfile>) {
+    const { nextList, profile } = ensureProfile(row);
+    setList(nextList.map((entry) => (entry.id === profile.id ? { ...entry, ...patch } : entry)));
   }
 
-  function addManualModel() {
-    const model = modelInput.trim();
-    if (!selected || !model) return;
-    if (!selected.models.includes(model)) {
-      updateSelected({ models: [...selected.models, model] });
-    }
+  function toggleExpanded(rowKey: string) {
+    setExpandedKey((prev) => (prev === rowKey ? null : rowKey));
     setModelInput('');
-    setMessage(`Added model ${model}`);
-  }
-
-  function addProvider(preset?: ProviderPreset) {
-    const profile: ProviderProfile = preset
-      ? { ...preset.value, models: [...preset.value.models], preset_key: preset.key, id: newProviderId() }
-      : emptyProvider();
-    setList((prev) => [...prev, profile]);
-    setSelectedId(profile.id);
-    setApiKeyInput('');
-    setModelInput('');
+    setModelFilter('');
     setAvailableModels([]);
-    setMessage(`Added ${providerDisplayName(profile)}`);
   }
 
-  function deleteProvider(id: string) {
+  function addCustomProvider() {
+    const profile = emptyProvider();
+    setList((prev) => [...prev, profile]);
+    setExpandedKey(profile.id);
+    setModelInput('');
+    setModelFilter('');
+    setAvailableModels([]);
+  }
+
+  function removeProfile(row: ProviderRowInfo) {
+    const id = row.profile?.id;
+    if (!id) return;
     setList((prev) => prev.filter((profile) => profile.id !== id));
     if (activeId === id) {
       setActiveId('');
       setActiveModelLocal('');
     }
-    if (selectedId === id) setSelectedId('');
+    if (expandedKey === row.key) setExpandedKey(null);
     setMessage('Provider removed (Save to apply)');
   }
 
-  function setAsActive(profile: ProviderProfile) {
+  function setAsActive(row: ProviderRowInfo) {
+    const profile = row.profile;
+    if (!profile) return;
     if (activeId === profile.id) {
       setActiveId('');
       setActiveModelLocal('');
@@ -226,7 +265,7 @@ export function ProviderManager({
     setBusy(true);
     try {
       const saved = await onPersist(settingsPayload());
-      setList(saved.providers);
+      setList(saved.providers.map(withPresetModels));
       setActiveId(saved.active_provider_id);
       setActiveModelLocal(saved.active_model || '');
       setMessage('Settings saved');
@@ -236,45 +275,88 @@ export function ProviderManager({
     }
   }
 
-  async function saveKey() {
-    if (!selected) return;
-    if (!apiKeyInput.trim()) {
+  async function saveKey(row: ProviderRowInfo) {
+    const token = (keyInputs[row.key] ?? '').trim();
+    if (!token) {
       setMessage('Enter an API key first');
       return;
     }
+    const { nextList, profile } = ensureProfile(row);
+    setList(nextList);
     setBusy(true);
     try {
-      await onPersist(settingsPayload());
-      const result = await window.vera.saveApiKey(selected.base_url, apiKeyInput.trim());
+      await onPersist(settingsPayload({ providers: nextList }));
+      const result = await window.vera.saveApiKey(profile.base_url, token);
       if (!result.ok) {
         setMessage(result.error || 'Unable to save API key');
         return;
       }
-      setApiKeyInput('');
+      setKeyInputs((prev) => ({ ...prev, [row.key]: '' }));
       const refreshed = await onRefresh();
-      setList(refreshed.providers);
-      setMessage('API key saved');
+      setList(refreshed.providers.map(withPresetModels));
+      setMessage(`${row.label} key saved`);
     } finally {
       setBusy(false);
     }
   }
 
-  async function clearKey() {
-    if (!selected) return;
+  async function clearKey(row: ProviderRowInfo) {
+    if (!row.profile) return;
     setBusy(true);
     try {
-      await window.vera.clearApiKey(selected.base_url);
+      await window.vera.clearApiKey(row.profile.base_url);
       const refreshed = await onRefresh();
-      setList(refreshed.providers);
+      setList(refreshed.providers.map(withPresetModels));
       setMessage('API key cleared');
     } finally {
       setBusy(false);
     }
   }
 
-  async function fetchModels() {
-    if (!selected) return;
-    if (!selected.base_url.trim()) {
+  async function saveHfToken() {
+    if (!hfTokenInput.trim()) {
+      setMessage('Enter a Hugging Face token first');
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await window.vera.saveHfToken(hfTokenInput.trim());
+      if (!result.ok) {
+        setMessage(result.error || 'Unable to save Hugging Face token');
+        return;
+      }
+      setHfTokenInput('');
+      const refreshed = await onRefresh();
+      setHfTokenStored(Boolean(refreshed.has_hf_token));
+      setMessage('Hugging Face token saved');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function clearHfToken() {
+    setBusy(true);
+    try {
+      const result = await window.vera.clearHfToken();
+      if (!result.ok) {
+        setMessage(result.error || 'Unable to clear Hugging Face token');
+        return;
+      }
+      setHfTokenInput('');
+      const refreshed = await onRefresh();
+      setHfTokenStored(Boolean(refreshed.has_hf_token));
+      setMessage(result.has_api_key
+        ? 'App token cleared; process environment still provides HF_TOKEN'
+        : 'Hugging Face token cleared');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function fetchModels(row: ProviderRowInfo) {
+    const { nextList, profile } = ensureProfile(row);
+    setList(nextList);
+    if (!profile.base_url.trim()) {
       setMessage('Set a base URL first');
       return;
     }
@@ -282,30 +364,217 @@ export function ProviderManager({
     setMessage('Fetching models…');
     try {
       const llm: Record<string, unknown> = {
-        provider: selected.provider,
-        base_url: selected.base_url,
-        api_key_env: selected.api_key_env,
-        auth_type: selected.auth_type,
+        provider: profile.provider,
+        base_url: profile.base_url,
+        api_key_env: profile.api_key_env,
+        auth_type: profile.auth_type,
       };
       // Use the just-typed key if present so fetch works before saving.
-      if (apiKeyInput.trim()) llm.api_key = apiKeyInput.trim();
+      const typedKey = (keyInputs[row.key] ?? '').trim();
+      if (typedKey) llm.api_key = typedKey;
       const response = await window.vera.request<{ models: string[] }>({ action: 'list_models', llm });
       if (!response.ok) {
         setAvailableModels([]);
         setMessage(response.error || 'Unable to fetch models');
         return;
       }
-      const models = filterDiscoveredModels(selected, response.result?.models ?? []);
+      const models = filterDiscoveredModels(profile, response.result?.models ?? []);
       setAvailableModels(models);
-      updateSelected({
-        available_models: models,
-        models_refreshed_at: Date.now(),
-        models: selected.models.length === 0 ? defaultEnabledModels(selected, models) : selected.models,
-      });
+      setList((prev) => prev.map((entry) => (entry.id === profile.id
+        ? {
+          ...entry,
+          available_models: models,
+          models_refreshed_at: Date.now(),
+          models: entry.models.length === 0 ? defaultEnabledModels(entry, models) : entry.models,
+        }
+        : entry)));
       setMessage(models.length ? `Found ${models.length} models` : 'No models returned');
     } finally {
       setBusy(false);
     }
+  }
+
+  function renderModelsSection(row: ProviderRowInfo) {
+    const profile = row.profile;
+    const enabledModels = new Set(profile?.models ?? []);
+    const modelOptions = Array.from(new Set([
+      ...(profile?.models ?? []),
+      ...(profile?.available_models ?? []),
+      ...availableModels,
+    ]))
+      .filter((model) => !normalizedModelFilter || model.toLowerCase().includes(normalizedModelFilter))
+      .sort((a, b) => a.localeCompare(b));
+    const baseUrl = profile?.base_url ?? row.preset?.value.base_url ?? '';
+
+    return (
+      <div className="modelsSection">
+        <div className="modelsHead">
+          <span>Models <em>{profile?.models.length ?? 0} enabled</em></span>
+          <button type="button" className="secondaryAction compactAction" onClick={() => void fetchModels(row)} disabled={busy || !baseUrl.trim()}>
+            <ListChecks size={14} />Refresh models
+          </button>
+        </div>
+        {(profile?.available_models?.length || availableModels.length || profile?.models.length) ? (
+          <div className="modelManagerSearch">
+            <Search size={14} />
+            <input value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} placeholder="Search models" />
+          </div>
+        ) : null}
+        {modelOptions.length ? (
+          <div className="modelChecklist">
+            {modelOptions.map((model) => (
+              <label className="modelCheck" key={model}>
+                <input
+                  type="checkbox"
+                  checked={enabledModels.has(model)}
+                  onChange={() => {
+                    const next = enabledModels.has(model)
+                      ? (profile?.models ?? []).filter((value) => value !== model)
+                      : [...(profile?.models ?? []), model];
+                    patchProfile(row, { models: next });
+                  }}
+                />
+                <span>{model}</span>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <p className="mutedText">
+            {normalizedModelFilter
+              ? 'No matching models.'
+              : 'No models found yet. Refresh the provider or add a model ID.'}
+          </p>
+        )}
+        <div className="modelAddRow">
+          <input
+            value={modelInput}
+            onChange={(event) => setModelInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                const model = modelInput.trim();
+                if (!model) return;
+                if (!(profile?.models ?? []).includes(model)) {
+                  patchProfile(row, { models: [...(profile?.models ?? []), model] });
+                }
+                setModelInput('');
+                setMessage(`Added model ${model}`);
+              }
+            }}
+            placeholder="Add model id manually (e.g. gpt-4o-mini)"
+          />
+          <button
+            type="button"
+            className="secondaryAction compactAction"
+            onClick={() => {
+              const model = modelInput.trim();
+              if (!model) return;
+              if (!(profile?.models ?? []).includes(model)) {
+                patchProfile(row, { models: [...(profile?.models ?? []), model] });
+              }
+              setModelInput('');
+              setMessage(`Added model ${model}`);
+            }}
+            disabled={!modelInput.trim()}
+          >
+            <Plus size={14} />Add
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderExpandedBody(row: ProviderRowInfo) {
+    const profile = row.profile;
+    const preset = row.preset;
+    const hasKey = Boolean(profile?.has_api_key);
+
+    return (
+      <div className="providerItemBody">
+        <p className="providerItemDescription">{row.description}</p>
+
+        {row.kind === 'local' ? (
+          <label className="field">
+            <span>Server URL</span>
+            <input
+              value={profile?.base_url ?? preset?.value.base_url ?? ''}
+              onChange={(event) => patchProfile(row, { base_url: event.target.value })}
+              placeholder={preset?.value.base_url}
+            />
+          </label>
+        ) : null}
+
+        {row.kind === 'hosted' ? (
+          <label className="field">
+            <span>Base URL override</span>
+            <input
+              value={profile?.base_url ?? preset?.value.base_url ?? ''}
+              onChange={(event) => patchProfile(row, { base_url: event.target.value })}
+              placeholder={preset?.value.base_url}
+            />
+          </label>
+        ) : null}
+
+        {row.kind === 'custom' && profile ? (
+          <div className="editorGrid">
+            <label className="field">
+              <span>Display Name</span>
+              <input value={profile.label} onChange={(event) => patchProfile(row, { label: event.target.value })} placeholder="My Provider" />
+            </label>
+            <label className="field">
+              <span>Type</span>
+              <select value={profile.provider} onChange={(event) => patchProfile(row, { provider: event.target.value })}>
+                <option value="openai_compatible">OpenAI Compatible</option>
+                <option value="ollama">Ollama</option>
+                <option value="lmstudio">LM Studio</option>
+              </select>
+            </label>
+            <label className="field wideField">
+              <span>Base URL</span>
+              <input value={profile.base_url} onChange={(event) => patchProfile(row, { base_url: event.target.value })} placeholder="https://api.example.com/v1" />
+            </label>
+            <label className="field">
+              <span>Authentication</span>
+              <select value={profile.auth_type} onChange={(event) => patchProfile(row, { auth_type: event.target.value })}>
+                <option value="none">None</option>
+                <option value="api_key">API Key</option>
+                <option value="env">Environment variable</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>API environment variable</span>
+              <input value={profile.api_key_env} onChange={(event) => patchProfile(row, { api_key_env: event.target.value })} placeholder="PROVIDER_API_KEY" />
+            </label>
+            <label className="field">
+              <span>Temperature</span>
+              <input className="numberInput" type="number" min={0} max={2} step={0.1} value={profile.temperature} onChange={(event) => patchProfile(row, { temperature: Number(event.target.value) })} />
+            </label>
+          </div>
+        ) : null}
+
+        {renderModelsSection(row)}
+
+        <div className="editorActions">
+          <button
+            className={profile && profile.id === activeId ? 'secondaryAction activeNow' : 'secondaryAction'}
+            onClick={() => setAsActive(row)}
+            disabled={busy || !profile || profile.models.length === 0}
+          >
+            <CheckCircle2 size={16} />{profile && profile.id === activeId ? 'Active provider' : 'Set as active'}
+          </button>
+          {hasKey ? (
+            <button className="secondaryAction" onClick={() => void clearKey(row)} disabled={busy}>
+              <Trash2 size={16} />Clear key
+            </button>
+          ) : null}
+          {profile ? (
+            <button className="secondaryAction danger" onClick={() => removeProfile(row)} disabled={busy}>
+              <Trash2 size={16} />Remove
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -316,180 +585,114 @@ export function ProviderManager({
           <button className="iconAction" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </header>
 
-        <div className="providerLayout">
-          <aside className="providerList">
-            <div className="providerListHead">
-              <span>Providers</span>
-              <button className="secondaryAction compactAction" onClick={() => addProvider()} disabled={busy}><Plus size={14} />Custom</button>
-            </div>
-            {list.length === 0 ? <p className="mutedText">No providers configured yet.</p> : null}
-            {list.map((profile) => (
-              <button
-                key={profile.id}
-                type="button"
-                className={profile.id === selectedId ? 'providerRow selected' : 'providerRow'}
-                onClick={() => { setSelectedId(profile.id); setApiKeyInput(''); setModelInput(''); setModelFilter(''); setAvailableModels([]); }}
-              >
-                <span className="providerRowName">
-                  {providerDisplayName(profile)}
-                  {profile.id === activeId ? <em className="activeTag">Active</em> : null}
-                </span>
-                <small>{providerTypeLabel(profile.provider)} · {profile.models.length} model{profile.models.length === 1 ? '' : 's'}</small>
-              </button>
-            ))}
-            <div className="presetRow">
-              <span>Add provider</span>
-              <div className="presetButtons">
-                {PROVIDER_PRESETS.map((preset) => (
-                  <button key={preset.key} type="button" className="secondaryAction compactAction" onClick={() => addProvider(preset)} disabled={busy}>{preset.label}</button>
-                ))}
-              </div>
-            </div>
-          </aside>
-
-          <section className="providerEditor">
-            {selected ? (
-              <>
-                <div className="providerEditorIntro">
-                  <div>
-                    <h3>{providerDisplayName(selected)}</h3>
-                    <p>{selectedPreset?.description ?? 'Connect any service with an OpenAI-compatible API.'}</p>
+        <div className="providerStack">
+          {rows.map((row) => {
+            const profile = row.profile;
+            const expanded = expandedKey === row.key;
+            const authType = profile?.auth_type ?? row.preset?.value.auth_type ?? 'none';
+            const hasKey = Boolean(profile?.has_api_key);
+            const keyValue = keyInputs[row.key] ?? '';
+            const configured = Boolean(profile && (profile.models.length || hasKey));
+            return (
+              <section key={row.key} className={expanded ? 'providerItem expanded' : 'providerItem'}>
+                <div className="providerItemHead">
+                  <button type="button" className="providerItemToggle" onClick={() => toggleExpanded(row.key)}>
+                    <span className={configured ? 'providerDot configured' : 'providerDot'} />
+                    <span className="providerItemName">{row.label}</span>
+                    {profile && profile.id === activeId ? <em className="activeTag">Active</em> : null}
+                    {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+                  <div className="providerItemSide">
+                    {authType === 'api_key' ? (
+                      hasKey && !keyValue ? (
+                        <span className="connectedTag"><CheckCircle2 size={13} />Key saved</span>
+                      ) : (
+                        <div className="providerKeyInline">
+                          <input
+                            type="password"
+                            value={keyValue}
+                            onChange={(event) => setKeyInputs((prev) => ({ ...prev, [row.key]: event.target.value }))}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                void saveKey(row);
+                              }
+                            }}
+                            placeholder={`Paste ${row.label} key`}
+                            autoComplete="off"
+                            disabled={busy}
+                          />
+                          {keyValue.trim() ? (
+                            <button type="button" className="secondaryAction compactAction" onClick={() => void saveKey(row)} disabled={busy}>
+                              <KeyRound size={13} />Save
+                            </button>
+                          ) : null}
+                        </div>
+                      )
+                    ) : (
+                      <span className="providerItemHint">{profile?.base_url || row.preset?.value.base_url || ''}</span>
+                    )}
                   </div>
-                  {selected.has_api_key ? <span className="connectedTag"><CheckCircle2 size={13} />Key saved</span> : null}
                 </div>
+                {expanded ? renderExpandedBody(row) : null}
+              </section>
+            );
+          })}
 
-                {selected.auth_type === 'api_key' ? <div className="apiKeyRow">
-                  <label className="field apiKeyField">
-                    <span>API Key</span>
-                    <input type="password" value={apiKeyInput} onChange={(event) => setApiKeyInput(event.target.value)} placeholder={selected.has_api_key ? '•••••••• stored securely' : `Paste ${providerDisplayName(selected)} key`} />
-                  </label>
-                  <button className="secondaryAction" onClick={saveKey} disabled={busy || !apiKeyInput.trim()}><KeyRound size={16} />Save Key</button>
-                  <button className="secondaryAction" onClick={clearKey} disabled={busy || !selected.has_api_key}><Trash2 size={16} />Clear</button>
-                </div> : null}
+          <button type="button" className="providerAddCustom" onClick={addCustomProvider} disabled={busy}>
+            <Plus size={14} />Local / custom endpoint
+            <small>Point VERA at any OpenAI-compatible endpoint (vLLM, llama.cpp, etc.)</small>
+          </button>
 
-                {selectedPreset?.kind === 'local' ? (
-                  <label className="field">
-                    <span>Server URL</span>
-                    <input value={selected.base_url} onChange={(event) => updateSelected({ base_url: event.target.value })} placeholder={selectedPreset.value.base_url} />
-                  </label>
-                ) : null}
-
-                <div className="modelsSection">
-                  <div className="modelsHead">
-                    <span>Models <em>{selected.models.length} enabled</em></span>
-                    <button type="button" className="secondaryAction compactAction" onClick={fetchModels} disabled={busy || !selected.base_url.trim()}><ListChecks size={14} />Refresh models</button>
-                  </div>
-                  {(selected.available_models?.length || availableModels.length || selected.models.length) ? (
-                    <div className="modelManagerSearch">
-                      <Search size={14} />
-                      <input value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} placeholder="Search models" />
-                    </div>
-                  ) : null}
-                  {modelOptions.length ? (
-                    <div className="modelChecklist">
-                      {modelOptions.map((model) => (
-                        <label className="modelCheck" key={model}>
-                          <input type="checkbox" checked={enabledModels.has(model)} onChange={() => toggleModel(model)} />
-                          <span>{model}</span>
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mutedText">
-                      {normalizedModelFilter
-                        ? 'No matching models.'
-                        : 'No models found yet. Refresh the provider or add a model ID.'}
-                    </p>
-                  )}
-                  <div className="modelAddRow">
+          <section className={expandedKey === '__hf__' ? 'providerItem expanded' : 'providerItem'}>
+            <div className="providerItemHead">
+              <button type="button" className="providerItemToggle" onClick={() => toggleExpanded('__hf__')}>
+                <span className={hfTokenStored ? 'providerDot configured' : 'providerDot'} />
+                <span className="providerItemName">Hugging Face</span>
+                {expandedKey === '__hf__' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+              <div className="providerItemSide">
+                {hfTokenStored && !hfTokenInput ? (
+                  <span className="connectedTag"><CheckCircle2 size={13} />Token saved</span>
+                ) : (
+                  <div className="providerKeyInline">
                     <input
-                      value={modelInput}
-                      onChange={(event) => setModelInput(event.target.value)}
+                      type="password"
+                      value={hfTokenInput}
+                      onChange={(event) => setHfTokenInput(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter') {
                           event.preventDefault();
-                          addManualModel();
+                          void saveHfToken();
                         }
                       }}
-                      placeholder="Add model id manually (e.g. gpt-4o-mini)"
+                      placeholder="Paste Hugging Face token"
+                      autoComplete="off"
+                      disabled={busy}
                     />
-                    <button type="button" className="secondaryAction compactAction" onClick={addManualModel} disabled={!modelInput.trim()}><Plus size={14} />Add</button>
-                  </div>
-                </div>
-
-                {selectedPreset ? (
-                  <details className="providerAdvanced">
-                    <summary>Advanced</summary>
-                    <div className="editorGrid">
-                      <label className="field">
-                        <span>Display Name</span>
-                        <input value={selected.label} onChange={(event) => updateSelected({ label: event.target.value })} />
-                      </label>
-                      {selectedPreset.kind === 'hosted' ? (
-                        <label className="field">
-                          <span>Base URL override</span>
-                          <input value={selected.base_url} onChange={(event) => updateSelected({ base_url: event.target.value })} placeholder={selectedPreset.value.base_url} />
-                        </label>
-                      ) : null}
-                      <label className="field">
-                        <span>Temperature</span>
-                        <input className="numberInput" type="number" min={0} max={2} step={0.1} value={selected.temperature} onChange={(event) => updateSelected({ temperature: Number(event.target.value) })} />
-                      </label>
-                    </div>
-                  </details>
-                ) : (
-                  <div className="customProviderFields">
-                    <div className="editorGrid">
-                      <label className="field">
-                        <span>Display Name</span>
-                        <input value={selected.label} onChange={(event) => updateSelected({ label: event.target.value })} placeholder="My Provider" />
-                      </label>
-                      <label className="field">
-                        <span>Type</span>
-                        <select value={selected.provider} onChange={(event) => updateSelected({ provider: event.target.value })}>
-                          <option value="openai_compatible">OpenAI Compatible</option>
-                          <option value="ollama">Ollama</option>
-                          <option value="lmstudio">LM Studio</option>
-                        </select>
-                      </label>
-                      <label className="field wideField">
-                        <span>Base URL</span>
-                        <input value={selected.base_url} onChange={(event) => updateSelected({ base_url: event.target.value })} placeholder="https://api.example.com/v1" />
-                      </label>
-                      <label className="field">
-                        <span>Authentication</span>
-                        <select value={selected.auth_type} onChange={(event) => updateSelected({ auth_type: event.target.value })}>
-                          <option value="none">None</option>
-                          <option value="api_key">API Key</option>
-                          <option value="env">Environment variable</option>
-                        </select>
-                      </label>
-                      <label className="field">
-                        <span>API environment variable</span>
-                        <input value={selected.api_key_env} onChange={(event) => updateSelected({ api_key_env: event.target.value })} placeholder="PROVIDER_API_KEY" />
-                      </label>
-                      <label className="field">
-                        <span>Temperature</span>
-                        <input className="numberInput" type="number" min={0} max={2} step={0.1} value={selected.temperature} onChange={(event) => updateSelected({ temperature: Number(event.target.value) })} />
-                      </label>
-                    </div>
+                    {hfTokenInput.trim() ? (
+                      <button type="button" className="secondaryAction compactAction" onClick={() => void saveHfToken()} disabled={busy}>
+                        <KeyRound size={13} />Save
+                      </button>
+                    ) : null}
                   </div>
                 )}
-
+              </div>
+            </div>
+            {expandedKey === '__hf__' ? (
+              <div className="providerItemBody">
+                <p className="providerItemDescription">
+                  Optional token for Docling layout models and other Hub downloads. Stored securely
+                  like provider API keys and passed to the sidecar as <code>HF_TOKEN</code>. Get one
+                  at huggingface.co/settings/tokens.
+                </p>
                 <div className="editorActions">
-                  <button
-                    className={selected.id === activeId ? 'secondaryAction activeNow' : 'secondaryAction'}
-                    onClick={() => setAsActive(selected)}
-                    disabled={busy || selected.models.length === 0}
-                  >
-                    <CheckCircle2 size={16} />{selected.id === activeId ? 'Active provider' : 'Set as active'}
+                  <button className="secondaryAction" onClick={() => void clearHfToken()} disabled={busy || !hfTokenStored}>
+                    <Trash2 size={16} />Clear token
                   </button>
-                  <button className="secondaryAction danger" onClick={() => deleteProvider(selected.id)} disabled={busy}><Trash2 size={16} />Delete</button>
                 </div>
-              </>
-            ) : (
-              <div className="emptyState"><Pencil size={20} />Select a provider to edit, or add a new one.</div>
-            )}
+              </div>
+            ) : null}
           </section>
         </div>
 

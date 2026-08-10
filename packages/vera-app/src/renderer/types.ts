@@ -52,6 +52,8 @@ export interface VeraApi {
   saveSettings(settings: AppSettings): Promise<AppSettings>;
   saveApiKey(providerId: string, apiKey: string): Promise<CredentialResult>;
   clearApiKey(providerId: string): Promise<CredentialResult>;
+  saveHfToken(token: string): Promise<CredentialResult>;
+  clearHfToken(): Promise<CredentialResult>;
   getSessions(): Promise<Session[]>;
   saveSession(session: Session): Promise<Session[]>;
   deleteSession(id: string): Promise<Session[]>;

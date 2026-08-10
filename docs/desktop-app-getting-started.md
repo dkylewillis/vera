@@ -63,10 +63,12 @@ model and are persisted in app settings. `npm run app:dev` installs the `app`,
 `ml`, and `docling` extras into the workspace environment so both plugins are
 available for GUI testing. Packaged releases do not bundle optional ingest
 plugins or Sentence Transformers; an unavailable selection is disabled or fails
-with the resolver error. Conversion progress and the current filename appear in
+with the resolver error. Docling's first conversion may download Hugging Face
+models; save an optional token under **File > LLM Providers → Hugging Face**
+(or set `HF_TOKEN` in the environment / a local `.env` from `.env.example`) to
+raise Hub rate limits. Conversion progress and the current filename appear in
 the footer status bar, so progress remains visible when you switch away from
 the Convert view.
-
 Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,
 and keyword modes from its composer options. Its ranked passage cards open and

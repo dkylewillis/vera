@@ -11,3 +11,6 @@ node_modules/
 *.egg-info/
 examples/*.pdf
 site/
+.env
+.env.local
+.env.*.local

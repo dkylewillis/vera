@@ -3957,7 +3957,7 @@ input.viewerPageInput:focus {
 }
 
 .providerModal {
-  width: min(960px, 100%);
+  width: min(720px, 100%);
   max-height: min(700px, 92vh);
 }
 
@@ -4130,67 +4130,138 @@ input.viewerPageInput:focus {
   background: var(--bg-surface-3);
 }
 
-.providerLayout {
-  display: grid;
-  grid-template-columns: 252px 1fr;
-  min-height: 0;
+.providerStack {
   flex: 1;
-}
-
-.providerList {
+  min-height: 0;
+  overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 14px;
-  border-right: 1px solid var(--border);
-  overflow: auto;
+  padding: 6px 18px 14px;
 }
 
-.providerListHead {
+.providerItem {
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.providerItem.expanded {
+  margin: 4px -6px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.providerItemHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  gap: 16px;
+  min-height: 52px;
+  padding: 6px 6px;
 }
 
-.providerRow {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  padding: 9px 11px;
-  background: var(--bg-surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  text-align: left;
-  transition: border-color 0.12s, background 0.12s;
+.providerItem.expanded .providerItemHead {
+  padding: 6px 12px;
 }
 
-.providerRow:hover {
-  border-color: var(--border-strong);
-}
-
-.providerRow.selected {
-  background: var(--accent-soft);
-  border-color: var(--accent-soft-border);
-}
-
-.providerRowName {
+.providerItemToggle {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-size: 13px;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+  padding: 6px 2px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: var(--text-faint);
+  text-align: left;
+}
+
+.providerItemName {
+  font-size: 13.5px;
   font-weight: 650;
   color: var(--text-strong);
 }
 
-.providerRow small {
-  font-size: 11.5px;
+.providerDot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.providerDot.configured {
+  background: var(--good);
+}
+
+.providerItemSide {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.providerItemHint {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.providerKeyInline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.providerKeyInline input {
+  width: 230px;
+  height: 30px;
+  font-size: 12.5px;
+}
+
+.providerItemBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px 12px 14px;
+}
+
+.providerItemDescription {
+  margin: 0;
+  font-size: 12.5px;
   color: var(--text-muted);
+}
+
+.providerItemDescription code {
+  font-size: 11.5px;
+}
+
+.providerAddCustom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0 6px;
+  padding: 10px 12px;
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.providerAddCustom:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.providerAddCustom small {
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--text-faint);
 }
 
 .activeTag {
@@ -4203,56 +4274,6 @@ input.viewerPageInput:focus {
   background: var(--good-soft);
   padding: 1px 6px;
   border-radius: 999px;
-}
-
-.presetRow {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 6px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
-.presetRow > span {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.presetButtons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.providerEditor {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 16px 18px;
-  overflow: auto;
-}
-
-.providerEditorIntro {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.providerEditorIntro h3 {
-  margin: 0 0 4px;
-  font-size: 17px;
-  color: var(--text-strong);
-}
-
-.providerEditorIntro p {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-muted);
 }
 
 .connectedTag {
@@ -4278,16 +4299,6 @@ input.viewerPageInput:focus {
   grid-column: 1 / -1;
 }
 
-.apiKeyRow {
-  display: flex;
-  align-items: end;
-  gap: 10px;
-}
-
-.apiKeyRow .apiKeyField {
-  flex: 1;
-}
-
 .modelsSection {
   display: flex;
   flex-direction: column;
@@ -4296,6 +4307,10 @@ input.viewerPageInput:focus {
   background: var(--bg-surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+.providerItem.expanded .modelsSection {
+  background: var(--bg-surface);
 }
 
 .modelsHead {
@@ -4365,27 +4380,6 @@ input.viewerPageInput:focus {
 .modelAddRow input {
   flex: 1;
   min-width: 0;
-}
-
-.providerAdvanced {
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-}
-
-.providerAdvanced summary {
-  width: fit-content;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 650;
-  color: var(--text-muted);
-}
-
-.providerAdvanced[open] summary {
-  margin-bottom: 12px;
-}
-
-.customProviderFields {
-  padding-top: 2px;
 }
 
 .editorActions {

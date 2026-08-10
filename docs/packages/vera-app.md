@@ -22,7 +22,10 @@ Download `VERA Setup <version>.exe` from the
 2. Use **File > Open Folder** to activate a document library.
 3. Open **Search** for fully local hybrid retrieval.
 4. To use **Ask**, configure a provider under **File > LLM Providers**.
-5. Select a citation in an answer to inspect the highlighted source passage.
+5. Optional: save a Hugging Face token under **File > LLM Providers → Hugging
+   Face** (or set `HF_TOKEN`) for Hub model downloads used by some converters
+   and embedders.
+6. Select a citation in an answer to inspect the highlighted source passage.
 
 Search and conversion do not require a model-provider account. A provider is
 only required for generated Ask responses.

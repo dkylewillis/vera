@@ -198,6 +198,7 @@ function App() {
   const [ingestPipelineDescriptors, setIngestPipelineDescriptors] = useState<PipelineDescriptor[]>([]);
   const [ingestPipelineConfigs, setIngestPipelineConfigs] = useState<Record<string, PipelineOptions>>({});
   const [pipelineOptions, setPipelineOptions] = useState<PipelineOptions>({});
+  const [hasHfToken, setHasHfToken] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
@@ -1559,6 +1560,7 @@ function App() {
     setEmbeddingModel(saved.embedding_model || 'hashing');
     setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
+    setHasHfToken(Boolean(saved.has_hf_token));
     return saved;
   }
 
@@ -1571,6 +1573,7 @@ function App() {
     setEmbeddingModel(saved.embedding_model || 'hashing');
     setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
+    setHasHfToken(Boolean(saved.has_hf_token));
     return saved;
   }
 
@@ -2116,6 +2119,7 @@ function App() {
       setEmbeddingModel(saved.embedding_model || 'hashing');
       setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
       setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
+      setHasHfToken(Boolean(saved.has_hf_token));
     }
     async function loadEmbeddingProviders() {
       const response = await window.vera.request<{ providers: string[] }>({
@@ -3874,6 +3878,7 @@ function App() {
           embeddingModel={embeddingModel}
           ingestPipeline={ingestPipeline}
           ingestPipelineConfigs={ingestPipelineConfigs}
+          hasHfToken={hasHfToken}
           onPersist={persistSettings}
           onRefresh={refreshSettings}
           onClose={() => setSettingsOpen(false)}

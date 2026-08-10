@@ -209,6 +209,12 @@ export interface AppSettings {
   ingest_pipeline: string;
   /** Per-pipeline Convert settings keyed by pipeline spec. */
   ingest_pipeline_configs: Record<string, PipelineOptions>;
+  /**
+   * Runtime-only: true when a Hugging Face token is available from secure
+   * storage or the process environment (`HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`).
+   * Not persisted in settings.json.
+   */
+  has_hf_token?: boolean;
 }
 
 export interface CredentialResult {

@@ -193,6 +193,9 @@ def test_hardening_json_contracts_are_documented():
     assert "ingest_pipeline" in desktop
     assert "vera-ingest-docling" in conversion or "docling:hybrid" in conversion
     assert "provider:model-id" in desktop
+    assert "Hugging Face" in desktop
+    assert "HF_TOKEN" in desktop
+    assert "Hugging Face" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
     assert "`attachment_metadata()`" in python_api
     assert "do not contain a `data` field" in python_api
     assert "pipeline_options" in python_api
