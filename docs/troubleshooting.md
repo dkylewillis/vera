@@ -167,6 +167,10 @@ vera convert "input.pdf" --parser pymupdf
 
 Other parser names are not currently implemented.
 
+If Hugging Face Hub downloads warn about unauthenticated requests or hit rate
+limits, set `HF_TOKEN` (see `.env.example`) or save a token under **File >
+LLM Providers → Hugging Face** in the desktop app.
+
 ## Figures are missing or have no caption
 
 - Search with `--figures --json`; figure metadata is not shown in ordinary text

@@ -49,7 +49,6 @@ import { EMPTY_FIGURES, EMPTY_REGIONS } from './lib/constants';
 import { awaitConversionRequest } from './lib/conversion';
 import {
   convertDefaultsFromSelection,
-  defaultVeraPath,
   formatBox,
   formatPages,
   isPathInsideFolder,
@@ -58,8 +57,9 @@ import {
   type ExplorerSelection,
 } from './lib/formatting';
 import { figureCacheKey, mergeFigureData, sameSearchResult } from './lib/figures';
+import { collapsedFoldersForActiveLibrary } from './lib/explorer';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from './lib/providers';
-import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ConvertResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
+import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
 import './styles.css';
 
 type SideView = 'explorer' | 'chats' | 'convert';
@@ -170,8 +170,6 @@ function App() {
     })(),
   ));
   const [suppressIndexPrompt, setSuppressIndexPrompt] = useState(false);
-  const [pdfPath, setPdfPath] = useState('');
-  const [outputPath, setOutputPath] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [submittedSearchQuery, setSubmittedSearchQuery] = useState('');
   const [composerResetVersion, setComposerResetVersion] = useState(0);
@@ -186,6 +184,7 @@ function App() {
   const [activeModel, setActiveModel] = useState('');
   const [modes, setModes] = useState<Mode[]>([]);
   const [activeModeId, setActiveModeId] = useState('');
+  const [hasHfToken, setHasHfToken] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
@@ -197,7 +196,7 @@ function App() {
   const [modelManagerOpen, setModelManagerOpen] = useState(false);
   const [modelRefreshBusyId, setModelRefreshBusyId] = useState('');
   const [modelRefreshMessage, setModelRefreshMessage] = useState('');
-  const [convertMode, setConvertMode] = useState<'single' | 'batch' | 'selected'>('single');
+  const [convertMode, setConvertMode] = useState<'batch' | 'selected'>('selected');
   const [batchDirectory, setBatchDirectory] = useState('');
   const [batchRecursive, setBatchRecursive] = useState(true);
   const [batchOverwrite, setBatchOverwrite] = useState(false);
@@ -212,7 +211,6 @@ function App() {
   const [inspect, setInspect] = useState<InspectResult | null>(null);
   const libraryInspectCache = useRef(new Map<string, InspectResult>());
   const [validation, setValidation] = useState<ValidateResult | null>(null);
-  const [convertResult, setConvertResult] = useState<ConvertResult | null>(null);
   const [batchConvertResult, setBatchConvertResult] = useState<BatchConvertResult | null>(null);
   const [conversionError, setConversionError] = useState<string | null>(null);
   const conversionRequestIdRef = useRef<string | null>(null);
@@ -422,7 +420,7 @@ function App() {
     citation,
     pendingSourcePath,
     selected,
-    sourceDocument?.filename,
+    sourceDocument,
     sourceDocumentPath,
     viewerInfoIsCorpus,
     viewerInfoPath,
@@ -465,31 +463,28 @@ function App() {
 
   function applyConvertDefaultsFromSelection(selection: ExplorerSelection | null = explorerSelection) {
     const defaults = convertDefaultsFromSelection(selection, activeLibraryPath);
-    if (!defaults) return;
-    setConvertMode(defaults.mode);
-    if (defaults.mode === 'single') {
-      if (defaults.pdfPath) setPdfPath(defaults.pdfPath);
-      if (defaults.outputPath) setOutputPath(defaults.outputPath);
-      return;
-    }
-    if (defaults.batchDirectory) setBatchDirectory(defaults.batchDirectory);
+    if (!defaults?.batchDirectory) return;
+    setBatchDirectory(defaults.batchDirectory);
   }
 
   function openSide(view: SideView, selectionOverride?: ExplorerSelection | null) {
     if (view === 'convert') {
+      applyConvertDefaultsFromSelection(
+        selectionOverride !== undefined ? selectionOverride : explorerSelection,
+      );
       if (selectedPdfs.length > 0) {
         setConvertMode('selected');
-      } else {
-        applyConvertDefaultsFromSelection(
-          selectionOverride !== undefined ? selectionOverride : explorerSelection,
-        );
       }
     }
     setSideView(view);
     setSidebarCollapsed(false);
   }
 
-  function openConvertSelected() {
+  function openConvertSelected(paths?: string[]) {
+    if (paths?.length) {
+      setSelectedPdfs(paths);
+      setExplorerSelection({ kind: 'file', path: paths[paths.length - 1], type: 'pdf' });
+    }
     setConvertMode('selected');
     setSideView('convert');
     setSidebarCollapsed(false);
@@ -504,11 +499,20 @@ function App() {
     });
   }
 
-  useEffect(() => {
-    if (selectedPdfs.length === 0 && convertMode === 'selected') {
-      setConvertMode('single');
-    }
-  }, [selectedPdfs, convertMode]);
+  async function choosePdfs() {
+    const paths = (await window.vera.pickPdf()).map((entry) => entry.trim()).filter(Boolean);
+    if (!paths.length) return;
+    setSelectedPdfs((prev) => {
+      const merged = [...prev];
+      for (const filePath of paths) {
+        if (!merged.includes(filePath)) merged.push(filePath);
+      }
+      return merged;
+    });
+    setExplorerSelection({ kind: 'file', path: paths[paths.length - 1], type: 'pdf' });
+    setConvertMode('selected');
+    setBatchConvertResult(null);
+  }
 
   function selectExplorerFolder(folderPath: string) {
     setLibraryInfoPath('');
@@ -710,40 +714,25 @@ function App() {
     const multiSelect = Boolean(event?.ctrlKey || event?.metaKey);
     if (multiSelect) {
       // Match OS file-manager semantics: Ctrl/Cmd+click toggles membership.
-      // A plain-selected PDF lives in explorerSelection, not selectedPdfs yet —
-      // Ctrl+clicking it must deselect, and Ctrl+clicking another file must
-      // promote both into the multi-select set.
-      if (selectedPdfs.length > 0) {
-        const removing = selectedPdfs.includes(entry.path);
-        const next = removing
-          ? selectedPdfs.filter((filePath) => filePath !== entry.path)
-          : [...selectedPdfs, entry.path];
-        setSelectedPdfs(next);
-        if (next.length === 0) {
-          setExplorerSelection(null);
-        } else if (!removing) {
-          setExplorerSelection(selection);
-        } else {
-          const fallback = next[next.length - 1];
-          setExplorerSelection({ kind: 'file', path: fallback, type: 'pdf' });
-        }
-        return;
-      }
-      const prior = explorerSelection?.kind === 'file' && explorerSelection.type === 'pdf'
-        ? explorerSelection.path
-        : '';
-      if (prior && prior === entry.path) {
+      // Plain click already seeds selectedPdfs with the current PDF.
+      const removing = selectedPdfs.includes(entry.path);
+      const next = removing
+        ? selectedPdfs.filter((filePath) => filePath !== entry.path)
+        : [...selectedPdfs, entry.path];
+      setSelectedPdfs(next);
+      if (next.length === 0) {
         setExplorerSelection(null);
-        return;
+      } else if (!removing) {
+        setExplorerSelection(selection);
+      } else {
+        const fallback = next[next.length - 1];
+        setExplorerSelection({ kind: 'file', path: fallback, type: 'pdf' });
       }
-      setSelectedPdfs(prior && prior !== entry.path ? [prior, entry.path] : [entry.path]);
-      setExplorerSelection(selection);
       return;
     }
-    // Plain click clears multi-select and seeds Convert defaults without switching views.
+    // Plain click selects one PDF in the same list used for Convert.
     setExplorerSelection(selection);
-    setSelectedPdfs([]);
-    applyConvertDefaultsFromSelection(selection);
+    setSelectedPdfs([entry.path]);
   }
 
   async function previewSourceDocument(entry: FolderEntry) {
@@ -945,25 +934,12 @@ function App() {
     setPageResult(null);
   }
 
-  async function choosePdf() {
-    const chosen = await window.vera.pickPdf();
-    if (chosen) {
-      setPdfPath(chosen);
-      if (!outputPath.trim()) setOutputPath(defaultVeraPath(chosen));
-    }
-  }
-
   async function chooseBatchDirectory() {
     const chosen = await window.vera.pickFolder();
     if (chosen) {
       setBatchDirectory(chosen);
       setBatchConvertResult(null);
     }
-  }
-
-  async function chooseOutput() {
-    const chosen = await window.vera.saveVera(outputPath.trim() || defaultVeraPath(pdfPath));
-    if (chosen) setOutputPath(chosen);
   }
 
   async function inspectTarget(targetPath = path) {
@@ -1563,6 +1539,7 @@ function App() {
     setActiveProviderId(saved.active_provider_id);
     setActiveModel(saved.active_model || '');
     setActiveModeId(saved.active_mode_id || '');
+    setHasHfToken(Boolean(saved.has_hf_token));
     return saved;
   }
 
@@ -1572,6 +1549,7 @@ function App() {
     setActiveProviderId(saved.active_provider_id);
     setActiveModel(saved.active_model || '');
     setActiveModeId(saved.active_mode_id || '');
+    setHasHfToken(Boolean(saved.has_hf_token));
     return saved;
   }
 
@@ -1817,85 +1795,12 @@ function App() {
     return activeRequestId !== null && activeRequestId !== requestId;
   }
 
-  async function convertPdf() {
-    const output = outputPath.trim() || defaultVeraPath(pdfPath);
-    if (!output) {
-      setConversionError('Choose an output path.');
-      return;
-    }
-    setOutputPath(output);
-    conversionCanceledRef.current = false;
-    conversionInterruptRef.current = null;
-    setConversionError(null);
-    setConvertResult(null);
-    const conversionRequestId = crypto.randomUUID();
-    conversionRequestIdRef.current = conversionRequestId;
-    dispatchBackgroundTask({
-      type: 'start',
-      task: {
-        id: conversionRequestId,
-        kind: 'conversion',
-        label: 'Conversion',
-        message: 'Starting…',
-        currentItem: pdfPath.trim() || undefined,
-      },
-    });
-    const offProgress = window.vera.onAnswerEvent((event) => {
-      if (event.id !== conversionRequestId || event.event !== 'conversion_progress') return;
-      applyConversionProgress(conversionRequestId, event, 'single');
-    });
-    conversionProgressCleanupRef.current = { requestId: conversionRequestId, off: offProgress };
-    try {
-      const response = await awaitConversionRequest(
-        window.vera.request<ConvertResult>({
-          action: 'convert',
-          input: pdfPath,
-          output,
-          model: 'hashing',
-          parser: 'pymupdf',
-          chunk_size: chunkSize,
-          overlap,
-          store_original: storeOriginal,
-        }, conversionRequestId),
-        () => settleConversionRequest(conversionRequestId),
-      );
-      if (conversionRequestWasSuperseded(conversionRequestId)) return;
-      if (response.cancelled || response.error?.includes('cancelled')) {
-        refreshFoldersAfterConversion(output);
-        setConversionError(null);
-        return;
-      }
-      if (!response.ok || !response.result) {
-        throw new Error(response.error || 'PDF conversion failed');
-      }
-      const result = response.result;
-      setConvertResult(result);
-      refreshFoldersAfterConversion(result.output);
-      updateTargetPath(result.output);
-    } catch (error) {
-      if (conversionRequestWasSuperseded(conversionRequestId)) return;
-      const message = error instanceof Error ? error.message : 'PDF conversion failed';
-      if (conversionCanceledRef.current || message.toLowerCase().includes('cancelled')) {
-        refreshFoldersAfterConversion(output);
-        setConversionError(null);
-        return;
-      }
-      setConversionError(message);
-    } finally {
-      settleConversionRequest(conversionRequestId);
-      if (conversionRequestIdRef.current === null) {
-        conversionCanceledRef.current = false;
-        conversionInterruptRef.current = null;
-      }
-    }
-  }
-
   async function batchConvertPdfs(options: { paths?: string[] } = {}) {
     const selectedPaths = (options.paths ?? []).map((entry) => entry.trim()).filter(Boolean);
     const directory = batchDirectory.trim();
     if (!selectedPaths.length && !directory) {
       setConversionError(selectedPaths.length === 0 && convertMode === 'selected'
-        ? 'Select one or more PDFs in Explorer (Ctrl/Cmd+click).'
+        ? 'Select one or more PDFs in Explorer (click or Ctrl/Cmd+click).'
         : 'Choose the directory containing the PDFs to convert.');
       return;
     }
@@ -1947,11 +1852,9 @@ function App() {
       }
       const result = response.result;
       setBatchConvertResult(result);
-      setConvertResult(null);
       refreshFoldersAfterConversion(result.directory || refreshRoot);
       if (selectedPaths.length) {
         setSelectedPdfs([]);
-        if (convertMode === 'selected') setConvertMode('single');
       }
     } catch (error) {
       if (conversionRequestWasSuperseded(conversionRequestId)) return;
@@ -2133,6 +2036,13 @@ function App() {
     void window.vera.setWatchedFolders(folderPaths);
   }, [folderPathsKey]);
 
+  // Keep folder headers scannable: expand the active library, collapse the rest.
+  // Manual caret toggles still work until the active library or folder set changes.
+  useEffect(() => {
+    const folderPaths = folderPathsKey ? folderPathsKey.split('\n') : [];
+    setCollapsedFolders(collapsedFoldersForActiveLibrary(folderPaths, activeLibraryPath));
+  }, [folderPathsKey, activeLibraryPath]);
+
   useEffect(() => window.vera.onFolderChanged((folderPath) => {
     dismissedIndexStates.current.delete(folderPath);
     void window.vera.listFolder(folderPath).then((folder) => {
@@ -2151,6 +2061,7 @@ function App() {
       setActiveProviderId(saved.active_provider_id);
       setActiveModel(saved.active_model || '');
       setActiveModeId(saved.active_mode_id || '');
+      setHasHfToken(Boolean(saved.has_hf_token));
     }
     async function loadSessions() {
       const saved = await window.vera.getSessions();
@@ -2530,11 +2441,6 @@ function App() {
                                   || pendingSourcePath === entry.path
                                   || sourceDocumentPath === entry.path
                                   || (entry.type === 'pdf' && selectedPdfs.includes(entry.path))
-                                  || (entry.type === 'pdf'
-                                    && selectedPdfs.length === 0
-                                    && explorerSelection?.kind === 'file'
-                                    && explorerSelection.type === 'pdf'
-                                    && explorerSelection.path === entry.path)
                                     ? 'fileRow active'
                                     : 'fileRow'
                                 }
@@ -2552,7 +2458,7 @@ function App() {
                                   sourceLoading
                                     ? `${entry.relativePath} — loading ${fileName(pendingSourcePath)}…`
                                     : entry.type === 'pdf'
-                                      ? `${entry.relativePath} — Ctrl/Cmd+click to multi-select · double-click to view`
+                                      ? `${entry.relativePath} — click to select · Ctrl/Cmd+click to multi-select · double-click to view`
                                       : `${entry.relativePath} — double-click to preview source`
                                 }
                               >
@@ -2593,34 +2499,19 @@ function App() {
                 <div className="convertView">
                   <div className="convertModeToggle">
                     <button
-                      className={convertMode === 'single' ? 'active' : ''}
-                      onClick={() => {
-                        setConvertMode('single');
-                        const defaults = convertDefaultsFromSelection(explorerSelection, activeLibraryPath);
-                        if (defaults?.mode === 'single') {
-                          if (defaults.pdfPath) setPdfPath(defaults.pdfPath);
-                          if (defaults.outputPath) setOutputPath(defaults.outputPath);
-                        }
-                      }}
+                      className={convertMode === 'selected' ? 'active' : ''}
+                      onClick={() => setConvertMode('selected')}
                     >
-                      Single PDF
+                      {selectedPdfs.length > 0 ? `Individual PDFs (${selectedPdfs.length})` : 'Individual PDFs'}
                     </button>
-                    {selectedPdfs.length > 0 ? (
-                      <button
-                        className={convertMode === 'selected' ? 'active' : ''}
-                        onClick={() => setConvertMode('selected')}
-                      >
-                        Selected ({selectedPdfs.length})
-                      </button>
-                    ) : null}
                     <button
                       className={convertMode === 'batch' ? 'active' : ''}
                       onClick={() => {
                         setConvertMode('batch');
                         const defaults = convertDefaultsFromSelection(explorerSelection, activeLibraryPath);
                         const directory = defaults?.batchDirectory
-                          || (defaults?.mode === 'single' && defaults.pdfPath
-                            ? defaults.pdfPath.replace(/[/\\][^/\\]+$/, '')
+                          || (selectedPdfs[0]
+                            ? selectedPdfs[0].replace(/[/\\][^/\\]+$/, '')
                             : activeLibraryPath);
                         if (directory) setBatchDirectory(directory);
                       }}
@@ -2628,62 +2519,44 @@ function App() {
                       PDF Directory
                     </button>
                   </div>
-                  {convertMode === 'single' ? (
-                    <>
-                      <label className="field">
-                        <span>PDF</span>
-                        <div className="pathInput">
-                          <FileInput size={16} />
-                          <input
-                            value={pdfPath}
-                            onChange={(event) => {
-                              const value = event.target.value;
-                              setPdfPath(value);
-                              if (!outputPath.trim()) setOutputPath(defaultVeraPath(value));
-                            }}
-                            placeholder="C:\\docs\\manual.pdf"
-                          />
-                        </div>
-                      </label>
-                      <button className="secondaryAction" onClick={choosePdf} disabled={busy || conversionInProgress}><FolderOpen size={16} />Choose PDF</button>
-                      <label className="field">
-                        <span>Output</span>
-                        <div className="pathInput">
-                          <VeraIcon size={16} />
-                          <input value={outputPath} onChange={(event) => setOutputPath(event.target.value)} placeholder="C:\\docs\\manual.vera" />
-                        </div>
-                      </label>
-                      <button className="secondaryAction" onClick={chooseOutput} disabled={busy || conversionInProgress}><FolderOpen size={16} />Save As</button>
-                    </>
-                  ) : null}
                   {convertMode === 'selected' ? (
                     <>
                       <div className="selectedPdfList">
                         <span className="fieldLabel">{selectedPdfs.length} PDF{selectedPdfs.length === 1 ? '' : 's'} selected</span>
-                        <ul>
-                          {selectedPdfs.map((filePath) => (
-                            <li key={filePath} title={filePath}>
-                              <span>{filePath.replace(/^.*[/\\]/, '')}</span>
-                              <button
-                                type="button"
-                                className="ghostIcon tiny visible"
-                                onClick={() => toggleSelectedPdf(filePath)}
-                                title="Remove from selection"
-                                aria-label={`Remove ${filePath}`}
-                              >
-                                <X size={12} />
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
+                        {selectedPdfs.length > 0 ? (
+                          <ul>
+                            {selectedPdfs.map((filePath) => (
+                              <li key={filePath} title={filePath}>
+                                <span>{filePath.replace(/^.*[/\\]/, '')}</span>
+                                <button
+                                  type="button"
+                                  className="ghostIcon tiny visible"
+                                  onClick={() => toggleSelectedPdf(filePath)}
+                                  title="Remove from selection"
+                                  aria-label={`Remove ${filePath}`}
+                                >
+                                  <X size={12} />
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="sideMuted">No PDFs selected yet.</p>
+                        )}
                       </div>
                       <button
                         type="button"
                         className="secondaryAction"
-                        onClick={() => {
-                          setSelectedPdfs([]);
-                          setConvertMode('single');
-                        }}
+                        onClick={() => void choosePdfs()}
+                        disabled={busy || conversionInProgress}
+                      >
+                        <FolderOpen size={16} />
+                        Choose PDFs
+                      </button>
+                      <button
+                        type="button"
+                        className="secondaryAction"
+                        onClick={() => setSelectedPdfs([])}
                         disabled={!selectedPdfs.length || busy || conversionInProgress}
                       >
                         Clear selection
@@ -2692,7 +2565,7 @@ function App() {
                         <input type="checkbox" checked={batchOverwrite} onChange={(event) => setBatchOverwrite(event.target.checked)} />
                         <span>Overwrite existing .vera files</span>
                       </label>
-                      <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Ctrl/Cmd+click PDFs in Explorer to change the selection.</p>
+                      <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Choose files here, or select them in Explorer (click / Ctrl/Cmd+click).</p>
                     </>
                   ) : null}
                   {convertMode === 'batch' ? (
@@ -2735,24 +2608,19 @@ function App() {
                     <button
                       className="sidePrimary"
                       onClick={() => {
-                        if (convertMode === 'single') void convertPdf();
-                        else if (convertMode === 'selected') void batchConvertPdfs({ paths: selectedPdfs });
+                        if (convertMode === 'selected') void batchConvertPdfs({ paths: selectedPdfs });
                         else void batchConvertPdfs();
                       }}
-                      disabled={convertMode === 'single'
-                        ? !pdfPath.trim() || busy || conversionInProgress
-                        : convertMode === 'selected'
-                          ? selectedPdfs.length === 0 || busy || conversionInProgress
-                          : !batchDirectory.trim() || busy || conversionInProgress}
+                      disabled={convertMode === 'selected'
+                        ? selectedPdfs.length === 0 || busy || conversionInProgress
+                        : !batchDirectory.trim() || busy || conversionInProgress}
                     >
                       <RefreshCw size={16} className={conversionInProgress ? 'spinning' : undefined} />
                       {conversionInProgress
                         ? 'Converting…'
-                        : convertMode === 'single'
-                          ? 'Convert'
-                          : convertMode === 'selected'
-                            ? `Convert Selected (${selectedPdfs.length})`
-                            : 'Convert Directory'}
+                        : convertMode === 'selected'
+                          ? `Convert (${selectedPdfs.length})`
+                          : 'Convert Directory'}
                     </button>
                     {conversionInProgress && (convertMode === 'batch' || convertMode === 'selected') ? (
                       <button
@@ -2782,7 +2650,6 @@ function App() {
                     ) : null}
                   </div>
                   {conversionError ? <p className="sideMuted" role="alert">{conversionError}</p> : null}
-                  {convertMode === 'single' && convertResult ? <p className="sideMuted">Created {convertResult.output}</p> : null}
                   {(convertMode === 'batch' || convertMode === 'selected') && batchConvertResult ? (
                     <div className="batchConvertReport">
                       <strong>{batchConvertResult.converted} converted</strong>
@@ -3763,17 +3630,23 @@ function App() {
                 {entryContextMenu.entry.type === 'vera' ? 'Preview embedded source' : 'View in document viewer'}
               </button>
             ) : null}
-            {entryContextMenu.entry.type === 'pdf'
-              && selectedPdfs.length > 0
-              && selectedPdfs.includes(entryContextMenu.entry.path) ? (
+            {entryContextMenu.entry.type === 'pdf' ? (
               <button
                 role="menuitem"
                 onClick={() => {
-                  openConvertSelected();
+                  const entry = entryContextMenu.entry;
+                  const paths = selectedPdfs.includes(entry.path) && selectedPdfs.length > 0
+                    ? selectedPdfs
+                    : [entry.path];
+                  openConvertSelected(paths);
                   setEntryContextMenu(null);
                 }}
               >
-                Convert selected ({selectedPdfs.length})
+                Convert {
+                  selectedPdfs.includes(entryContextMenu.entry.path) && selectedPdfs.length > 1
+                    ? `PDFs (${selectedPdfs.length})`
+                    : 'PDF'
+                }
               </button>
             ) : null}
             <button
@@ -3820,6 +3693,7 @@ function App() {
           activeProviderId={activeProviderId}
           activeModel={activeModel}
           activeModeId={activeModeId}
+          hasHfToken={hasHfToken}
           onPersist={persistSettings}
           onRefresh={refreshSettings}
           onClose={() => setSettingsOpen(false)}

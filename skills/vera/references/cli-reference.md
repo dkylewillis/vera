@@ -8,9 +8,8 @@ console entry point is `vera`; `python -m vera_cli` invokes the same parser.
 - Python: 3.10 or newer.
 - Published CLI: `pip install vera-cli`.
 - Neural embedding models require the `ml` extra from `vera-doc`.
-- `vera mcp` requires `pip install "vera-cli[mcp]"` or `pip install vera-mcp`.
 - A repository checkout can use:
-  `uv sync --extra dev --extra ml --extra app --extra mcp`.
+  `uv sync --extra dev --extra ml --extra app`.
 
 Check `vera --help` first. If it is not on `PATH`, try
 `python -m vera_cli --help`.
@@ -490,16 +489,6 @@ Result:
 This command exits 0 only when every case in every requested mode hits. A miss
 still prints the report and exits 1.
 
-### `vera mcp`
-
-Runs the long-lived stdio MCP server. It does not accept `--json`; protocol
-messages use stdout, so do not mix ordinary output into that stream.
-
-MCP provides `vera_search`, `vera_corpus_search`, `vera_inspect`,
-`vera_validate`, `vera_figures`, `vera_get_page`, and
-`vera_get_chunk_regions`. The final three have no direct standalone CLI
-equivalent. See the repository's agent-skills guide for MCP setup.
-
 ## Exit and output rules
 
 All JSON-capable commands print one JSON object to stdout on success. Check the
@@ -524,4 +513,3 @@ negative-result cases.
 - Writes archives: `convert`; existing single outputs can be replaced.
 - Writes collection artifacts: `index build`, `index update`.
 - Writes source files: `export`.
-- Long-running process: `mcp`.

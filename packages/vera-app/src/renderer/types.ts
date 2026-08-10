@@ -45,6 +45,8 @@ export interface VeraApi {
   saveSettings(settings: AppSettings): Promise<AppSettings>;
   saveApiKey(providerId: string, apiKey: string): Promise<CredentialResult>;
   clearApiKey(providerId: string): Promise<CredentialResult>;
+  saveHfToken(token: string): Promise<CredentialResult>;
+  clearHfToken(): Promise<CredentialResult>;
   getSessions(): Promise<Session[]>;
   saveSession(session: Session): Promise<Session[]>;
   deleteSession(id: string): Promise<Session[]>;
@@ -56,7 +58,7 @@ export interface VeraApi {
   showInFolder(targetPath: string): Promise<void>;
   trashWorkspaceFile(filePath: string, folderPath: string): Promise<'trashed' | 'deleted' | 'cancelled'>;
   setWatchedFolders(paths: string[]): Promise<void>;
-  pickPdf(): Promise<string | null>;
+  pickPdf(): Promise<string[]>;
   saveVera(defaultPath?: string): Promise<string | null>;
   saveAny(): Promise<string | null>;
   onOpenTarget(callback: (path: string) => void): () => void;

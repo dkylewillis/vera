@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('vera', {
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke('vera:saveSettings', settings),
   saveApiKey: (providerId: string, apiKey: string) => ipcRenderer.invoke('vera:saveApiKey', providerId, apiKey),
   clearApiKey: (providerId: string) => ipcRenderer.invoke('vera:clearApiKey', providerId),
+  saveHfToken: (token: string) => ipcRenderer.invoke('vera:saveHfToken', token),
+  clearHfToken: () => ipcRenderer.invoke('vera:clearHfToken'),
   getSessions: () => ipcRenderer.invoke('vera:getSessions'),
   saveSession: (session: Session) => ipcRenderer.invoke('vera:saveSession', session),
   deleteSession: (id: string) => ipcRenderer.invoke('vera:deleteSession', id),

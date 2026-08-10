@@ -149,6 +149,12 @@ export interface AppSettings {
   active_provider_id: string;
   active_model: string;
   active_mode_id: string;
+  /**
+   * Runtime-only: true when a Hugging Face token is available from secure
+   * storage or the process environment (`HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`).
+   * Not persisted in settings.json.
+   */
+  has_hf_token?: boolean;
 }
 
 export interface CredentialResult {
