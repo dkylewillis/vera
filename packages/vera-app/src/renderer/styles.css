@@ -712,8 +712,13 @@ button {
   font-size: 12px;
 }
 
-.folderContextMenu button:hover {
+.folderContextMenu button:hover:not(:disabled) {
   background: var(--accent-soft);
+}
+
+.folderContextMenu button:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
 }
 
 .folderContextMenu button.danger {
@@ -3888,6 +3893,18 @@ input.viewerPageInput:focus {
   font-size: 13px;
   color: var(--text-muted);
   line-height: 1.5;
+}
+
+.emptyState--loading strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  max-width: 320px;
+}
+
+.emptyState--loading .spinning {
+  color: var(--accent);
 }
 
 /* ── Provider modal ──────────────────────────────────── */
