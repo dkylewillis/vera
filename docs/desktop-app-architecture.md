@@ -216,7 +216,8 @@ message. Sidecar `convert` and `batch_convert` requests accept optional
 `ocr_language`, and `ocr_dpi` fields. Descriptor fields determine which legacy
 aliases are forwarded; explicit `pipeline_options` win. The Convert UI loads
 descriptors through `describe_ingest_pipelines` and renders them with
-`PipelineConfigForm`. `batch_convert` also accepts an explicit `paths` list of
+`PipelineConfigForm` inside a collapsed **Advanced pipeline options** section.
+`batch_convert` also accepts an explicit `paths` list of
 PDF files; when present, directory discovery is skipped. The sidecar continues
 after per-file failures and returns converted, skipped, malformed, and failed
 counts plus individual diagnostics. During multi-file conversion the UI shows

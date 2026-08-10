@@ -2785,16 +2785,24 @@ function App() {
                       : <>Sentence Transformers is not installed. From the repo root run <code>uv sync --extra ml</code> and restart the app.</>}
                     {' '}Custom specs are saved when the field loses focus.
                   </p>
-                  <PipelineConfigForm
-                    descriptor={activePipelineDescriptor}
-                    values={pipelineOptions}
-                    disabled={conversionInProgress}
-                    onChange={(next) => { void savePipelineOptions(next); }}
-                  />
                   <label className="miniCheck">
                     <input type="checkbox" checked={storeOriginal} onChange={(event) => setStoreOriginal(event.target.checked)} />
                     <span>Store original PDF</span>
                   </label>
+                  <details className="convertAdvanced">
+                    <summary>Advanced pipeline options</summary>
+                    <p className="sideMuted">
+                      Controls advertised by the selected ingest pipeline descriptor
+                      {activePipelineDescriptor?.spec ? ` (${activePipelineDescriptor.spec})` : ''}.
+                      Defaults apply until you change them.
+                    </p>
+                    <PipelineConfigForm
+                      descriptor={activePipelineDescriptor}
+                      values={pipelineOptions}
+                      disabled={conversionInProgress}
+                      onChange={(next) => { void savePipelineOptions(next); }}
+                    />
+                  </details>
                   <div className="convertActions">
                     <button
                       className="sidePrimary"

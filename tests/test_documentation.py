@@ -154,6 +154,7 @@ def test_hardening_json_contracts_are_documented():
     assert "IngestRequest" in conversion
     assert "describe_ingest_pipelines" in conversion
     assert "PipelineConfigForm" in conversion
+    assert "Advanced pipeline options" in conversion
     assert "compatibility alias" in conversion.lower() or "Compatibility aliases" in conversion
     assert "ocr_language=en" in conversion
     assert "overlap" in conversion and "ocr_dpi" in conversion
@@ -184,11 +185,13 @@ def test_hardening_json_contracts_are_documented():
     assert "loads image previews" in desktop
     assert "describe_ingest_pipelines" in desktop
     assert "PipelineConfigForm" in desktop
+    assert "Advanced pipeline options" in desktop
     assert "only explicit `search_start` and `search_done`" in desktop_architecture
     assert "Token-level `answer_delta`" in desktop_architecture
     assert "describe_ingest_pipelines" in desktop_architecture
     assert "pipeline_options" in desktop_architecture
     assert "PipelineConfigForm" in desktop_architecture
+    assert "Advanced pipeline options" in desktop_architecture
     assert "PyMuPDF ingest pipeline" in desktop
     assert "ingest_pipeline" in desktop
     assert "vera-ingest-docling" in conversion or "docling:hybrid" in conversion
@@ -196,6 +199,7 @@ def test_hardening_json_contracts_are_documented():
     assert "Hugging Face" in desktop
     assert "HF_TOKEN" in desktop
     assert "Hugging Face" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
+    assert "Advanced pipeline options" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
     assert "`attachment_metadata()`" in python_api
     assert "do not contain a `data` field" in python_api
     assert "pipeline_options" in python_api

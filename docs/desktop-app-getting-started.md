@@ -57,8 +57,9 @@ offline `hashing` embedder. The Convert view exposes dropdowns for
 presets such as `sentence-transformers:all-MiniLM-L6-v2`, plus a custom
 `provider:model-id` field. Chunking and OCR controls are schema-driven: the
 sidecar `describe_ingest_pipelines` action supplies descriptors, and
-`PipelineConfigForm` renders only advertised fields (PyMuPDF includes overlap
-and OCR DPI; Docling does not). These settings are independent of the Chat
+`PipelineConfigForm` renders only advertised fields under a collapsed
+**Advanced pipeline options** section (PyMuPDF includes overlap and OCR DPI;
+Docling does not). These settings are independent of the Chat
 model and are persisted in app settings. `npm run app:dev` installs the `app`,
 `ml`, and `docling` extras into the workspace environment so both plugins are
 available for GUI testing. Packaged releases do not bundle optional ingest
