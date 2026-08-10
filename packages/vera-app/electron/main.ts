@@ -174,6 +174,15 @@ class PythonSidecar {
     return true;
   }
 
+  /** Kill the sidecar so the next request respawns with updated env (e.g. HF_TOKEN). */
+  restart(): void {
+    const child = this.child;
+    if (!child) return;
+    this.child = null;
+    this.rejectPending(new Error('VERA sidecar restarted'), child);
+    child.kill();
+  }
+
   private rejectPending(reason: Error, child?: ChildProcessWithoutNullStreams): void {
     for (const [id, entry] of this.pending) {
       if (child && entry.child !== child) continue;
@@ -188,6 +197,7 @@ class PythonSidecar {
     }
 
     const env = { ...process.env };
+    applyHfTokenEnv(env);
     const packagedSidecar = join(process.resourcesPath, 'python', 'sidecar', 'vera-sidecar.exe');
     const executable = app.isPackaged ? packagedSidecar : process.env.VERA_APP_PYTHON || 'python';
     const args = app.isPackaged ? [] : ['-m', 'vera_app.sidecar'];
@@ -312,6 +322,9 @@ function secretPath(): string {
   return join(app.getPath('userData'), 'llm-api-keys.bin');
 }
 
+/** Reserved key inside the encrypted credential store (not a provider base URL). */
+const HF_TOKEN_SECRET_KEY = '__vera_hf_token__';
+
 function readApiKeys(): Record<string, string> {
   if (!safeStorage.isEncryptionAvailable() || !existsSync(secretPath())) {
     return {};
@@ -334,6 +347,27 @@ function credentialKey(baseUrl: unknown): string {
   return typeof baseUrl === 'string' ? baseUrl.trim().replace(/\/+$/, '').toLowerCase() : '';
 }
 
+function storedHfToken(): string {
+  const value = readApiKeys()[HF_TOKEN_SECRET_KEY];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function environmentHfToken(): string {
+  return (process.env.HF_TOKEN || process.env.HUGGING_FACE_HUB_TOKEN || '').trim();
+}
+
+/** Prefer the app-stored token; fall back to process environment. */
+function resolveHfToken(): string {
+  return storedHfToken() || environmentHfToken();
+}
+
+function applyHfTokenEnv(env: NodeJS.ProcessEnv): void {
+  const token = resolveHfToken();
+  if (!token) return;
+  env.HF_TOKEN = token;
+  env.HUGGING_FACE_HUB_TOKEN = token;
+}
+
 function withRuntime(settings: AppSettings): AppSettings {
   const keys = readApiKeys();
   return {
@@ -342,6 +376,7 @@ function withRuntime(settings: AppSettings): AppSettings {
       ...profile,
       has_api_key: Boolean(keys[credentialKey(profile.base_url)]),
     })),
+    has_hf_token: Boolean(resolveHfToken()),
   };
 }
 
@@ -453,6 +488,31 @@ function clearApiKey(baseUrl: string): CredentialResult {
     writeApiKeys(keys);
   }
   return { ok: true, has_api_key: false };
+}
+
+function saveHfToken(token: string): CredentialResult {
+  if (!safeStorage.isEncryptionAvailable()) {
+    return { ok: false, has_api_key: false, error: 'Secure credential storage is unavailable on this system.' };
+  }
+  const trimmed = token.trim();
+  if (!trimmed) {
+    return { ok: false, has_api_key: false, error: 'Enter a Hugging Face token first.' };
+  }
+  const keys = readApiKeys();
+  keys[HF_TOKEN_SECRET_KEY] = trimmed;
+  writeApiKeys(keys);
+  sidecar.restart();
+  return { ok: true, has_api_key: true };
+}
+
+function clearHfToken(): CredentialResult {
+  const keys = readApiKeys();
+  if (HF_TOKEN_SECRET_KEY in keys) {
+    delete keys[HF_TOKEN_SECRET_KEY];
+    writeApiKeys(keys);
+  }
+  sidecar.restart();
+  return { ok: true, has_api_key: Boolean(environmentHfToken()) };
 }
 
 function withStoredApiKey(payload: SidecarPayload): SidecarPayload {
@@ -837,6 +897,8 @@ app.whenReady().then(() => {
   ipcMain.handle('vera:saveSettings', async (_event, settings: AppSettings) => writeSettings(settings));
   ipcMain.handle('vera:saveApiKey', async (_event, providerId: string, apiKey: string) => saveApiKey(providerId, apiKey));
   ipcMain.handle('vera:clearApiKey', async (_event, providerId: string) => clearApiKey(providerId));
+  ipcMain.handle('vera:saveHfToken', async (_event, token: string) => saveHfToken(token));
+  ipcMain.handle('vera:clearHfToken', async () => clearHfToken());
   ipcMain.handle('vera:pickArchive', async () => pickArchivePath());
   ipcMain.handle('vera:pickFolder', async () => pickFolderPath());
   ipcMain.handle('vera:listFolder', async (_event, dir: string) => listFolder(dir));
