@@ -66,6 +66,7 @@ import {
   type ExplorerSelection,
 } from './lib/formatting';
 import { figureCacheKey, mergeFigureData, sameSearchResult } from './lib/figures';
+import { collapsedFoldersForActiveLibrary } from './lib/explorer';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from './lib/providers';
 import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
 import './styles.css';
@@ -2097,6 +2098,13 @@ function App() {
     const folderPaths = folderPathsKey ? folderPathsKey.split('\n') : [];
     void window.vera.setWatchedFolders(folderPaths);
   }, [folderPathsKey]);
+
+  // Keep folder headers scannable: expand the active library, collapse the rest.
+  // Manual caret toggles still work until the active library or folder set changes.
+  useEffect(() => {
+    const folderPaths = folderPathsKey ? folderPathsKey.split('\n') : [];
+    setCollapsedFolders(collapsedFoldersForActiveLibrary(folderPaths, activeLibraryPath));
+  }, [folderPathsKey, activeLibraryPath]);
 
   useEffect(() => window.vera.onFolderChanged((folderPath) => {
     dismissedIndexStates.current.delete(folderPath);
