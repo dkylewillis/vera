@@ -3,27 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
 
 from vera_ingest.descriptors import (
     PipelineCapabilities,
     PipelineDescriptor,
     fields_from_dataclass,
 )
-from vera_ingest.option_parsing import (
-    allowed_keys_from_dataclass,
-    reject_unknown_keys,
-    require_bool,
-    require_choice,
-    require_mapping,
-    require_non_negative_int,
-    require_positive_int,
-    require_string,
-)
+from vera_ingest.pipeline_options import PipelineOptions
 
 from .tessdata_manager import language_choice_labels
-
-_OCR_MODES = {"auto", "off", "force"}
 
 
 def _ocr_language_choices() -> tuple[tuple[str, str], ...]:
@@ -32,14 +20,15 @@ def _ocr_language_choices() -> tuple[tuple[str, str], ...]:
 
 
 @dataclass(frozen=True)
-class PyMuPDFOptions:
+class PyMuPDFOptions(PipelineOptions):
     """PyMuPDF/Tesseract-owned conversion settings.
 
     Each field's ``metadata`` doubles as its CLI/GUI descriptor entry (see
-    :func:`vera_ingest.descriptors.fields_from_dataclass`), so a setting's
-    key, default, and presentation live in one place instead of being kept in
-    sync by hand across a dataclass field, ``from_mapping``, and a separate
-    descriptor field list.
+    :func:`vera_ingest.descriptors.fields_from_dataclass`) and drives its own
+    validation (see :func:`vera_ingest.pipeline_options.coerce_pipeline_options`),
+    so a setting's key, default, presentation, and validation all live in one
+    place — ``from_mapping`` itself is inherited from
+    :class:`~vera_ingest.pipeline_options.PipelineOptions`, not written here.
     """
 
     chunk_size: int = field(
@@ -111,34 +100,6 @@ class PyMuPDFOptions:
             ),
         },
     )
-
-    @classmethod
-    def from_mapping(cls, raw: Mapping[str, Any] | None = None) -> PyMuPDFOptions:
-        data = reject_unknown_keys(
-            require_mapping(raw, label="PyMuPDF pipeline_options"),
-            allowed=allowed_keys_from_dataclass(cls),
-            label="PyMuPDF",
-        )
-        return cls(
-            chunk_size=require_positive_int(
-                data.get("chunk_size", cls.chunk_size), name="chunk_size"
-            ),
-            overlap=require_non_negative_int(
-                data.get("overlap", cls.overlap), name="overlap"
-            ),
-            ocr_mode=require_choice(
-                data.get("ocr_mode", cls.ocr_mode), name="ocr_mode", choices=_OCR_MODES
-            ),
-            ocr_language=require_string(
-                data.get("ocr_language", cls.ocr_language), name="ocr_language"
-            ),
-            ocr_dpi=require_positive_int(
-                data.get("ocr_dpi", cls.ocr_dpi), name="ocr_dpi"
-            ),
-            ocr_download=require_bool(
-                data.get("ocr_download", cls.ocr_download), name="ocr_download"
-            ),
-        )
 
 
 def describe_pipeline(variant: str = "default") -> PipelineDescriptor:
