@@ -110,10 +110,14 @@ def example_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
     )
 ```
 
-`options.py` owns typed defaults, validation, and the descriptor other
-pipelines use for CLI/GUI discovery (see [descriptors](#advertise-configuration-with-a-descriptor)).
-Each field's `metadata` doubles as its descriptor entry, so a setting's key,
-default, and presentation live in one place instead of three:
+`options.py` has two jobs: validate a raw `pipeline_options` dict into a typed
+config (`from_mapping`), and describe that same config for CLI/GUI discovery
+(`describe_pipeline`, see [descriptors](#advertise-configuration-with-a-descriptor)).
+Doing both from *one* dataclass — instead of writing every setting's name,
+default, and description out twice — is what `dataclasses.field(metadata=...)`
+buys you below: `metadata` is a plain dict dataclasses let you attach to a
+field; it does nothing on its own, but `fields_from_dataclass` (used in
+`describe_pipeline`) reads it back out to build the descriptor:
 
 ```python
 from __future__ import annotations
@@ -132,6 +136,9 @@ from vera_ingest.option_parsing import (
 
 @dataclass(frozen=True)
 class ExampleOptions:
+    # `default=2000` is the real dataclass default. `metadata={...}` is
+    # inert until `fields_from_dataclass` reads it below — everything a
+    # human needs to know about this setting lives right here, once.
     chunk_size: int = field(
         default=2000,
         metadata={
@@ -145,11 +152,16 @@ class ExampleOptions:
     def from_mapping(cls, raw: Mapping[str, Any] | None = None) -> "ExampleOptions":
         data = reject_unknown_keys(
             require_mapping(raw, label="Example pipeline_options"),
+            # {"chunk_size"}, read straight from the fields above — add a
+            # field there and it's automatically allowed here too.
             allowed=allowed_keys_from_dataclass(cls),
             label="Example",
         )
         return cls(
             chunk_size=require_positive_int(
+                # `cls.chunk_size` is the same `2000` declared above:
+                # dataclasses leave a field's default sitting on the class
+                # itself, so the fallback doesn't hardcode it a second time.
                 data.get("chunk_size", cls.chunk_size), name="chunk_size"
             )
         )
@@ -172,6 +184,23 @@ def describe_pipeline(variant: str = "") -> PipelineDescriptor:
         fields=fields_from_dataclass(ExampleOptions),
     )
 ```
+
+Traced through concretely:
+
+- `ExampleOptions.from_mapping(None)` → `ExampleOptions(chunk_size=2000)` (falls
+  back to the dataclass default).
+- `ExampleOptions.from_mapping({"chunk_size": 500})` → `ExampleOptions(chunk_size=500)`.
+- `ExampleOptions.from_mapping({"chunk_size": 0})` → raises `ValueError` from
+  `require_positive_int` (`"chunk_size must be positive"`).
+- `ExampleOptions.from_mapping({"typo": 1})` → raises `ValueError` from
+  `reject_unknown_keys` (`"Unknown Example option(s): 'typo'"`), since
+  `"typo"` isn't in `allowed_keys_from_dataclass(cls)`.
+- `fields_from_dataclass(ExampleOptions)` walks the one `chunk_size` field and
+  returns one `PipelineField(key="chunk_size", type="integer", default=2000,
+  label="Chunk size", description="Maximum characters kept from the file.",
+  minimum=100)` — `key`/`type`/`default` came from the field itself
+  (`type` inferred from the `int` annotation); only the human-facing `label`,
+  `description`, and `minimum` needed to be spelled out, and only once.
 
 `__init__.py` exposes the entry-point factories. `create_pipeline` returns the
 bare function itself — there's nothing to instantiate:
