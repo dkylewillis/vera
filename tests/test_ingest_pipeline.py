@@ -109,6 +109,43 @@ def test_register_ingest_pipeline_works_as_a_decorator():
     assert describe_ingest_pipeline("decorated").label == "decorated"
 
 
+def test_bare_callable_pipeline_is_supported(tmp_path):
+    """A pipeline may be a plain function; ``.ingest()`` is not required."""
+    pdf = tmp_path / "source.pdf"
+    out = tmp_path / "source.vera"
+    pdf.write_bytes(b"%PDF bare-callable pipeline test")
+
+    def bare_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
+        assert source_path == str(pdf)
+        return IngestResult(
+            pages=[ParsedPage(1, 1.0, 1.0, "text")],
+            blocks=[
+                IngestBlock(block_id="b1", page_number=1, block_type="paragraph", text="text")
+            ],
+            chunks=[
+                IngestChunk(
+                    chunk_id="c1",
+                    text="text",
+                    page_start=1,
+                    page_end=1,
+                    heading_path="",
+                    token_count=1,
+                    block_ids=["b1"],
+                )
+            ],
+            parser_name="bare",
+            parser_version="1",
+            chunking_strategy="bare",
+        )
+
+    register_ingest_pipeline("bare", lambda _variant: bare_pipeline)
+    assert get_ingest_pipeline("bare") is bare_pipeline
+
+    convert(str(pdf), str(out), parser="bare", store_original=False)
+    with VeraDocument.open(str(out)) as document:
+        assert document.inspect()["parser_name"] == "bare"
+
+
 def test_entry_points_are_discovered_lazily(monkeypatch):
     pipeline_module = importlib.import_module("vera_ingest.pipeline")
     loaded = []

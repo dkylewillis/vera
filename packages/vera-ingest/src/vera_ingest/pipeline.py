@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 from importlib.metadata import entry_points
-from typing import Any, Protocol
+from typing import Any
 
 from .descriptors import PipelineDescriptor, generic_pipeline_descriptor
 from .types import IngestRequest, IngestResult
@@ -11,19 +11,39 @@ from .types import IngestRequest, IngestResult
 _ENTRY_POINT_GROUP = "vera.ingest_pipelines"
 _DESCRIPTOR_ENTRY_POINT_GROUP = "vera.ingest_pipeline_descriptors"
 _REGISTRY_LOCK = threading.RLock()
-_PIPELINE_FACTORIES: dict[str, Callable[[str], IngestPipeline]] = {}
+_PIPELINE_FACTORIES: dict[str, Callable[[str], "IngestPipeline"]] = {}
 _DESCRIPTOR_FACTORIES: dict[str, Callable[[str], PipelineDescriptor]] = {}
-_PIPELINE_CACHE: dict[tuple[str, str], IngestPipeline] = {}
+_PIPELINE_CACHE: dict[tuple[str, str], "IngestPipeline"] = {}
 _ENTRY_POINTS_LOADED = False
 _DEFAULT_VARIANTS = {"docling": "hybrid"}
 
 
-class IngestPipeline(Protocol):
-    """Pipeline that normalizes a source document into an ingest bundle."""
+IngestPipeline = Callable[[str, IngestRequest], IngestResult]
+"""A pipeline that normalizes a source document into an ingest bundle.
 
-    def ingest(self, source_path: str, options: IngestRequest) -> IngestResult:
-        """Parse and chunk ``source_path`` without writing an archive."""
-        ...
+A pipeline is any callable matching this signature — a plain function, or an
+object implementing ``__call__`` if it needs to hold state. There is no base
+class to inherit from::
+
+    def create_pipeline(variant: str = "") -> IngestPipeline:
+        def ingest(source_path: str, options: IngestRequest) -> IngestResult:
+            ...
+        return ingest
+
+For compatibility with pre-0.3.x plugins, an object exposing a callable
+``ingest(self, source_path, options)`` method is also accepted; see
+:func:`invoke_ingest_pipeline`.
+"""
+
+
+def invoke_ingest_pipeline(
+    pipeline: IngestPipeline, source_path: str, request: IngestRequest
+) -> IngestResult:
+    """Call ``pipeline``, accepting both a bare callable and a legacy ``.ingest()`` object."""
+    ingest = getattr(pipeline, "ingest", None)
+    if callable(ingest):
+        return ingest(source_path, request)
+    return pipeline(source_path, request)
 
 
 class UnknownIngestPipelineError(ValueError):
@@ -196,9 +216,10 @@ def get_ingest_pipeline(spec: str = "pymupdf") -> IngestPipeline:
                 "entry-point group, or call register_ingest_pipeline()."
             )
         pipeline = factory(variant)
-        if not callable(getattr(pipeline, "ingest", None)):
+        if not (callable(pipeline) or callable(getattr(pipeline, "ingest", None))):
             raise TypeError(
-                f"Ingest pipeline provider {provider!r} returned an object without ingest()."
+                f"Ingest pipeline provider {provider!r} returned an object that is "
+                "neither callable nor has an ingest() method."
             )
         _PIPELINE_CACHE[cache_key] = pipeline
         return pipeline
