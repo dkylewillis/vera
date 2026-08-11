@@ -117,28 +117,26 @@ Doing both from *one* dataclass — instead of writing every setting's name,
 default, and description out twice — is what `dataclasses.field(metadata=...)`
 buys you below: `metadata` is a plain dict dataclasses let you attach to a
 field; it does nothing on its own, but `fields_from_dataclass` (used in
-`describe_pipeline`) reads it back out to build the descriptor:
+`describe_pipeline`) reads it back out to build the descriptor, and
+`vera_ingest.pipeline_options.PipelineOptions` reads the *same* metadata to
+validate `pipeline_options` — so a straightforward pipeline like this one
+doesn't need to write `from_mapping` at all:
 
 ```python
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
 
 from vera_ingest.descriptors import PipelineCapabilities, PipelineDescriptor, fields_from_dataclass
-from vera_ingest.option_parsing import (
-    allowed_keys_from_dataclass,
-    reject_unknown_keys,
-    require_mapping,
-    require_positive_int,
-)
+from vera_ingest.pipeline_options import PipelineOptions
 
 
 @dataclass(frozen=True)
-class ExampleOptions:
+class ExampleOptions(PipelineOptions):
     # `default=2000` is the real dataclass default. `metadata={...}` is
-    # inert until `fields_from_dataclass` reads it below — everything a
-    # human needs to know about this setting lives right here, once.
+    # inert until something reads it: `fields_from_dataclass` (used in
+    # `describe_pipeline` below) reads it to build the CLI/GUI descriptor,
+    # and the inherited `from_mapping` reads it to validate `pipeline_options`.
     chunk_size: int = field(
         default=2000,
         metadata={
@@ -147,24 +145,6 @@ class ExampleOptions:
             "minimum": 100,
         },
     )
-
-    @classmethod
-    def from_mapping(cls, raw: Mapping[str, Any] | None = None) -> "ExampleOptions":
-        data = reject_unknown_keys(
-            require_mapping(raw, label="Example pipeline_options"),
-            # {"chunk_size"}, read straight from the fields above — add a
-            # field there and it's automatically allowed here too.
-            allowed=allowed_keys_from_dataclass(cls),
-            label="Example",
-        )
-        return cls(
-            chunk_size=require_positive_int(
-                # `cls.chunk_size` is the same `2000` declared above:
-                # dataclasses leave a field's default sitting on the class
-                # itself, so the fallback doesn't hardcode it a second time.
-                data.get("chunk_size", cls.chunk_size), name="chunk_size"
-            )
-        )
 
 
 def describe_pipeline(variant: str = "") -> PipelineDescriptor:
@@ -190,17 +170,47 @@ Traced through concretely:
 - `ExampleOptions.from_mapping(None)` → `ExampleOptions(chunk_size=2000)` (falls
   back to the dataclass default).
 - `ExampleOptions.from_mapping({"chunk_size": 500})` → `ExampleOptions(chunk_size=500)`.
-- `ExampleOptions.from_mapping({"chunk_size": 0})` → raises `ValueError` from
-  `require_positive_int` (`"chunk_size must be positive"`).
-- `ExampleOptions.from_mapping({"typo": 1})` → raises `ValueError` from
-  `reject_unknown_keys` (`"Unknown Example option(s): 'typo'"`), since
-  `"typo"` isn't in `allowed_keys_from_dataclass(cls)`.
+- `ExampleOptions.from_mapping({"chunk_size": 0})` → raises `ValueError`
+  (`"chunk_size must be positive"`) — because `metadata["minimum"]` (`100`)
+  is a positive number, `PipelineOptions` picked the "must be positive"
+  validator for this field, not just "must be an integer."
+- `ExampleOptions.from_mapping({"typo": 1})` → raises `ValueError`
+  (`"Unknown Example option(s): 'typo'"`), since `"typo"` isn't a real field.
 - `fields_from_dataclass(ExampleOptions)` walks the one `chunk_size` field and
   returns one `PipelineField(key="chunk_size", type="integer", default=2000,
   label="Chunk size", description="Maximum characters kept from the file.",
   minimum=100)` — `key`/`type`/`default` came from the field itself
   (`type` inferred from the `int` annotation); only the human-facing `label`,
   `description`, and `minimum` needed to be spelled out, and only once.
+
+### When *not* to inherit `PipelineOptions`
+
+`PipelineOptions.from_mapping` only knows how to validate four field shapes:
+a `bool`, an `int` (positive if `metadata["minimum"]` is a positive number,
+otherwise non-negative), a `str` restricted to `metadata["choices"]` (unless
+`allow_custom` is set), or free-text `str`. That covers most settings, but
+not settings that need real transformation — `vera-ingest-docling`'s
+`ocr_language` remaps Tesseract-style codes to RapidOCR's (`"eng"` →
+`"en"`) as part of validation, which no generic rule can know how to do.
+That pipeline doesn't inherit `PipelineOptions`; instead its `from_mapping`
+calls `coerce_pipeline_options(cls, raw, label=...)` — the function
+`PipelineOptions` itself calls — for the mechanical fields, then adjusts the
+one field that needs custom logic before constructing the instance:
+
+```python
+@classmethod
+def from_mapping(cls, raw):
+    coerced = coerce_pipeline_options(cls, raw, label="Docling", ignored=_IGNORED_COMPAT_KEYS)
+    coerced["ocr_language"] = ",".join(map_rapidocr_languages(coerced["ocr_language"]))
+    return cls(**coerced)
+```
+
+Use whichever gets you the least code: inherit `PipelineOptions` when every
+field fits its four shapes; call `coerce_pipeline_options` directly when one
+or two fields need a custom step on top; write `from_mapping` entirely by
+hand with the `vera_ingest.option_parsing` helpers when most of it does.
+Nothing else in `vera-ingest` requires any of the three — `from_mapping`
+just needs to exist and return an instance of your `Options` class.
 
 `__init__.py` exposes the entry-point factories. `create_pipeline` returns the
 bare function itself — there's nothing to instantiate:
@@ -321,12 +331,10 @@ and omitted from the descriptor. `vera-ingest-pymupdf` and
 `vera-ingest-docling` both build their descriptors this way — see their
 `options.py` for larger examples with `enum` and `boolean` fields.
 
-Your pipeline's own `from_mapping` (as in `ExampleOptions` above) is still
-responsible for validating whatever ends up in `pipeline_options` — the
-descriptor is metadata for callers, not a validator VERA runs on your behalf.
-`vera_ingest.option_parsing.allowed_keys_from_dataclass` keeps the "which keys
-does `from_mapping` accept" list in sync with the same dataclass, for the same
-reason.
+`from_mapping` (inherited from `PipelineOptions` in `ExampleOptions` above,
+or written by hand for pipelines that need more) is still what actually
+validates `pipeline_options` — the descriptor is metadata for callers, not a
+validator VERA runs on your behalf.
 
 ## Validate and compare against a baseline
 
@@ -358,13 +366,19 @@ produced by each pipeline and compare hit rate / MRR — see
 - [`vera-ingest-pymupdf`](packages/vera-ingest-pymupdf.md) — the simplest real
   pipeline: a plain `pymupdf_pipeline(source_path, options)` function,
   deterministic parsing, shared sliding-window chunking helpers
-  (`vera_ingest.chunking`), selective Tesseract OCR. Start here.
+  (`vera_ingest.chunking`), selective Tesseract OCR — and its `PyMuPDFOptions`
+  inherits `PipelineOptions` for `from_mapping`, same as this guide's example.
+  Start here.
 - [`vera-ingest-docling`](packages/vera-ingest-docling.md) — a more involved
   pipeline: `DoclingHybridPipeline` is a class implementing `__call__`
   (needed because its recovery/fallback logic is decomposed into private
   helper methods, not because it holds state across calls), with its own
-  chunker, layout/table/figure mapping, and page-level failure recovery. Use
-  it as a model once your pipeline needs more than a single function.
+  chunker, layout/table/figure mapping, and page-level failure recovery.
+  `DoclingOptions` calls `coerce_pipeline_options` directly instead of
+  inheriting `PipelineOptions`, since its `ocr_language` field needs a
+  custom remapping step (see [when not to inherit
+  `PipelineOptions`](#when-not-to-inherit-pipelineoptions)). Use it as a
+  model once your pipeline needs more than a single function.
 
 ## See also
 
