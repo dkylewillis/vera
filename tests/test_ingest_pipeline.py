@@ -15,8 +15,10 @@ from vera_ingest import (
     ParsedPage,
     PipelineDescriptor,
     PipelineField,
+    PipelineOptions,
     UnknownIngestPipelineError,
     batch_convert,
+    coerce_pipeline_options,
     convert,
     describe_ingest_pipeline,
     get_chunk_regions,
@@ -381,6 +383,68 @@ def test_fields_from_dataclass_derives_descriptor_fields_from_metadata():
     ocr_mode_field = fields[1]
     assert ocr_mode_field.type == "enum"  # explicit override
     assert [choice.value for choice in ocr_mode_field.choices] == ["auto"]
+
+
+def test_pipeline_options_mixin_derives_from_mapping_from_metadata():
+    from dataclasses import dataclass, field
+
+    @dataclass(frozen=True)
+    class WidgetOptions(PipelineOptions):
+        chunk_size: int = field(default=250, metadata={"label": "Chunk size", "minimum": 10})
+        overlap: int = field(default=0, metadata={"label": "Overlap", "minimum": 0})
+        ocr_mode: str = field(
+            default="auto", metadata={"choices": (("auto", "Auto"), ("off", "Off"))}
+        )
+        ocr_language: str = field(
+            default="eng",
+            metadata={"choices": (("eng", "English"),), "allow_custom": True},
+        )
+        verbose: bool = field(default=False, metadata={"label": "Verbose"})
+
+    # No from_mapping written anywhere above — it's inherited.
+    assert "from_mapping" not in WidgetOptions.__dict__
+
+    assert WidgetOptions.from_mapping(None) == WidgetOptions()
+    assert WidgetOptions.from_mapping({"chunk_size": 500, "verbose": True}) == WidgetOptions(
+        chunk_size=500, verbose=True
+    )
+    # minimum=10 (>0) selects require_positive_int; minimum=0 selects
+    # require_non_negative_int, so overlap=0 is fine but chunk_size=0 isn't.
+    assert WidgetOptions.from_mapping({"overlap": 0}).overlap == 0
+    with pytest.raises(ValueError, match="chunk_size must be positive"):
+        WidgetOptions.from_mapping({"chunk_size": 0})
+    # choices without allow_custom is enforced strictly.
+    with pytest.raises(ValueError, match="Unsupported ocr_mode"):
+        WidgetOptions.from_mapping({"ocr_mode": "bogus"})
+    # choices with allow_custom accepts values outside the advertised list.
+    assert WidgetOptions.from_mapping({"ocr_language": "eng+spa"}).ocr_language == "eng+spa"
+    with pytest.raises(ValueError, match="Unknown Widget option"):
+        WidgetOptions.from_mapping({"bogus": 1})
+
+
+def test_coerce_pipeline_options_matches_pymupdf_hand_written_validation():
+    """The generic coercer must agree with the real plugin it was derived from."""
+    cases = [
+        None,
+        {},
+        {"chunk_size": 250, "overlap": 10},
+        {"ocr_language": "eng+spa"},
+        {"chunk_size": 0},
+        {"chunk_size": 250, "bogus": 1},
+        {"ocr_download": "yes"},
+    ]
+    for raw in cases:
+        expected = expected_error = None
+        actual = actual_error = None
+        try:
+            expected = PyMuPDFOptions.from_mapping(raw)
+        except ValueError as exc:
+            expected_error = str(exc)
+        try:
+            actual = PyMuPDFOptions(**coerce_pipeline_options(PyMuPDFOptions, raw, label="PyMuPDF"))
+        except ValueError as exc:
+            actual_error = str(exc)
+        assert (expected, expected_error) == (actual, actual_error), raw
 
 
 def test_descriptor_fallback_for_undescribed_plugins():

@@ -17,13 +17,17 @@ conversion to `.vera` archives. PDF parsing/OCR live in plugins such as
         - IngestPipeline
         - IngestResult
         - PipelineDescriptor
+        - PipelineOptions
         - UnknownIngestPipelineError
+        - coerce_pipeline_options
         - describe_ingest_pipeline
         - get_ingest_pipeline
+        - invoke_ingest_pipeline
         - list_ingest_pipelines
         - list_ingest_pipeline_descriptors
         - prepare_pipeline_options
         - register_ingest_pipeline
+        - register_ingest_pipeline_descriptor
         - ParsedBlock
         - ParsedPage
         - chunk_pages

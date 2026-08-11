@@ -27,6 +27,7 @@ from .pipeline import (
     register_ingest_pipeline_descriptor,
     reset_ingest_pipeline_registry,
 )
+from .pipeline_options import PipelineOptions, coerce_pipeline_options
 from .types import (
     IngestBlock,
     IngestChunk,
@@ -62,12 +63,14 @@ __all__ = [
     "PipelineDescriptor",
     "PipelineField",
     "PipelineFieldChoice",
+    "PipelineOptions",
     "UnknownIngestPipelineError",
     "batch_convert",
     "build_chunks_from_blocks",
     "chunk_pages",
     "clear_ingest_pipeline_cache",
     "coerce_ingest_request",
+    "coerce_pipeline_options",
     "convert",
     "describe_ingest_pipeline",
     "detect_heading",
