@@ -12,7 +12,6 @@ from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
 from vera_ingest.pipeline import UnknownIngestPipelineError
 from vera_ingest.types import IngestBlock, IngestChunk, IngestRequest, IngestResult, ParsedPage, coerce_ingest_request
 
-from .languages import map_rapidocr_languages
 from .options import DoclingOptions
 
 # Above this ratio of failed pages, skip per-page recovery and reconvert the
@@ -20,6 +19,18 @@ from .options import DoclingOptions
 _MAX_RECOVERABLE_PAGE_RATIO = 0.2
 _PDF_BACKEND_DOCLING_PARSE = "docling_parse"
 _PDF_BACKEND_PYPDFIUM2 = "pypdfium2"
+
+
+def _split_ocr_languages(ocr_language: str) -> list[str]:
+    """Split a ``+``/``,``-joined RapidOCR-native language string into codes.
+
+    No translation or validation against a known set happens here — VERA no
+    longer maintains a Tesseract-to-RapidOCR alias table; an unrecognized
+    code is rejected by RapidOCR itself when OCR actually runs.
+    """
+    parts = [part.strip().lower() for part in (ocr_language or "en").replace("+", ",").split(",")]
+    codes = [part for part in parts if part]
+    return codes or ["en"]
 
 
 def _docling_version() -> str:
@@ -363,10 +374,9 @@ def _build_converter(options: DoclingOptions, *, backend: str | None = None) -> 
         pipeline_options.do_ocr = False
     else:
         pipeline_options.do_ocr = True
-        rapid_langs = map_rapidocr_languages(options.ocr_language)
         ocr_options = RapidOcrOptions(
             force_full_page_ocr=(ocr_mode == "force"),
-            lang=rapid_langs,
+            lang=_split_ocr_languages(options.ocr_language),
         )
         pipeline_options.ocr_options = ocr_options
 
@@ -707,10 +717,8 @@ def _build_diagnostics(
         "variant": "hybrid",
         "ocr_mode": config.ocr_mode,
         "ocr_language": config.ocr_language,
-        "ocr_language_rapidocr": (
-            map_rapidocr_languages(config.ocr_language)
-            if config.ocr_mode != "off"
-            else []
+        "ocr_languages": (
+            _split_ocr_languages(config.ocr_language) if config.ocr_mode != "off" else []
         ),
         "images_scale": 1.0,
         "torch_compile": False,

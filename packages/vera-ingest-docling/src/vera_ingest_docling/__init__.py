@@ -5,7 +5,6 @@ from __future__ import annotations
 from vera_ingest.descriptors import PipelineDescriptor
 from vera_ingest.pipeline import IngestPipeline, UnknownIngestPipelineError
 
-from .languages import map_rapidocr_languages
 from .options import DoclingOptions, describe_pipeline
 from .pipeline import DoclingHybridPipeline
 
@@ -14,7 +13,6 @@ __all__ = [
     "DoclingOptions",
     "create_pipeline",
     "describe_pipeline",
-    "map_rapidocr_languages",
 ]
 
 

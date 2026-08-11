@@ -51,8 +51,10 @@ convert("manual.pdf", "manual.vera", parser="docling")
 - Prefer `pipeline_options=` / `--pipeline-option KEY=VALUE` for provider-owned
   settings; `--chunk-size` and `--ocr*` remain compatibility aliases.
 - OCR modes map to Docling/RapidOCR: `off`, `auto` (default), and `force`
-  (full-page OCR). Tesseract-style codes such as `eng` are mapped to RapidOCR
-  `en`.
+  (full-page OCR). `ocr_language` expects a RapidOCR-native code (`en`, `fr`,
+  `cyrillic`, ...) — Tesseract-style codes such as `eng` are **not**
+  translated; pass `--pipeline-option ocr_language=en` explicitly since the
+  shared `--ocr-language` CLI default (`eng`) is PyMuPDF's own vocabulary.
 - Torch model compilation is disabled so Windows does not need MSVC `cl.exe`.
 - On page-level memory errors (`bad_alloc`), VERA retries failed pages then
   falls back to `pypdfium2`; force that backend with

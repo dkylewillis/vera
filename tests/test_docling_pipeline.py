@@ -31,8 +31,8 @@ from vera_ingest_docling import create_pipeline
 from vera_ingest_docling.pipeline import (
     DoclingHybridPipeline,
     WhitespaceTokenizer,
+    _split_ocr_languages,
     map_docling_document,
-    map_rapidocr_languages,
 )
 
 
@@ -174,28 +174,28 @@ def test_whitespace_tokenizer_is_deterministic():
     assert tokenizer.get_tokenizer()("a b") == 2
 
 
-def test_map_rapidocr_languages_translates_tesseract_defaults():
-    assert map_rapidocr_languages(None) == ["en"]
-    assert map_rapidocr_languages("") == ["en"]
-    assert map_rapidocr_languages("eng") == ["en"]
-    assert map_rapidocr_languages("eng+fra") == ["en", "fr"]
-    assert map_rapidocr_languages("en,de") == ["en", "de"]
-    assert map_rapidocr_languages("jpn") == ["japan"]
-    assert map_rapidocr_languages("chi_sim") == ["ch"]
-    with pytest.raises(ValueError, match="does not support OCR language"):
-        map_rapidocr_languages("not-a-language")
+def test_split_ocr_languages_parses_delimited_codes_without_translation():
+    """No Tesseract-to-RapidOCR mapping happens anymore — codes pass through as given."""
+    assert _split_ocr_languages(None) == ["en"]
+    assert _split_ocr_languages("") == ["en"]
+    assert _split_ocr_languages("en") == ["en"]
+    assert _split_ocr_languages("en+fr") == ["en", "fr"]
+    assert _split_ocr_languages("en,de") == ["en", "de"]
+    # No validation against a known set: an unrecognized code passes through
+    # unchanged. RapidOCR itself rejects it once OCR actually runs.
+    assert _split_ocr_languages("eng") == ["eng"]
 
 
-def test_build_converter_maps_default_eng_to_rapidocr_en():
+def test_build_converter_uses_ocr_language_as_given_no_translation():
     from vera_ingest_docling.options import DoclingOptions
     from vera_ingest_docling.pipeline import _build_converter
 
     converter = _build_converter(
-        DoclingOptions.from_mapping({"ocr_mode": "auto", "ocr_language": "eng"}),
+        DoclingOptions.from_mapping({"ocr_mode": "auto", "ocr_language": "en+fr"}),
     )
     pdf_option = converter.format_to_options["pdf"]
     assert pdf_option.pipeline_options.do_ocr is True
-    assert list(pdf_option.pipeline_options.ocr_options.lang) == ["en"]
+    assert list(pdf_option.pipeline_options.ocr_options.lang) == ["en", "fr"]
 
 
 def test_build_converter_disables_torch_compile_and_keeps_default_image_scale():
@@ -203,7 +203,7 @@ def test_build_converter_disables_torch_compile_and_keeps_default_image_scale():
     from vera_ingest_docling.pipeline import _build_converter
 
     converter = _build_converter(
-        DoclingOptions.from_mapping({"ocr_mode": "auto", "ocr_language": "eng"}),
+        DoclingOptions.from_mapping({"ocr_mode": "auto", "ocr_language": "en"}),
     )
     pipeline_options = converter.format_to_options["pdf"].pipeline_options
     assert pipeline_options.images_scale == 1.0
@@ -217,14 +217,14 @@ def test_docling_options_ignore_pymupdf_only_keys_and_reject_unknown():
         {
             "chunk_size": 420,
             "ocr_mode": "force",
-            "ocr_language": "eng",
+            "ocr_language": "fr",
             "overlap": 75,
             "ocr_dpi": 300,
         }
     )
     assert options.chunk_size == 420
     assert options.ocr_mode == "force"
-    assert options.ocr_language == "en"
+    assert options.ocr_language == "fr"
     assert options.pdf_backend == "docling_parse"
     with pytest.raises(ValueError, match="Unknown Docling option"):
         DoclingOptions.from_mapping({"chunk_size": 100, "bogus": True})

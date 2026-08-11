@@ -3,36 +3,33 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import ClassVar
 
 from vera_ingest.descriptors import (
     PipelineCapabilities,
     PipelineDescriptor,
     fields_from_dataclass,
 )
-from vera_ingest.pipeline_options import coerce_pipeline_options
-
-from .languages import map_rapidocr_languages
-
-# Legacy convert()/CLI keys that Docling intentionally ignores.
-_IGNORED_COMPAT_KEYS = {"overlap", "ocr_dpi"}
+from vera_ingest.pipeline_options import PipelineOptions
 
 
 @dataclass(frozen=True)
-class DoclingOptions:
+class DoclingOptions(PipelineOptions):
     """Docling/RapidOCR-owned conversion settings.
 
     Each field's ``metadata`` doubles as its CLI/GUI descriptor entry (see
-    :func:`vera_ingest.descriptors.fields_from_dataclass`), so a setting's
-    key, default, and presentation live in one place. ``from_mapping`` uses
-    :func:`vera_ingest.pipeline_options.coerce_pipeline_options` for the
-    mechanical bool/int/choice/string validation, then does the one thing
-    that helper can't: remapping ``ocr_language`` from Tesseract-style codes
-    to RapidOCR's. This class does *not* inherit
-    :class:`~vera_ingest.pipeline_options.PipelineOptions` for that reason —
-    see that module's docstring for when to inherit it versus call the
-    helper function directly.
+    :func:`vera_ingest.descriptors.fields_from_dataclass`) and drives its own
+    validation (inherited from :class:`~vera_ingest.pipeline_options.PipelineOptions`),
+    so a setting's key, default, presentation, and validation all live in one
+    place. ``ocr_language`` expects a RapidOCR-native code (for example
+    ``en``) — Docling does not translate Tesseract-style codes such as
+    ``eng``, so this pipeline's OCR language is a genuinely different setting
+    from PyMuPDF's, not a shared vocabulary.
     """
+
+    # `overlap`/`ocr_dpi` are PyMuPDF-only legacy convert()/CLI aliases that
+    # don't apply here; silently drop them instead of rejecting as unknown.
+    ignored_keys: ClassVar[frozenset[str]] = frozenset({"overlap", "ocr_dpi"})
 
     chunk_size: int = field(
         default=500,
@@ -59,8 +56,9 @@ class DoclingOptions:
         metadata={
             "label": "OCR language",
             "description": (
-                "RapidOCR language code (en). Common Tesseract aliases such as "
-                "eng are accepted and mapped."
+                "RapidOCR-native language code (for example en, fr, cyrillic). "
+                "Combine multiple with + or , (for example en+fr). Not "
+                "Tesseract-compatible: PyMuPDF's 'eng' is not a valid value here."
             ),
             "placeholder": "en",
         },
@@ -81,17 +79,6 @@ class DoclingOptions:
             ),
         },
     )
-
-    @classmethod
-    def from_mapping(cls, raw: Mapping[str, Any] | None = None) -> DoclingOptions:
-        coerced = coerce_pipeline_options(
-            cls, raw, label="Docling", ignored=_IGNORED_COMPAT_KEYS
-        )
-        # Normalize at parse time so Tesseract ``eng`` never reaches RapidOCR;
-        # coerce_pipeline_options() only validates ocr_language is a string,
-        # it doesn't know about this pipeline-specific remapping.
-        coerced["ocr_language"] = ",".join(map_rapidocr_languages(coerced["ocr_language"]))
-        return cls(**coerced)
 
 
 def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
@@ -120,6 +107,7 @@ def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
         fields=fields_from_dataclass(DoclingOptions),
         notes=(
             "Overlap is not applied by Docling HybridChunker.",
+            "OCR language uses RapidOCR-native codes, not Tesseract's — 'en', not 'eng'.",
             "First conversion may download Docling model artifacts; set DOCLING_ARTIFACTS_PATH for offline caches.",
             "On memory errors (bad_alloc), VERA retries failed pages then falls back to pypdfium2 automatically.",
             "Install with: uv sync --extra docling",
