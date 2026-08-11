@@ -730,9 +730,16 @@ def _build_diagnostics(
 
 
 class DoclingHybridPipeline:
-    """Optional Docling parsing pipeline with HybridChunker output."""
+    """Optional Docling parsing pipeline with HybridChunker output.
 
-    def ingest(self, source_path: str, options: IngestRequest) -> IngestResult:
+    Implements ``__call__`` (rather than a named ``ingest`` method) so an
+    instance satisfies :data:`vera_ingest.pipeline.IngestPipeline` directly —
+    a class is only needed here because Docling's recovery/fallback logic is
+    decomposed into private helper methods, not because the pipeline holds
+    state across calls.
+    """
+
+    def __call__(self, source_path: str, options: IngestRequest) -> IngestResult:
         request = coerce_ingest_request(options)
         variant = (request.variant or "hybrid").strip().lower()
         if variant not in {"", "hybrid"}:

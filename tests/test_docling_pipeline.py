@@ -289,7 +289,7 @@ def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, 
     pipeline = DoclingHybridPipeline()
     from vera_ingest.types import IngestRequest
 
-    result = pipeline.ingest(
+    result = pipeline(
         str(pdf),
         IngestRequest(
             pipeline_options={"chunk_size": 40, "ocr_mode": "auto"},
@@ -356,7 +356,7 @@ def test_partial_success_is_rejected(monkeypatch, tmp_path):
     from vera_ingest.types import IngestRequest
 
     with pytest.raises(ValueError, match="did not fully succeed"):
-        DoclingHybridPipeline().ingest(str(pdf), IngestRequest())
+        DoclingHybridPipeline()(str(pdf), IngestRequest())
 
 
 def test_convert_uses_docling_pipeline_end_to_end(monkeypatch, tmp_path):
@@ -476,7 +476,7 @@ def test_partial_success_with_page_errors_recovers_via_fresh_retry(monkeypatch, 
 
     pdf = tmp_path / "recover.pdf"
     pdf.write_bytes(b"%PDF-1.4")
-    result = DoclingHybridPipeline().ingest(
+    result = DoclingHybridPipeline()(
         str(pdf),
         IngestRequest(pipeline_options={"chunk_size": 40}),
     )
@@ -531,7 +531,7 @@ def test_page_recovery_falls_back_to_pypdfium2_per_page(monkeypatch, tmp_path):
 
     pdf = tmp_path / "recover-pypdfium.pdf"
     pdf.write_bytes(b"%PDF-1.4")
-    result = DoclingHybridPipeline().ingest(str(pdf), IngestRequest())
+    result = DoclingHybridPipeline()(str(pdf), IngestRequest())
     assert result.diagnostics["recovered_pages"] == [2]
     assert result.diagnostics["recovered_pages_backend"] == {"2": "pypdfium2"}
     assert any("Pypdfium recovered" in chunk.text for chunk in result.chunks)
@@ -587,7 +587,7 @@ def test_too_many_failed_pages_falls_back_to_whole_document_pypdfium2(monkeypatc
 
     pdf = tmp_path / "many-fail.pdf"
     pdf.write_bytes(b"%PDF-1.4")
-    result = DoclingHybridPipeline().ingest(str(pdf), IngestRequest())
+    result = DoclingHybridPipeline()(str(pdf), IngestRequest())
     assert result.diagnostics["whole_document_fallback_backend"] == "pypdfium2"
     assert result.diagnostics["pdf_backend"] == "pypdfium2"
     assert result.diagnostics["recovered_pages"] == []
@@ -623,7 +623,7 @@ def test_convert_exception_triggers_whole_document_pypdfium2_fallback(monkeypatc
 
     pdf = tmp_path / "crash.pdf"
     pdf.write_bytes(b"%PDF-1.4")
-    result = DoclingHybridPipeline().ingest(str(pdf), IngestRequest())
+    result = DoclingHybridPipeline()(str(pdf), IngestRequest())
     assert result.diagnostics["whole_document_fallback_backend"] == "pypdfium2"
     assert result.chunks
     assert any(call["backend"] == "pypdfium2" for call in calls)
@@ -663,7 +663,7 @@ def test_unrecoverable_page_still_raises_with_page_detail(monkeypatch, tmp_path)
     pdf = tmp_path / "unrecoverable.pdf"
     pdf.write_bytes(b"%PDF-1.4")
     with pytest.raises(ValueError, match=r"unrecoverable pages: 2"):
-        DoclingHybridPipeline().ingest(str(pdf), IngestRequest())
+        DoclingHybridPipeline()(str(pdf), IngestRequest())
 
 
 @pytest.mark.docling_integration
