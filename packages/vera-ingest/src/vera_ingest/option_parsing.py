@@ -3,7 +3,18 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import fields
 from typing import Any
+
+
+def allowed_keys_from_dataclass(cls: type) -> set[str]:
+    """Return a dataclass's field names as the allowed ``pipeline_options`` keys.
+
+    Keeps an Options dataclass the single source of truth for which keys
+    ``from_mapping`` accepts, instead of a hand-maintained set kept in sync
+    with the field list by hand.
+    """
+    return {item.name for item in fields(cls)}
 
 
 def require_mapping(raw: Mapping[str, Any] | None, *, label: str) -> dict[str, Any]:

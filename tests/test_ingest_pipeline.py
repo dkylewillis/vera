@@ -318,6 +318,34 @@ def test_pymupdf_descriptor_and_strict_options():
         PyMuPDFOptions.from_mapping({"chunk_size": 0})
 
 
+def test_fields_from_dataclass_derives_descriptor_fields_from_metadata():
+    from dataclasses import dataclass, field
+
+    from vera_ingest.descriptors import fields_from_dataclass
+
+    @dataclass(frozen=True)
+    class Options:
+        chunk_size: int = field(
+            default=250, metadata={"label": "Chunk size", "minimum": 10}
+        )
+        ocr_mode: str = field(
+            default="auto", metadata={"type": "enum", "choices": (("auto", "Auto"),)}
+        )
+        internal: str = "not advertised"  # no metadata: omitted from the descriptor
+
+    fields = fields_from_dataclass(Options)
+
+    assert [item.key for item in fields] == ["chunk_size", "ocr_mode"]
+    chunk_size_field = fields[0]
+    assert chunk_size_field.label == "Chunk size"
+    assert chunk_size_field.type == "integer"  # inferred from the `int` annotation
+    assert chunk_size_field.default == 250
+    assert chunk_size_field.minimum == 10
+    ocr_mode_field = fields[1]
+    assert ocr_mode_field.type == "enum"  # explicit override
+    assert [choice.value for choice in ocr_mode_field.choices] == ["auto"]
+
+
 def test_descriptor_fallback_for_undescribed_plugins():
     register_ingest_pipeline("opaque", lambda _variant: object())
     descriptor = describe_ingest_pipeline("opaque")
