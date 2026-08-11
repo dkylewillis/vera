@@ -59,5 +59,7 @@ bundles the English tessdata directory from this package.
 ## See also
 
 - [Convert documents](../conversion.md)
+- [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md) — this
+  package is the recommended starting reference.
 - [vera-ingest](vera-ingest.md)
 - [vera-ingest-docling](vera-ingest-docling.md)

@@ -108,5 +108,7 @@ Docling plugins in this milestone.
 ## See also
 
 - [Convert documents](../conversion.md)
+- [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md) — this
+  package demonstrates layout mapping and failure recovery beyond the basics.
 - [vera-ingest package](vera-ingest.md)
 - [ROADMAP](https://github.com/dkylewillis/vera/blob/main/ROADMAP.md)
