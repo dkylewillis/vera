@@ -19,7 +19,6 @@ conversion to `.vera` archives. PDF parsing/OCR live in plugins such as
         - PipelineDescriptor
         - PipelineOptions
         - UnknownIngestPipelineError
-        - coerce_pipeline_options
         - describe_ingest_pipeline
         - get_ingest_pipeline
         - invoke_ingest_pipeline

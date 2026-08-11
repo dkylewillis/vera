@@ -18,7 +18,6 @@ from vera_ingest import (
     PipelineOptions,
     UnknownIngestPipelineError,
     batch_convert,
-    coerce_pipeline_options,
     convert,
     describe_ingest_pipeline,
     get_chunk_regions,
@@ -422,29 +421,20 @@ def test_pipeline_options_mixin_derives_from_mapping_from_metadata():
         WidgetOptions.from_mapping({"bogus": 1})
 
 
-def test_coerce_pipeline_options_matches_pymupdf_hand_written_validation():
-    """The generic coercer must agree with the real plugin it was derived from."""
-    cases = [
-        None,
-        {},
-        {"chunk_size": 250, "overlap": 10},
-        {"ocr_language": "eng+spa"},
-        {"chunk_size": 0},
-        {"chunk_size": 250, "bogus": 1},
-        {"ocr_download": "yes"},
-    ]
-    for raw in cases:
-        expected = expected_error = None
-        actual = actual_error = None
-        try:
-            expected = PyMuPDFOptions.from_mapping(raw)
-        except ValueError as exc:
-            expected_error = str(exc)
-        try:
-            actual = PyMuPDFOptions(**coerce_pipeline_options(PyMuPDFOptions, raw, label="PyMuPDF"))
-        except ValueError as exc:
-            actual_error = str(exc)
-        assert (expected, expected_error) == (actual, actual_error), raw
+def test_pipeline_options_ignored_keys_are_dropped_not_rejected():
+    from dataclasses import dataclass, field
+
+    @dataclass(frozen=True)
+    class WidgetOptions(PipelineOptions):
+        ignored_keys = frozenset({"legacy_only"})
+
+        chunk_size: int = field(default=250, metadata={"label": "Chunk size"})
+
+    # A legacy compatibility key that isn't a real field is silently dropped...
+    assert WidgetOptions.from_mapping({"legacy_only": 1}) == WidgetOptions()
+    # ...but a key that's neither a real field nor ignored is still rejected.
+    with pytest.raises(ValueError, match="Unknown Widget option"):
+        WidgetOptions.from_mapping({"typo": 1})
 
 
 def test_descriptor_fallback_for_undescribed_plugins():
