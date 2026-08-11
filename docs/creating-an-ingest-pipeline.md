@@ -107,36 +107,48 @@ class ExamplePipeline:
 ```
 
 `options.py` owns typed defaults, validation, and the descriptor other
-pipelines use for CLI/GUI discovery (see [descriptors](#advertise-configuration-with-a-descriptor)):
+pipelines use for CLI/GUI discovery (see [descriptors](#advertise-configuration-with-a-descriptor)).
+Each field's `metadata` doubles as its descriptor entry, so a setting's key,
+default, and presentation live in one place instead of three:
 
 ```python
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Mapping
 
-from vera_ingest.descriptors import PipelineCapabilities, PipelineDescriptor, PipelineField
+from vera_ingest.descriptors import PipelineCapabilities, PipelineDescriptor, fields_from_dataclass
 from vera_ingest.option_parsing import (
+    allowed_keys_from_dataclass,
     reject_unknown_keys,
     require_mapping,
     require_positive_int,
 )
 
-_ALLOWED_KEYS = {"chunk_size"}
-
 
 @dataclass(frozen=True)
 class ExampleOptions:
-    chunk_size: int = 2000
+    chunk_size: int = field(
+        default=2000,
+        metadata={
+            "label": "Chunk size",
+            "description": "Maximum characters kept from the file.",
+            "minimum": 100,
+        },
+    )
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None = None) -> "ExampleOptions":
         data = reject_unknown_keys(
             require_mapping(raw, label="Example pipeline_options"),
-            allowed=_ALLOWED_KEYS,
+            allowed=allowed_keys_from_dataclass(cls),
             label="Example",
         )
-        return cls(chunk_size=require_positive_int(data.get("chunk_size", 2000), name="chunk_size"))
+        return cls(
+            chunk_size=require_positive_int(
+                data.get("chunk_size", cls.chunk_size), name="chunk_size"
+            )
+        )
 
 
 def describe_pipeline(variant: str = "") -> PipelineDescriptor:
@@ -153,16 +165,7 @@ def describe_pipeline(variant: str = "") -> PipelineDescriptor:
             ocr_dpi_supported=False,
             source_formats=("txt",),
         ),
-        fields=(
-            PipelineField(
-                key="chunk_size",
-                label="Chunk size",
-                type="integer",
-                default=2000,
-                description="Maximum characters kept from the file.",
-                minimum=100,
-            ),
-        ),
+        fields=fields_from_dataclass(ExampleOptions),
     )
 ```
 
@@ -230,7 +233,9 @@ Unknown ingest parser pipeline 'example'. Installed providers: docling, pymupdf.
 
 Entry points require an installed distribution. For a quick local experiment,
 register a pipeline in-process instead — useful in a script, notebook, or
-test, but only for the lifetime of that process:
+test, but only for the lifetime of that process. Both `register_ingest_pipeline`
+and `register_ingest_pipeline_descriptor` also work as decorators when you
+omit the factory argument:
 
 ```python
 from vera_ingest.pipeline import register_ingest_pipeline, register_ingest_pipeline_descriptor
@@ -239,16 +244,20 @@ from vera_ingest import convert
 from vera_ingest_example.pipeline import ExamplePipeline
 from vera_ingest_example.options import describe_pipeline
 
-register_ingest_pipeline("example", lambda variant="": ExamplePipeline())
+
+@register_ingest_pipeline("example")
+def create_pipeline(variant: str = "") -> ExamplePipeline:
+    return ExamplePipeline()
+
+
 register_ingest_pipeline_descriptor("example", describe_pipeline)
 
 convert("notes.txt", "notes.vera", parser="example")
 ```
 
-Pass `replace=True` to `register_ingest_pipeline` if you're iterating on the
-same provider name across repeated calls (for example in a REPL). There is no
-decorator form of this today — `register_ingest_pipeline` takes the factory
-as an argument rather than wrapping a class/function definition.
+Pass `replace=True` (`@register_ingest_pipeline("example", replace=True)`, or
+the equivalent plain-call form) if you're iterating on the same provider name
+across repeated calls, for example in a REPL.
 
 ## Advertise configuration with a descriptor
 
@@ -265,9 +274,25 @@ without knowing anything provider-specific:
 - `fields` (`PipelineField` tuple) drives generated forms: type, default,
   bounds, and enum choices.
 
+`vera_ingest.descriptors.fields_from_dataclass` builds that `fields` tuple
+directly from your `Options` dataclass instead of a hand-maintained, parallel
+list: a field's `key` and `default` come from the dataclass field itself, and
+its `metadata` mapping supplies the rest (`label`, `description`, `unit`,
+`minimum`/`maximum`/`step`, `choices`, `allow_custom`, `placeholder`). A
+field's `type` is inferred from its annotation (`int` → `"integer"`, `bool` →
+`"boolean"`, `str` → `"string"`) unless `metadata["type"]` overrides it — used
+for `"enum"` fields, which are plain `str` at the type level but have a fixed
+`choices` list. A dataclass field with no `metadata` is treated as internal
+and omitted from the descriptor. `vera-ingest-pymupdf` and
+`vera-ingest-docling` both build their descriptors this way — see their
+`options.py` for larger examples with `enum` and `boolean` fields.
+
 Your pipeline's own `from_mapping` (as in `ExampleOptions` above) is still
 responsible for validating whatever ends up in `pipeline_options` — the
 descriptor is metadata for callers, not a validator VERA runs on your behalf.
+`vera_ingest.option_parsing.allowed_keys_from_dataclass` keeps the "which keys
+does `from_mapping` accept" list in sync with the same dataclass, for the same
+reason.
 
 ## Validate and compare against a baseline
 
