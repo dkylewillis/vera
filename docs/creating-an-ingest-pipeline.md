@@ -188,29 +188,19 @@ Traced through concretely:
 `PipelineOptions.from_mapping` only knows how to validate four field shapes:
 a `bool`, an `int` (positive if `metadata["minimum"]` is a positive number,
 otherwise non-negative), a `str` restricted to `metadata["choices"]` (unless
-`allow_custom` is set), or free-text `str`. That covers most settings, but
-not settings that need real transformation — `vera-ingest-docling`'s
-`ocr_language` remaps Tesseract-style codes to RapidOCR's (`"eng"` →
-`"en"`) as part of validation, which no generic rule can know how to do.
-That pipeline doesn't inherit `PipelineOptions`; instead its `from_mapping`
-calls `coerce_pipeline_options(cls, raw, label=...)` — the function
-`PipelineOptions` itself calls — for the mechanical fields, then adjusts the
-one field that needs custom logic before constructing the instance:
-
-```python
-@classmethod
-def from_mapping(cls, raw):
-    coerced = coerce_pipeline_options(cls, raw, label="Docling", ignored=_IGNORED_COMPAT_KEYS)
-    coerced["ocr_language"] = ",".join(map_rapidocr_languages(coerced["ocr_language"]))
-    return cls(**coerced)
-```
-
-Use whichever gets you the least code: inherit `PipelineOptions` when every
-field fits its four shapes; call `coerce_pipeline_options` directly when one
-or two fields need a custom step on top; write `from_mapping` entirely by
-hand with the `vera_ingest.option_parsing` helpers when most of it does.
-Nothing else in `vera-ingest` requires any of the three — `from_mapping`
-just needs to exist and return an instance of your `Options` class.
+`allow_custom` is set), or free-text `str`. Both real pipelines
+(`vera-ingest-pymupdf`, `vera-ingest-docling`) fit entirely within those four
+shapes and inherit `PipelineOptions` as-is, with no `from_mapping` of their
+own. If a future field ever needs something those four shapes can't express
+— type conversion beyond bool/int/str, a cross-field check, or normalizing a
+value rather than just validating it — override `from_mapping` on your own
+subclass and write it with the `vera_ingest.option_parsing` helpers directly,
+the same way both plugins' `Options` classes worked before `PipelineOptions`
+existed. Two class attributes cover the common customizations without an
+override: `options_label` (the name used in error messages) and
+`ignored_keys` (legacy `pipeline_options` keys to silently drop instead of
+rejecting as unknown — see `DoclingOptions.ignored_keys` for `overlap`/
+`ocr_dpi`, PyMuPDF-only legacy CLI aliases Docling doesn't have fields for).
 
 `__init__.py` exposes the entry-point factories. `create_pipeline` returns the
 bare function itself — there's nothing to instantiate:
@@ -374,11 +364,9 @@ produced by each pipeline and compare hit rate / MRR — see
   (needed because its recovery/fallback logic is decomposed into private
   helper methods, not because it holds state across calls), with its own
   chunker, layout/table/figure mapping, and page-level failure recovery.
-  `DoclingOptions` calls `coerce_pipeline_options` directly instead of
-  inheriting `PipelineOptions`, since its `ocr_language` field needs a
-  custom remapping step (see [when not to inherit
-  `PipelineOptions`](#when-not-to-inherit-pipelineoptions)). Use it as a
-  model once your pipeline needs more than a single function.
+  `DoclingOptions` inherits `PipelineOptions` too, using `ignored_keys` for
+  the PyMuPDF-only legacy aliases it doesn't support. Use it as a model once
+  your pipeline needs more than a single function.
 
 ## See also
 

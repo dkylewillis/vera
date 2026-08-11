@@ -254,10 +254,17 @@ to the `pypdfium2` PDF backend when needed; conversion rejects only when that
 recovery is exhausted. Force the low-memory backend with
 `--pipeline-option pdf_backend=pypdfium2`. Docling's descriptor advertises
 `chunk_size` (HybridChunker token limit), `ocr_mode`, `ocr_language`, and
-`pdf_backend` — legacy `--overlap` and `--ocr-dpi` are not forwarded. Docling
-uses RapidOCR rather than Tesseract, so VERA maps Tesseract-style language
-codes such as `eng` to RapidOCR's `en` (and similarly for other common
-aliases); Docling's own default language is `en`. Docling layout models run
+`pdf_backend` — legacy `--overlap` and `--ocr-dpi` are not forwarded.
+
+Docling's `ocr_language` expects a **RapidOCR-native** code (for example
+`en`, `fr`, `cyrillic`); VERA does not translate Tesseract-style codes for
+it, so PyMuPDF's `eng` is not a valid value here. Because `--ocr-language`'s
+shared CLI default remains `eng` (PyMuPDF's own vocabulary, forwarded to any
+pipeline that advertises an `ocr_language` field), pass
+`--pipeline-option ocr_language=en` (or another RapidOCR code) explicitly
+when using `--parser docling` and OCR matters — otherwise `ocr_mode=auto`/
+`force` conversions of image-heavy pages fail once OCR actually runs, since
+RapidOCR rejects `eng` as an unrecognized language. Docling layout models run
 without `torch.compile` (so Windows does not need Visual Studio's `cl.exe`).
 
 First Docling conversion may download model artifacts. Set
