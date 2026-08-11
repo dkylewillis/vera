@@ -712,8 +712,13 @@ button {
   font-size: 12px;
 }
 
-.folderContextMenu button:hover {
+.folderContextMenu button:hover:not(:disabled) {
   background: var(--accent-soft);
+}
+
+.folderContextMenu button:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
 }
 
 .folderContextMenu button.danger {
@@ -3192,7 +3197,6 @@ details.traceEntry[open] > summary {
 }
 
 .viewerHeader {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3200,33 +3204,6 @@ details.traceEntry[open] > summary {
   padding: 0 8px 0 16px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-chat);
-}
-
-.viewerOpeningBar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  z-index: 2;
-  height: 2px;
-  overflow: hidden;
-  pointer-events: none;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
-.viewerOpeningBar::after {
-  content: '';
-  display: block;
-  width: 38%;
-  height: 100%;
-  background: var(--accent);
-  opacity: 0.85;
-  animation: viewerOpeningSlide 1.15s ease-in-out infinite;
-}
-
-@keyframes viewerOpeningSlide {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(280%); }
 }
 
 .viewerTitleGroup {
@@ -3311,11 +3288,6 @@ details.traceEntry[open] > summary {
   padding: 12px;
   overflow: auto;
   background: var(--bg-chat);
-}
-
-.sourceViewer--opening {
-  opacity: 0.55;
-  transition: opacity 0.15s ease;
 }
 
 .sourceViewerOnly {
@@ -3815,11 +3787,6 @@ input.viewerPageInput:focus {
   text-align: center;
 }
 
-.unsupportedSource--opening {
-  opacity: 0.55;
-  transition: opacity 0.15s ease;
-}
-
 .unsupportedSource strong {
   color: var(--text-strong);
 }
@@ -3966,9 +3933,16 @@ input.viewerPageInput:focus {
   line-height: 1.5;
 }
 
-.emptyState--opening p {
-  color: var(--text-faint);
+.emptyState--loading strong {
+  color: var(--text-strong);
+  font-size: 14px;
   font-weight: 600;
+  overflow-wrap: anywhere;
+  max-width: 320px;
+}
+
+.emptyState--loading .spinning {
+  color: var(--accent);
 }
 
 /* ── Provider modal ──────────────────────────────────── */
