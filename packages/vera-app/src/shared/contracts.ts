@@ -18,7 +18,7 @@ export interface TraceToolCall {
 
 export interface StreamEvent {
   id: string;
-  event: 'search_start' | 'search_done' | 'llm_request' | 'llm_response' | 'tool_call' | 'answer_delta' | 'answer_reset' | 'conversion_progress' | 'index_progress' | 'inspection_progress';
+  event: 'search_start' | 'search_done' | 'llm_request' | 'llm_response' | 'tool_call' | 'answer_delta' | 'answer_reset' | 'conversion_progress' | 'index_progress' | 'inspection_progress' | 'ocr_download_progress';
   turn?: number;
   query?: string;
   mode?: string;
@@ -40,6 +40,9 @@ export interface StreamEvent {
   phase?: string;
   chunks?: number;
   skipped?: number;
+  /** `ocr_download_progress` payload. */
+  language?: string;
+  downloaded?: number;
 }
 
 export interface FigureResult {
@@ -171,6 +174,8 @@ export interface PipelineFieldDescriptor {
   maximum?: number | null;
   step?: number | null;
   placeholder?: string | null;
+  /** When true on enum fields, GUIs may accept values outside `choices`. */
+  allow_custom?: boolean;
 }
 
 export interface PipelineCapabilities {

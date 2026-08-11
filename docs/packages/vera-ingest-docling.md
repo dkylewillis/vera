@@ -53,18 +53,48 @@ The default Docling variant is `hybrid`. Unknown variants fail before parsing.
   `chunk_size` maps to a token limit without downloading a HuggingFace
   tokenizer.
 - Owns typed defaults: `chunk_size=500` tokens, `ocr_mode=auto`,
-  `ocr_language=en`. Descriptor fields do **not** include `overlap` or
-  `ocr_dpi`, so those legacy convert/CLI aliases are not forwarded.
+  `ocr_language=en`, `pdf_backend=docling_parse`. Descriptor fields do **not**
+  include `overlap` or `ocr_dpi`, so those legacy convert/CLI aliases are not
+  forwarded.
 - Stores readable chunk text for keyword search and contextualized text for
   embeddings.
 - Maps provenance boxes from Docling bottom-left coordinates to VERA top-left
   page points.
-- Rejects Docling failure and partial-success results instead of publishing an
-  incomplete archive.
+- Attempts automatic recovery when Docling returns page-level memory errors
+  (`bad_alloc`); rejects only when recovery is exhausted instead of publishing
+  an incomplete archive.
 - Maps VERA/Tesseract OCR language codes to RapidOCR (for example `eng` → `en`)
   before configuring Docling OCR.
 - Disables Docling's `torch.compile` path so Windows conversions do not require
   Visual Studio's `cl.exe`, and keeps Docling's default `images_scale`.
+
+## Reliability on large/complex PDFs
+
+Docling's default `docling_parse` backend can hit native `std::bad_alloc` on
+some large or complex pages. VERA recovers automatically:
+
+1. Convert the whole document with the selected `pdf_backend` (default
+   `docling_parse`).
+2. On `PARTIAL_SUCCESS` with page-attributable memory errors, retry each failed
+   page with a **fresh** converter (`page_range=(n, n)`), still on
+   `docling_parse`.
+3. If a single-page retry still fails, retry that page once with `pypdfium2`.
+4. If too many pages fail (more than 20% of the document) or `convert()` raises,
+   reconvert the **whole** document once with `pypdfium2`.
+5. If recovery still cannot produce a complete result, conversion fails with a
+   message that lists unrecoverable pages.
+
+Force the low-memory backend for an entire conversion:
+
+```bash
+vera convert "manual.pdf" --parser docling --pipeline-option pdf_backend=pypdfium2
+```
+
+Successful recoveries are recorded in ingest diagnostics (surfaced by
+`vera inspect`): `pdf_backend`, `recovered_pages`,
+`recovered_pages_backend`, and optionally `whole_document_fallback_backend`.
+`pypdfium2` is faster and more memory-stable but can reduce table/layout
+fidelity compared with `docling_parse`.
 
 ## Desktop app
 

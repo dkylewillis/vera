@@ -40,6 +40,19 @@ const pymupdfDescriptor: PipelineDescriptor = {
         { value: 'force', label: 'Force' },
       ],
     },
+    {
+      key: 'ocr_language',
+      label: 'OCR language',
+      type: 'enum',
+      default: 'eng',
+      allow_custom: true,
+      placeholder: 'eng',
+      choices: [
+        { value: 'eng', label: 'English (eng)' },
+        { value: 'spa', label: 'Spanish (spa)' },
+        { value: 'fra', label: 'French (fra)' },
+      ],
+    },
   ],
 };
 
@@ -76,6 +89,7 @@ describe('PipelineConfigForm', () => {
       chunk_size: 800,
       overlap: 75,
       ocr_mode: 'auto',
+      ocr_language: 'eng',
     });
   });
 
@@ -89,8 +103,23 @@ describe('PipelineConfigForm', () => {
     );
     expect(html).toContain('Overlap (characters)');
     expect(html).toContain('OCR mode');
+    expect(html).toContain('OCR language');
+    expect(html).toContain('Spanish (spa)');
+    expect(html).toContain('Custom…');
     expect(html).toContain('value="500"');
     expect(html).toContain('value="75"');
+  });
+
+  it('shows a custom OCR language text field for combinations', () => {
+    const html = renderToStaticMarkup(
+      <PipelineConfigForm
+        descriptor={pymupdfDescriptor}
+        values={mergePipelineFieldValues(pymupdfDescriptor, { ocr_language: 'eng+spa' })}
+        onChange={() => undefined}
+      />,
+    );
+    expect(html).toContain('value="eng+spa"');
+    expect(html).toContain('aria-label="OCR language custom value"');
   });
 
   it('omits overlap for Docling and shows notes', () => {

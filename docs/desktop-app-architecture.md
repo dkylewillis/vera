@@ -207,8 +207,9 @@ create each `.vera` archive beside its source PDF using the same base filename
 (`proposal.pdf` becomes `proposal.vera`). Existing archives are validated
 before they are skipped; malformed outputs are reported separately, and
 overwrite must be selected explicitly. Conversion uses selective
-PyMuPDF/Tesseract OCR for image-based low-text pages with English language data
-bundled into both `vera-doc` and the packaged sidecar. It publishes a validated
+PyMuPDF/Tesseract OCR (via `vera-ingest-pymupdf`) for image-based low-text
+pages with English language data bundled into that package and the packaged
+sidecar. It publishes a validated
 temporary sibling atomically, preserves an existing destination after failure,
 and rejects PDFs with no searchable text after OCR with an OCR-specific
 message. Sidecar `convert` and `batch_convert` requests accept optional

@@ -595,6 +595,82 @@ def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):
     assert captured["batch"]["parser"] == "docling"
 
 
+def test_sidecar_forwards_ocr_download_flag(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    captured = {}
+
+    def fake_convert(input_path, output_path, **kwargs):
+        captured["single"] = kwargs
+        return output_path
+
+    monkeypatch.setattr(sidecar, "convert", fake_convert)
+
+    response = handle(
+        {
+            "id": "ocr-download-flag",
+            "action": "convert",
+            "input": "scan.pdf",
+            "output": "scan.vera",
+            "ocr_language": "fra",
+            "ocr_download": True,
+        }
+    )
+
+    assert response["ok"] is True
+    assert captured["single"]["ocr_download"] is True
+
+
+def test_sidecar_ocr_languages_list_reports_bundled_and_unknown():
+    response = handle({"id": "ocr-list", "action": "ocr_languages_list", "language": "eng+zzz"})
+
+    assert response["ok"] is True
+    codes = {entry["code"]: entry for entry in response["result"]["languages"]}
+    assert codes["eng"]["bundled"] is True
+    assert codes["zzz"]["downloadable"] is False
+
+
+def test_sidecar_ocr_languages_download_streams_progress_and_returns_cache_dir(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    emitted = []
+    monkeypatch.setattr(sidecar, "_write_response", emitted.append)
+
+    def fake_download(language, *, progress=None, **kwargs):
+        if progress:
+            progress(language, 50, 100)
+            progress(language, 100, 100)
+        return "/fake/cache/dir"
+
+    monkeypatch.setattr(sidecar, "download_ocr_language_data", fake_download)
+
+    response = sidecar.handle(
+        {"id": "ocr-download", "action": "ocr_languages_download", "language": "fra"}
+    )
+
+    assert response["ok"] is True
+    assert response["result"] == {
+        "language": "fra",
+        "downloaded": ["fra"],
+        "cache_dir": "/fake/cache/dir",
+    }
+    progress_events = [event for event in emitted if event.get("event") == "ocr_download_progress"]
+    assert [event["downloaded"] for event in progress_events] == [50, 100]
+    assert all(event["id"] == "ocr-download" for event in progress_events)
+
+
+def test_sidecar_ocr_languages_download_unknown_language_fails(monkeypatch):
+    response = handle({"id": "ocr-bad", "action": "ocr_languages_download", "language": "zzz"})
+
+    assert response["ok"] is False
+    assert "zzz" in response["error"]
+
+
+def test_sidecar_ocr_languages_download_requires_language():
+    response = handle({"id": "ocr-empty", "action": "ocr_languages_download", "language": ""})
+
+    assert response["ok"] is False
+    assert "language is required" in response["error"]
+
+
 def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):
     sidecar = importlib.import_module("vera_app.sidecar")
     captured = {}

@@ -126,15 +126,15 @@ that no usable diagnostic exists.
 commands write or replace local files and require normal user authorization:
 
 - `convert` creates a validated `.vera` archive and publishes it atomically;
-  `--parser` selects an installed ingest pipeline (`pymupdf` by default;
-  `docling` when `vera-ingest-docling` is installed);
+  `--parser` selects an installed ingest pipeline (`pymupdf` by default from
+  `vera-ingest-pymupdf`; `docling` when `vera-ingest-docling` is installed);
   image-based low-text pages use selective local OCR by default. Use
   `--ocr off` only when explicitly requested, or `--ocr force` when automatic
   detection misses a scan. Prefer `--pipeline-option KEY=VALUE` for
   provider-owned settings; `--chunk-size`, `--overlap`, `--ocr`,
   `--ocr-language`, and `--ocr-dpi` remain compatibility aliases (Docling does
-  not receive overlap/DPI). English OCR is bundled for PyMuPDF; other
-  languages require installed Tesseract language data.
+  not receive overlap/DPI). English OCR is bundled in `vera-ingest-pymupdf`;
+  other languages require installed Tesseract language data.
 - `convert --overwrite` replaces existing batch outputs.
 - `index build` and `index update` write `.vera-index/`.
 - `export` writes the embedded source document.

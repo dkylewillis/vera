@@ -8,12 +8,22 @@ from vera.collection import build_library_index, library_index_status, update_li
 from vera.corpus import VeraCorpus
 from vera.document import VeraDocument
 from vera import UnknownEmbeddingModelError
-from vera_ingest import UnknownIngestPipelineError, batch_convert, convert
+from vera_ingest import (
+    UnknownIngestPipelineError,
+    batch_convert,
+    convert,
+)
 from vera_ingest.viewer import (
     export_source_document,
     figures_for,
     get_source_document,
     regions_for,
+)
+from vera_ingest_pymupdf import (
+    OCRLanguageDownloadError,
+    UnknownOCRLanguageError,
+    describe_ocr_languages,
+    download_ocr_language_data,
 )
 
 
@@ -83,6 +93,7 @@ def cmd_convert(args) -> int:
                 ocr_mode=args.ocr_mode,
                 ocr_language=args.ocr_language,
                 ocr_dpi=args.ocr_dpi,
+                ocr_download=args.ocr_allow_download,
                 pipeline_options=pipeline_options or None,
             )
             unsuccessful = report["failed"] + report["malformed"]
@@ -113,6 +124,7 @@ def cmd_convert(args) -> int:
             ocr_mode=args.ocr_mode,
             ocr_language=args.ocr_language,
             ocr_dpi=args.ocr_dpi,
+            ocr_download=args.ocr_allow_download,
             pipeline_options=pipeline_options or None,
         )
     except (UnknownIngestPipelineError, UnknownEmbeddingModelError) as exc:
@@ -318,6 +330,47 @@ def cmd_mcp(args) -> int:
     from vera_mcp import main as mcp_main
 
     return mcp_main()
+
+
+def cmd_ocr_languages_list(args) -> int:
+    entries = describe_ocr_languages(args.language)
+    if args.json:
+        print(json.dumps({"ok": True, "languages": entries}))
+        return 0
+    for entry in entries:
+        state = "bundled" if entry["bundled"] else ("cached" if entry["cached"] else "not cached")
+        size = entry.get("size_bytes")
+        size_note = f", {size / (1024 * 1024):.1f} MB" if isinstance(size, int) else ""
+        downloadable = "" if entry["downloadable"] else " (manual TESSDATA_PREFIX install required)"
+        print(f"{entry['code']:<8} {entry['name']:<24} {state}{size_note}{downloadable}")
+    return 0
+
+
+def cmd_ocr_languages_download(args) -> int:
+    downloaded: list[str] = []
+
+    def report_progress(code: str, downloaded_bytes: int, total_bytes: int) -> None:
+        if args.json or total_bytes <= 0:
+            return
+        percent = min(100, int(downloaded_bytes * 100 / total_bytes))
+        print(f"\r{code}: {percent}%", end="", file=sys.stderr, flush=True)
+
+    try:
+        cache_dir = download_ocr_language_data(args.language, progress=report_progress)
+    except (UnknownOCRLanguageError, OCRLanguageDownloadError) as exc:
+        if args.json:
+            print(json.dumps({"ok": False, "error": str(exc)}))
+        else:
+            print(str(exc), file=sys.stderr)
+        return 2
+    if not args.json:
+        print(file=sys.stderr)  # newline after the last progress line
+    downloaded = [part.strip() for part in args.language.split("+") if part.strip()]
+    if args.json:
+        print(json.dumps({"ok": True, "language": args.language, "downloaded": downloaded, "cache_dir": cache_dir}))
+    else:
+        print(f"Downloaded {', '.join(downloaded)} into {cache_dir}")
+    return 0
 
 
 def cmd_eval(args) -> int:

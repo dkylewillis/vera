@@ -30,9 +30,10 @@ Options:
   `sentence-transformers/...`). Unknown providers raise and the command
   exits non-zero instead of silently falling back to hashing.
 - `--parser PARSER` defaults to `pymupdf`. Accepts ingest pipeline specs
-  `provider[:variant]` (for example `docling` or `docling:hybrid` when
-  `vera-ingest-docling` is installed). Unknown providers exit with a non-zero
-  status and an install-the-plugin message; there is no silent fallback.
+  `provider[:variant]` (requires `vera-ingest-pymupdf` for the default; for
+  example `docling` or `docling:hybrid` when `vera-ingest-docling` is
+  installed). Unknown providers exit with a non-zero status and an
+  install-the-plugin message; there is no silent fallback.
 - `--chunk-size N` defaults to `500`. Compatibility alias forwarded only when
   the selected pipeline advertises a `chunk_size` field.
 - `--overlap N` defaults to `75`. Compatibility alias forwarded only when the
@@ -48,6 +49,13 @@ Options:
 - `--ocr-dpi N` defaults to `300` and must be positive. Compatibility alias
   forwarded only when the pipeline advertises `ocr_dpi` (PyMuPDF). Docling
   does not receive DPI.
+- `--ocr-allow-download` defaults to off. Compatibility alias for
+  `ocr_download` (PyMuPDF only). When set, missing `--ocr-language` data is
+  fetched from VERA's curated, checksum-verified registry (a subset of
+  `tesseract-ocr/tessdata_fast`) into a local cache instead of raising;
+  unaffected languages and the default `eng` path never touch the network.
+  See `vera ocr-languages list` for the registry and `vera ocr-languages
+  download` to pre-fetch outside a conversion.
 - `--pipeline-option KEY=VALUE` is repeatable. Sets provider-owned
   `pipeline_options` entries (for example `--pipeline-option chunk_size=900`).
   Values coerce to bool (`true`/`false`), int, or float when unambiguous;
@@ -59,18 +67,24 @@ Options:
 
 Each pipeline owns typed defaults and validation. PyMuPDF defaults:
 `chunk_size=500`, `overlap=75`, `ocr_mode=auto`, `ocr_language=eng`,
-`ocr_dpi=300`. Docling defaults: `chunk_size=500` tokens, `ocr_mode=auto`,
-`ocr_language=en` (no overlap/DPI fields).
+`ocr_dpi=300`, `ocr_download=false`. Docling defaults: `chunk_size=500`
+tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse`
+(no overlap/DPI/download fields; auto page recovery / `pypdfium2` fallback on
+memory errors).
 
 For a single PDF, omitted `OUTPUT` defaults to the input basename with a
 `.vera` suffix. Conversion writes and validates a temporary sibling before
 atomically replacing the output. A failure preserves an existing destination
-and removes the temporary file. OCR uses PyMuPDF's local Tesseract integration
-with bundled English language data. Other selected languages require external
-Tesseract data. PDFs that yield no searchable chunks after OCR fail with an
-OCR-specific message. OCR targets scanned prose; it does not reconstruct
-scanned tables or complex page layouts. For a directory, outputs are written
-beside their PDFs. Supplying `OUTPUT` with a directory is an error.
+and removes the temporary file. OCR uses the `vera-ingest-pymupdf` package
+(PyMuPDF's local Tesseract integration with bundled English language data).
+Other selected languages either require
+`--ocr-allow-download` to auto-fetch curated data on demand, or a manually
+installed Tesseract `.traineddata` file with `TESSDATA_PREFIX` set — the error
+raised for a missing language explains which applies. PDFs that yield no
+searchable chunks after OCR fail with an OCR-specific message. OCR targets
+scanned prose; it does not reconstruct scanned tables or complex page layouts.
+For a directory, outputs are written beside their PDFs. Supplying `OUTPUT`
+with a directory is an error.
 
 Single-file JSON:
 
@@ -524,6 +538,67 @@ MCP provides `vera_search`, `vera_corpus_search`, `vera_inspect`,
 `vera_get_chunk_regions`. The final three have no direct standalone CLI
 equivalent. See the repository's agent-skills guide for MCP setup.
 
+### `vera ocr-languages list [LANGUAGE]`
+
+Options: `--json`.
+
+Reports Tesseract language codes usable by the `pymupdf` parser without
+running a conversion. `LANGUAGE` optionally limits the report to specific
+`+`-joined codes (e.g. `eng+fra`); omitted, it lists every bundled and
+registry code.
+
+```json
+{
+  "ok": true,
+  "languages": [
+    {"code": "eng", "name": "English", "bundled": true, "downloadable": true, "cached": true},
+    {"code": "fra", "name": "French", "bundled": false, "downloadable": true, "cached": false, "size_bytes": 1130365},
+    {"code": "zzz", "name": "zzz", "bundled": false, "downloadable": false, "cached": false}
+  ]
+}
+```
+
+`bundled` codes never touch the network or the cache directory. `cached`
+means the code is already available in the local cache (or bundled).
+`downloadable: false` means the code is not in VERA's curated registry;
+`vera ocr-languages download` will fail for it, and it requires a manually
+installed `.traineddata` file with `TESSDATA_PREFIX` set. Unrecognized codes
+are still listed (with their raw code standing in for `name`) so agents can
+render a consistent table instead of erroring.
+
+### `vera ocr-languages download LANGUAGE`
+
+Options: `--json`.
+
+Fetches `+`-joined Tesseract language code(s) (e.g. `fra` or `fra+deu`) into
+the local cache, verifying each download's SHA-256 against VERA's pinned
+registry before it is written. Codes already valid in the cache are reused
+without a network request — safe to call repeatedly. The cache directory
+defaults to a per-user location and can be overridden with the
+`VERA_TESSDATA_CACHE` environment variable (checked by both this command and
+`--ocr-allow-download`).
+
+```json
+{
+  "ok": true,
+  "language": "fra",
+  "downloaded": ["fra"],
+  "cache_dir": "/home/user/.cache/vera/tessdata"
+}
+```
+
+A code with no bundled or registry data exits 2 with:
+
+```json
+{
+  "ok": false,
+  "error": "OCR language 'zzz' has no bundled data and is not in VERA's download registry. Downloadable codes: afr, ara, ces, ... Install a Tesseract .traineddata file manually and set TESSDATA_PREFIX instead."
+}
+```
+
+A network or checksum failure also exits 2 with a structured `error` and
+never leaves a partially-written file in the cache.
+
 ## Exit and output rules
 
 All JSON-capable commands print one JSON object to stdout on success. Check the
@@ -535,8 +610,10 @@ exit code before deciding how to interpret output:
 - Exit 1 with stderr traceback: most path, dependency, or runtime failures.
 - Exit 1 after batch report: one or more directory conversions failed or an
   existing output was malformed.
-- Exit 2: argparse usage/type failure or an output path supplied for directory
-  conversion.
+- Exit 2: argparse usage/type failure, an output path supplied for directory
+  conversion, an unknown `parser`/`model`, or a failed `ocr-languages
+  download` (unknown code, network error, or checksum mismatch — all with
+  structured JSON under `--json`).
 
 Do not assume stderr is JSON. Do not discard stdout solely because the exit code
 is 1; first check whether the command is one of the documented structured
@@ -544,8 +621,15 @@ negative-result cases.
 
 ## Filesystem effects
 
-- Read-only: `search`, `inspect`, `validate`, `eval`.
+- Read-only: `search`, `inspect`, `validate`, `eval`, `ocr-languages list`.
 - Writes archives: `convert`; existing single outputs can be replaced.
+  `convert --ocr-allow-download` (and `ocr-languages download`) can also
+  write into the OCR language cache directory.
 - Writes collection artifacts: `index build`, `index update`.
 - Writes source files: `export`.
+- Writes to the OCR language cache directory: `ocr-languages download`.
 - Long-running process: `mcp`.
+- Network access: `convert --ocr-allow-download` and `ocr-languages
+  download` are the only commands that make outbound network requests
+  (fetching curated Tesseract language data); every other command is fully
+  offline.

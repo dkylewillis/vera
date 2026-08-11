@@ -1,30 +1,46 @@
 # vera-ingest
 
 `vera-ingest` publishes the `vera_ingest` Python package. It depends on
-`vera-doc` and owns PDF parsing, selective OCR, table extraction, heading
-detection, chunking, and conversion into validated `.vera` archives.
+`vera-doc` and owns the ingest-pipeline registry, shared descriptors and
+types, conversion orchestration, reusable chunking helpers, and
+ingest-produced viewer helpers.
 
-It produces ready-made `ChunkRecord` values and optional attachments, then
-writes them through `VeraDocument`. Viewer helpers under `vera_ingest.viewer`
-read those ingest conventions back out for CLI, MCP, and app consumers.
+PDF parsing and OCR live in provider plugins that register through the
+`vera.ingest_pipelines` entry-point group. The default
+[`vera-ingest-pymupdf`](vera-ingest-pymupdf.md) package provides the `pymupdf`
+pipeline; [`vera-ingest-docling`](vera-ingest-docling.md) provides Docling's
+hybrid chunker.
+
+Pipelines return a normalized `IngestResult`. Shared `convert()` writes
+validated archives through one atomic path and emits ready-made `ChunkRecord`
+values plus optional attachments via `VeraDocument`. Viewer helpers under
+`vera_ingest.viewer` read those ingest conventions back out for CLI, MCP, and
+app consumers.
 
 ## Install
 
 From PyPI:
 
 ```bash
-python -m pip install "vera-ingest>=0.2.4"
+python -m pip install "vera-ingest>=0.3.0"
+```
+
+For PDF conversion, also install a pipeline plugin (`vera-cli` and `vera-app`
+depend on `vera-ingest-pymupdf` by default):
+
+```bash
+python -m pip install "vera-ingest-pymupdf>=0.3.0"
 ```
 
 `vera-ingest` may not yet be published to PyPI. If the install fails because the
 package cannot be found, install from a repository checkout instead:
 
 ```bash
-python -m pip install ./packages/vera-doc ./packages/vera-ingest
+python -m pip install ./packages/vera-doc ./packages/vera-ingest ./packages/vera-ingest-pymupdf
 ```
 
-Python 3.10 or newer is required. PyMuPDF and pdfplumber are installed with the
-package. Default English OCR works locally with bundled language data.
+Python 3.10 or newer is required. Core `vera-ingest` does not pull in PyMuPDF
+or pdfplumber; those arrive with the pipeline plugin.
 
 ## Start here
 
@@ -47,21 +63,14 @@ kwargs such as `chunk_size` and `ocr_mode` remain compatibility aliases.
 
 ## Concepts
 
-- **Extraction** identifies page text, layout blocks, headings, tables, images,
-  and captions.
-- **Selective OCR** retains native text where possible and recognizes
-  image-based low-text pages.
-- **Chunking** produces page-bounded text records with citation metadata.
+- **Pipeline registry** discovers installed providers via entry points and
+  resolves `provider[:variant]` specs strictly (no silent fallback).
 - **Pipeline-owned config** keeps typed defaults, validation, and field
   descriptors inside each ingest plugin; shared convert passes a thin
   `IngestRequest` with opaque `pipeline_options`.
+- **Chunking helpers** remain available for providers that want sliding-window
+  behavior without owning the writer.
 - **Atomic conversion** validates a temporary archive before publishing it.
-
-Built-in conversion uses the `pymupdf` ingest pipeline. Additional pipelines
-register through the `vera.ingest_pipelines` entry-point group; the optional
-[`vera-ingest-docling`](vera-ingest-docling.md) package provides Docling's
-hybrid chunker. OCR in the built-in pipeline is designed for scanned prose and
-does not reconstruct complex scanned forms or tables.
 
 ## Documentation
 
@@ -74,4 +83,4 @@ does not reconstruct complex scanned forms or tables.
 ## API reference
 
 - [`vera_ingest`](../reference/vera-ingest.md) — curated public conversion,
-  ingest-pipeline registry, parser, page, block, and chunking interfaces.
+  ingest-pipeline registry, page/block types, and chunking interfaces.

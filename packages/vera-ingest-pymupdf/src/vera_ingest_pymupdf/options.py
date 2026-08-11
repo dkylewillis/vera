@@ -1,18 +1,19 @@
-"""Typed options and descriptor for the built-in PyMuPDF ingest pipeline."""
+"""Typed options and descriptor for the PyMuPDF ingest pipeline."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from ..descriptors import (
+from vera_ingest.descriptors import (
     PipelineCapabilities,
     PipelineDescriptor,
     PipelineField,
     PipelineFieldChoice,
 )
-from ..option_parsing import (
+from vera_ingest.option_parsing import (
     reject_unknown_keys,
+    require_bool,
     require_choice,
     require_mapping,
     require_non_negative_int,
@@ -20,8 +21,24 @@ from ..option_parsing import (
     require_string,
 )
 
-_ALLOWED_KEYS = {"chunk_size", "overlap", "ocr_mode", "ocr_language", "ocr_dpi"}
+from .tessdata_manager import language_choice_labels
+
+_ALLOWED_KEYS = {
+    "chunk_size",
+    "overlap",
+    "ocr_mode",
+    "ocr_language",
+    "ocr_dpi",
+    "ocr_download",
+}
 _OCR_MODES = {"auto", "off", "force"}
+
+
+def _ocr_language_choices() -> tuple[PipelineFieldChoice, ...]:
+    """Bundled + curated downloadable Tesseract codes for the Convert GUI."""
+    return tuple(
+        PipelineFieldChoice(code, label) for code, label in language_choice_labels()
+    )
 
 
 @dataclass(frozen=True)
@@ -33,6 +50,7 @@ class PyMuPDFOptions:
     ocr_mode: str = "auto"
     ocr_language: str = "eng"
     ocr_dpi: int = 300
+    ocr_download: bool = False
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None = None) -> PyMuPDFOptions:
@@ -62,12 +80,17 @@ class PyMuPDFOptions:
             data.get("ocr_dpi", 300),
             name="ocr_dpi",
         )
+        ocr_download = require_bool(
+            data.get("ocr_download", False),
+            name="ocr_download",
+        )
         return cls(
             chunk_size=chunk_size,
             overlap=overlap,
             ocr_mode=ocr_mode,
             ocr_language=ocr_language,
             ocr_dpi=ocr_dpi,
+            ocr_download=ocr_download,
         )
 
 
@@ -80,9 +103,9 @@ def describe_pipeline(variant: str = "default") -> PipelineDescriptor:
         provider="pymupdf",
         variant="",
         spec="pymupdf",
-        label="pymupdf — built-in (default)",
+        label="pymupdf — default PDF pipeline",
         description=(
-            "Built-in PDF ingest pipeline using PyMuPDF parsing and optional "
+            "PDF ingest pipeline using PyMuPDF parsing and optional "
             "Tesseract OCR with sliding-window chunking."
         ),
         capabilities=PipelineCapabilities(
@@ -130,9 +153,15 @@ def describe_pipeline(variant: str = "default") -> PipelineDescriptor:
             PipelineField(
                 key="ocr_language",
                 label="OCR language",
-                type="string",
+                type="enum",
                 default="eng",
-                description="Tesseract language code (for example eng or eng+spa).",
+                description=(
+                    "Tesseract language code from VERA's bundled/downloadable "
+                    "registry (for example spa). Choose Custom for combinations "
+                    "such as eng+spa or a manually installed TESSDATA_PREFIX code."
+                ),
+                choices=_ocr_language_choices(),
+                allow_custom=True,
                 placeholder="eng",
             ),
             PipelineField(
@@ -145,6 +174,18 @@ def describe_pipeline(variant: str = "default") -> PipelineDescriptor:
                 minimum=72,
                 maximum=600,
                 step=10,
+            ),
+            PipelineField(
+                key="ocr_download",
+                label="Allow OCR language download",
+                type="boolean",
+                default=False,
+                description=(
+                    "Fetch missing Tesseract language data for 'OCR language' "
+                    "automatically from a curated, checksum-verified registry "
+                    "and cache it locally. English is always bundled; other "
+                    "languages otherwise require a manual TESSDATA_PREFIX install."
+                ),
             ),
         ),
     )

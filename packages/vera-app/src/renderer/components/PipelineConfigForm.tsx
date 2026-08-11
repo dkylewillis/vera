@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import type { PipelineDescriptor, PipelineFieldDescriptor, PipelineOptions, JsonValue } from '../../shared/contracts';
+
+const CUSTOM_ENUM_VALUE = '__custom__';
 
 function fieldHelp(field: PipelineFieldDescriptor): string {
   const parts = [field.description?.trim() || '', field.unit ? `Unit: ${field.unit}` : '']
@@ -31,6 +34,79 @@ export function mergePipelineFieldValues(
     merged[field.key] = savedValue === undefined ? defaultFor(field) : savedValue;
   }
   return merged;
+}
+
+function EnumField({
+  field,
+  current,
+  disabled,
+  onChange,
+}: {
+  field: PipelineFieldDescriptor;
+  current: JsonValue;
+  disabled: boolean;
+  onChange: (value: JsonValue) => void;
+}) {
+  const help = fieldHelp(field);
+  const choices = field.choices || [];
+  const choiceValues = new Set(choices.map((choice) => choice.value));
+  const currentText = String(current ?? '');
+  const [forceCustom, setForceCustom] = useState(
+    () => Boolean(field.allow_custom) && currentText !== '' && !choiceValues.has(currentText),
+  );
+
+  useEffect(() => {
+    const values = new Set((field.choices || []).map((choice) => choice.value));
+    if (values.has(currentText)) {
+      setForceCustom(false);
+    }
+  }, [currentText, field.choices]);
+
+  const showCustom = Boolean(field.allow_custom) && (forceCustom || !choiceValues.has(currentText));
+  const selectValue = showCustom ? CUSTOM_ENUM_VALUE : currentText;
+
+  return (
+    <label className="miniField" title={help || undefined}>
+      <span>{field.label}{field.unit ? ` (${field.unit})` : ''}</span>
+      <select
+        value={selectValue}
+        disabled={disabled}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (next === CUSTOM_ENUM_VALUE) {
+            setForceCustom(true);
+            if (choiceValues.has(currentText)) {
+              onChange('');
+            }
+            return;
+          }
+          setForceCustom(false);
+          onChange(next);
+        }}
+      >
+        {choices.map((choice) => (
+          <option key={choice.value} value={choice.value}>{choice.label}</option>
+        ))}
+        {field.allow_custom ? (
+          <option value={CUSTOM_ENUM_VALUE}>Custom…</option>
+        ) : null}
+      </select>
+      {showCustom ? (
+        <input
+          type="text"
+          value={currentText}
+          placeholder={field.placeholder || undefined}
+          disabled={disabled}
+          aria-label={`${field.label} custom value`}
+          onChange={(event) => {
+            const next = event.target.value;
+            setForceCustom(!choiceValues.has(next));
+            onChange(next);
+          }}
+        />
+      ) : null}
+    </label>
+  );
 }
 
 export function PipelineConfigForm({
@@ -83,18 +159,13 @@ export function PipelineConfigForm({
           }
           if (field.type === 'enum') {
             return (
-              <label className="miniField" key={field.key} title={help || undefined}>
-                <span>{field.label}{field.unit ? ` (${field.unit})` : ''}</span>
-                <select
-                  value={String(current ?? '')}
-                  disabled={disabled}
-                  onChange={(event) => updateField(field.key, event.target.value)}
-                >
-                  {(field.choices || []).map((choice) => (
-                    <option key={choice.value} value={choice.value}>{choice.label}</option>
-                  ))}
-                </select>
-              </label>
+              <EnumField
+                key={field.key}
+                field={field}
+                current={current}
+                disabled={disabled}
+                onChange={(value) => updateField(field.key, value)}
+              />
             );
           }
           if (field.type === 'integer' || field.type === 'number') {

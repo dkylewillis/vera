@@ -4,7 +4,7 @@ const path = require("path");
 
 const appDir = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(appDir, "..", "..");
-const tessdata = path.join(repoRoot, "packages", "vera-ingest", "src", "vera_ingest", "tessdata");
+const tessdata = path.join(repoRoot, "packages", "vera-ingest-pymupdf", "src", "vera_ingest_pymupdf", "tessdata");
 const entry = path.join("src", "vera_app", "sidecar.py");
 
 const pyinstallerArgs = [
@@ -14,7 +14,7 @@ const pyinstallerArgs = [
   "--clean",
   "--onedir",
   "--add-data",
-  `${tessdata}${path.delimiter}vera_ingest/tessdata`,
+  `${tessdata}${path.delimiter}vera_ingest_pymupdf/tessdata`,
   "--name",
   "vera-sidecar",
   "--distpath",
@@ -31,6 +31,7 @@ const sourcePaths = [
   path.join(repoRoot, "packages", "vera-app", "src"),
   path.join(repoRoot, "packages", "vera-doc", "src"),
   path.join(repoRoot, "packages", "vera-ingest", "src"),
+  path.join(repoRoot, "packages", "vera-ingest-pymupdf", "src"),
 ];
 const env = {
   ...process.env,

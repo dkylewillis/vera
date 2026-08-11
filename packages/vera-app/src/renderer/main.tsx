@@ -43,6 +43,7 @@ import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexMo
 import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { ModelManager, ProviderManager } from './components/ProviderManagers';
 import { mergePipelineFieldValues, PipelineConfigForm } from './components/PipelineConfigForm';
+import { OcrLanguagePackManager } from './components/OcrLanguagePackManager';
 import { VeraIcon } from './components/VeraIcon';
 import { firstCitationInAnswer } from './lib/citations';
 import { backgroundTasksReducer, type BackgroundTask } from './lib/backgroundTasks';
@@ -2802,6 +2803,12 @@ function App() {
                       disabled={conversionInProgress}
                       onChange={(next) => { void savePipelineOptions(next); }}
                     />
+                    {activePipelineDescriptor?.capabilities?.ocr_engine === 'tesseract' ? (
+                      <OcrLanguagePackManager
+                        language={String(pipelineOptions.ocr_language ?? 'eng')}
+                        disabled={conversionInProgress}
+                      />
+                    ) : null}
                   </details>
                   <div className="convertActions">
                     <button

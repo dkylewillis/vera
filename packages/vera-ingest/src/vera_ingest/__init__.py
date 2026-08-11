@@ -13,7 +13,6 @@ from .descriptors import (
     PipelineField,
     PipelineFieldChoice,
 )
-from .parsers import ParsedBlock, ParsedPage, parse_pdf, parse_pdf_structured
 from .pipeline import (
     IngestPipeline,
     UnknownIngestPipelineError,
@@ -33,6 +32,8 @@ from .types import (
     IngestOptions,
     IngestRequest,
     IngestResult,
+    ParsedBlock,
+    ParsedPage,
     coerce_ingest_request,
 )
 from .viewer import (
@@ -79,8 +80,6 @@ __all__ = [
     "get_source_document",
     "list_ingest_pipeline_descriptors",
     "list_ingest_pipelines",
-    "parse_pdf",
-    "parse_pdf_structured",
     "prepare_pipeline_options",
     "regions_for",
     "register_ingest_pipeline",

@@ -1,12 +1,13 @@
 [project]
 name = "vera-cli"
-version = "0.2.4"
+version = "0.3.0"
 description = "Command-line interface for VERA documents"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-doc>=0.2.4",
-  "vera-ingest>=0.2.4",
+  "vera-doc>=0.3.0",
+  "vera-ingest>=0.3.0",
+  "vera-ingest-pymupdf>=0.3.0",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
@@ -24,7 +25,7 @@ Repository = "https://github.com/dkylewillis/vera"
 Documentation = "https://dkylewillis.github.io/vera/packages/vera-cli/"
 
 [project.optional-dependencies]
-mcp = ["vera-mcp>=0.2.4"]
+mcp = ["vera-mcp>=0.3.0"]
 
 [project.scripts]
 vera = "vera_cli:main"

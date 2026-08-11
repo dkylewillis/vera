@@ -1,12 +1,22 @@
+"""PyMuPDF PDF ingest pipeline for VERA."""
+
 from __future__ import annotations
 
 import hashlib
 from importlib.metadata import PackageNotFoundError, version
 
-from ..chunking import build_chunks_from_blocks
-from ..parsers import ParsedBlock, parse_pdf_structured
-from ..types import IngestBlock, IngestChunk, IngestRequest, IngestResult, coerce_ingest_request
-from .pymupdf_options import PyMuPDFOptions, describe_pipeline
+from vera_ingest.chunking import build_chunks_from_blocks
+from vera_ingest.types import (
+    IngestBlock,
+    IngestChunk,
+    IngestRequest,
+    IngestResult,
+    ParsedBlock,
+    coerce_ingest_request,
+)
+
+from .options import PyMuPDFOptions, describe_pipeline
+from .parser import parse_pdf_structured
 
 __all__ = ["PyMuPDFPipeline", "PyMuPDFOptions", "describe_pipeline"]
 
@@ -34,7 +44,7 @@ def _drop_repeated_images(
 
 
 class PyMuPDFPipeline:
-    """Compatible built-in implementation of VERA's original PDF ingestion."""
+    """Default PDF ingest pipeline using PyMuPDF parsing and Tesseract OCR."""
 
     def ingest(self, source_path: str, options: IngestRequest) -> IngestResult:
         request = coerce_ingest_request(options)
@@ -45,6 +55,7 @@ class PyMuPDFPipeline:
             ocr_mode=config.ocr_mode,
             ocr_language=config.ocr_language,
             ocr_dpi=config.ocr_dpi,
+            ocr_download=config.ocr_download,
             diagnostics=diagnostics,
             cancel=request.cancel,
         )

@@ -11,12 +11,13 @@ python -m pip install "vera-doc>=0.2.4"
 Install source ingestion separately when needed:
 
 ```bash
-python -m pip install "vera-ingest>=0.2.4"
+python -m pip install "vera-ingest>=0.3.0"
+python -m pip install "vera-ingest-pymupdf>=0.3.0"
 ```
 
 `vera-ingest` may not yet be published to PyPI. If the install fails because the
 package cannot be found, install from a repository checkout instead
-(`python -m pip install ./packages/vera-doc ./packages/vera-ingest`).
+(`python -m pip install ./packages/vera-doc ./packages/vera-ingest ./packages/vera-ingest-pymupdf`).
 
 ## Create and search a database
 
@@ -234,7 +235,8 @@ convert(
 `embedding_function=` instead when you already have an embedder object.
 Unknown model names raise `UnknownEmbeddingModelError` before parsing begins.
 `parser` accepts ingest pipeline specs `provider[:variant]` (default
-`pymupdf`). Optional plugins such as `vera-ingest-docling` register additional
+`pymupdf` from `vera-ingest-pymupdf`). Optional plugins such as
+`vera-ingest-docling` register additional
 providers; unknown pipelines raise `UnknownIngestPipelineError`.
 
 Shared convert builds a thin `IngestRequest` and merges legacy kwargs with

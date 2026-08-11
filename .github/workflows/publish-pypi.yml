@@ -20,6 +20,7 @@ jobs:
         include:
           - package: vera-doc
           - package: vera-ingest
+          - package: vera-ingest-pymupdf
           - package: vera-ingest-docling
           - package: vera-mcp
           - package: vera-cli

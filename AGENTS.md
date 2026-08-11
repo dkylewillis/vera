@@ -57,14 +57,14 @@ vera convert manual.pdf manual.vera --json
 vera convert ./proposals --recursive --json
 ```
 
-Conversion selectively OCRs image-based low-text pages through PyMuPDF and
-Tesseract with bundled English data (`--ocr auto|off|force`,
-`--ocr-language`, `--ocr-dpi` as compatibility aliases; prefer repeatable
-`--pipeline-option KEY=VALUE` for provider-owned settings) and publishes a
-validated temporary sibling atomically. PDFs with no searchable chunks after
-OCR fail with an OCR-specific message. Directory conversion validates existing
-outputs before skipping them and reports malformed archives in
-`malformed_existing`.
+Conversion selectively OCRs image-based low-text pages through the default
+`vera-ingest-pymupdf` pipeline (PyMuPDF + Tesseract with bundled English data;
+`--ocr auto|off|force`, `--ocr-language`, `--ocr-dpi` as compatibility aliases;
+prefer repeatable `--pipeline-option KEY=VALUE` for provider-owned settings)
+and publishes a validated temporary sibling atomically. PDFs with no searchable
+chunks after OCR fail with an OCR-specific message. Directory conversion
+validates existing outputs before skipping them and reports malformed archives
+in `malformed_existing`.
 
 ### Search result shape (`--json`)
 
@@ -154,7 +154,7 @@ Requires the integration package: `pip install "vera-cli[mcp]"` or `pip install 
 - Python 3.10+, dependencies managed with [uv](https://docs.astral.sh/uv/):
   `uv sync --extra dev --extra ml --extra app --extra mcp`
 - Run tests with `pytest` (all tests must pass before committing).
-- Storage/search code lives in [packages/vera-doc/src/vera](packages/vera-doc/src/vera), extraction lives in [packages/vera-ingest/src/vera_ingest](packages/vera-ingest/src/vera_ingest), MCP lives in [packages/vera-mcp/src/vera_mcp](packages/vera-mcp/src/vera_mcp), and CLI code lives in [packages/vera-cli/src/vera_cli](packages/vera-cli/src/vera_cli); the current format spec is
+- Storage/search code lives in [packages/vera-doc/src/vera](packages/vera-doc/src/vera), ingest core lives in [packages/vera-ingest/src/vera_ingest](packages/vera-ingest/src/vera_ingest), the default PyMuPDF pipeline lives in [packages/vera-ingest-pymupdf/src/vera_ingest_pymupdf](packages/vera-ingest-pymupdf/src/vera_ingest_pymupdf), MCP lives in [packages/vera-mcp/src/vera_mcp](packages/vera-mcp/src/vera_mcp), and CLI code lives in [packages/vera-cli/src/vera_cli](packages/vera-cli/src/vera_cli); the current format spec is
  [docs/vera-spec-v0.2.md](docs/vera-spec-v0.2.md) — keep code and spec in sync.
 - Keep human and agent documentation current. Any user-visible feature change
   must update the relevant [README](README.md), human guide under

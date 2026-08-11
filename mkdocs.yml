@@ -59,6 +59,7 @@ plugins:
           paths:
             - packages/vera-doc/src
             - packages/vera-ingest/src
+            - packages/vera-ingest-pymupdf/src
             - packages/vera-ingest-docling/src
             - packages/vera-cli/src
             - packages/vera-mcp/src
@@ -133,6 +134,8 @@ nav:
           - Python examples: packages/vera-ingest-examples.md
       - API reference:
           - Public package: reference/vera-ingest.md
+  - vera-ingest-pymupdf:
+      - Overview: packages/vera-ingest-pymupdf.md
   - vera-ingest-docling:
       - Overview: packages/vera-ingest-docling.md
   - vera-cli:

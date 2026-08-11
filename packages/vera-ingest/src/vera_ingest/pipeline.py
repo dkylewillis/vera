@@ -102,32 +102,6 @@ def register_ingest_pipeline_descriptor(
         _DESCRIPTOR_FACTORIES[key] = factory
 
 
-def _pymupdf_factory(variant: str) -> IngestPipeline:
-    from .pipelines.pymupdf import PyMuPDFPipeline
-
-    if variant not in {"", "default"}:
-        raise UnknownIngestPipelineError(
-            f"Unknown PyMuPDF pipeline variant {variant!r}; use 'pymupdf'."
-        )
-    return PyMuPDFPipeline()
-
-
-def _pymupdf_descriptor_factory(variant: str) -> PipelineDescriptor:
-    from .pipelines.pymupdf import describe_pipeline
-
-    if variant not in {"", "default"}:
-        raise UnknownIngestPipelineError(
-            f"Unknown PyMuPDF pipeline variant {variant!r}; use 'pymupdf'."
-        )
-    return describe_pipeline(variant or "default")
-
-
-def _register_builtins() -> None:
-    with _REGISTRY_LOCK:
-        _PIPELINE_FACTORIES.setdefault("pymupdf", _pymupdf_factory)
-        _DESCRIPTOR_FACTORIES.setdefault("pymupdf", _pymupdf_descriptor_factory)
-
-
 def _load_entry_point_group(group: str) -> list[Any]:
     try:
         selected = entry_points(group=group)
@@ -141,7 +115,6 @@ def _ensure_entry_points_loaded() -> None:
     with _REGISTRY_LOCK:
         if _ENTRY_POINTS_LOADED:
             return
-        _register_builtins()
         for entry in _load_entry_point_group(_ENTRY_POINT_GROUP):
             provider = entry.name.strip().lower()
             if not provider or provider in _PIPELINE_FACTORIES:
@@ -169,7 +142,7 @@ def get_ingest_pipeline(spec: str = "pymupdf") -> IngestPipeline:
     """Resolve and cache an installed pipeline.
 
     Resolution is strict: an unknown provider or variant raises instead of
-    falling back to the built-in PyMuPDF pipeline.
+    falling back to another installed pipeline.
     """
     provider, variant = parse_ingest_pipeline_spec(spec)
     _ensure_entry_points_loaded()
@@ -184,7 +157,8 @@ def get_ingest_pipeline(spec: str = "pymupdf") -> IngestPipeline:
             raise UnknownIngestPipelineError(
                 f"Unknown ingest parser pipeline {spec!r}. "
                 f"Installed providers: {available}. "
-                f"Install a plugin registered under the '{_ENTRY_POINT_GROUP}' "
+                f"Install vera-ingest-pymupdf for the default PDF pipeline, "
+                f"another plugin registered under the '{_ENTRY_POINT_GROUP}' "
                 "entry-point group, or call register_ingest_pipeline()."
             )
         pipeline = factory(variant)
@@ -206,7 +180,8 @@ def describe_ingest_pipeline(spec: str = "pymupdf") -> PipelineDescriptor:
             raise UnknownIngestPipelineError(
                 f"Unknown ingest parser pipeline {spec!r}. "
                 f"Installed providers: {available}. "
-                f"Install a plugin registered under the '{_ENTRY_POINT_GROUP}' "
+                f"Install vera-ingest-pymupdf for the default PDF pipeline, "
+                f"another plugin registered under the '{_ENTRY_POINT_GROUP}' "
                 "entry-point group, or call register_ingest_pipeline()."
             )
         factory = _DESCRIPTOR_FACTORIES.get(provider)
@@ -245,15 +220,18 @@ def clear_ingest_pipeline_cache() -> None:
 
 
 def reset_ingest_pipeline_registry(*, builtins: bool = True) -> None:
-    """Reset registry and discovery state, primarily for tests."""
+    """Reset registry and discovery state, primarily for tests.
+
+    ``builtins`` is accepted for compatibility with older tests; pipelines are
+    discovered only through entry points and explicit ``register_*`` calls.
+    """
+    del builtins  # retained for call-site compatibility
     global _ENTRY_POINTS_LOADED
     with _REGISTRY_LOCK:
         _PIPELINE_FACTORIES.clear()
         _DESCRIPTOR_FACTORIES.clear()
         _PIPELINE_CACHE.clear()
         _ENTRY_POINTS_LOADED = False
-        if builtins:
-            _register_builtins()
 
 
 def prepare_pipeline_options(
@@ -282,6 +260,3 @@ def prepare_pipeline_options(
     if pipeline_options:
         merged.update(pipeline_options)
     return merged
-
-
-_register_builtins()

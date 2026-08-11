@@ -64,15 +64,16 @@ rebuildable; the `.vera` files remain the source of truth.
 ## Package responsibilities
 
 ```text
-vera-doc       Storage, search, corpus, library indexes
-vera-ingest   PDF parsing, OCR, chunking, conversion to .vera
-vera-cli       Command-line interface (vera convert, search, index, …)
-vera-mcp       Model Context Protocol server for AI agents
-vera-app       Desktop app Python sidecar (Electron)
+vera-doc              Storage, search, corpus, library indexes
+vera-ingest           Registry, convert orchestration, shared types
+vera-ingest-pymupdf   Default PDF parsing / OCR pipeline
+vera-cli              Command-line interface (vera convert, search, index, …)
+vera-mcp              Model Context Protocol server for AI agents
+vera-app              Desktop app Python sidecar (Electron)
 ```
 
-Conversion composes `vera-ingest` with `vera-doc`. Search and indexing use
-`vera-doc` directly.
+Conversion composes `vera-ingest` (+ a pipeline plugin) with `vera-doc`.
+Search and indexing use `vera-doc` directly.
 
 ## Related reading
 

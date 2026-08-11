@@ -14,6 +14,8 @@ vera validate
 vera export
 vera eval
 vera mcp
+vera ocr-languages list
+vera ocr-languages download
 ```
 
 Run `vera COMMAND --help` for parser-generated usage. This page is the
@@ -41,6 +43,9 @@ Options:
 - `--ocr auto|off|force` (`auto`; compatibility alias)
 - `--ocr-language CODE` (`eng`; compatibility alias)
 - `--ocr-dpi N` (`300`, must be positive; compatibility alias; PyMuPDF only)
+- `--ocr-allow-download` (compatibility alias; PyMuPDF only; fetches missing
+  `--ocr-language` Tesseract data from a curated, checksum-verified registry
+  into a local cache instead of failing — see `vera ocr-languages`)
 - `--pipeline-option KEY=VALUE` (repeatable; provider-owned options that
   override compatibility aliases for the same key)
 - `--recursive`
@@ -50,11 +55,14 @@ Options:
 Conversion selectively OCRs image-based low-text pages through PyMuPDF and
 Tesseract, publishes a validated temporary archive atomically, and fails when
 no searchable chunks are extracted. English language data is bundled for
-offline, zero-setup OCR; other selected languages require external Tesseract
-language data. Directory conversion writes archives beside PDFs, validates
-existing outputs before skipping them, reports malformed outputs separately,
-and does not accept `OUTPUT`. Pipeline-owned defaults and validation live in
-each ingest plugin; see [Convert documents](conversion.md#pipeline-options).
+offline, zero-setup OCR; other selected languages either require
+`--ocr-allow-download` (or the equivalent `ocr_download` pipeline option) to
+auto-fetch curated language data, or a manually installed Tesseract
+`.traineddata` file with `TESSDATA_PREFIX` set. Directory conversion writes
+archives beside PDFs, validates existing outputs before skipping them,
+reports malformed outputs separately, and does not accept `OUTPUT`.
+Pipeline-owned defaults and validation live in each ingest plugin; see
+[Convert documents](conversion.md#pipeline-options).
 
 ## `vera inspect FILE`
 
@@ -149,6 +157,30 @@ Exits 1 if any expected answer is missed while still emitting a report.
 
 Run the long-lived stdio MCP server. This command does not accept `--json`.
 Install the `mcp` optional dependency first.
+
+## `vera ocr-languages list [LANGUAGE]`
+
+List Tesseract OCR language codes usable by the `pymupdf` parser: bundled
+(ships with VERA, English only), cached (already downloaded), and
+downloadable (in VERA's curated, checksum-verified registry of
+`tesseract-ocr/tessdata_fast` codes). `LANGUAGE` optionally limits the report
+to specific `+`-joined codes (e.g. `eng+fra`); omit it to list every known
+code.
+
+Options: `--json`.
+
+Codes outside the curated registry are reported with `downloadable: false`
+and need a manually installed `.traineddata` file plus `TESSDATA_PREFIX`.
+
+## `vera ocr-languages download LANGUAGE`
+
+Fetch one or more `+`-joined Tesseract language codes (e.g. `fra` or
+`fra+deu`) into the local cache (override the location with
+`VERA_TESSDATA_CACHE`), verifying each download's SHA-256 against VERA's
+pinned registry before it is used. Already-cached codes are reused without a
+network request. Exits 2 for a code with no bundled or registry data.
+
+Options: `--json`.
 
 ## JSON and exit codes
 

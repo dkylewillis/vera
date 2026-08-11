@@ -1,8 +1,8 @@
 # vera-cli
 
-`vera-cli` provides the `vera` command-line interface over `vera-doc` and
-`vera-ingest`. It owns command parsing, text and JSON output, exit codes, and
-retrieval evaluation.
+`vera-cli` provides the `vera` command-line interface over `vera-doc`,
+`vera-ingest`, and `vera-ingest-pymupdf`. It owns command parsing, text and
+JSON output, exit codes, and retrieval evaluation.
 
 `vera convert` accepts repeatable `--pipeline-option KEY=VALUE` flags for
 provider-owned ingest settings. Legacy flags such as `--chunk-size`,

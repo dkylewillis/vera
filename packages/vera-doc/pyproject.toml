@@ -1,6 +1,6 @@
 [project]
 name = "vera-doc"
-version = "0.2.4"
+version = "0.3.0"
 description = "Embedded storage and search engine for portable .vera archives"
 readme = "README.md"
 requires-python = ">=3.10"

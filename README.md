@@ -62,11 +62,11 @@ for conversion and indexing.
 
 ## How it works
 
-During conversion, `vera-ingest` extracts native PDF text, selectively OCRs
-image-based pages, and preserves headings, figures, and page coordinates.
-`vera-doc` then stores the chunks, embeddings, and keyword index in one
-validated `.vera` file. The desktop app, CLI, and MCP server all search that
-same archive:
+During conversion, the default `vera-ingest-pymupdf` pipeline extracts native
+PDF text, selectively OCRs image-based pages, and preserves headings, figures,
+and page coordinates. `vera-doc` then stores the chunks, embeddings, and
+keyword index in one validated `.vera` file. The desktop app, CLI, and MCP
+server all search that same archive:
 
 <img src="convert.png" alt="VERA conversion workflow from PDF parsing and OCR through chunking, embedding, and keyword indexing into a portable .vera archive" width="60%">
 
@@ -90,22 +90,24 @@ on that same stack — not the definition of VERA.
 | Package | Role |
 |---------|------|
 | [`vera-doc`](https://pypi.org/project/vera-doc/) | Embeddable storage and search (`import vera`) |
-| [`vera-ingest`](https://pypi.org/project/vera-ingest/) | PDF extraction, OCR, chunking, and conversion into `.vera` |
+| [`vera-ingest`](https://pypi.org/project/vera-ingest/) | Conversion registry, shared types, and archive writer |
+| [`vera-ingest-pymupdf`](https://pypi.org/project/vera-ingest-pymupdf/) | Default PDF extraction / OCR pipeline (pulled in by CLI/app) |
 | [`vera-cli`](https://pypi.org/project/vera-cli/) / [`vera-mcp`](https://pypi.org/project/vera-mcp/) | Shell and agent frontends |
 | `vera-app` | Desktop product — a full implementation of the stack |
 
 ```text
-vera-ingest ─┐
-vera-cli ─────┼──> vera-doc
-vera-app ─────┤
-vera-mcp ─────┘
+vera-ingest-pymupdf ─┐
+vera-ingest ─────────┼──> vera-doc
+vera-cli ────────────┤
+vera-app ────────────┤
+vera-mcp ────────────┘
 ```
 
 **Who installs what**
 
 - End users → the [desktop app](https://github.com/dkylewillis/vera/releases/latest)
 - Other apps with ready-made chunks → `vera-doc` only
-- PDF pipelines → `vera-doc` + `vera-ingest`
+- PDF pipelines → `vera-doc` + `vera-ingest` + `vera-ingest-pymupdf`
 - Agents and scripts → CLI / MCP
 
 See [Contributing and architecture](docs/architecture.md) and the
@@ -162,8 +164,8 @@ unknown. Custom vector pipelines can set `embedding_normalization` at creation;
 
 ### Convert sources
 
-PDF extraction and chunking live in the separate `vera-ingest` package and
-are composed by `vera convert`:
+PDF extraction lives in `vera-ingest-pymupdf` (pulled in by `vera-cli`) and is
+composed through the `vera-ingest` registry by `vera convert`:
 
 ```bash
 python -m pip install "vera-cli>=0.2.4"

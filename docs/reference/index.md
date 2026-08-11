@@ -8,7 +8,8 @@ generated from source docstrings using [mkdocstrings](https://mkdocstrings.githu
 | Package | Import | Purpose |
 |---------|--------|---------|
 | [vera-doc](vera.md) | `import vera` | Storage, CRUD, search, corpus, library indexes |
-| [vera-ingest](vera-ingest.md) | `import vera_ingest` | PDF parsing, chunking, conversion |
+| [vera-ingest](vera-ingest.md) | `import vera_ingest` | Conversion registry, shared types, archive writing |
+| [vera-ingest-pymupdf](../packages/vera-ingest-pymupdf.md) | `import vera_ingest_pymupdf` | Default PyMuPDF PDF parsing and OCR |
 | [vera-cli](vera-cli.md) | `import vera_cli` | Command-line interface |
 | [vera-mcp](vera-mcp.md) | `import vera_mcp` | MCP server for AI agents |
 
@@ -16,7 +17,8 @@ Install packages from PyPI:
 
 ```bash
 python -m pip install "vera-doc>=0.2.4"
-python -m pip install "vera-ingest>=0.2.4"
+python -m pip install "vera-ingest>=0.3.0"
+python -m pip install "vera-ingest-pymupdf>=0.3.0"
 python -m pip install "vera-cli>=0.2.4"
 python -m pip install "vera-mcp>=0.2.4"
 ```
@@ -29,6 +31,7 @@ Or from a repository checkout:
 ```bash
 python -m pip install ./packages/vera-doc
 python -m pip install ./packages/vera-ingest
+python -m pip install ./packages/vera-ingest-pymupdf
 python -m pip install ./packages/vera-cli
 python -m pip install ./packages/vera-mcp
 ```

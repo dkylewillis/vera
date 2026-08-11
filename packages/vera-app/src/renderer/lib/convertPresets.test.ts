@@ -13,8 +13,8 @@ const pymupdfDescriptor: PipelineDescriptor = {
   provider: 'pymupdf',
   variant: '',
   spec: 'pymupdf',
-  label: 'pymupdf — built-in (default)',
-  description: 'Built-in PDF ingest pipeline',
+  label: 'pymupdf — default PDF pipeline',
+  description: 'Default PDF ingest pipeline',
   installed: true,
   capabilities: {},
   fields: [
@@ -80,6 +80,6 @@ describe('convertPresets', () => {
 
   it('returns install hints for missing optional pipelines', () => {
     expect(pipelineInstallHint('docling', [pymupdfDescriptor])).toContain('uv sync --extra docling');
-    expect(pipelineInstallHint('pymupdf', [pymupdfDescriptor])).toBe('Built-in PDF ingest pipeline');
+    expect(pipelineInstallHint('pymupdf', [pymupdfDescriptor])).toBe('Default PDF ingest pipeline');
   });
 });

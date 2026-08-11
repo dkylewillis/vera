@@ -1,1 +1,1 @@
-"""Built-in ingest pipeline implementations."""
+"""Ingest pipeline package marker (providers register via entry points)."""

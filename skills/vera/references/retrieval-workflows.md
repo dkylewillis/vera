@@ -239,7 +239,8 @@ vera search "./proposals" "termination clause" --top-k 10 --json
 Batch conversion validates existing outputs before skipping them. Check
 `malformed_existing` and replace those archives intentionally with
 `--overwrite`. Automatic conversion selectively OCRs image-based low-text
-pages with bundled English language data. Other languages require external
+pages via `vera-ingest-pymupdf` with bundled English language data. Other
+languages require external
 Tesseract data. A PDF with no searchable chunks after OCR fails with a message
 that it may require OCR; conversion preserves any existing destination.
 Never add `--overwrite` without explicit authorization.

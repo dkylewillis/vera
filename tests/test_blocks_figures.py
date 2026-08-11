@@ -8,7 +8,8 @@ from vera import VeraDocument
 from vera_ingest import convert
 from vera_ingest.viewer import figures, figures_for, get_blocks
 from vera_ingest.chunking import build_chunks_from_blocks
-from vera_ingest.parsers import ParsedBlock, parse_pdf_structured
+from vera_ingest.types import ParsedBlock
+from vera_ingest_pymupdf.parser import parse_pdf_structured
 
 
 def make_structured_pdf(path, with_image: bool = True):
@@ -361,7 +362,7 @@ class TestCaptionKeywords:
         ],
     )
     def test_additional_caption_keywords_recognized(self, caption):
-        from vera_ingest.parsers.pdf import _CAPTION_RE
+        from vera_ingest_pymupdf.parser import _CAPTION_RE
 
         assert _CAPTION_RE.match(caption)
 

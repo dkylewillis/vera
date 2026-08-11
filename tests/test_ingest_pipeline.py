@@ -28,7 +28,7 @@ from vera_ingest import (
     register_ingest_pipeline_descriptor,
     reset_ingest_pipeline_registry,
 )
-from vera_ingest.pipelines.pymupdf_options import PyMuPDFOptions
+from vera_ingest_pymupdf.options import PyMuPDFOptions
 
 
 @pytest.fixture(autouse=True)
@@ -121,18 +121,18 @@ def test_entry_points_are_discovered_lazily(monkeypatch):
 def test_unknown_pipeline_is_strict_and_does_not_parse(tmp_path, monkeypatch):
     pdf = tmp_path / "source.pdf"
     pdf.write_bytes(b"not parsed")
-    convert_module = importlib.import_module("vera_ingest.convert")
+    parser_module = importlib.import_module("vera_ingest_pymupdf.parser")
 
     def boom(*args, **kwargs):
         raise AssertionError("parsing must not run")
 
-    monkeypatch.setattr(convert_module, "parse_pdf_structured", boom)
-    with pytest.raises(UnknownIngestPipelineError, match="Install a plugin"):
+    monkeypatch.setattr(parser_module, "parse_pdf_structured", boom)
+    with pytest.raises(UnknownIngestPipelineError, match="vera-ingest-pymupdf"):
         convert(str(pdf), str(tmp_path / "out.vera"), parser="missing")
 
 
 def test_batch_rejects_unknown_pipeline_before_discovery(tmp_path):
-    with pytest.raises(UnknownIngestPipelineError, match="Install a plugin"):
+    with pytest.raises(UnknownIngestPipelineError, match="vera-ingest-pymupdf"):
         batch_convert(str(tmp_path / "missing"), parser="missing")
 
 
@@ -273,12 +273,23 @@ def test_pymupdf_descriptor_and_strict_options():
         "ocr_mode",
         "ocr_language",
         "ocr_dpi",
+        "ocr_download",
     }
     assert descriptor.as_dict()["capabilities"]["ocr_engine"] == "tesseract"
+    ocr_language = next(field for field in descriptor.fields if field.key == "ocr_language")
+    assert ocr_language.type == "enum"
+    assert ocr_language.allow_custom is True
+    choice_values = [choice.value for choice in ocr_language.choices]
+    assert choice_values[0] == "eng"
+    assert "spa" in choice_values
+    assert "fra" in choice_values
+    assert any(choice.label == "Spanish (spa)" for choice in ocr_language.choices)
     options = PyMuPDFOptions.from_mapping({"chunk_size": 250, "overlap": 10})
     assert options.chunk_size == 250
     assert options.overlap == 10
     assert options.ocr_mode == "auto"
+    # Combinations and unknown codes remain valid strings for CLI / custom installs.
+    assert PyMuPDFOptions.from_mapping({"ocr_language": "eng+spa"}).ocr_language == "eng+spa"
     with pytest.raises(ValueError, match="Unknown PyMuPDF option"):
         PyMuPDFOptions.from_mapping({"chunk_size": 250, "bogus": 1})
     with pytest.raises(ValueError, match="chunk_size must be positive"):

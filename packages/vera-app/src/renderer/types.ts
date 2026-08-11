@@ -267,6 +267,25 @@ export interface SourceDocumentResult {
   url: string;
 }
 
+export interface OcrLanguageStatus {
+  code: string;
+  name: string;
+  bundled: boolean;
+  downloadable: boolean;
+  cached: boolean;
+  size_bytes?: number;
+}
+
+export interface OcrLanguagesListResult {
+  languages: OcrLanguageStatus[];
+}
+
+export interface OcrLanguagesDownloadResult {
+  language: string;
+  downloaded: string[];
+  cache_dir: string;
+}
+
 export interface PageResult {
   page_number: number;
   width: number | null;

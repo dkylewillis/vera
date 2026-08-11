@@ -20,9 +20,10 @@ Install the CLI and its dependencies:
 python -m pip install "vera-cli>=0.2.4"
 ```
 
-That installs `vera-doc` and `vera-ingest` as well. `vera-ingest` may not yet be
-published to PyPI; if the install fails because the package cannot be found,
-[install from source](#install-from-source) instead. Add MCP support with:
+That installs `vera-doc`, `vera-ingest`, and `vera-ingest-pymupdf` as well.
+`vera-ingest` may not yet be published to PyPI; if the install fails because
+the package cannot be found, [install from source](#install-from-source)
+instead. Add MCP support with:
 
 ```bash
 python -m pip install "vera-cli[mcp]>=0.2.4"
@@ -47,7 +48,7 @@ python -m vera_cli --help
 python -m pip install "vera-doc>=0.2.4"
 
 # PDF conversion and viewer helpers
-python -m pip install "vera-ingest>=0.2.4"
+python -m pip install "vera-ingest>=0.3.0" "vera-ingest-pymupdf>=0.3.0"
 
 # MCP server package
 python -m pip install "vera-mcp>=0.2.4"
@@ -63,7 +64,7 @@ Contributors can clone the repository and install workspace packages:
 ```bash
 git clone https://github.com/dkylewillis/vera.git
 cd vera
-python -m pip install ./packages/vera-doc ./packages/vera-ingest ./packages/vera-cli
+python -m pip install ./packages/vera-doc ./packages/vera-ingest ./packages/vera-ingest-pymupdf ./packages/vera-cli
 ```
 
 Or with `uv`:
@@ -91,12 +92,12 @@ vera convert "manual.pdf"
 ```
 
 VERA validates the completed archive before publishing it. Image-based pages
-with little or no native text are OCR-processed locally by default. English
-language data is bundled, so default OCR works offline without another
-installation. Selecting another language with `--ocr-language` requires its
-Tesseract data. Use `--ocr off` to disable recognition or `--ocr force` to
-process every page. A failed conversion does not replace an existing
-destination.
+with little or no native text are OCR-processed locally by default via
+`vera-ingest-pymupdf`. English language data is bundled, so default OCR works
+offline without another installation. Selecting another language with
+`--ocr-language` requires its Tesseract data. Use `--ocr off` to disable
+recognition or `--ocr force` to process every page. A failed conversion does
+not replace an existing destination.
 
 ## Inspect and validate
 

@@ -1,17 +1,15 @@
 [project]
 name = "vera-ingest"
-version = "0.2.4"
+version = "0.3.0"
 description = "Source ingestion, chunking, and conversion adapters for VERA"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-doc>=0.2.4",
-  "pdfplumber>=0.11",
-  "pymupdf>=1.23",
+  "vera-doc>=0.3.0",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
-keywords = ["pdf", "ocr", "chunking", "semantic-search", "vera"]
+keywords = ["pdf", "chunking", "semantic-search", "vera"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "License :: OSI Approved :: Apache Software License",

@@ -19,7 +19,7 @@ from vera.core.embeddings import (
 )
 from vera import ChunkRecord, QueryResult, VeraDocument
 from vera_cli import str_to_bool
-from vera_ingest.parsers.pdf import ParsedPage
+from vera_ingest.types import ParsedPage
 
 
 # ---------------------------------------------------------------------------

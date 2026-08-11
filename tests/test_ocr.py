@@ -7,8 +7,9 @@ import pytest
 
 from vera import VeraDocument
 from vera_ingest import batch_convert, convert
-from vera_ingest.parsers import pdf as pdf_parser
 from vera_ingest.viewer import regions_for
+from vera_ingest_pymupdf import parser as pdf_parser
+from vera_ingest_pymupdf.tessdata_manager import ensure_language_data
 
 
 def _scan_pixmap(text: str | None = None):
@@ -76,7 +77,7 @@ def test_auto_ocr_processes_only_scanned_pages_and_preserves_regions(tmp_path, m
     make_scanned_pdf(pdf, native_first_page=True)
     calls = []
 
-    def fake_ocr(page, *, language, dpi):
+    def fake_ocr(page, *, language, dpi, allow_download=False):
         calls.append((page.number + 1, language, dpi))
         return _recognized_content()
 
@@ -123,7 +124,7 @@ def test_force_ocr_processes_native_text_page(tmp_path, monkeypatch):
     make_pdf(pdf)
     calls = []
 
-    def fake_ocr(page, *, language, dpi):
+    def fake_ocr(page, *, language, dpi, allow_download=False):
         calls.append(page.number + 1)
         return _recognized_content(f"Forced OCR page {page.number + 1}")
 
@@ -154,7 +155,7 @@ def test_ocr_honors_cancellation_immediately_after_page_returns(tmp_path, monkey
 
     cancel = Token()
 
-    def fake_ocr(_page, *, language, dpi):
+    def fake_ocr(_page, *, language, dpi, allow_download=False):
         cancel.cancelled = True
         return _recognized_content()
 
@@ -171,7 +172,7 @@ def test_convert_records_ocr_metadata_and_searchable_regions(tmp_path, monkeypat
     monkeypatch.setattr(
         pdf_parser,
         "_ocr_page_content",
-        lambda _page, *, language, dpi: _recognized_content(),
+        lambda _page, *, language, dpi, allow_download=False: _recognized_content(),
     )
 
     convert(
@@ -199,7 +200,7 @@ def test_convert_records_ocr_metadata_and_searchable_regions(tmp_path, monkeypat
 
 
 def test_bundled_english_tessdata_is_available_and_pinned():
-    tessdata = pdf_parser._bundled_tessdata("eng")
+    tessdata = ensure_language_data("eng", allow_download=False)
 
     assert tessdata is not None
     data = (Path(tessdata) / "eng.traineddata").read_bytes()
@@ -226,7 +227,7 @@ def test_empty_ocr_output_is_not_published(tmp_path, monkeypatch):
     monkeypatch.setattr(
         pdf_parser,
         "_ocr_page_content",
-        lambda _page, *, language, dpi: ("", {"blocks": []}),
+        lambda _page, *, language, dpi, allow_download=False: ("", {"blocks": []}),
     )
 
     with pytest.raises(ValueError, match="No searchable text"):
@@ -239,7 +240,7 @@ def test_batch_reports_ocr_failures_and_continues(tmp_path, monkeypatch):
     scanned = tmp_path / "scan.pdf"
     make_scanned_pdf(scanned)
 
-    def failed_ocr(_page, *, language, dpi):
+    def failed_ocr(_page, *, language, dpi, allow_download=False):
         raise RuntimeError(f"missing OCR language data: {language}")
 
     monkeypatch.setattr(pdf_parser, "_ocr_page_content", failed_ocr)

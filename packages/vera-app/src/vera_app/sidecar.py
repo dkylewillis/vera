@@ -22,7 +22,12 @@ from vera import (
     update_library_index,
 )
 from vera.corpus import VeraCorpus
-from vera_ingest import batch_convert, convert, list_ingest_pipeline_descriptors, list_ingest_pipelines
+from vera_ingest import (
+    batch_convert,
+    convert,
+    list_ingest_pipeline_descriptors,
+    list_ingest_pipelines,
+)
 from vera_ingest.viewer import (
     export_source_document,
     figures,
@@ -30,6 +35,12 @@ from vera_ingest.viewer import (
     get_page,
     get_source_document,
     regions_for,
+)
+from vera_ingest_pymupdf import (
+    OCRLanguageDownloadError,
+    UnknownOCRLanguageError,
+    describe_ocr_languages,
+    download_ocr_language_data,
 )
 from vera_app.cancellation import CancellationToken, CancelledError, SkipCurrentError
 from vera_app.llm import (
@@ -1122,6 +1133,7 @@ def _convert(
         ocr_mode=str(request.get("ocr_mode", "auto")),
         ocr_language=str(request.get("ocr_language", "eng")),
         ocr_dpi=int(request.get("ocr_dpi", 300)),
+        ocr_download=bool(request.get("ocr_download", False)),
         pipeline_options=pipeline_options,
         cancel=cancel,
     )
@@ -1194,6 +1206,7 @@ def _batch_convert(
         ocr_mode=str(request.get("ocr_mode", "auto")),
         ocr_language=str(request.get("ocr_language", "eng")),
         ocr_dpi=int(request.get("ocr_dpi", 300)),
+        ocr_download=bool(request.get("ocr_download", False)),
         pipeline_options=(
             dict(request["pipeline_options"])
             if isinstance(request.get("pipeline_options"), dict)
@@ -1354,6 +1367,40 @@ def _describe_ingest_pipelines(request: Request) -> dict[str, Any]:
     }
 
 
+def _ocr_languages_list(request: Request) -> dict[str, Any]:
+    """Report bundled/cached/downloadable status for Tesseract OCR language codes."""
+    language = request.get("language")
+    return {"languages": describe_ocr_languages(str(language) if language else None)}
+
+
+def _ocr_languages_download(
+    request: Request,
+    write_event=None,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
+    """Fetch (or reuse cached) Tesseract language data, streaming download progress."""
+    language = str(request.get("language") or "").strip()
+    if not language:
+        raise ValueError("language is required")
+
+    def report_progress(code: str, downloaded: int, total: int) -> None:
+        if cancel:
+            cancel.raise_if_interrupted()
+        if write_event:
+            write_event(
+                {
+                    "event": "ocr_download_progress",
+                    "language": code,
+                    "downloaded": downloaded,
+                    "total": total,
+                }
+            )
+
+    cache_dir = download_ocr_language_data(language, progress=report_progress)
+    codes = [part.strip() for part in language.split("+") if part.strip()]
+    return {"language": language, "downloaded": codes, "cache_dir": cache_dir}
+
+
 HANDLERS: dict[str, Handler] = {
     "ping": lambda request: {"status": "ok"},
     "inspect": _inspect,
@@ -1373,6 +1420,8 @@ HANDLERS: dict[str, Handler] = {
     "list_embedding_providers": _list_embedding_providers,
     "list_ingest_pipelines": _list_ingest_pipelines,
     "describe_ingest_pipelines": _describe_ingest_pipelines,
+    "ocr_languages_list": _ocr_languages_list,
+    "ocr_languages_download": _ocr_languages_download,
     "list_modes": _list_modes,
 }
 
@@ -1391,6 +1440,8 @@ def _cancelled_error_message(action: str, exc: BaseException | None = None) -> s
         return str(exc)
     if action in {"convert", "batch_convert"}:
         return "Conversion cancelled"
+    if action == "ocr_languages_download":
+        return "OCR language download cancelled"
     if action == "inspect":
         return "Inspection cancelled"
     if action == "source":
@@ -1417,7 +1468,7 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
             result = _answer(request, write_event=_emit, cancel=cancel)
-        elif action in {"convert", "batch_convert"}:
+        elif action in {"convert", "batch_convert", "ocr_languages_download"}:
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
             result = HANDLERS[action](request, write_event=_emit, cancel=cancel)
@@ -1526,6 +1577,7 @@ def main() -> int:
                 "index_build",
                 "index_update",
                 "source",
+                "ocr_languages_download",
             }:
                 request_id = str(request.get("id") or "")
                 if not request_id:
@@ -1535,7 +1587,14 @@ def main() -> int:
                         "error": f"{action} requests require an id",
                     }
                 else:
-                    if action in {"answer", "convert", "batch_convert", "inspect", "source"}:
+                    if action in {
+                        "answer",
+                        "convert",
+                        "batch_convert",
+                        "inspect",
+                        "source",
+                        "ocr_languages_download",
+                    }:
                         cancel = CancellationToken()
                         with _inflight_lock:
                             _inflight_requests[request_id] = cancel

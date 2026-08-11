@@ -169,7 +169,7 @@ temporary output.
 ## Conversion fails for a parser name
 
 `--parser` must name an installed ingest pipeline (`provider[:variant]`). The
-built-in provider is `pymupdf`:
+default provider is `pymupdf` (from `vera-ingest-pymupdf`):
 
 ```bash
 vera convert "input.pdf" --parser pymupdf

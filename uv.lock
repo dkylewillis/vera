@@ -21,6 +21,7 @@ members = [
     "vera-doc",
     "vera-ingest",
     "vera-ingest-docling",
+    "vera-ingest-pymupdf",
     "vera-mcp",
     "vera-workspace",
 ]
@@ -4264,26 +4265,29 @@ wheels = [
 
 [[package]]
 name = "vera-app"
-version = "0.2.4"
+version = "0.3.0"
 source = { editable = "packages/vera-app" }
 dependencies = [
     { name = "vera-doc" },
     { name = "vera-ingest" },
+    { name = "vera-ingest-pymupdf" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "vera-doc", editable = "packages/vera-doc" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
+    { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
 ]
 
 [[package]]
 name = "vera-cli"
-version = "0.2.4"
+version = "0.3.0"
 source = { editable = "packages/vera-cli" }
 dependencies = [
     { name = "vera-doc" },
     { name = "vera-ingest" },
+    { name = "vera-ingest-pymupdf" },
 ]
 
 [package.optional-dependencies]
@@ -4295,13 +4299,14 @@ mcp = [
 requires-dist = [
     { name = "vera-doc", editable = "packages/vera-doc" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
+    { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
     { name = "vera-mcp", marker = "extra == 'mcp'", editable = "packages/vera-mcp" },
 ]
 provides-extras = ["mcp"]
 
 [[package]]
 name = "vera-doc"
-version = "0.2.4"
+version = "0.3.0"
 source = { editable = "packages/vera-doc" }
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -4322,24 +4327,18 @@ provides-extras = ["ml"]
 
 [[package]]
 name = "vera-ingest"
-version = "0.2.4"
+version = "0.3.0"
 source = { editable = "packages/vera-ingest" }
 dependencies = [
-    { name = "pdfplumber" },
-    { name = "pymupdf" },
     { name = "vera-doc" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "pdfplumber", specifier = ">=0.11" },
-    { name = "pymupdf", specifier = ">=1.23" },
-    { name = "vera-doc", editable = "packages/vera-doc" },
-]
+requires-dist = [{ name = "vera-doc", editable = "packages/vera-doc" }]
 
 [[package]]
 name = "vera-ingest-docling"
-version = "0.2.4"
+version = "0.3.0"
 source = { editable = "packages/vera-ingest-docling" }
 dependencies = [
     { name = "docling", extra = ["rapidocr"] },
@@ -4353,8 +4352,25 @@ requires-dist = [
 ]
 
 [[package]]
+name = "vera-ingest-pymupdf"
+version = "0.3.0"
+source = { editable = "packages/vera-ingest-pymupdf" }
+dependencies = [
+    { name = "pdfplumber" },
+    { name = "pymupdf" },
+    { name = "vera-ingest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pdfplumber", specifier = ">=0.11" },
+    { name = "pymupdf", specifier = ">=1.23" },
+    { name = "vera-ingest", editable = "packages/vera-ingest" },
+]
+
+[[package]]
 name = "vera-mcp"
-version = "0.2.4"
+version = "0.3.0"
 source = { editable = "packages/vera-mcp" }
 dependencies = [
     { name = "mcp" },
@@ -4371,13 +4387,14 @@ requires-dist = [
 
 [[package]]
 name = "vera-workspace"
-version = "0.2.4"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "vera-app" },
     { name = "vera-cli" },
     { name = "vera-doc" },
     { name = "vera-ingest" },
+    { name = "vera-ingest-pymupdf" },
 ]
 
 [package.optional-dependencies]
@@ -4424,6 +4441,7 @@ requires-dist = [
     { name = "vera-doc", editable = "packages/vera-doc" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
     { name = "vera-ingest-docling", marker = "extra == 'docling'", editable = "packages/vera-ingest-docling" },
+    { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
     { name = "vera-mcp", marker = "extra == 'dev'", editable = "packages/vera-mcp" },
     { name = "vera-mcp", marker = "extra == 'mcp'", editable = "packages/vera-mcp" },
 ]

@@ -20,7 +20,6 @@ from vera import (
 )
 from vera.core.validation import validate_document
 
-from .parsers import parse_pdf_structured  # noqa: F401 - legacy monkeypatch surface
 from .pipeline import get_ingest_pipeline, parse_ingest_pipeline_spec, prepare_pipeline_options
 from .types import IngestBlock, IngestRequest, IngestResult
 
@@ -106,6 +105,7 @@ def convert(
     ocr_mode: str = "auto",
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
+    ocr_download: bool = False,
     pipeline_options: dict[str, Any] | None = None,
     cancel: Any | None = None,
 ) -> str:
@@ -133,6 +133,8 @@ def convert(
         ocr_mode: Compatibility OCR mode alias when advertised by the pipeline.
         ocr_language: Compatibility OCR language alias when advertised.
         ocr_dpi: Compatibility OCR DPI alias when advertised (PyMuPDF).
+        ocr_download: Compatibility alias (PyMuPDF only) allowing on-demand,
+            checksum-verified download of missing Tesseract language data.
         pipeline_options: Explicit provider-owned options. These override
             compatibility aliases for the same keys.
         cancel: Optional cancellation token with ``raise_if_cancelled()``.
@@ -163,6 +165,7 @@ def convert(
             "ocr_mode": ocr_mode,
             "ocr_language": ocr_language,
             "ocr_dpi": ocr_dpi,
+            "ocr_download": ocr_download,
         },
     )
 
@@ -461,6 +464,7 @@ def batch_convert(
     ocr_mode: str = "auto",
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
+    ocr_download: bool = False,
     pipeline_options: dict[str, Any] | None = None,
     progress: Callable[[int, int, str], None] | None = None,
     cancel: Any | None = None,
@@ -482,6 +486,7 @@ def batch_convert(
         ocr_mode: OCR mode passed to :func:`convert`.
         ocr_language: OCR language passed to :func:`convert`.
         ocr_dpi: OCR DPI passed to :func:`convert`.
+        ocr_download: OCR language auto-download flag passed to :func:`convert`.
         pipeline_options: Explicit provider-owned options passed to :func:`convert`.
         progress: Optional ``(current, total, filename)`` callback.
         cancel: Optional cancellation token.
@@ -548,6 +553,7 @@ def batch_convert(
                     ocr_mode=ocr_mode,
                     ocr_language=ocr_language,
                     ocr_dpi=ocr_dpi,
+                    ocr_download=ocr_download,
                     pipeline_options=pipeline_options,
                     cancel=cancel,
                 )

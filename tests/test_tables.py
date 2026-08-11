@@ -8,11 +8,12 @@ from vera import VeraDocument
 from vera_ingest import convert
 from vera_ingest.viewer import get_blocks
 from vera_ingest.chunking import build_chunks_from_blocks
-from vera_ingest.parsers import ParsedBlock, parse_pdf_structured
-from vera_ingest.parsers.pdf import (
+from vera_ingest.types import ParsedBlock
+from vera_ingest_pymupdf.parser import (
     _merge_tables_into_blocks,
     _overlap_fraction,
     _table_to_markdown,
+    parse_pdf_structured,
 )
 
 

@@ -1,13 +1,16 @@
 # vera-ingest
 
-`vera-ingest` contains VERA's source ingestion stack: PDF parsing, table
-extraction, selective OCR, heading detection, chunking, conversion, and a
-strict ingest-pipeline registry.
+`vera-ingest` contains VERA's provider-neutral ingestion core: shared types,
+descriptors, option parsing, a strict ingest-pipeline registry, conversion,
+chunking helpers, and archive viewer conventions.
 
-Built-in conversion uses the `pymupdf` pipeline. Additional providers register
-through the `vera.ingest_pipelines` entry-point group (for example the optional
-`vera-ingest-docling` package). Pipelines return a normalized `IngestResult`;
-`convert()` writes validated archives through one shared atomic path.
+PDF conversion pipelines register through the `vera.ingest_pipelines`
+entry-point group. The default `pymupdf` provider ships as
+[`vera-ingest-pymupdf`](https://dkylewillis.github.io/vera/packages/vera-ingest-pymupdf/);
+Docling ships as the optional
+[`vera-ingest-docling`](https://dkylewillis.github.io/vera/packages/vera-ingest-docling/)
+package. Pipelines return a normalized `IngestResult`; `convert()` writes
+validated archives through one shared atomic path.
 
 Each pipeline owns typed chunking/OCR defaults, validation, and a descriptor
 of supported fields. Shared convert accepts opaque `pipeline_options` on a thin
@@ -23,14 +26,21 @@ region, and source-document conventions.
 ## Install
 
 ```bash
-python -m pip install "vera-ingest>=0.2.4"
+python -m pip install "vera-ingest>=0.3.0"
+```
+
+For PDF conversion, also install a pipeline plugin (the CLI and desktop app
+pull in `vera-ingest-pymupdf` by default):
+
+```bash
+python -m pip install "vera-ingest-pymupdf>=0.3.0"
 ```
 
 `vera-ingest` may not yet be published to PyPI. If the install fails because the
 package cannot be found, install from a repository checkout:
 
 ```bash
-python -m pip install ./packages/vera-doc ./packages/vera-ingest
+python -m pip install ./packages/vera-doc ./packages/vera-ingest ./packages/vera-ingest-pymupdf
 ```
 
 See the [vera-ingest documentation](https://dkylewillis.github.io/vera/packages/vera-ingest/)

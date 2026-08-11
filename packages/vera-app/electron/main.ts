@@ -263,6 +263,7 @@ class PythonSidecar {
         join(process.cwd(), 'src'),
         join(process.cwd(), '..', 'vera-doc', 'src'),
         join(process.cwd(), '..', 'vera-ingest', 'src'),
+        join(process.cwd(), '..', 'vera-ingest-pymupdf', 'src'),
         join(process.cwd(), '..', 'vera-ingest-docling', 'src'),
       ];
       env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);

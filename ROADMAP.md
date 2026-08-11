@@ -71,7 +71,7 @@ schema or normative behavior.
   shared archive writer.
 - [x] Add a strict ingest-pipeline registry with `provider[:variant]` specs.
 - [x] Discover plugins through the `vera.ingest_pipelines` entry-point group.
-- [x] Keep the compatible built-in `pymupdf` pipeline as the default.
+- [x] Keep the compatible `pymupdf` pipeline as the default (`vera-ingest-pymupdf`).
 - [x] Reject unknown pipeline names instead of falling back to PyMuPDF.
 - [x] Move chunking/OCR defaults into pipeline-owned typed options with a thin
   shared `IngestRequest` / opaque `pipeline_options` bag.
@@ -85,9 +85,12 @@ schema or normative behavior.
 - [x] Map OCR modes, tables, figures, provenance, and contextualized
   embedding text.
 - [x] Reject Docling partial-success/failure results in the first release.
+- [x] Automatic page-level recovery + `pypdfium2` backend fallback on
+  `bad_alloc` / partial success (supersedes blanket reject-on-partial for
+  recoverable memory errors); expose `pdf_backend` pipeline option.
 - [x] Document first-run model downloads and `DOCLING_ARTIFACTS_PATH`.
-- [x] Own Docling defaults (`chunk_size` tokens, `ocr_mode`, `ocr_language`)
-  without advertising overlap or OCR DPI.
+- [x] Own Docling defaults (`chunk_size` tokens, `ocr_mode`, `ocr_language`,
+  `pdf_backend`) without advertising overlap or OCR DPI.
 - [ ] Evaluate Docling quality against representative corpora and decide
   default-vs-optional packaging guidance.
 

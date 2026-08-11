@@ -1,12 +1,13 @@
 [project]
 name = "vera-workspace"
-version = "0.2.4"
+version = "0.3.0"
 description = "VERA mono-repo workspace"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "vera-doc",
   "vera-ingest",
+  "vera-ingest-pymupdf",
   "vera-cli",
   "vera-app",
 ]
@@ -32,6 +33,7 @@ sidecar = ["pyinstaller>=6"]
 members = [
   "packages/vera-doc",
   "packages/vera-ingest",
+  "packages/vera-ingest-pymupdf",
   "packages/vera-ingest-docling",
   "packages/vera-mcp",
   "packages/vera-cli",
@@ -41,6 +43,7 @@ members = [
 [tool.uv.sources]
 vera-doc = { workspace = true }
 vera-ingest = { workspace = true }
+vera-ingest-pymupdf = { workspace = true }
 vera-ingest-docling = { workspace = true }
 vera-mcp = { workspace = true }
 vera-cli = { workspace = true }
@@ -57,6 +60,7 @@ bypass-selection = true
 pythonpath = [
   "packages/vera-doc/src",
   "packages/vera-ingest/src",
+  "packages/vera-ingest-pymupdf/src",
   "packages/vera-ingest-docling/src",
   "packages/vera-mcp/src",
   "packages/vera-cli/src",

@@ -34,8 +34,9 @@ Automatic OCR is the default for pipelines that advertise OCR fields:
 vera convert "scan.pdf" "scan.vera" --ocr auto
 ```
 
-With the built-in PyMuPDF pipeline, OCR runs only on pages that are mostly a
-scanned image and have too little native text to search reliably. Blank pages
+With the default PyMuPDF pipeline (`vera-ingest-pymupdf`), OCR runs only on
+pages that are mostly a scanned image and have too little native text to
+search reliably. Blank pages
 are skipped. Mixed PDFs can therefore use native extraction on ordinary pages
 and OCR on scanned pages in one conversion.
 
@@ -60,12 +61,15 @@ vera convert "scan.pdf" "scan.vera" \
 Explicit `--pipeline-option KEY=VALUE` values win over the legacy aliases for
 the same key. See [Pipeline options](#pipeline-options).
 
-VERA bundles the official `tessdata_fast` English model and passes it directly
-to PyMuPDF's Tesseract integration. Default English OCR therefore works
-offline without installing Tesseract or configuring the system. Other
-languages are not bundled; install their `.traineddata` files and set
-`TESSDATA_PREFIX` when selecting them with `--ocr-language`. OCR failures name
-the page and language and preserve any existing destination.
+VERA's `vera-ingest-pymupdf` package bundles the official `tessdata_fast`
+English model and passes it directly to PyMuPDF's Tesseract integration.
+Default English OCR therefore works offline without installing Tesseract or
+configuring the system. Other
+selected languages either require `--ocr-allow-download` (or the
+`ocr_download` pipeline option) to fetch curated language data into a local
+cache, or a manually installed `.traineddata` file with `TESSDATA_PREFIX`
+set. Codes match Tesseract's language list (for example `spa`, not `es`).
+OCR failures name the page and language and preserve any existing destination.
 
 OCR text is stored as ordinary paragraph blocks with page bounding boxes, so
 search results and highlight regions work normally. This first OCR path targets
@@ -166,7 +170,7 @@ as Voyage AI for retrieval embeddings, exposed through a plugin spec like
 
 ## Chunking options
 
-Chunking defaults are owned by each ingest pipeline. The built-in PyMuPDF
+Chunking defaults are owned by each ingest pipeline. The default PyMuPDF
 pipeline defaults to:
 
 - `--chunk-size 500`
@@ -215,8 +219,8 @@ key.
 
 | Pipeline | Defaults | Notes |
 | --- | --- | --- |
-| PyMuPDF (`pymupdf`) | `chunk_size=500`, `overlap=75`, `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300` | Sliding-window character chunks; Tesseract OCR |
-| Docling (`docling`) | `chunk_size=500` tokens, `ocr_mode=auto`, `ocr_language=en` | No `overlap` / `ocr_dpi` fields; RapidOCR |
+| PyMuPDF (`pymupdf`) | `chunk_size=500`, `overlap=75`, `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false` | Sliding-window character chunks; Tesseract OCR; language picker lists bundled/downloadable codes |
+| Docling (`docling`) | `chunk_size=500` tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | No `overlap` / `ocr_dpi` fields; RapidOCR; auto page recovery / `pypdfium2` fallback on memory errors |
 
 Discover descriptors from Python with `describe_ingest_pipeline` /
 `list_ingest_pipeline_descriptors`, or from the desktop sidecar action
@@ -224,8 +228,9 @@ Discover descriptors from Python with `describe_ingest_pipeline` /
 
 ## Ingest pipelines
 
-`--parser` accepts an ingest pipeline spec `provider[:variant]`. The built-in
-default is `pymupdf`:
+`--parser` accepts an ingest pipeline spec `provider[:variant]`. The default
+provider is `pymupdf` (from `vera-ingest-pymupdf`, installed with the CLI and
+desktop app):
 
 ```bash
 vera convert "input.pdf" --parser pymupdf
@@ -243,14 +248,17 @@ vera convert "input.pdf" --parser docling:hybrid
 ```
 
 Unknown pipeline names fail before parsing with an install-the-plugin message;
-VERA never silently falls back to PyMuPDF. Docling rejects partial or failed
-conversions. Docling's descriptor advertises `chunk_size` (HybridChunker token
-limit), `ocr_mode`, and `ocr_language` only — legacy `--overlap` and
-`--ocr-dpi` are not forwarded. Docling uses RapidOCR rather than Tesseract, so
-VERA maps Tesseract-style language codes such as `eng` to RapidOCR's `en`
-(and similarly for other common aliases); Docling's own default language is
-`en`. Docling layout models run without `torch.compile` (so Windows does not
-need Visual Studio's `cl.exe`).
+VERA never silently falls back to PyMuPDF. On Docling memory errors
+(`bad_alloc`), VERA retries failed pages with a fresh converter and falls back
+to the `pypdfium2` PDF backend when needed; conversion rejects only when that
+recovery is exhausted. Force the low-memory backend with
+`--pipeline-option pdf_backend=pypdfium2`. Docling's descriptor advertises
+`chunk_size` (HybridChunker token limit), `ocr_mode`, `ocr_language`, and
+`pdf_backend` — legacy `--overlap` and `--ocr-dpi` are not forwarded. Docling
+uses RapidOCR rather than Tesseract, so VERA maps Tesseract-style language
+codes such as `eng` to RapidOCR's `en` (and similarly for other common
+aliases); Docling's own default language is `en`. Docling layout models run
+without `torch.compile` (so Windows does not need Visual Studio's `cl.exe`).
 
 First Docling conversion may download model artifacts. Set
 `DOCLING_ARTIFACTS_PATH` for a local cache. Packaged desktop releases do not
@@ -258,7 +266,10 @@ bundle Docling; source-run apps can select installed pipelines in the Convert
 view. The Convert UI is schema-driven: the sidecar
 `describe_ingest_pipelines` action supplies descriptors, and
 `PipelineConfigForm` renders only the fields each pipeline advertises under a
-collapsed **Advanced pipeline options** section.
+collapsed **Advanced pipeline options** section. For PyMuPDF, **OCR language**
+is a dropdown of bundled and downloadable Tesseract codes (for example
+`Spanish (spa)`), with a **Custom…** option for combinations such as
+`eng+spa` or a manually installed `TESSDATA_PREFIX` code.
 
 ## Storing the source PDF
 

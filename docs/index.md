@@ -86,8 +86,10 @@ with VeraDocument.open("knowledge.vera") as document:
 
 - [**vera-doc**](packages/vera-doc.md) — create, store, and search `.vera`
   archives from Python.
-- [**vera-ingest**](packages/vera-ingest.md) — parse PDFs, run selective OCR,
-  and convert sources into archives.
+- [**vera-ingest**](packages/vera-ingest.md) — conversion registry and archive
+  writing.
+- [**vera-ingest-pymupdf**](packages/vera-ingest-pymupdf.md) — default PDF
+  parsing and selective OCR.
 - [**vera-cli**](packages/vera-cli.md) — run complete workflows from the
   `vera` command.
 - [**vera-mcp**](packages/vera-mcp.md) — expose retrieval to MCP-capable

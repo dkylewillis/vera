@@ -32,6 +32,9 @@ class PipelineField:
     maximum: int | float | None = None
     step: int | float | None = None
     placeholder: str | None = None
+    # When True on an enum field, GUIs may offer a free-text "Custom" value
+    # (for example Tesseract ``eng+spa``) outside the advertised choices.
+    allow_custom: bool = False
 
 
 @dataclass(frozen=True)

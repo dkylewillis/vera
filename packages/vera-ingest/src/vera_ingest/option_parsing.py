@@ -59,6 +59,18 @@ def require_string(value: Any, *, name: str, allow_empty: bool = False) -> str:
     return text
 
 
+def require_bool(value: Any, *, name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "y", "on"}:
+            return True
+        if lowered in {"false", "0", "no", "n", "off", ""}:
+            return False
+    raise ValueError(f"{name} must be a boolean")
+
+
 def require_choice(value: Any, *, name: str, choices: set[str]) -> str:
     text = require_string(value, name=name)
     normalized = text.lower()

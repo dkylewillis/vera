@@ -118,8 +118,8 @@ def test_convert_rejects_unknown_model_before_parsing(tmp_path, monkeypatch):
     def boom(*args, **kwargs):
         raise AssertionError("PDF parsing should not run for unknown models")
 
-    convert_module = importlib.import_module("vera_ingest.convert")
-    monkeypatch.setattr(convert_module, "parse_pdf_structured", boom)
+    pipeline_module = importlib.import_module("vera_ingest_pymupdf.pipeline")
+    monkeypatch.setattr(pipeline_module, "parse_pdf_structured", boom)
     with pytest.raises(UnknownEmbeddingModelError):
         convert(str(pdf), str(out), model="not-a-real-provider:model")
     assert not out.exists()

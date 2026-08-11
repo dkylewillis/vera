@@ -255,6 +255,64 @@ def test_cli_parses_and_forwards_pipeline_options(tmp_path, monkeypatch):
     }
 
 
+def test_cli_parses_and_forwards_ocr_allow_download(tmp_path, monkeypatch):
+    pdf = tmp_path / "scan.pdf"
+    output = tmp_path / "scan.vera"
+    pdf.write_bytes(b"%PDF-test-placeholder")
+    captured = {}
+
+    def fake_convert(input_path, output_path, **kwargs):
+        captured.update(kwargs)
+        return output_path
+
+    monkeypatch.setattr(cli_commands, "convert", fake_convert)
+    args = build_parser().parse_args(
+        ["convert", str(pdf), str(output), "--ocr-language", "fra", "--ocr-allow-download"]
+    )
+
+    assert args.ocr_allow_download is True
+    assert args.func(args) == 0
+    assert captured["ocr_download"] is True
+
+
+def test_cli_ocr_allow_download_defaults_false():
+    args = build_parser().parse_args(["convert", "scan.pdf"])
+    assert args.ocr_allow_download is False
+
+
+def test_cli_ocr_languages_list_json(capsys):
+    args = build_parser().parse_args(["ocr-languages", "list", "eng+zzz", "--json"])
+    assert args.func(args) == 0
+    payload = json.loads(capsys.readouterr().out)
+    codes = {entry["code"]: entry for entry in payload["languages"]}
+    assert codes["eng"]["bundled"] is True
+    assert codes["zzz"]["downloadable"] is False
+
+
+def test_cli_ocr_languages_download_unknown_code_fails(capsys):
+    args = build_parser().parse_args(["ocr-languages", "download", "zzz", "--json"])
+    assert args.func(args) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert "zzz" in payload["error"]
+
+
+def test_cli_ocr_languages_download_forwards_to_helper(monkeypatch, capsys):
+    calls = []
+
+    def fake_download(language, *, progress=None, **kwargs):
+        calls.append(language)
+        return "/cache/dir"
+
+    monkeypatch.setattr(cli_commands, "download_ocr_language_data", fake_download)
+    args = build_parser().parse_args(["ocr-languages", "download", "fra", "--json"])
+
+    assert args.func(args) == 0
+    assert calls == ["fra"]
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"ok": True, "language": "fra", "downloaded": ["fra"], "cache_dir": "/cache/dir"}
+
+
 def test_cli_rejects_non_positive_ocr_dpi():
     parser = build_parser()
 

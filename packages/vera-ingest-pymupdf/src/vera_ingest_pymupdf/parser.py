@@ -3,10 +3,11 @@ from __future__ import annotations
 import re
 from collections import Counter
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
-from ..types import ParsedBlock, ParsedPage
+from vera_ingest.types import ParsedBlock, ParsedPage
+
+from .tessdata_manager import ensure_language_data, is_known
 
 _CAPTION_RE = re.compile(
     r"^(figure|fig\.?|table|diagram|exhibit|chart|map|photo|illustration|plate|drawing)\s*[0-9]+([.:\-\u2013]|\s|$)",
@@ -33,7 +34,7 @@ def _open_fitz():
         import fitz  # PyMuPDF
     except Exception as exc:  # pragma: no cover
         raise RuntimeError(
-            "PyMuPDF is required for PDF parsing: install vera-ingest"
+            "PyMuPDF is required for PDF parsing: install vera-ingest-pymupdf"
         ) from exc
     return fitz
 
@@ -107,17 +108,32 @@ def _page_needs_ocr(page_text: str, layout: dict[str, Any], *, width: float, hei
     return False
 
 
-def _bundled_tessdata(language: str) -> str | None:
-    """Return bundled language data when it covers the full selection."""
-    directory = Path(__file__).resolve().parents[1] / "tessdata"
-    languages = [item.strip() for item in language.split("+") if item.strip()]
-    if languages and all((directory / f"{item}.traineddata").is_file() for item in languages):
-        return str(directory)
-    return None
+def _missing_language_install_hint(language: str) -> str:
+    codes = [item.strip() for item in language.split("+") if item.strip()]
+    unknown = [code for code in codes if not is_known(code)]
+    if unknown:
+        return (
+            f"language data for '{language}' is not bundled and not in VERA's download "
+            f"registry (unknown code(s): {', '.join(unknown)}); install that tessdata "
+            "manually and configure TESSDATA_PREFIX"
+        )
+    return (
+        f"language data for '{language}' is not bundled; pass ocr_download=True (CLI: "
+        "--ocr-allow-download) to fetch it automatically, or install that tessdata "
+        "manually and configure TESSDATA_PREFIX"
+    )
 
 
-def _ocr_page_content(page, *, language: str, dpi: int) -> tuple[str, dict[str, Any]]:
-    tessdata = _bundled_tessdata(language)
+def _ocr_page_content(
+    page, *, language: str, dpi: int, allow_download: bool = False
+) -> tuple[str, dict[str, Any]]:
+    try:
+        tessdata = ensure_language_data(language, allow_download=allow_download)
+    except Exception as exc:
+        raise RuntimeError(
+            f"OCR failed for page {page.number + 1}: could not prepare OCR language data "
+            f"for '{language}'. Original error: {exc}"
+        ) from exc
     try:
         textpage = page.get_textpage_ocr(
             language=language,
@@ -133,12 +149,9 @@ def _ocr_page_content(page, *, language: str, dpi: int) -> tuple[str, dict[str, 
         if language == "eng" and tessdata is None:
             requirement = "bundled English OCR data was not found; reinstall VERA"
         elif tessdata is None:
-            requirement = (
-                f"language data for '{language}' is not bundled; install that tessdata "
-                "and configure TESSDATA_PREFIX"
-            )
+            requirement = _missing_language_install_hint(language)
         else:
-            requirement = f"bundled language data for '{language}' could not be loaded"
+            requirement = f"language data for '{language}' could not be loaded"
         raise RuntimeError(
             f"OCR failed for page {page.number + 1}: {requirement}. Original error: {exc}"
         ) from exc
@@ -166,6 +179,7 @@ def _collect_raw_blocks(
     ocr_mode: str = "auto",
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
+    ocr_download: bool = False,
     cancel: Any | None = None,
 ) -> tuple[list[ParsedPage], list[_RawBlock], Counter, list[int]]:
     pages: list[ParsedPage] = []
@@ -190,6 +204,7 @@ def _collect_raw_blocks(
                     page,
                     language=ocr_language,
                     dpi=ocr_dpi,
+                    allow_download=ocr_download,
                 )
                 # Tesseract runs inside PyMuPDF and cannot be interrupted in the
                 # middle of this call. Honor stop/skip as soon as it returns.
@@ -286,6 +301,7 @@ def parse_pdf_structured(
     ocr_mode: str = "auto",
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
+    ocr_download: bool = False,
     diagnostics: dict[str, Any] | None = None,
     cancel: Any | None = None,
 ) -> tuple[list[ParsedPage], list[ParsedBlock]]:
@@ -313,6 +329,7 @@ def parse_pdf_structured(
             ocr_mode=ocr_mode,
             ocr_language=ocr_language,
             ocr_dpi=ocr_dpi,
+            ocr_download=ocr_download,
             cancel=cancel,
         )
     except Exception:

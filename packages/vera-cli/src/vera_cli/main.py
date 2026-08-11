@@ -11,6 +11,8 @@ from .commands import (
     cmd_index_update,
     cmd_inspect,
     cmd_mcp,
+    cmd_ocr_languages_download,
+    cmd_ocr_languages_list,
     cmd_search,
     cmd_validate,
 )
@@ -80,6 +82,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert_p.add_argument("--ocr-language", default="eng", help="Tesseract language code (compatibility alias)")
     convert_p.add_argument("--ocr-dpi", type=positive_int, default=300, help="OCR render resolution (compatibility alias)")
+    convert_p.add_argument(
+        "--ocr-allow-download",
+        action="store_true",
+        help=(
+            "Fetch missing --ocr-language Tesseract data from VERA's curated, "
+            "checksum-verified registry and cache it locally (PyMuPDF only; "
+            "compatibility alias). See 'vera ocr-languages list'."
+        ),
+    )
     convert_p.add_argument(
         "--pipeline-option",
         dest="pipeline_options",
@@ -171,6 +182,33 @@ def build_parser() -> argparse.ArgumentParser:
 
     mcp_p = sub.add_parser("mcp", help="Run the MCP server (stdio) exposing VERA tools to AI agents")
     mcp_p.set_defaults(func=cmd_mcp)
+
+    ocr_languages_p = sub.add_parser(
+        "ocr-languages",
+        help="List or download Tesseract OCR language data used by the pymupdf parser",
+    )
+    ocr_languages_sub = ocr_languages_p.add_subparsers(dest="ocr_languages_command", required=True)
+
+    ocr_languages_list_p = ocr_languages_sub.add_parser(
+        "list", help="List bundled, cached, and downloadable OCR language codes"
+    )
+    ocr_languages_list_p.add_argument(
+        "language",
+        nargs="?",
+        default=None,
+        help="Limit to specific '+'-joined codes (e.g. eng+fra); defaults to every known code",
+    )
+    ocr_languages_list_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    ocr_languages_list_p.set_defaults(func=cmd_ocr_languages_list)
+
+    ocr_languages_download_p = ocr_languages_sub.add_parser(
+        "download", help="Download one or more Tesseract language codes into the local cache"
+    )
+    ocr_languages_download_p.add_argument(
+        "language", help="'+'-joined Tesseract language code(s) to fetch, e.g. fra or fra+deu"
+    )
+    ocr_languages_download_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    ocr_languages_download_p.set_defaults(func=cmd_ocr_languages_download)
 
     eval_p = sub.add_parser("eval", help="Evaluate retrieval quality against a query file")
     eval_p.add_argument("file")

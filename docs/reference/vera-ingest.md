@@ -1,6 +1,8 @@
 # vera_ingest package
 
-PDF parsing, chunking, and conversion to `.vera` archives.
+Provider-neutral ingest registry, shared types, chunking helpers, and
+conversion to `.vera` archives. PDF parsing/OCR live in plugins such as
+[`vera-ingest-pymupdf`](../packages/vera-ingest-pymupdf.md).
 
 ::: vera_ingest
     options:
@@ -24,8 +26,6 @@ PDF parsing, chunking, and conversion to `.vera` archives.
         - register_ingest_pipeline
         - ParsedBlock
         - ParsedPage
-        - parse_pdf
-        - parse_pdf_structured
         - chunk_pages
         - build_chunks_from_blocks
         - detect_heading
