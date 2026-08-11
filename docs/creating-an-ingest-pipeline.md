@@ -13,14 +13,20 @@ rest of VERA, and [Pipeline options](conversion.md#pipeline-options) for how
 
 ## The contract
 
-A pipeline is any object with an `ingest` method matching this shape — there
-is no base class to inherit from:
+A pipeline is any callable matching this shape — a plain function, or an
+object implementing `__call__` if it needs to hold state. There is no base
+class to inherit from:
 
 ```python
-class IngestPipeline(Protocol):
-    def ingest(self, source_path: str, options: IngestRequest) -> IngestResult:
-        ...
+IngestPipeline = Callable[[str, IngestRequest], IngestResult]
 ```
+
+For pre-0.3.x plugins, an object exposing a callable `ingest(self, source_path,
+options)` method still works too — `vera_ingest.pipeline.invoke_ingest_pipeline`
+calls that method when present and falls back to calling the pipeline itself
+otherwise. New pipelines should prefer a plain callable; see
+[reference implementations](#reference-implementations) below for when a
+class (with `__call__`) is still the right choice.
 
 `IngestRequest` carries the resolved `variant`, a cancellation token, and an
 opaque `pipeline_options` mapping your pipeline owns and validates itself.
@@ -72,38 +78,36 @@ from vera_ingest.types import (
 from .options import ExampleOptions
 
 
-class ExamplePipeline:
+def example_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
     """Whole-file ingest pipeline for plain-text sources."""
+    request = coerce_ingest_request(options)
+    config = ExampleOptions.from_mapping(request.pipeline_options)
+    text = Path(source_path).read_text(encoding="utf-8", errors="replace")
 
-    def ingest(self, source_path: str, options: IngestRequest) -> IngestResult:
-        request = coerce_ingest_request(options)
-        config = ExampleOptions.from_mapping(request.pipeline_options)
-        text = Path(source_path).read_text(encoding="utf-8", errors="replace")
+    block = IngestBlock(
+        block_id="block_000001",
+        page_number=1,
+        block_type="paragraph",
+        text=text,
+    )
+    chunk = IngestChunk(
+        chunk_id="chunk_000001",
+        text=text[: config.chunk_size] if config.chunk_size else text,
+        page_start=1,
+        page_end=1,
+        heading_path="",
+        token_count=len(text.split()),
+        block_ids=[block.block_id],
+    )
 
-        block = IngestBlock(
-            block_id="block_000001",
-            page_number=1,
-            block_type="paragraph",
-            text=text,
-        )
-        chunk = IngestChunk(
-            chunk_id="chunk_000001",
-            text=text[: config.chunk_size] if config.chunk_size else text,
-            page_start=1,
-            page_end=1,
-            heading_path="",
-            token_count=len(text.split()),
-            block_ids=[block.block_id],
-        )
-
-        return IngestResult(
-            pages=[ParsedPage(page_number=1, width=None, height=None, text=text)],
-            blocks=[block],
-            chunks=[chunk],
-            parser_name="example",
-            parser_version="0.1.0",
-            chunking_strategy="whole_file",
-        )
+    return IngestResult(
+        pages=[ParsedPage(page_number=1, width=None, height=None, text=text)],
+        blocks=[block],
+        chunks=[chunk],
+        parser_name="example",
+        parser_version="0.1.0",
+        chunking_strategy="whole_file",
+    )
 ```
 
 `options.py` owns typed defaults, validation, and the descriptor other
@@ -169,24 +173,25 @@ def describe_pipeline(variant: str = "") -> PipelineDescriptor:
     )
 ```
 
-`__init__.py` exposes the entry-point factories:
+`__init__.py` exposes the entry-point factories. `create_pipeline` returns the
+bare function itself — there's nothing to instantiate:
 
 ```python
 from __future__ import annotations
 
 from vera_ingest.descriptors import PipelineDescriptor
-from vera_ingest.pipeline import UnknownIngestPipelineError
+from vera_ingest.pipeline import IngestPipeline, UnknownIngestPipelineError
 
 from .options import describe_pipeline
-from .pipeline import ExamplePipeline
+from .pipeline import example_pipeline
 
-__all__ = ["ExamplePipeline", "create_pipeline", "create_descriptor"]
+__all__ = ["create_descriptor", "create_pipeline", "example_pipeline"]
 
 
-def create_pipeline(variant: str = "") -> ExamplePipeline:
+def create_pipeline(variant: str = "") -> IngestPipeline:
     if variant not in {"", "default"}:
         raise UnknownIngestPipelineError(f"Unknown 'example' pipeline variant {variant!r}.")
-    return ExamplePipeline()
+    return example_pipeline
 
 
 def create_descriptor(variant: str = "") -> PipelineDescriptor:
@@ -241,13 +246,13 @@ omit the factory argument:
 from vera_ingest.pipeline import register_ingest_pipeline, register_ingest_pipeline_descriptor
 from vera_ingest import convert
 
-from vera_ingest_example.pipeline import ExamplePipeline
+from vera_ingest_example.pipeline import example_pipeline
 from vera_ingest_example.options import describe_pipeline
 
 
 @register_ingest_pipeline("example")
-def create_pipeline(variant: str = "") -> ExamplePipeline:
-    return ExamplePipeline()
+def create_pipeline(variant: str = "") -> IngestPipeline:
+    return example_pipeline
 
 
 register_ingest_pipeline_descriptor("example", describe_pipeline)
@@ -300,9 +305,9 @@ Test the pipeline directly first, without touching the registry:
 
 ```python
 from vera_ingest.types import IngestRequest
-from vera_ingest_example.pipeline import ExamplePipeline
+from vera_ingest_example.pipeline import example_pipeline
 
-result = ExamplePipeline().ingest("notes.txt", IngestRequest(pipeline_options={"chunk_size": 100}))
+result = example_pipeline("notes.txt", IngestRequest(pipeline_options={"chunk_size": 100}))
 assert result.chunks
 ```
 
@@ -322,12 +327,15 @@ produced by each pipeline and compare hit rate / MRR — see
 ## Reference implementations
 
 - [`vera-ingest-pymupdf`](packages/vera-ingest-pymupdf.md) — the simplest real
-  pipeline: deterministic parsing, shared sliding-window chunking helpers
+  pipeline: a plain `pymupdf_pipeline(source_path, options)` function,
+  deterministic parsing, shared sliding-window chunking helpers
   (`vera_ingest.chunking`), selective Tesseract OCR. Start here.
 - [`vera-ingest-docling`](packages/vera-ingest-docling.md) — a more involved
-  pipeline: its own chunker, layout/table/figure mapping, and page-level
-  failure recovery. Use it as a model once your pipeline needs more than the
-  basics.
+  pipeline: `DoclingHybridPipeline` is a class implementing `__call__`
+  (needed because its recovery/fallback logic is decomposed into private
+  helper methods, not because it holds state across calls), with its own
+  chunker, layout/table/figure mapping, and page-level failure recovery. Use
+  it as a model once your pipeline needs more than a single function.
 
 ## See also
 
