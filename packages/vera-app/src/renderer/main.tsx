@@ -234,10 +234,11 @@ function App() {
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [sourceDocument, setSourceDocument] = useState<SourceDocumentResult | null>(null);
   const [sourceDocumentPath, setSourceDocumentPath] = useState('');
-  const [sourceDocumentOpeningPath, setSourceDocumentOpeningPath] = useState('');
+  const [pendingSourcePath, setPendingSourcePath] = useState('');
   const [libraryInfoPath, setLibraryInfoPath] = useState('');
   const sourceDocumentLoadRef = useRef(0);
   const figureDataLoadRef = useRef(0);
+  const sourceLoading = Boolean(pendingSourcePath);
   const figureDataCache = useRef(new Map<string, FigureResult>());
   const [pageNumber, setPageNumber] = useState(1);
   const [pageResult, setPageResult] = useState<PageResult | null>(null);
@@ -428,15 +429,12 @@ function App() {
         title: citation,
       };
     }
-    const name = sourceDocumentOpeningPath
-      || sourceDocument?.filename
-      || sourceDocumentPath
-      || '';
+    const name = pendingSourcePath || sourceDocument?.filename || sourceDocumentPath || '';
     if (name) {
       return {
         primary: fileName(name),
-        secondary: sourceDocumentOpeningPath ? 'Opening…' : null as string | null,
-        title: sourceDocumentOpeningPath || sourceDocumentPath || name,
+        secondary: pendingSourcePath ? 'Loading…' : null as string | null,
+        title: pendingSourcePath || sourceDocumentPath || name,
       };
     }
     return {
@@ -446,9 +444,9 @@ function App() {
     };
   }, [
     citation,
+    pendingSourcePath,
     selected,
     sourceDocument,
-    sourceDocumentOpeningPath,
     sourceDocumentPath,
     viewerInfoIsCorpus,
     viewerInfoPath,
@@ -554,9 +552,9 @@ function App() {
     selectExplorerFolder(folderPath);
     cancelActionScope('source');
     sourceDocumentLoadRef.current += 1;
-    setSourceDocumentOpeningPath('');
     setSourceDocument(null);
     setSourceDocumentPath('');
+    setPendingSourcePath('');
     setLibraryInfoPath(folderPath);
     setSelected(null);
     setErrorMessage(null);
@@ -765,7 +763,12 @@ function App() {
 
   async function previewSourceDocument(entry: FolderEntry) {
     if (entry.type !== 'vera' && entry.type !== 'pdf') return;
+    // Ignore further explorer opens while a document is loading so repeated
+    // double-clicks do not stack work when feedback is easy to miss.
+    if (pendingSourcePath) return;
     const selection: ExplorerSelection = { kind: 'file', path: entry.path, type: entry.type };
+    const requestId = ++sourceDocumentLoadRef.current;
+    setPendingSourcePath(entry.path);
     setLibraryInfoPath('');
     setExplorerSelection(selection);
     setSelected(null);
@@ -776,7 +779,10 @@ function App() {
     } else {
       applyConvertDefaultsFromSelection(selection);
     }
-    await loadSourceDocument(entry.path);
+    // A newer open/close may have invalidated this preview while inspect ran.
+    // That successor owns pendingSourcePath clearing.
+    if (requestId !== sourceDocumentLoadRef.current) return;
+    await loadSourceDocument(entry.path, true, requestId);
   }
 
   async function trashEntry(entry: FolderEntry, folderPath: string) {
@@ -787,12 +793,12 @@ function App() {
       setSelectedPdfs((files) => files.filter((file) => file !== entry.path));
       if (path === entry.path) updateTargetPath(activeLibraryPath || '');
       // Scope and viewer are independent — only blank the viewer when its open file is gone.
-      if (sourceDocumentPath === entry.path) {
+      if (sourceDocumentPath === entry.path || pendingSourcePath === entry.path) {
         cancelActionScope('source');
         sourceDocumentLoadRef.current += 1;
-        setSourceDocumentOpeningPath('');
         setSourceDocument(null);
         setSourceDocumentPath('');
+        setPendingSourcePath('');
       }
       await refreshFolder(folderPath);
     } catch (error) {
@@ -1958,33 +1964,38 @@ function App() {
     requestId = ++sourceDocumentLoadRef.current,
   ) {
     if (folders.some((folder) => folder.path === targetPath)) {
+      if (requestId === sourceDocumentLoadRef.current) {
+        setPendingSourcePath('');
+      }
       return;
     }
-    setSourceDocumentOpeningPath(targetPath);
-    const result = await call<SourceDocumentResult>(
-      { action: 'source', path: targetPath },
-      'Loading source',
-      undefined,
-      { scope: 'source', timeoutMs: SOURCE_LOAD_TIMEOUT_MS },
-    );
-    if (requestId !== sourceDocumentLoadRef.current) {
-      return;
-    }
-    setSourceDocumentOpeningPath('');
-    if (result) {
-      setLibraryInfoPath('');
-      setSourceDocument(result);
-      setSourceDocumentPath(targetPath);
-      if (activateViewer) setViewerMode('document');
+    setPendingSourcePath(targetPath);
+    try {
+      const result = await call<SourceDocumentResult>(
+        { action: 'source', path: targetPath },
+        'Loading source',
+        undefined,
+        { scope: 'source', timeoutMs: SOURCE_LOAD_TIMEOUT_MS },
+      );
+      if (result && requestId === sourceDocumentLoadRef.current) {
+        setLibraryInfoPath('');
+        setSourceDocument(result);
+        setSourceDocumentPath(targetPath);
+        if (activateViewer) setViewerMode('document');
+      }
+    } finally {
+      if (requestId === sourceDocumentLoadRef.current) {
+        setPendingSourcePath('');
+      }
     }
   }
 
   function closeSourceDocument() {
     cancelActionScope('source');
     sourceDocumentLoadRef.current += 1;
-    setSourceDocumentOpeningPath('');
     setSourceDocument(null);
     setSourceDocumentPath('');
+    setPendingSourcePath('');
     setLibraryInfoPath('');
     setSelected(null);
     setViewerMode('document');
@@ -2048,7 +2059,7 @@ function App() {
       void loadSourceDocument(resultPath, false, requestId);
     } else {
       cancelActionScope('source');
-      setSourceDocumentOpeningPath('');
+      setPendingSourcePath('');
     }
   }
 
@@ -2555,6 +2566,8 @@ function App() {
                               <button
                                 className={
                                   path === entry.path
+                                  || pendingSourcePath === entry.path
+                                  || sourceDocumentPath === entry.path
                                   || (entry.type === 'pdf' && selectedPdfs.includes(entry.path))
                                     ? 'fileRow active'
                                     : 'fileRow'
@@ -2569,9 +2582,13 @@ function App() {
                                   event.preventDefault();
                                   showEntryContextMenu(entry, folder.path, event.clientX, event.clientY);
                                 }}
-                                title={entry.type === 'pdf'
-                                  ? `${entry.relativePath} — click to select · Ctrl/Cmd+click to multi-select · double-click to view`
-                                  : `${entry.relativePath} — double-click to preview source`}
+                                title={
+                                  sourceLoading
+                                    ? `${entry.relativePath} — loading ${fileName(pendingSourcePath)}…`
+                                    : entry.type === 'pdf'
+                                      ? `${entry.relativePath} — click to select · Ctrl/Cmd+click to multi-select · double-click to view`
+                                      : `${entry.relativePath} — double-click to preview source`
+                                }
                               >
                                 {entry.type === 'vera' ? <VeraIcon size={14} className="fileRowIcon vera" /> : <FileText size={14} className="fileRowIcon pdf" />}
                                 <span className="fileRowName">{entry.relativePath}</span>
@@ -3390,10 +3407,10 @@ function App() {
               </div>
             ) : null}
             <div className="viewerHeaderActions">
-              {!viewerCollapsed && (selected || viewerInfoPath || sourceDocumentOpeningPath) ? (
+              {!viewerCollapsed && (selected || viewerInfoPath) ? (
                 <div className="viewerModeToggle">
                   {!viewerInfoIsCorpus ? (
-                    <button className={viewerMode === 'document' ? 'active' : ''} onClick={() => { setViewerMode('document'); if (!sourceDocument && selectedSourcePath) void loadSourceDocument(selectedSourcePath, false); }} title="Show document viewer">
+                    <button className={viewerMode === 'document' ? 'active' : ''} onClick={() => { setViewerMode('document'); if (!sourceDocument && selectedSourcePath && !pendingSourcePath) void loadSourceDocument(selectedSourcePath, false); }} title="Show document viewer">
                       <span className="viewerModeLabel viewerModeLabel--full">Viewer</span>
                       <span className="viewerModeLabel viewerModeLabel--short">View</span>
                     </button>
@@ -3430,13 +3447,13 @@ function App() {
                   </button>
                 </div>
               ) : null}
-              {!viewerCollapsed && (sourceDocument || libraryInfoPath) ? (
+              {!viewerCollapsed && (sourceDocument || libraryInfoPath || pendingSourcePath) ? (
                 <button
                   type="button"
                   className="ghostIcon"
                   onClick={closeSourceDocument}
-                  title={libraryInfoPath ? 'Close library info' : 'Close document'}
-                  aria-label={libraryInfoPath ? 'Close library info' : 'Close document'}
+                  title={libraryInfoPath ? 'Close library info' : pendingSourcePath ? 'Cancel loading' : 'Close document'}
+                  aria-label={libraryInfoPath ? 'Close library info' : pendingSourcePath ? 'Cancel loading' : 'Close document'}
                 >
                   <X size={15} />
                 </button>
@@ -3470,13 +3487,6 @@ function App() {
                 {viewerCollapsed ? <PanelRightOpen size={15} /> : <PanelRightClose size={15} />}
               </button>
             </div>
-            {!viewerCollapsed && sourceDocumentOpeningPath && viewerMode === 'document' ? (
-              <div
-                className="viewerOpeningBar"
-                role="progressbar"
-                aria-label={`Opening ${fileName(sourceDocumentOpeningPath)}`}
-              />
-            ) : null}
           </div>
           {!viewerCollapsed ? (
             viewerMode === 'info' ? (
@@ -3730,8 +3740,18 @@ function App() {
                   )}
                 </details>
               </article>
+            ) : pendingSourcePath && (
+              !sourceDocument
+              || sourceDocumentPath.replace(/\\/g, '/').toLowerCase()
+                !== pendingSourcePath.replace(/\\/g, '/').toLowerCase()
+            ) ? (
+              <div className="emptyState emptyState--loading" role="status" aria-live="polite">
+                <RefreshCw size={30} className="spinning" aria-hidden="true" />
+                <strong>{fileName(pendingSourcePath)}</strong>
+                <p>Loading document…</p>
+              </div>
             ) : sourceDocument && isPdfSource(sourceDocument) ? (
-              <div className={sourceDocumentOpeningPath ? 'sourceViewer sourceViewer--opening' : 'sourceViewer'}>
+              <div className="sourceViewer">
                 <PdfSourceViewer
                   source={sourceDocument}
                   highlightRegions={viewerHighlights.regions}
@@ -3741,13 +3761,9 @@ function App() {
                 />
               </div>
             ) : sourceDocument ? (
-              <div className={sourceDocumentOpeningPath ? 'unsupportedSource unsupportedSource--opening' : 'unsupportedSource'}>
+              <div className="unsupportedSource">
                 <strong>{sourceDocument.filename}</strong>
                 <span>{sourceDocument.mime_type}</span>
-              </div>
-            ) : sourceDocumentOpeningPath ? (
-              <div className="emptyState emptyState--opening" aria-busy="true" aria-live="polite">
-                <p>Opening…</p>
               </div>
             ) : (
               <div className="emptyState">
@@ -3827,6 +3843,8 @@ function App() {
               <button
                 ref={entryContextMenuActionRef}
                 role="menuitem"
+                disabled={sourceLoading}
+                title={sourceLoading ? `Waiting for ${fileName(pendingSourcePath)} to finish loading` : undefined}
                 onClick={() => {
                   void previewSourceDocument(entryContextMenu.entry);
                   setEntryContextMenu(null);
