@@ -87,6 +87,28 @@ def test_duplicate_registration_is_rejected():
         register_ingest_pipeline("custom", lambda _variant: object())
 
 
+def test_register_ingest_pipeline_works_as_a_decorator():
+    class Pipeline:
+        def ingest(self, source_path, options):
+            raise AssertionError("not called")
+
+    @register_ingest_pipeline("decorated")
+    def create_pipeline(variant: str = "") -> Pipeline:
+        return Pipeline()
+
+    # The decorator returns the wrapped factory unchanged.
+    assert create_pipeline("") is not None
+    assert isinstance(get_ingest_pipeline("decorated"), Pipeline)
+
+    @register_ingest_pipeline_descriptor("decorated")
+    def create_descriptor(variant: str = "") -> PipelineDescriptor:
+        return PipelineDescriptor(
+            provider="decorated", variant="", spec="decorated", label="decorated"
+        )
+
+    assert describe_ingest_pipeline("decorated").label == "decorated"
+
+
 def test_entry_points_are_discovered_lazily(monkeypatch):
     pipeline_module = importlib.import_module("vera_ingest.pipeline")
     loaded = []

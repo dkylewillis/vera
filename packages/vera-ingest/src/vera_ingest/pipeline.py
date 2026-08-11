@@ -67,11 +67,30 @@ def format_ingest_pipeline_spec(provider: str, variant: str = "") -> str:
 
 def register_ingest_pipeline(
     provider: str,
-    factory: Callable[[str], IngestPipeline],
+    factory: Callable[[str], IngestPipeline] | None = None,
     *,
     replace: bool = False,
-) -> None:
-    """Register a provider factory called with the requested variant."""
+) -> Callable[[Callable[[str], IngestPipeline]], Callable[[str], IngestPipeline]] | None:
+    """Register a provider factory called with the requested variant.
+
+    Called with both arguments, this registers ``factory`` immediately and
+    returns ``None``, as before. Omit ``factory`` to use it as a decorator
+    instead — handy for local experiments, notebooks, and tests that would
+    otherwise need a separate factory function and a separate call::
+
+        @register_ingest_pipeline("myexperiment")
+        def create_pipeline(variant: str = "") -> IngestPipeline:
+            return MyPipeline()
+    """
+    if factory is None:
+        def decorator(
+            actual_factory: Callable[[str], IngestPipeline],
+        ) -> Callable[[str], IngestPipeline]:
+            register_ingest_pipeline(provider, actual_factory, replace=replace)
+            return actual_factory
+
+        return decorator
+
     key = _normalize_provider(provider)
     if not callable(factory):
         raise TypeError("ingest pipeline factory must be callable")
@@ -82,15 +101,29 @@ def register_ingest_pipeline(
         for cache_key in tuple(_PIPELINE_CACHE):
             if cache_key[0] == key:
                 _PIPELINE_CACHE.pop(cache_key, None)
+    return None
 
 
 def register_ingest_pipeline_descriptor(
     provider: str,
-    factory: Callable[[str], PipelineDescriptor],
+    factory: Callable[[str], PipelineDescriptor] | None = None,
     *,
     replace: bool = False,
-) -> None:
-    """Register a descriptor factory called with the requested variant."""
+) -> Callable[[Callable[[str], PipelineDescriptor]], Callable[[str], PipelineDescriptor]] | None:
+    """Register a descriptor factory called with the requested variant.
+
+    Also usable as a decorator when ``factory`` is omitted — see
+    :func:`register_ingest_pipeline`.
+    """
+    if factory is None:
+        def decorator(
+            actual_factory: Callable[[str], PipelineDescriptor],
+        ) -> Callable[[str], PipelineDescriptor]:
+            register_ingest_pipeline_descriptor(provider, actual_factory, replace=replace)
+            return actual_factory
+
+        return decorator
+
     key = _normalize_provider(provider)
     if not callable(factory):
         raise TypeError("ingest pipeline descriptor factory must be callable")
@@ -100,6 +133,7 @@ def register_ingest_pipeline_descriptor(
                 f"ingest pipeline descriptor for {provider!r} is already registered"
             )
         _DESCRIPTOR_FACTORIES[key] = factory
+    return None
 
 
 def _load_entry_point_group(group: str) -> list[Any]:
