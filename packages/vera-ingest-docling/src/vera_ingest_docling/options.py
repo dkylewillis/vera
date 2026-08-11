@@ -10,21 +10,12 @@ from vera_ingest.descriptors import (
     PipelineDescriptor,
     fields_from_dataclass,
 )
-from vera_ingest.option_parsing import (
-    allowed_keys_from_dataclass,
-    reject_unknown_keys,
-    require_choice,
-    require_mapping,
-    require_positive_int,
-    require_string,
-)
+from vera_ingest.pipeline_options import coerce_pipeline_options
 
 from .languages import map_rapidocr_languages
 
 # Legacy convert()/CLI keys that Docling intentionally ignores.
 _IGNORED_COMPAT_KEYS = {"overlap", "ocr_dpi"}
-_OCR_MODES = {"auto", "off", "force"}
-_PDF_BACKENDS = {"docling_parse", "pypdfium2"}
 
 
 @dataclass(frozen=True)
@@ -33,7 +24,14 @@ class DoclingOptions:
 
     Each field's ``metadata`` doubles as its CLI/GUI descriptor entry (see
     :func:`vera_ingest.descriptors.fields_from_dataclass`), so a setting's
-    key, default, and presentation live in one place.
+    key, default, and presentation live in one place. ``from_mapping`` uses
+    :func:`vera_ingest.pipeline_options.coerce_pipeline_options` for the
+    mechanical bool/int/choice/string validation, then does the one thing
+    that helper can't: remapping ``ocr_language`` from Tesseract-style codes
+    to RapidOCR's. This class does *not* inherit
+    :class:`~vera_ingest.pipeline_options.PipelineOptions` for that reason —
+    see that module's docstring for when to inherit it versus call the
+    helper function directly.
     """
 
     chunk_size: int = field(
@@ -86,38 +84,14 @@ class DoclingOptions:
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None = None) -> DoclingOptions:
-        data = reject_unknown_keys(
-            require_mapping(raw, label="Docling pipeline_options"),
-            allowed=allowed_keys_from_dataclass(cls),
-            ignored=_IGNORED_COMPAT_KEYS,
-            label="Docling",
+        coerced = coerce_pipeline_options(
+            cls, raw, label="Docling", ignored=_IGNORED_COMPAT_KEYS
         )
-        chunk_size = require_positive_int(
-            data.get("chunk_size", cls.chunk_size),
-            name="chunk_size",
-        )
-        ocr_mode = require_choice(
-            data.get("ocr_mode", cls.ocr_mode),
-            name="ocr_mode",
-            choices=_OCR_MODES,
-        )
-        # Normalize at parse time so Tesseract ``eng`` never reaches RapidOCR.
-        ocr_language_raw = require_string(
-            data.get("ocr_language", cls.ocr_language),
-            name="ocr_language",
-        )
-        ocr_language = ",".join(map_rapidocr_languages(ocr_language_raw))
-        pdf_backend = require_choice(
-            data.get("pdf_backend", cls.pdf_backend),
-            name="pdf_backend",
-            choices=_PDF_BACKENDS,
-        )
-        return cls(
-            chunk_size=chunk_size,
-            ocr_mode=ocr_mode,
-            ocr_language=ocr_language,
-            pdf_backend=pdf_backend,
-        )
+        # Normalize at parse time so Tesseract ``eng`` never reaches RapidOCR;
+        # coerce_pipeline_options() only validates ocr_language is a string,
+        # it doesn't know about this pipeline-specific remapping.
+        coerced["ocr_language"] = ",".join(map_rapidocr_languages(coerced["ocr_language"]))
+        return cls(**coerced)
 
 
 def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
