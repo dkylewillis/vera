@@ -25,7 +25,7 @@ class PyMuPDFOptions(PipelineOptions):
 
     Each field's ``metadata`` doubles as its CLI/GUI descriptor entry (see
     :func:`vera_ingest.descriptors.fields_from_dataclass`) and drives its own
-    validation (see :func:`vera_ingest.pipeline_options.coerce_pipeline_options`),
+    validation (see :class:`vera_ingest.pipeline_options.PipelineOptions`),
     so a setting's key, default, presentation, and validation all live in one
     place — ``from_mapping`` itself is inherited from
     :class:`~vera_ingest.pipeline_options.PipelineOptions`, not written here.
