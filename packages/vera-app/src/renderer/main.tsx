@@ -67,7 +67,7 @@ import {
   type ExplorerSelection,
 } from './lib/formatting';
 import { figureCacheKey, mergeFigureData, sameSearchResult } from './lib/figures';
-import { collapsedFoldersForActiveLibrary } from './lib/explorer';
+import { syncCollapsedFolders } from './lib/explorer';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from './lib/providers';
 import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
 import './styles.css';
@@ -724,8 +724,96 @@ function App() {
     });
   }
 
-  function openEntry(entry: FolderEntry, event?: { ctrlKey?: boolean; metaKey?: boolean }) {
+  function parentFolderForPath(filePath: string): string | undefined {
+    return folders.find((folder) => folder.entries.some((entry) => entry.path === filePath))?.path;
+  }
+
+  function clearExplorerFileSelection() {
+    const scopedVera = !activeLibraryPath && Boolean(path) && path.toLowerCase().endsWith('.vera');
+    const hadFileSelection = selectedPdfs.length > 0
+      || selectedFiles.length > 0
+      || explorerSelection?.kind === 'file'
+      || scopedVera;
+    if (!hadFileSelection) return false;
+
+    setSelectedPdfs([]);
+    setSelectedFiles([]);
+
+    if (scopedVera) {
+      const parent = parentFolderForPath(path);
+      if (parent) {
+        setExplorerSelection({ kind: 'folder', path: parent });
+        void openTargetPath(parent, { asLibrary: true });
+        return true;
+      }
+      setExplorerSelection(null);
+      updateTargetPath('');
+      return true;
+    }
+
+    if (explorerSelection?.kind === 'file') {
+      setExplorerSelection(null);
+    }
+    return true;
+  }
+
+  function handleExplorerBlankPointer(event: { button?: number; currentTarget: HTMLElement; target: EventTarget | null }) {
+    if (event.button !== undefined && event.button !== 0) return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    // Only pane chrome / tree padding — not 1px gaps between file rows.
+    if (target !== event.currentTarget && !target.classList.contains('explorerTree')) {
+      return;
+    }
+    event.currentTarget.focus({ preventScroll: true });
+    clearExplorerFileSelection();
+  }
+
+  // Windows Explorer-style: Escape clears file selection while Explorer has focus,
+  // but only after menus/modals have already had a chance to consume Escape.
+  useEffect(() => {
+    if (sideView !== 'explorer' || sidebarCollapsed) return;
+    if (folderContextMenu || entryContextMenu || settingsOpen || indexPrompt || indexReport) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement)) return;
+      if (active.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (!active.closest('.sidePanel')) return;
+      if (clearExplorerFileSelection()) {
+        event.preventDefault();
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [
+    sideView,
+    sidebarCollapsed,
+    folderContextMenu,
+    entryContextMenu,
+    settingsOpen,
+    indexPrompt,
+    indexReport,
+    selectedPdfs,
+    selectedFiles,
+    explorerSelection,
+    activeLibraryPath,
+    path,
+    folders,
+  ]);
+
+  function openEntry(
+    entry: FolderEntry,
+    folderPath: string,
+    event?: { ctrlKey?: boolean; metaKey?: boolean },
+  ) {
     const selection: ExplorerSelection = { kind: 'file', path: entry.path, type: entry.type };
+    // Selecting a file must not hide its folder (active-library sync used to
+    // collapse everything when scope moved off the library).
+    setCollapsedFolders((prev) => prev.filter((pathValue) => pathValue !== folderPath));
+
     if (entry.type === 'vera') {
       setExplorerSelection(selection);
       // Selecting a document sets Search/Ask scope only; the document viewer is
@@ -2112,10 +2200,11 @@ function App() {
   }, [folderPathsKey]);
 
   // Keep folder headers scannable: expand the active library, collapse the rest.
-  // Manual caret toggles still work until the active library or folder set changes.
+  // Clearing the library (single-file scope) preserves expand/collapse state so
+  // selecting a .vera does not collapse the folder you just clicked in.
   useEffect(() => {
     const folderPaths = folderPathsKey ? folderPathsKey.split('\n') : [];
-    setCollapsedFolders(collapsedFoldersForActiveLibrary(folderPaths, activeLibraryPath));
+    setCollapsedFolders((prev) => syncCollapsedFolders(folderPaths, activeLibraryPath, prev));
   }, [folderPathsKey, activeLibraryPath]);
 
   useEffect(() => window.vera.onFolderChanged((folderPath) => {
@@ -2418,7 +2507,11 @@ function App() {
             ) : null}
           </div>
           {!sidebarCollapsed ? (
-            <div className={`sidePanelBody${sideView === 'explorer' ? ' sidePanelBody--explorer' : ''}${sideView === 'chats' ? ' sidePanelBody--chats' : ''}`}>
+            <div
+              className={`sidePanelBody${sideView === 'explorer' ? ' sidePanelBody--explorer' : ''}${sideView === 'chats' ? ' sidePanelBody--chats' : ''}`}
+              tabIndex={sideView === 'explorer' ? -1 : undefined}
+              onMouseDown={sideView === 'explorer' ? (event) => handleExplorerBlankPointer(event) : undefined}
+            >
               {sideView === 'explorer' ? (
                 folders.length === 0 ? (
                   <div className="sideEmpty">
@@ -2572,7 +2665,7 @@ function App() {
                                     ? 'fileRow active'
                                     : 'fileRow'
                                 }
-                                onClick={(event) => openEntry(entry, event)}
+                                onClick={(event) => openEntry(entry, folder.path, event)}
                                 onDoubleClick={() => {
                                   if (entry.type === 'vera' || entry.type === 'pdf') {
                                     void previewSourceDocument(entry);
@@ -2586,8 +2679,8 @@ function App() {
                                   sourceLoading
                                     ? `${entry.relativePath} — loading ${fileName(pendingSourcePath)}…`
                                     : entry.type === 'pdf'
-                                      ? `${entry.relativePath} — click to select · Ctrl/Cmd+click to multi-select · double-click to view`
-                                      : `${entry.relativePath} — double-click to preview source`
+                                      ? `${entry.relativePath} — click to select · Ctrl/Cmd+click to multi-select · click empty space or Esc to clear · double-click to view`
+                                      : `${entry.relativePath} — click to set Search/Ask scope · click empty space or Esc to clear · double-click to preview source`
                                 }
                               >
                                 {entry.type === 'vera' ? <VeraIcon size={14} className="fileRowIcon vera" /> : <FileText size={14} className="fileRowIcon pdf" />}

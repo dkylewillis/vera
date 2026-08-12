@@ -133,10 +133,14 @@ Libraries with at least 100
 discovered archives prompt to build or update an unavailable index, while smaller
 libraries expose build, update, rescan, show-in-system-folder, and
 close actions in the folder row's context menu. File rows offer show-in-system-
-folder (and preview/trash where applicable). Clicking a PDF selects it for conversion (and Ctrl/Cmd+click
+folder (and preview/trash where applicable). Clicking a PDF selects it for conversion (Ctrl/Cmd+click
 toggles additional PDFs into the same selection, separate from `.vera`
 search-scope checkboxes). Clicking a `.vera` sets Search/Ask scope without
-changing the document viewer. Double-click or right-click **View in document
+changing the document viewer. Clicking empty Explorer space or pressing Escape
+(while the sidebar has focus) clears file selection — PDF picks, `.vera`
+checkboxes, and a single-document scope (restoring the parent library when
+possible). Selecting a file does not collapse its
+folder. Double-click or right-click **View in document
 viewer** / **Preview embedded source** loads that PDF or archive original in
 the source pane; right-clicking a PDF also offers **Convert PDF** /
 **Convert PDFs** for the current selection (one or more files). The same menus can be opened from the keyboard with

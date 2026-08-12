@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { collapsedFoldersForActiveLibrary } from './explorer';
+import { syncCollapsedFolders } from './explorer';
 
-describe('collapsedFoldersForActiveLibrary', () => {
-  it('collapses every folder when none is active', () => {
-    expect(collapsedFoldersForActiveLibrary(['/a', '/b'], '')).toEqual(['/a', '/b']);
+describe('syncCollapsedFolders', () => {
+  it('preserves expand/collapse state when no library is active', () => {
+    expect(syncCollapsedFolders(['/a', '/b'], '', ['/b'])).toEqual(['/b']);
+  });
+
+  it('drops collapsed paths for folders that were closed', () => {
+    expect(syncCollapsedFolders(['/a'], '', ['/a', '/gone'])).toEqual(['/a']);
   });
 
   it('keeps the active library expanded and collapses the rest', () => {
-    expect(collapsedFoldersForActiveLibrary(['/a', '/b', '/c'], '/b')).toEqual(['/a', '/c']);
+    expect(syncCollapsedFolders(['/a', '/b', '/c'], '/b', ['/a'])).toEqual(['/a', '/c']);
   });
 
   it('expands a lone active library', () => {
-    expect(collapsedFoldersForActiveLibrary(['/only'], '/only')).toEqual([]);
+    expect(syncCollapsedFolders(['/only'], '/only', ['/only'])).toEqual([]);
   });
 });
