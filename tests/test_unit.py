@@ -8,15 +8,20 @@ from vera.core.embeddings import (
     UnknownEmbeddingModelError,
     clear_embedder_cache,
     cosine_similarity,
+    describe_embedder,
     deserialize_vector,
     get_embedder,
+    list_embedding_models,
+    list_embedding_provider_descriptors,
     list_embedding_providers,
     parse_model_spec,
+    preflight_embedder,
     register_embedder,
     reset_embedding_registry,
     serialize_vector,
     unregister_embedder,
 )
+from vera.core.embedder_descriptors import EmbedderDescriptor
 from vera import ChunkRecord, QueryResult, VeraDocument
 from vera_cli import str_to_bool
 from vera_ingest.types import ParsedPage
@@ -224,6 +229,79 @@ class TestGetEmbedder:
             unregister_embedder("unit-test-custom")
             clear_embedder_cache()
 
+    def test_register_embedder_decorator(self):
+        @register_embedder("unit-test-decorator", replace=True)
+        def factory(model_id: str, **config):
+            return HashingEmbedder(model_name=f"decorated/{model_id}")
+
+        try:
+            embedder = get_embedder("unit-test-decorator:beta")
+            assert embedder.model_name == "decorated/beta"
+        finally:
+            unregister_embedder("unit-test-decorator")
+            clear_embedder_cache()
+
+    def test_hashing_options_from_mapping(self):
+        embedder = get_embedder("hashing", embedder_options={"dimension": 128})
+        assert embedder.dimension == 128
+        assert embedder.model_name == "vera-hashing-128"
+        # Search-time resolve from the stored model_name recovers dimension.
+        again = get_embedder("vera-hashing-128")
+        assert again.dimension == 128
+        assert again.model_name == "vera-hashing-128"
+        with pytest.raises(ValueError, match="Unknown Hashing option"):
+            get_embedder("hashing", embedder_options={"typo": 1})
+
+    def test_describe_builtin_providers(self):
+        hashing = describe_embedder("hashing")
+        assert hashing.provider == "hashing"
+        assert hashing.field_keys() == {"dimension"}
+        assert hashing.defaults()["dimension"] == 384
+        assert hashing.always_fields()[0].key == "dimension"
+        st = describe_embedder("sentence-transformers")
+        assert {item.key for item in st.convert_fields()} == {"device", "batch_size"}
+        descriptors = list_embedding_provider_descriptors()
+        providers = {item.provider for item in descriptors}
+        assert "hashing" in providers
+        assert "sentence-transformers" in providers
+
+    def test_list_embedding_models_and_preflight(self, monkeypatch):
+        models = list_embedding_models("hashing")
+        assert models[0].model_id == "vera-hashing-384"
+        assert models[0].spec.startswith("hashing:")
+        st_models = list_embedding_models("sentence-transformers")
+        assert any(item.model_id == "all-MiniLM-L6-v2" for item in st_models)
+        assert preflight_embedder("hashing").ok is True
+
+        from vera import EmbedderCapabilities, EmbedderDescriptor, register_embedder_descriptor
+
+        @register_embedder("unit-test-creds", replace=True)
+        def factory(model_id: str, **config):
+            return HashingEmbedder(model_name=f"creds/{model_id}")
+
+        register_embedder_descriptor(
+            "unit-test-creds",
+            lambda: EmbedderDescriptor(
+                provider="unit-test-creds",
+                label="creds",
+                capabilities=EmbedderCapabilities(
+                    requires_api_key=True,
+                    credential_env="UNIT_TEST_EMBED_KEY",
+                ),
+            ),
+            replace=True,
+        )
+        try:
+            monkeypatch.delenv("UNIT_TEST_EMBED_KEY", raising=False)
+            failed = preflight_embedder("unit-test-creds:alpha")
+            assert failed.ok is False
+            assert failed.missing_credential_env == "UNIT_TEST_EMBED_KEY"
+            monkeypatch.setenv("UNIT_TEST_EMBED_KEY", "secret")
+            assert preflight_embedder("unit-test-creds:alpha").ok is True
+        finally:
+            unregister_embedder("unit-test-creds")
+            clear_embedder_cache()
+
     def test_config_keyed_cache(self):
         calls: list[tuple[str, dict]] = []
 
@@ -258,9 +336,24 @@ class TestGetEmbedder:
                     model_name=f"ep/{model_id or 'default'}"
                 )
 
+        class FakeDescriptorEntry:
+            name = "ep-test"
+
+            def load(self):
+                return lambda: EmbedderDescriptor(
+                    provider="ep-test",
+                    label="ep-test",
+                    description="entry-point descriptor",
+                )
+
         def fake_entry_points(*, group=None):
-            assert group == "vera.embedders"
-            return [FakeEntry()]
+            if group == "vera.embedders":
+                return [FakeEntry()]
+            if group == "vera.embedder_descriptors":
+                return [FakeDescriptorEntry()]
+            if group == "vera.embedder_models":
+                return []
+            return []
 
         reset_embedding_registry(builtins=True)
         monkeypatch.setattr(
@@ -270,6 +363,8 @@ class TestGetEmbedder:
         try:
             embedder = get_embedder("ep-test:widget")
             assert embedder.model_name == "ep/widget"
+            descriptor = describe_embedder("ep-test")
+            assert descriptor.description == "entry-point descriptor"
         finally:
             reset_embedding_registry(builtins=True)
 

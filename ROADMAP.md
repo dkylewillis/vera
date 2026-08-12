@@ -43,16 +43,31 @@ schema or normative behavior.
 - [x] Use the selected model for single-file and batch conversion.
 - [x] Show installed embedding providers as model-spec suggestions.
 - [x] Offer Convert-view presets for hashing and Sentence Transformers MiniLM.
-- [ ] Add conversion-time provider and credential preflight checks.
-- [ ] Improve model selection with provider-specific model discovery.
+- [x] Advertise provider-owned options through `EmbedderOptions` dataclass
+  metadata and `vera.embedder_descriptors` (parallel to ingest pipelines).
+- [x] Accept `embedder_options` / `--embedder-option KEY=VALUE` and expose
+  `describe_embedding_providers` for schema-driven Convert controls.
+- [x] Advertise credential env vars via `capabilities.credential_env` (no
+  secrets in Options) and expose `preflight_embedder`.
+- [x] Advertise model presets via `vera.embedder_models` /
+  `list_embedding_models`.
+- [ ] Add conversion-time provider and credential preflight checks in the
+  Convert UI (sidecar `preflight_embedder` is ready).
+- [ ] Improve model selection UI with provider-specific model discovery
+  (sidecar `list_embedding_models` is ready).
+- [ ] Drive Convert UI embedding forms from descriptors (like
+  `PipelineConfigForm`).
+- [ ] Store hosted embedding-provider credentials securely in the desktop app.
 
 ### Official embedding providers
 
 - [ ] Add a lightweight OpenAI-compatible embeddings provider.
 - [ ] Add Voyage AI embeddings for applications that use Claude for answers.
 - [ ] Add an Ollama embeddings provider for local models.
-- [ ] Store hosted embedding-provider credentials securely.
-- [ ] Define supported configuration for endpoints, timeouts, and batch sizes.
+- [x] Define supported configuration for endpoints, timeouts, and batch sizes
+  via provider `Options` + descriptors (built-ins advertise dimension /
+  device / batch_size; hosted plugins follow the same pattern; secrets use
+  `credential_env`).
 - [ ] Document which providers are bundled with each desktop release.
 
 ### Packaging and local models

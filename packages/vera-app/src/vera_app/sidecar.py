@@ -18,7 +18,10 @@ from vera import (
     VeraDocument,
     build_library_index,
     library_index_status,
+    list_embedding_models,
+    list_embedding_provider_descriptors,
     list_embedding_providers,
+    preflight_embedder,
     update_library_index,
 )
 from vera.corpus import VeraCorpus
@@ -1122,6 +1125,12 @@ def _convert(
         if isinstance(raw_pipeline_options, dict)
         else None
     )
+    raw_embedder_options = request.get("embedder_options")
+    embedder_options = (
+        dict(raw_embedder_options)
+        if isinstance(raw_embedder_options, dict)
+        else None
+    )
     output = convert(
         input_path,
         str(request["output"]),
@@ -1135,6 +1144,7 @@ def _convert(
         ocr_dpi=int(request.get("ocr_dpi", 300)),
         ocr_download=bool(request.get("ocr_download", False)),
         pipeline_options=pipeline_options,
+        embedder_options=embedder_options,
         cancel=cancel,
     )
     if write_event:
@@ -1210,6 +1220,11 @@ def _batch_convert(
         pipeline_options=(
             dict(request["pipeline_options"])
             if isinstance(request.get("pipeline_options"), dict)
+            else None
+        ),
+        embedder_options=(
+            dict(request["embedder_options"])
+            if isinstance(request.get("embedder_options"), dict)
             else None
         ),
         progress=report_progress,
@@ -1355,6 +1370,32 @@ def _list_embedding_providers(request: Request) -> dict[str, Any]:
     return {"providers": list_embedding_providers()}
 
 
+def _describe_embedding_providers(request: Request) -> dict[str, Any]:
+    """Return installed embedding-provider descriptors for schema-driven controls."""
+    return {
+        "providers": [
+            descriptor.as_dict() for descriptor in list_embedding_provider_descriptors()
+        ],
+    }
+
+
+def _list_embedding_models(request: Request) -> dict[str, Any]:
+    """Return model ids advertised by one embedding provider."""
+    provider = str(request.get("provider") or "").strip()
+    if not provider:
+        raise ValueError("provider is required")
+    return {
+        "provider": provider,
+        "models": [item.as_dict() for item in list_embedding_models(provider)],
+    }
+
+
+def _preflight_embedder(request: Request) -> dict[str, Any]:
+    """Check credential/env readiness for a model spec without loading runtimes."""
+    model = str(request.get("model") or "hashing")
+    return preflight_embedder(model).as_dict()
+
+
 def _list_ingest_pipelines(request: Request) -> dict[str, Any]:
     """List installed ingest pipeline providers for the Convert view."""
     return {"pipelines": list_ingest_pipelines()}
@@ -1418,6 +1459,9 @@ HANDLERS: dict[str, Handler] = {
     "page": _page,
     "list_models": _list_models,
     "list_embedding_providers": _list_embedding_providers,
+    "describe_embedding_providers": _describe_embedding_providers,
+    "list_embedding_models": _list_embedding_models,
+    "preflight_embedder": _preflight_embedder,
     "list_ingest_pipelines": _list_ingest_pipelines,
     "describe_ingest_pipelines": _describe_ingest_pipelines,
     "ocr_languages_list": _ocr_languages_list,

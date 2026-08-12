@@ -144,8 +144,17 @@ that search an archive created with a Sentence Transformers model.
 Prefer `provider:model-id` specs. An unrecognized provider or model raises an
 error at convert time instead of silently falling back to hashing. Third-party
 plugins can register providers under the Python entry-point group
-`vera.embedders`. From Python, pass a custom `embedding_function` to
-`vera_ingest.convert` or call `vera.register_embedder`.
+`vera.embedders`, with optional `vera.embedder_descriptors` metadata for
+schema-driven Convert controls (`describe_embedding_providers` in the
+sidecar). From Python, pass a custom `embedding_function`
+to `vera_ingest.convert`, call `vera.register_embedder`, or pass
+`embedder_options={...}` / CLI `--embedder-option KEY=VALUE` for
+provider-owned settings advertised by the provider's Options dataclass. See
+[Creating an embedding provider plugin](creating-an-embedding-provider.md).
+Prefer environment variables for API keys (`capabilities.credential_env` /
+`preflight_embedder`); do not put secrets in Options. Convert-time knobs such
+as `batch_size` use `scope: convert` so search can resolve
+`get_embedder(stored_model_name)` with defaults.
 
 ### Hosted provider plugins
 
@@ -154,14 +163,17 @@ registers the desired provider, then use its `provider:model-id` spec:
 
 ```bash
 set OPENAI_API_KEY=...
-vera convert "input.pdf" --model openai:text-embedding-3-small
+vera convert "input.pdf" --model openai:text-embedding-3-small \
+  --embedder-option batch_size=64
 ```
 
 The plugin's embedder must record the full spec (for example,
 `openai:text-embedding-3-small`) as `model_name`, so later semantic searches
-load the matching provider. See the
+load the matching provider. See
+[Creating an embedding provider plugin](creating-an-embedding-provider.md)
+for the Options + descriptor authoring model and the
 [OpenAI plugin example](../packages/vera-doc/README.md#openai-embedding-plugin-example)
-for a complete entry-point implementation.
+for a complete entry-point sketch.
 
 Claude is an LLM rather than an embedding provider: Anthropic's Claude API has
 no embeddings endpoint. A Claude application can use a separate provider such

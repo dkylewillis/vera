@@ -696,6 +696,19 @@ def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):
         }
     )
     providers = handle({"id": "embedding-providers", "action": "list_embedding_providers"})
+    described = handle(
+        {"id": "embedding-providers-describe", "action": "describe_embedding_providers"}
+    )
+    models = handle(
+        {
+            "id": "embedding-models",
+            "action": "list_embedding_models",
+            "provider": "hashing",
+        }
+    )
+    preflight = handle(
+        {"id": "embedding-preflight", "action": "preflight_embedder", "model": "hashing"}
+    )
 
     assert converted["ok"] is True
     assert captured["model"] == "openai:text-embedding-3-small"
@@ -704,6 +717,15 @@ def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):
         "ok": True,
         "result": {"providers": ["hashing", "openai"]},
     }
+    assert described["ok"] is True
+    assert "providers" in described["result"]
+    assert isinstance(described["result"]["providers"], list)
+    assert models["ok"] is True
+    assert models["result"]["provider"] == "hashing"
+    assert models["result"]["models"][0]["model_id"] == "vera-hashing-384"
+    assert preflight["ok"] is True
+    assert preflight["result"]["ok"] is True
+    assert preflight["result"]["provider"] == "hashing"
 
 
 def test_source_action_materializes_cache_file(tmp_path):

@@ -15,10 +15,20 @@ queries, and library indexes for `.vera` archives.
         - QueryResult
         - CorpusSearchResult
         - EmbeddingFunction
+        - EmbedderOptions
+        - EmbedderDescriptor
+        - EmbeddingModelInfo
+        - EmbedderPreflightResult
         - UnknownEmbeddingModelError
         - get_embedder
         - register_embedder
+        - register_embedder_descriptor
+        - register_embedder_models
+        - describe_embedder
         - list_embedding_providers
+        - list_embedding_provider_descriptors
+        - list_embedding_models
+        - preflight_embedder
         - build_library_index
         - update_library_index
         - library_index_status

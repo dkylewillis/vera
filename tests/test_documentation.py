@@ -101,6 +101,16 @@ def test_documented_cli_examples_parse():
             "ocr_mode=auto",
             "--json",
         ],
+        [
+            "convert",
+            "input.pdf",
+            "output.vera",
+            "--model",
+            "hashing",
+            "--embedder-option",
+            "dimension=256",
+            "--json",
+        ],
         ["inspect", "output.vera", "--json"],
         [
             "search",
@@ -158,12 +168,35 @@ def test_hardening_json_contracts_are_documented():
     assert "compatibility alias" in conversion.lower() or "Compatibility aliases" in conversion
     assert "ocr_language=en" in conversion
     assert "overlap" in conversion and "ocr_dpi" in conversion
+    assert "--embedder-option" in conversion
+    assert "embedder_options" in conversion
+    assert "describe_embedding_providers" in conversion or "creating-an-embedding-provider.md" in conversion
     assert "`--pipeline-option KEY=VALUE`" in cli_reference
+    assert "`--embedder-option KEY=VALUE`" in cli_reference
     assert "compatibility alias" in cli_reference.lower() or "Compatibility alias" in cli_reference
     assert "pipeline-owned typed options" in roadmap
     assert "`vera convert --pipeline-option KEY=VALUE`" in roadmap
     assert "describe_ingest_pipelines" in roadmap
     assert "PipelineConfigForm" in roadmap
+    assert "EmbedderOptions" in roadmap
+    assert "describe_embedding_providers" in roadmap
+    assert "--embedder-option" in roadmap
+    assert "preflight_embedder" in roadmap
+    assert "list_embedding_models" in roadmap
+    assert "credential_env" in roadmap
+    assert (DOCS / "creating-an-embedding-provider.md").is_file()
+    guide = (DOCS / "creating-an-embedding-provider.md").read_text(encoding="utf-8")
+    assert "EmbedderOptions" in guide
+    assert "vera.embedder_descriptors" in guide
+    assert "credential_env" in guide
+    assert "Do not put API keys in Options" in guide or "do not put secrets" in guide.lower()
+    assert "scope\": \"convert\"" in guide or "scope: convert" in guide or '"scope": "convert"' in guide
+    assert "vera.embedder_models" in guide
+    assert "preflight_embedder" in conversion
+    assert "credential_env" in conversion
+    assert "list_embedding_models" in desktop_architecture
+    assert "preflight_embedder" in desktop_architecture
+    assert "credential_env" in desktop_architecture
     assert "skipped_files" in libraries
     assert "skipped_semantic_model_groups" in libraries
     assert "does not reopen archives" in libraries
@@ -189,6 +222,8 @@ def test_hardening_json_contracts_are_documented():
     assert "only explicit `search_start` and `search_done`" in desktop_architecture
     assert "Token-level `answer_delta`" in desktop_architecture
     assert "describe_ingest_pipelines" in desktop_architecture
+    assert "describe_embedding_providers" in desktop_architecture
+    assert "embedder_options" in desktop_architecture
     assert "pipeline_options" in desktop_architecture
     assert "PipelineConfigForm" in desktop_architecture
     assert "Advanced pipeline options" in desktop_architecture

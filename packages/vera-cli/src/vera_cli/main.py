@@ -33,7 +33,7 @@ def positive_int(value: str) -> int:
 
 
 def pipeline_option(value: str) -> tuple[str, str]:
-    """Parse ``KEY=VALUE`` pairs for ``--pipeline-option``."""
+    """Parse ``KEY=VALUE`` pairs for ``--pipeline-option`` / ``--embedder-option``."""
     if "=" not in value:
         raise argparse.ArgumentTypeError("must be KEY=VALUE")
     key, raw = value.split("=", 1)
@@ -41,6 +41,9 @@ def pipeline_option(value: str) -> tuple[str, str]:
     if not key:
         raise argparse.ArgumentTypeError("option key must be non-empty")
     return key, raw
+
+
+embedder_option = pipeline_option
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -101,6 +104,19 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Provider-owned ingest option (repeatable). Overrides compatibility "
             "aliases for the same key when the selected pipeline accepts it."
+        ),
+    )
+    convert_p.add_argument(
+        "--embedder-option",
+        dest="embedder_options",
+        action="append",
+        type=embedder_option,
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "Provider-owned embedding option (repeatable). Forwarded to the "
+            "selected embedding provider (for example --embedder-option "
+            "batch_size=64 or --embedder-option dimension=256)."
         ),
     )
     convert_p.add_argument("--recursive", action="store_true", help="Discover PDFs recursively when input is a directory")

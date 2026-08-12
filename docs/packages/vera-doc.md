@@ -25,7 +25,9 @@ Python 3.10 or newer is required. The default hashing embedder works locally
 without a model download or API key. Neural embeddings are available through
 the optional `ml` extra. Additional providers can be registered with
 `register_embedder` or discovered through the `vera.embedders` entry-point
-group; unknown model specs raise `UnknownEmbeddingModelError`.
+group (optional `vera.embedder_descriptors` for schema-driven options);
+unknown model specs raise `UnknownEmbeddingModelError`. See
+[Creating an embedding provider plugin](../creating-an-embedding-provider.md).
 
 ## Start here
 
@@ -47,6 +49,8 @@ with VeraDocument.open("knowledge.vera") as document:
 
 ## Documentation
 
+- [Creating an embedding provider plugin](../creating-an-embedding-provider.md) —
+  write and register a `vera.embedders` plugin.
 - [Concepts](../concepts/overview.md) — archives, records, search modes, and indexes.
 - [Basic usage](../guides/basic-usage.md) — convert, inspect, and search workflows.
 - [Search documents](../searching.md) — semantic, keyword, and hybrid retrieval.

@@ -112,6 +112,7 @@ def convert(
     ocr_dpi: int = 300,
     ocr_download: bool = False,
     pipeline_options: dict[str, Any] | None = None,
+    embedder_options: dict[str, Any] | None = None,
     cancel: Any | None = None,
 ) -> str:
     """Convert a PDF into a validated ``.vera`` archive.
@@ -142,6 +143,8 @@ def convert(
             checksum-verified download of missing Tesseract language data.
         pipeline_options: Explicit provider-owned options. These override
             compatibility aliases for the same keys.
+        embedder_options: Explicit provider-owned embedding options forwarded
+            to :func:`~vera.get_embedder` when ``embedding_function`` is omitted.
         cancel: Optional cancellation token with ``raise_if_cancelled()``.
 
     Returns:
@@ -160,7 +163,11 @@ def convert(
 
     _, pipeline_variant = parse_ingest_pipeline_spec(parser)
     pipeline = get_ingest_pipeline(parser)
-    embedder = embedding_function if embedding_function is not None else get_embedder(model)
+    embedder = (
+        embedding_function
+        if embedding_function is not None
+        else get_embedder(model, embedder_options=embedder_options)
+    )
     resolved_options = prepare_pipeline_options(
         spec=parser,
         pipeline_options=pipeline_options,
@@ -472,6 +479,7 @@ def batch_convert(
     ocr_dpi: int = 300,
     ocr_download: bool = False,
     pipeline_options: dict[str, Any] | None = None,
+    embedder_options: dict[str, Any] | None = None,
     progress: Callable[[int, int, str], None] | None = None,
     cancel: Any | None = None,
 ) -> dict[str, Any]:
@@ -494,6 +502,8 @@ def batch_convert(
         ocr_dpi: OCR DPI passed to :func:`convert`.
         ocr_download: OCR language auto-download flag passed to :func:`convert`.
         pipeline_options: Explicit provider-owned options passed to :func:`convert`.
+        embedder_options: Explicit provider-owned embedding options passed to
+            :func:`convert`.
         progress: Optional ``(current, total, filename)`` callback.
         cancel: Optional cancellation token.
 
@@ -510,7 +520,11 @@ def batch_convert(
     """
     # Resolve once up front so bad providers fail before discovery or PDF work.
     get_ingest_pipeline(parser)
-    embedder = embedding_function if embedding_function is not None else get_embedder(model)
+    embedder = (
+        embedding_function
+        if embedding_function is not None
+        else get_embedder(model, embedder_options=embedder_options)
+    )
 
     root, pdfs = _resolve_batch_pdfs(
         directory,
