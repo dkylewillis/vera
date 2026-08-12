@@ -75,6 +75,8 @@ kwargs such as `chunk_size` and `ocr_mode` remain compatibility aliases.
 ## Documentation
 
 - [Convert documents](../conversion.md) — OCR, chunking, embedding, and batch conversion.
+- [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md) — write and register
+  a new pipeline provider.
 - [Figures and regions](../figures-and-regions.md) — extracted visual metadata and
   [schema storage map](../figures-and-regions.md#storage-map-vera-02-schema).
 - [Conversion recipes](../examples.md) — single files, scans, and nested libraries.

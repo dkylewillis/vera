@@ -63,8 +63,11 @@ The default Docling variant is `hybrid`. Unknown variants fail before parsing.
 - Attempts automatic recovery when Docling returns page-level memory errors
   (`bad_alloc`); rejects only when recovery is exhausted instead of publishing
   an incomplete archive.
-- Maps VERA/Tesseract OCR language codes to RapidOCR (for example `eng` → `en`)
-  before configuring Docling OCR.
+- `ocr_language` expects a RapidOCR-native code (for example `en`, `fr`,
+  `cyrillic`); it is **not** translated from Tesseract-style codes, so
+  PyMuPDF's `eng` is not valid here — pass
+  `--pipeline-option ocr_language=en` explicitly (the shared `--ocr-language`
+  CLI default, `eng`, is PyMuPDF's own vocabulary).
 - Disables Docling's `torch.compile` path so Windows conversions do not require
   Visual Studio's `cl.exe`, and keeps Docling's default `images_scale`.
 
@@ -108,5 +111,7 @@ Docling plugins in this milestone.
 ## See also
 
 - [Convert documents](../conversion.md)
+- [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md) — this
+  package demonstrates layout mapping and failure recovery beyond the basics.
 - [vera-ingest package](vera-ingest.md)
 - [ROADMAP](https://github.com/dkylewillis/vera/blob/main/ROADMAP.md)

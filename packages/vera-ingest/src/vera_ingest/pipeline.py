@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 from importlib.metadata import entry_points
-from typing import Any, Protocol
+from typing import Any
 
 from .descriptors import PipelineDescriptor, generic_pipeline_descriptor
 from .types import IngestRequest, IngestResult
@@ -11,19 +11,39 @@ from .types import IngestRequest, IngestResult
 _ENTRY_POINT_GROUP = "vera.ingest_pipelines"
 _DESCRIPTOR_ENTRY_POINT_GROUP = "vera.ingest_pipeline_descriptors"
 _REGISTRY_LOCK = threading.RLock()
-_PIPELINE_FACTORIES: dict[str, Callable[[str], IngestPipeline]] = {}
+_PIPELINE_FACTORIES: dict[str, Callable[[str], "IngestPipeline"]] = {}
 _DESCRIPTOR_FACTORIES: dict[str, Callable[[str], PipelineDescriptor]] = {}
-_PIPELINE_CACHE: dict[tuple[str, str], IngestPipeline] = {}
+_PIPELINE_CACHE: dict[tuple[str, str], "IngestPipeline"] = {}
 _ENTRY_POINTS_LOADED = False
 _DEFAULT_VARIANTS = {"docling": "hybrid"}
 
 
-class IngestPipeline(Protocol):
-    """Pipeline that normalizes a source document into an ingest bundle."""
+IngestPipeline = Callable[[str, IngestRequest], IngestResult]
+"""A pipeline that normalizes a source document into an ingest bundle.
 
-    def ingest(self, source_path: str, options: IngestRequest) -> IngestResult:
-        """Parse and chunk ``source_path`` without writing an archive."""
-        ...
+A pipeline is any callable matching this signature — a plain function, or an
+object implementing ``__call__`` if it needs to hold state. There is no base
+class to inherit from::
+
+    def create_pipeline(variant: str = "") -> IngestPipeline:
+        def ingest(source_path: str, options: IngestRequest) -> IngestResult:
+            ...
+        return ingest
+
+For compatibility with pre-0.3.x plugins, an object exposing a callable
+``ingest(self, source_path, options)`` method is also accepted; see
+:func:`invoke_ingest_pipeline`.
+"""
+
+
+def invoke_ingest_pipeline(
+    pipeline: IngestPipeline, source_path: str, request: IngestRequest
+) -> IngestResult:
+    """Call ``pipeline``, accepting both a bare callable and a legacy ``.ingest()`` object."""
+    ingest = getattr(pipeline, "ingest", None)
+    if callable(ingest):
+        return ingest(source_path, request)
+    return pipeline(source_path, request)
 
 
 class UnknownIngestPipelineError(ValueError):
@@ -67,11 +87,30 @@ def format_ingest_pipeline_spec(provider: str, variant: str = "") -> str:
 
 def register_ingest_pipeline(
     provider: str,
-    factory: Callable[[str], IngestPipeline],
+    factory: Callable[[str], IngestPipeline] | None = None,
     *,
     replace: bool = False,
-) -> None:
-    """Register a provider factory called with the requested variant."""
+) -> Callable[[Callable[[str], IngestPipeline]], Callable[[str], IngestPipeline]] | None:
+    """Register a provider factory called with the requested variant.
+
+    Called with both arguments, this registers ``factory`` immediately and
+    returns ``None``, as before. Omit ``factory`` to use it as a decorator
+    instead — handy for local experiments, notebooks, and tests that would
+    otherwise need a separate factory function and a separate call::
+
+        @register_ingest_pipeline("myexperiment")
+        def create_pipeline(variant: str = "") -> IngestPipeline:
+            return MyPipeline()
+    """
+    if factory is None:
+        def decorator(
+            actual_factory: Callable[[str], IngestPipeline],
+        ) -> Callable[[str], IngestPipeline]:
+            register_ingest_pipeline(provider, actual_factory, replace=replace)
+            return actual_factory
+
+        return decorator
+
     key = _normalize_provider(provider)
     if not callable(factory):
         raise TypeError("ingest pipeline factory must be callable")
@@ -82,15 +121,29 @@ def register_ingest_pipeline(
         for cache_key in tuple(_PIPELINE_CACHE):
             if cache_key[0] == key:
                 _PIPELINE_CACHE.pop(cache_key, None)
+    return None
 
 
 def register_ingest_pipeline_descriptor(
     provider: str,
-    factory: Callable[[str], PipelineDescriptor],
+    factory: Callable[[str], PipelineDescriptor] | None = None,
     *,
     replace: bool = False,
-) -> None:
-    """Register a descriptor factory called with the requested variant."""
+) -> Callable[[Callable[[str], PipelineDescriptor]], Callable[[str], PipelineDescriptor]] | None:
+    """Register a descriptor factory called with the requested variant.
+
+    Also usable as a decorator when ``factory`` is omitted — see
+    :func:`register_ingest_pipeline`.
+    """
+    if factory is None:
+        def decorator(
+            actual_factory: Callable[[str], PipelineDescriptor],
+        ) -> Callable[[str], PipelineDescriptor]:
+            register_ingest_pipeline_descriptor(provider, actual_factory, replace=replace)
+            return actual_factory
+
+        return decorator
+
     key = _normalize_provider(provider)
     if not callable(factory):
         raise TypeError("ingest pipeline descriptor factory must be callable")
@@ -100,6 +153,7 @@ def register_ingest_pipeline_descriptor(
                 f"ingest pipeline descriptor for {provider!r} is already registered"
             )
         _DESCRIPTOR_FACTORIES[key] = factory
+    return None
 
 
 def _load_entry_point_group(group: str) -> list[Any]:
@@ -162,9 +216,10 @@ def get_ingest_pipeline(spec: str = "pymupdf") -> IngestPipeline:
                 "entry-point group, or call register_ingest_pipeline()."
             )
         pipeline = factory(variant)
-        if not callable(getattr(pipeline, "ingest", None)):
+        if not (callable(pipeline) or callable(getattr(pipeline, "ingest", None))):
             raise TypeError(
-                f"Ingest pipeline provider {provider!r} returned an object without ingest()."
+                f"Ingest pipeline provider {provider!r} returned an object that is "
+                "neither callable nor has an ingest() method."
             )
         _PIPELINE_CACHE[cache_key] = pipeline
         return pipeline

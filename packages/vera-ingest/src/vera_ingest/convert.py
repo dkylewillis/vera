@@ -20,7 +20,12 @@ from vera import (
 )
 from vera.core.validation import validate_document
 
-from .pipeline import get_ingest_pipeline, parse_ingest_pipeline_spec, prepare_pipeline_options
+from .pipeline import (
+    get_ingest_pipeline,
+    invoke_ingest_pipeline,
+    parse_ingest_pipeline_spec,
+    prepare_pipeline_options,
+)
 from .types import IngestBlock, IngestRequest, IngestResult
 
 
@@ -173,7 +178,8 @@ def convert(
     source_data = source.read_bytes()
     source_hash = _sha256_bytes(source_data)
     mime_type = mimetypes.guess_type(source.name)[0] or "application/pdf"
-    ingest_result = pipeline.ingest(
+    ingest_result = invoke_ingest_pipeline(
+        pipeline,
         str(source),
         IngestRequest(
             variant=pipeline_variant,

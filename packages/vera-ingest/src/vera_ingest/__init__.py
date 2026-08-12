@@ -19,6 +19,7 @@ from .pipeline import (
     clear_ingest_pipeline_cache,
     describe_ingest_pipeline,
     get_ingest_pipeline,
+    invoke_ingest_pipeline,
     list_ingest_pipeline_descriptors,
     list_ingest_pipelines,
     prepare_pipeline_options,
@@ -26,6 +27,7 @@ from .pipeline import (
     register_ingest_pipeline_descriptor,
     reset_ingest_pipeline_registry,
 )
+from .pipeline_options import PipelineOptions
 from .types import (
     IngestBlock,
     IngestChunk,
@@ -34,7 +36,7 @@ from .types import (
     IngestResult,
     ParsedBlock,
     ParsedPage,
-    coerce_ingest_request,
+    ensure_ingest_request,
 )
 from .viewer import (
     export_source_document,
@@ -61,15 +63,16 @@ __all__ = [
     "PipelineDescriptor",
     "PipelineField",
     "PipelineFieldChoice",
+    "PipelineOptions",
     "UnknownIngestPipelineError",
     "batch_convert",
     "build_chunks_from_blocks",
     "chunk_pages",
     "clear_ingest_pipeline_cache",
-    "coerce_ingest_request",
     "convert",
     "describe_ingest_pipeline",
     "detect_heading",
+    "ensure_ingest_request",
     "export_source_document",
     "figures",
     "figures_for",
@@ -78,6 +81,7 @@ __all__ = [
     "get_ingest_pipeline",
     "get_page",
     "get_source_document",
+    "invoke_ingest_pipeline",
     "list_ingest_pipeline_descriptors",
     "list_ingest_pipelines",
     "prepare_pipeline_options",

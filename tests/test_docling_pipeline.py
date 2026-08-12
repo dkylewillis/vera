@@ -31,8 +31,8 @@ from vera_ingest_docling import create_pipeline
 from vera_ingest_docling.pipeline import (
     DoclingHybridPipeline,
     WhitespaceTokenizer,
+    _split_ocr_languages,
     map_docling_document,
-    map_rapidocr_languages,
 )
 
 
@@ -174,28 +174,28 @@ def test_whitespace_tokenizer_is_deterministic():
     assert tokenizer.get_tokenizer()("a b") == 2
 
 
-def test_map_rapidocr_languages_translates_tesseract_defaults():
-    assert map_rapidocr_languages(None) == ["en"]
-    assert map_rapidocr_languages("") == ["en"]
-    assert map_rapidocr_languages("eng") == ["en"]
-    assert map_rapidocr_languages("eng+fra") == ["en", "fr"]
-    assert map_rapidocr_languages("en,de") == ["en", "de"]
-    assert map_rapidocr_languages("jpn") == ["japan"]
-    assert map_rapidocr_languages("chi_sim") == ["ch"]
-    with pytest.raises(ValueError, match="does not support OCR language"):
-        map_rapidocr_languages("not-a-language")
+def test_split_ocr_languages_parses_delimited_codes_without_translation():
+    """No Tesseract-to-RapidOCR mapping happens anymore — codes pass through as given."""
+    assert _split_ocr_languages(None) == ["en"]
+    assert _split_ocr_languages("") == ["en"]
+    assert _split_ocr_languages("en") == ["en"]
+    assert _split_ocr_languages("en+fr") == ["en", "fr"]
+    assert _split_ocr_languages("en,de") == ["en", "de"]
+    # No validation against a known set: an unrecognized code passes through
+    # unchanged. RapidOCR itself rejects it once OCR actually runs.
+    assert _split_ocr_languages("eng") == ["eng"]
 
 
-def test_build_converter_maps_default_eng_to_rapidocr_en():
+def test_build_converter_uses_ocr_language_as_given_no_translation():
     from vera_ingest_docling.options import DoclingOptions
     from vera_ingest_docling.pipeline import _build_converter
 
     converter = _build_converter(
-        DoclingOptions.from_mapping({"ocr_mode": "auto", "ocr_language": "eng"}),
+        DoclingOptions.from_mapping({"ocr_mode": "auto", "ocr_language": "en+fr"}),
     )
     pdf_option = converter.format_to_options["pdf"]
     assert pdf_option.pipeline_options.do_ocr is True
-    assert list(pdf_option.pipeline_options.ocr_options.lang) == ["en"]
+    assert list(pdf_option.pipeline_options.ocr_options.lang) == ["en", "fr"]
 
 
 def test_build_converter_disables_torch_compile_and_keeps_default_image_scale():
@@ -203,7 +203,7 @@ def test_build_converter_disables_torch_compile_and_keeps_default_image_scale():
     from vera_ingest_docling.pipeline import _build_converter
 
     converter = _build_converter(
-        DoclingOptions.from_mapping({"ocr_mode": "auto", "ocr_language": "eng"}),
+        DoclingOptions.from_mapping({"ocr_mode": "auto", "ocr_language": "en"}),
     )
     pipeline_options = converter.format_to_options["pdf"].pipeline_options
     assert pipeline_options.images_scale == 1.0
@@ -217,14 +217,14 @@ def test_docling_options_ignore_pymupdf_only_keys_and_reject_unknown():
         {
             "chunk_size": 420,
             "ocr_mode": "force",
-            "ocr_language": "eng",
+            "ocr_language": "fr",
             "overlap": 75,
             "ocr_dpi": 300,
         }
     )
     assert options.chunk_size == 420
     assert options.ocr_mode == "force"
-    assert options.ocr_language == "en"
+    assert options.ocr_language == "fr"
     assert options.pdf_backend == "docling_parse"
     with pytest.raises(ValueError, match="Unknown Docling option"):
         DoclingOptions.from_mapping({"chunk_size": 100, "bogus": True})
@@ -289,7 +289,7 @@ def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, 
     pipeline = DoclingHybridPipeline()
     from vera_ingest.types import IngestRequest
 
-    result = pipeline.ingest(
+    result = pipeline(
         str(pdf),
         IngestRequest(
             pipeline_options={"chunk_size": 40, "ocr_mode": "auto"},
@@ -356,7 +356,7 @@ def test_partial_success_is_rejected(monkeypatch, tmp_path):
     from vera_ingest.types import IngestRequest
 
     with pytest.raises(ValueError, match="did not fully succeed"):
-        DoclingHybridPipeline().ingest(str(pdf), IngestRequest())
+        DoclingHybridPipeline()(str(pdf), IngestRequest())
 
 
 def test_convert_uses_docling_pipeline_end_to_end(monkeypatch, tmp_path):
@@ -476,7 +476,7 @@ def test_partial_success_with_page_errors_recovers_via_fresh_retry(monkeypatch, 
 
     pdf = tmp_path / "recover.pdf"
     pdf.write_bytes(b"%PDF-1.4")
-    result = DoclingHybridPipeline().ingest(
+    result = DoclingHybridPipeline()(
         str(pdf),
         IngestRequest(pipeline_options={"chunk_size": 40}),
     )
@@ -531,7 +531,7 @@ def test_page_recovery_falls_back_to_pypdfium2_per_page(monkeypatch, tmp_path):
 
     pdf = tmp_path / "recover-pypdfium.pdf"
     pdf.write_bytes(b"%PDF-1.4")
-    result = DoclingHybridPipeline().ingest(str(pdf), IngestRequest())
+    result = DoclingHybridPipeline()(str(pdf), IngestRequest())
     assert result.diagnostics["recovered_pages"] == [2]
     assert result.diagnostics["recovered_pages_backend"] == {"2": "pypdfium2"}
     assert any("Pypdfium recovered" in chunk.text for chunk in result.chunks)
@@ -587,7 +587,7 @@ def test_too_many_failed_pages_falls_back_to_whole_document_pypdfium2(monkeypatc
 
     pdf = tmp_path / "many-fail.pdf"
     pdf.write_bytes(b"%PDF-1.4")
-    result = DoclingHybridPipeline().ingest(str(pdf), IngestRequest())
+    result = DoclingHybridPipeline()(str(pdf), IngestRequest())
     assert result.diagnostics["whole_document_fallback_backend"] == "pypdfium2"
     assert result.diagnostics["pdf_backend"] == "pypdfium2"
     assert result.diagnostics["recovered_pages"] == []
@@ -623,7 +623,7 @@ def test_convert_exception_triggers_whole_document_pypdfium2_fallback(monkeypatc
 
     pdf = tmp_path / "crash.pdf"
     pdf.write_bytes(b"%PDF-1.4")
-    result = DoclingHybridPipeline().ingest(str(pdf), IngestRequest())
+    result = DoclingHybridPipeline()(str(pdf), IngestRequest())
     assert result.diagnostics["whole_document_fallback_backend"] == "pypdfium2"
     assert result.chunks
     assert any(call["backend"] == "pypdfium2" for call in calls)
@@ -663,7 +663,7 @@ def test_unrecoverable_page_still_raises_with_page_detail(monkeypatch, tmp_path)
     pdf = tmp_path / "unrecoverable.pdf"
     pdf.write_bytes(b"%PDF-1.4")
     with pytest.raises(ValueError, match=r"unrecoverable pages: 2"):
-        DoclingHybridPipeline().ingest(str(pdf), IngestRequest())
+        DoclingHybridPipeline()(str(pdf), IngestRequest())
 
 
 @pytest.mark.docling_integration

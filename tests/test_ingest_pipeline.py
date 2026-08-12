@@ -15,6 +15,7 @@ from vera_ingest import (
     ParsedPage,
     PipelineDescriptor,
     PipelineField,
+    PipelineOptions,
     UnknownIngestPipelineError,
     batch_convert,
     convert,
@@ -85,6 +86,65 @@ def test_duplicate_registration_is_rejected():
 
     with pytest.raises(ValueError, match="already registered"):
         register_ingest_pipeline("custom", lambda _variant: object())
+
+
+def test_register_ingest_pipeline_works_as_a_decorator():
+    class Pipeline:
+        def ingest(self, source_path, options):
+            raise AssertionError("not called")
+
+    @register_ingest_pipeline("decorated")
+    def create_pipeline(variant: str = "") -> Pipeline:
+        return Pipeline()
+
+    # The decorator returns the wrapped factory unchanged.
+    assert create_pipeline("") is not None
+    assert isinstance(get_ingest_pipeline("decorated"), Pipeline)
+
+    @register_ingest_pipeline_descriptor("decorated")
+    def create_descriptor(variant: str = "") -> PipelineDescriptor:
+        return PipelineDescriptor(
+            provider="decorated", variant="", spec="decorated", label="decorated"
+        )
+
+    assert describe_ingest_pipeline("decorated").label == "decorated"
+
+
+def test_bare_callable_pipeline_is_supported(tmp_path):
+    """A pipeline may be a plain function; ``.ingest()`` is not required."""
+    pdf = tmp_path / "source.pdf"
+    out = tmp_path / "source.vera"
+    pdf.write_bytes(b"%PDF bare-callable pipeline test")
+
+    def bare_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
+        assert source_path == str(pdf)
+        return IngestResult(
+            pages=[ParsedPage(1, 1.0, 1.0, "text")],
+            blocks=[
+                IngestBlock(block_id="b1", page_number=1, block_type="paragraph", text="text")
+            ],
+            chunks=[
+                IngestChunk(
+                    chunk_id="c1",
+                    text="text",
+                    page_start=1,
+                    page_end=1,
+                    heading_path="",
+                    token_count=1,
+                    block_ids=["b1"],
+                )
+            ],
+            parser_name="bare",
+            parser_version="1",
+            chunking_strategy="bare",
+        )
+
+    register_ingest_pipeline("bare", lambda _variant: bare_pipeline)
+    assert get_ingest_pipeline("bare") is bare_pipeline
+
+    convert(str(pdf), str(out), parser="bare", store_original=False)
+    with VeraDocument.open(str(out)) as document:
+        assert document.inspect()["parser_name"] == "bare"
 
 
 def test_entry_points_are_discovered_lazily(monkeypatch):
@@ -294,6 +354,87 @@ def test_pymupdf_descriptor_and_strict_options():
         PyMuPDFOptions.from_mapping({"chunk_size": 250, "bogus": 1})
     with pytest.raises(ValueError, match="chunk_size must be positive"):
         PyMuPDFOptions.from_mapping({"chunk_size": 0})
+
+
+def test_fields_from_dataclass_derives_descriptor_fields_from_metadata():
+    from dataclasses import dataclass, field
+
+    from vera_ingest.descriptors import fields_from_dataclass
+
+    @dataclass(frozen=True)
+    class Options:
+        chunk_size: int = field(
+            default=250, metadata={"label": "Chunk size", "minimum": 10}
+        )
+        ocr_mode: str = field(
+            default="auto", metadata={"type": "enum", "choices": (("auto", "Auto"),)}
+        )
+        internal: str = "not advertised"  # no metadata: omitted from the descriptor
+
+    fields = fields_from_dataclass(Options)
+
+    assert [item.key for item in fields] == ["chunk_size", "ocr_mode"]
+    chunk_size_field = fields[0]
+    assert chunk_size_field.label == "Chunk size"
+    assert chunk_size_field.type == "integer"  # inferred from the `int` annotation
+    assert chunk_size_field.default == 250
+    assert chunk_size_field.minimum == 10
+    ocr_mode_field = fields[1]
+    assert ocr_mode_field.type == "enum"  # explicit override
+    assert [choice.value for choice in ocr_mode_field.choices] == ["auto"]
+
+
+def test_pipeline_options_mixin_derives_from_mapping_from_metadata():
+    from dataclasses import dataclass, field
+
+    @dataclass(frozen=True)
+    class WidgetOptions(PipelineOptions):
+        chunk_size: int = field(default=250, metadata={"label": "Chunk size", "minimum": 10})
+        overlap: int = field(default=0, metadata={"label": "Overlap", "minimum": 0})
+        ocr_mode: str = field(
+            default="auto", metadata={"choices": (("auto", "Auto"), ("off", "Off"))}
+        )
+        ocr_language: str = field(
+            default="eng",
+            metadata={"choices": (("eng", "English"),), "allow_custom": True},
+        )
+        verbose: bool = field(default=False, metadata={"label": "Verbose"})
+
+    # No from_mapping written anywhere above — it's inherited.
+    assert "from_mapping" not in WidgetOptions.__dict__
+
+    assert WidgetOptions.from_mapping(None) == WidgetOptions()
+    assert WidgetOptions.from_mapping({"chunk_size": 500, "verbose": True}) == WidgetOptions(
+        chunk_size=500, verbose=True
+    )
+    # minimum=10 (>0) selects require_positive_int; minimum=0 selects
+    # require_non_negative_int, so overlap=0 is fine but chunk_size=0 isn't.
+    assert WidgetOptions.from_mapping({"overlap": 0}).overlap == 0
+    with pytest.raises(ValueError, match="chunk_size must be positive"):
+        WidgetOptions.from_mapping({"chunk_size": 0})
+    # choices without allow_custom is enforced strictly.
+    with pytest.raises(ValueError, match="Unsupported ocr_mode"):
+        WidgetOptions.from_mapping({"ocr_mode": "bogus"})
+    # choices with allow_custom accepts values outside the advertised list.
+    assert WidgetOptions.from_mapping({"ocr_language": "eng+spa"}).ocr_language == "eng+spa"
+    with pytest.raises(ValueError, match="Unknown Widget option"):
+        WidgetOptions.from_mapping({"bogus": 1})
+
+
+def test_pipeline_options_ignored_keys_are_dropped_not_rejected():
+    from dataclasses import dataclass, field
+
+    @dataclass(frozen=True)
+    class WidgetOptions(PipelineOptions):
+        ignored_keys = frozenset({"legacy_only"})
+
+        chunk_size: int = field(default=250, metadata={"label": "Chunk size"})
+
+    # A legacy compatibility key that isn't a real field is silently dropped...
+    assert WidgetOptions.from_mapping({"legacy_only": 1}) == WidgetOptions()
+    # ...but a key that's neither a real field nor ignored is still rejected.
+    with pytest.raises(ValueError, match="Unknown Widget option"):
+        WidgetOptions.from_mapping({"typo": 1})
 
 
 def test_descriptor_fallback_for_undescribed_plugins():

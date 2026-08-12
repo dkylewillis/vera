@@ -130,6 +130,7 @@ nav:
       - Overview and concepts: packages/vera-ingest.md
       - Guides:
           - Convert documents: conversion.md
+          - Creating a pipeline plugin: creating-an-ingest-pipeline.md
       - Examples:
           - Python examples: packages/vera-ingest-examples.md
       - API reference:

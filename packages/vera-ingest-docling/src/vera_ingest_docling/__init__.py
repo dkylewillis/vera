@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from vera_ingest.descriptors import PipelineDescriptor
-from vera_ingest.pipeline import UnknownIngestPipelineError
+from vera_ingest.pipeline import IngestPipeline, UnknownIngestPipelineError
 
-from .languages import map_rapidocr_languages
 from .options import DoclingOptions, describe_pipeline
 from .pipeline import DoclingHybridPipeline
 
@@ -14,11 +13,10 @@ __all__ = [
     "DoclingOptions",
     "create_pipeline",
     "describe_pipeline",
-    "map_rapidocr_languages",
 ]
 
 
-def create_pipeline(variant: str = "hybrid") -> DoclingHybridPipeline:
+def create_pipeline(variant: str = "hybrid") -> IngestPipeline:
     """Entry-point factory for ``vera.ingest_pipelines`` provider ``docling``."""
     normalized = (variant or "hybrid").strip().lower()
     if normalized not in {"", "hybrid"}:

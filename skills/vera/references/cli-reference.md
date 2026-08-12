@@ -43,8 +43,10 @@ Options:
 - `--ocr auto|off|force` defaults to `auto`. Compatibility alias for
   `ocr_mode`. Automatic mode OCRs only image-dominant low-text pages.
 - `--ocr-language CODE` defaults to `eng` (PyMuPDF/Tesseract). Compatibility
-  alias. With `--parser docling`, VERA maps Tesseract-style codes to RapidOCR
-  (for example `eng` → `en`) before configuring OCR; Docling's own default is
+  alias, forwarded to any pipeline that advertises an `ocr_language` field.
+  With `--parser docling`, this field expects a RapidOCR-native code (`en`,
+  `fr`, `cyrillic`, ...), not Tesseract's — `eng` is not valid, so pass
+  `--pipeline-option ocr_language=en` explicitly; Docling's own default is
   `en`.
 - `--ocr-dpi N` defaults to `300` and must be positive. Compatibility alias
   forwarded only when the pipeline advertises `ocr_dpi` (PyMuPDF). Docling
