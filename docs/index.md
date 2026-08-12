@@ -31,14 +31,14 @@ Major capabilities:
 Install the CLI from PyPI:
 
 ```bash
-python -m pip install "vera-cli>=0.2.4"
+python -m pip install "vera-cli>=0.2.5"
 ```
 
 That pulls in `vera-doc` and `vera-ingest`. Library-only installs:
 
 ```bash
-python -m pip install "vera-doc>=0.2.4"
-python -m pip install "vera-ingest>=0.2.4"
+python -m pip install "vera-doc>=0.2.5"
+python -m pip install "vera-ingest>=0.2.5"
 ```
 
 `vera-ingest` may not yet be published to PyPI. If the install fails because the

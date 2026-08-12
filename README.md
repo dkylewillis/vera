@@ -53,7 +53,7 @@ Install the CLI (Python 3.10+). It bundles storage, the default PDF pipeline,
 and offline OCR data:
 
 ```bash
-python -m pip install "vera-cli>=0.2.4"
+python -m pip install "vera-cli>=0.2.5"
 ```
 
 Convert a PDF and search it:

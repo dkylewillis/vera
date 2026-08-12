@@ -1,12 +1,12 @@
 [project]
 name = "vera-app"
-version = "0.2.4"
+version = "0.2.5"
 description = "Python sidecar for the VERA desktop app"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-doc>=0.2.4",
-  "vera-ingest>=0.2.4",
+  "vera-doc>=0.2.5",
+  "vera-ingest>=0.2.5",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}

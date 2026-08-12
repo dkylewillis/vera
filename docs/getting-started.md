@@ -17,7 +17,7 @@ format or API changes before a stable release.
 Install the CLI and its dependencies:
 
 ```bash
-python -m pip install "vera-cli>=0.2.4"
+python -m pip install "vera-cli>=0.2.5"
 ```
 
 That installs `vera-doc` and `vera-ingest` as well. `vera-ingest` may not yet be
@@ -25,7 +25,7 @@ published to PyPI; if the install fails because the package cannot be found,
 [install from source](#install-from-source) instead. Add MCP support with:
 
 ```bash
-python -m pip install "vera-cli[mcp]>=0.2.4"
+python -m pip install "vera-cli[mcp]>=0.2.5"
 ```
 
 Verify that the console script is available:
@@ -44,13 +44,13 @@ python -m vera_cli --help
 
 ```bash
 # Storage and search only
-python -m pip install "vera-doc>=0.2.4"
+python -m pip install "vera-doc>=0.2.5"
 
 # PDF conversion and viewer helpers
-python -m pip install "vera-ingest>=0.2.4"
+python -m pip install "vera-ingest>=0.2.5"
 
 # MCP server package
-python -m pip install "vera-mcp>=0.2.4"
+python -m pip install "vera-mcp>=0.2.5"
 ```
 
 `vera-ingest` may not yet be published to PyPI. If that package install fails

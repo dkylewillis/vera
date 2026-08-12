@@ -1,11 +1,11 @@
 [project]
 name = "vera-ingest"
-version = "0.2.4"
+version = "0.2.5"
 description = "Source ingestion, chunking, and conversion adapters for VERA"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-doc>=0.2.4",
+  "vera-doc>=0.2.5",
   "pdfplumber>=0.11",
   "pymupdf>=1.23",
 ]

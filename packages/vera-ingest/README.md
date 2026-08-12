@@ -11,7 +11,7 @@ region, and source-document conventions.
 ## Install
 
 ```bash
-python -m pip install "vera-ingest>=0.2.4"
+python -m pip install "vera-ingest>=0.2.5"
 ```
 
 `vera-ingest` may not yet be published to PyPI. If the install fails because the

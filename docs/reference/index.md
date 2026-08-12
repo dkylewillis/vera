@@ -15,10 +15,10 @@ generated from source docstrings using [mkdocstrings](https://mkdocstrings.githu
 Install packages from PyPI:
 
 ```bash
-python -m pip install "vera-doc>=0.2.4"
-python -m pip install "vera-ingest>=0.2.4"
-python -m pip install "vera-cli>=0.2.4"
-python -m pip install "vera-mcp>=0.2.4"
+python -m pip install "vera-doc>=0.2.5"
+python -m pip install "vera-ingest>=0.2.5"
+python -m pip install "vera-cli>=0.2.5"
+python -m pip install "vera-mcp>=0.2.5"
 ```
 
 `vera-ingest` may not yet be published to PyPI. If the install fails because the
