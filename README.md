@@ -428,6 +428,13 @@ documents. It is built on the same packages described above. Download it from
 [GitHub Releases](https://github.com/dkylewillis/vera/releases/latest) and see
 the [desktop app guide](docs/desktop-app-getting-started.md).
 
+<img src="docs/assets/readme/hero-grounded-answer.png" alt="VERA desktop app with a .vera library in the sidebar, an answer with inline citations in the center, and the source PDF open in the document viewer with the supporting passage highlighted" width="85%">
+
+The screenshot shows the three panes working together: the library of `.vera`
+archives on the left, an answer with inline citations in the center, and the
+source document on the right with the cited passage highlighted via stored
+region coordinates.
+
 ## Documentation
 
 Preview the documentation locally with `uv run --extra docs mkdocs serve`, or
