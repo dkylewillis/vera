@@ -4,13 +4,11 @@
 [![PyPI - vera-doc](https://img.shields.io/pypi/v/vera-doc?label=vera-doc)](https://pypi.org/project/vera-doc/)
 [![License](https://img.shields.io/github/license/dkylewillis/vera)](LICENSE)
 
-**Convert once. Search anywhere.**
-
 A `.vera` file is a portable embedded vector database: one self-contained
 SQLite file holding ready-made text chunks, pre-computed embeddings, a keyword
-index, citation metadata, and the original source document. Copy it, share it,
-or hand it to an LLM agent — it stays semantically searchable with no vector
-database, no embedding service, and no retrieval server.
+index, citation metadata, and the original source document. The file can be
+copied, shared, or handed to an LLM agent and searched in place — no vector
+database, embedding service, or retrieval server is required.
 
 ```bash
 pip install vera-cli
@@ -20,32 +18,34 @@ vera search manual.vera "when is stormwater detention required?" --json
 
 ## The vision
 
-Every application that wants semantic search over documents rebuilds the same
-pipeline — and every copy of that pipeline needs infrastructure:
+Semantic search over a document normally requires a multi-stage pipeline —
+parsing, chunking, embedding, and indexing — plus a running vector database to
+hold the result. Every application that wants to search the same document
+repeats all of it:
 
 ```text
-Today                                   VERA
-─────                                   ────
+Typical retrieval pipeline              VERA
+──────────────────────────              ────
 Source document                         Source document
     ↓                                       ↓
-Parse ──┐                               Convert once
-Chunk   │  repeated per app,                ↓
-Embed   │  requires a running           .vera file
-Index   │  vector database                  ↓
-    ↓ ──┘                               Search anywhere —
-Search                                  any machine, any app, any agent
+Parse ──┐                               vera convert
+Chunk   │  repeated per                     ↓  (full pipeline, run once)
+Embed   │  application; results         .vera file
+Index   │  live in a separate               ↓
+    ↓ ──┘  vector database              local search from any
+Search                                  machine, application, or agent
 ```
 
-VERA moves the expensive work into the file. A PDF preserves how a document
-*looks*; a `.vera` preserves what it *means* — the document plus a complete
-retrieval layer. Conversion happens once, then any compatible application can
-open the archive and run semantic, keyword, or hybrid search locally, offline,
-with citation-ready results that point back to the exact page and heading.
+VERA moves the pipeline output into the file itself. A `.vera` archive stores
+the parsed document together with its retrieval layer: chunks, embeddings, a
+keyword index, and citation metadata. Conversion runs once; afterwards any
+compatible application can open the archive and run semantic, keyword, or
+hybrid search locally and offline, with results that reference the source
+page and heading.
 
-The core motivation is AI agents: an agent should be able to semantically
-search a document the moment it receives one — no parsing step, no chunking
-strategy decisions, no embedding API calls, no vector database to stand up.
-With VERA, "set up retrieval" collapses into "open the file."
+The primary use case is AI agents. An agent that receives a `.vera` file can
+search it immediately — no parsing step, no chunking decisions, no embedding
+API calls, and no vector database to provision.
 
 ## Getting started
 
@@ -56,28 +56,29 @@ and offline OCR data:
 python -m pip install "vera-cli>=0.2.4"
 ```
 
-Convert a PDF and start asking questions:
+Convert a PDF and search it:
 
 ```bash
-# Parse, OCR (if needed), chunk, embed, and index — one validated output file
+# Parse, OCR (if needed), chunk, embed, and index into one validated file
 vera convert manual.pdf manual.vera
 
-# Hybrid search (semantic + keyword), citation-ready results
+# Hybrid search (semantic + keyword) with page and heading citations
 vera search manual.vera "stormwater detention requirements" --top-k 5
 
-# What's inside?
+# Report pages, chunks, embedding model, parser, and metadata
 vera inspect manual.vera
 
-# Structurally sound?  exit 0 = valid
+# Check integrity (exit code 0 = valid)
 vera validate manual.vera
 
-# Get the original PDF back out
+# Recover the embedded original PDF
 vera export manual.vera exported.pdf
 ```
 
-The default embedding model is a deterministic local hashing embedder — no
-downloads, no API keys, fully offline. For stronger neural retrieval, install
-Sentence Transformers support and pick a model at convert time:
+The default embedding model is a deterministic local hashing embedder: no
+model downloads, no API keys, and no network access. For stronger retrieval
+quality, install Sentence Transformers support and select a model at convert
+time:
 
 ```bash
 python -m pip install "vera-doc[ml]"
@@ -87,10 +88,10 @@ vera convert manual.pdf --model sentence-transformers:all-MiniLM-L6-v2
 See the [getting started guide](docs/getting-started.md) for the full
 walkthrough and [CLI recipes](docs/examples.md) for more patterns.
 
-## What it can do (via CLI)
+## CLI functionality
 
-Every one-shot command accepts `--json` for machine-readable output, which
-makes the whole surface scriptable by agents and applications:
+Every one-shot command accepts `--json` for machine-readable output, so the
+full command surface is scriptable by agents and applications:
 
 | Command | What it does |
 |---------|--------------|
@@ -104,29 +105,29 @@ makes the whole surface scriptable by agents and applications:
 | `vera ocr-languages` | List or fetch Tesseract OCR language data |
 | `vera mcp` | Serve everything above to AI agents over MCP (stdio) |
 
-A few useful compositions:
+Common compositions:
 
 ```bash
 # Search a folder of .vera files as one corpus (results carry a "file" field)
 vera search ./library "landscape buffer requirements" --top-k 5 --json
 
-# Make large libraries fast with a persistent, rebuildable index
+# Build a persistent, rebuildable index for large libraries
 vera index build ./library --recursive
 vera index update ./library
 
-# Pull in neighboring prose, figure metadata, or page-coordinate highlights
+# Include neighboring chunks, figure metadata, or page-coordinate highlights
 vera search manual.vera "pipe sizing chart" --json --context-chunks 1 --figures --regions
 
-# Exact phrases and section numbers → keyword; paraphrased questions → semantic
+# Keyword mode for exact phrases and section numbers; semantic for paraphrases
 vera search manual.vera "section 4.2" --mode keyword
 vera search manual.vera "how big should the pond be" --mode semantic
 
-# Batch-convert a nested PDF library, then track retrieval quality
+# Batch-convert a nested PDF library, then measure retrieval quality
 vera convert ./proposals --recursive --json
 vera eval manual.vera queries.json --mode all --top-k 5 --json
 ```
 
-Every search result is citation-ready:
+Every search result includes citation fields:
 
 ```json
 {
@@ -141,12 +142,12 @@ Every search result is citation-ready:
 ```
 
 On a 1,038-page stormwater manual (2,442 chunks), hybrid search hits 9/10
-real-world regulatory queries at MRR 0.900 — tracked continuously with
+real-world regulatory queries at MRR 0.900, tracked with
 [`vera eval`](docs/evaluation.md).
 
-## Built for AI agents
+## Agent integration
 
-Three integration surfaces, one retrieval engine:
+Three integration surfaces share the same retrieval engine:
 
 - **CLI with `--json`** — any agent that can run shell commands can convert,
   search, inspect, and validate archives. This repository's own
@@ -161,14 +162,14 @@ Three integration surfaces, one retrieval engine:
   [Install the VERA Agent Skill](docs/agent-skills.md).
 
 The retrieval contract is the same everywhere: results always carry the source
-filename, page range, and heading path, so agents can quote *"(p. 117,
-Chapter 4 > 4.2 Detention Design)"* instead of hallucinating a citation.
-Optional `--regions` output adds page numbers and bounding boxes so a viewer
-can highlight exactly where an answer came from.
+filename, page range, and heading path, so an agent can construct a citation
+such as *"(p. 117, Chapter 4 > 4.2 Detention Design)"* directly from result
+fields. Optional `--regions` output adds page numbers and bounding boxes so a
+viewer can highlight the exact source location of a result.
 
 ## How it works
 
-**Conversion** runs the expensive pipeline exactly once, in five steps:
+**Conversion** runs the full ingestion pipeline once, in five steps:
 
 1. **Parse.** The ingest pipeline extracts text and layout from every page,
    selectively OCRing image-based pages that have little or no native text.
@@ -194,7 +195,7 @@ flowchart LR
     PDF -. "original stored too" .-> Vera
 ```
 
-**Search** never repeats any of that work. A query runs both retrieval paths
+**Search** repeats none of that work. A query runs both retrieval paths
 against the local file and fuses them:
 
 1. The query is embedded with the same model recorded in the archive and
@@ -202,8 +203,8 @@ against the local file and fuses them:
 2. The same query runs through the FTS5 keyword index, ranked with BM25.
 3. Both rankings are min-max normalized and combined with equal weight
    (`--mode semantic` or `--mode keyword` uses just one path).
-4. The top chunks come back with their score, text, source filename, page
-   range, and heading path — ready to cite.
+4. The top chunks are returned with their score, text, source filename, page
+   range, and heading path.
 
 ```mermaid
 flowchart LR
@@ -214,7 +215,8 @@ flowchart LR
     Fuse --> Results["Cited chunks<br/>(page, heading, score, text)"]
 ```
 
-Both paths read plain SQLite — a search is just opening a file.
+Both paths read the local SQLite file directly; no server process is
+involved.
 
 ## Inside a `.vera` file
 
@@ -233,10 +235,10 @@ any SQLite tool, though the CLI and Python API are the stable interface.
 | `attachments` | Opaque, SHA-256-hashed blobs: the original PDF, extracted figure images, and JSON viewer payloads for page and block geometry |
 | `chunk_attachments` | Links chunks to attachments with a semantic `role` (`"source"`, `"figure"`) |
 
-The archive is honest about its own provenance: it records which parser,
-chunking strategy, and embedding model were used, and whether stored vectors
-are L2-normalized. `vera validate` checks all of it — schema, hashes, vector
-dimensions, and index consistency.
+The archive records its own provenance: which parser, chunking strategy, and
+embedding model were used, and whether stored vectors are L2-normalized.
+`vera validate` checks schema, hashes, vector dimensions, and index
+consistency against these claims.
 
 ### Blocks: how VERA understands document structure
 
@@ -252,11 +254,12 @@ in page points (origin top-left), and one of five types:
 | `caption` | Text adjacent to a figure | Joined to figures so search can return captioned figure metadata |
 | `image` | Extracted figures, charts, and drawings | Stored as figure attachments with page and bbox — surfaced via `--figures`, never embedded as text |
 
-Chunks remember which blocks they came from. That provenance chain — chunk →
-blocks → page + bounding boxes — is what lets `--regions` return exact
-highlight rectangles and lets viewers draw an answer directly onto the source
-page. The full mapping of blocks, figures, and regions onto the storage schema
-is documented in [Figures and highlight regions](docs/figures-and-regions.md).
+Each chunk records the IDs of the blocks it was built from. That provenance
+chain — chunk to blocks to page and bounding boxes — is what allows
+`--regions` to return exact highlight rectangles for a search result, and
+allows a viewer to draw a result's location on the source page. The full
+mapping of blocks, figures, and regions onto the storage schema is documented
+in [Figures and highlight regions](docs/figures-and-regions.md).
 
 ### Libraries of archives
 
@@ -270,8 +273,8 @@ time. See [document libraries](docs/document-libraries.md) and the
 
 ## Plugins
 
-VERA avoids lock-in by design: the format does not depend on one parser or one
-embedding provider. Both are pluggable through standard Python entry points.
+The format does not depend on one parser or one embedding provider. Both are
+pluggable through standard Python entry points.
 
 ### Ingest pipelines (`vera.ingest_pipelines`)
 
@@ -285,7 +288,7 @@ vera convert manual.pdf --parser pymupdf --pipeline-option chunk_size=700
 vera convert manual.pdf --parser docling:hybrid   # requires vera-ingest-docling
 ```
 
-Two pipelines ship today:
+Two pipelines are currently available:
 
 - **`pymupdf`** (default, via `vera-ingest-pymupdf`) — PyMuPDF + pdfplumber
   parsing, table extraction, heading detection, and selective Tesseract OCR
@@ -293,7 +296,7 @@ Two pipelines ship today:
 - **`docling`** (optional, via `vera-ingest-docling`) — Docling layout models
   and HybridChunker with contextualized embedding text.
 
-Registering your own is a decorator away:
+A custom pipeline is registered with a decorator:
 
 ```python
 from vera_ingest import register_ingest_pipeline
@@ -305,9 +308,10 @@ def create_pipeline(variant: str = ""):
     return ingest
 ```
 
-Distribute it as a package with a `vera.ingest_pipelines` entry point and
-`vera convert --parser myformat` finds it automatically. Pipelines can also
-publish descriptors that advertise their options for schema-driven UIs. See
+A pipeline distributed as a package with a `vera.ingest_pipelines` entry
+point is discovered automatically by `vera convert --parser myformat`.
+Pipelines can also publish descriptors that advertise their options for
+schema-driven UIs. See
 [Creating an ingest pipeline](docs/creating-an-ingest-pipeline.md).
 
 ### Embedding providers (`vera.embedders`)
@@ -321,14 +325,15 @@ vera convert manual.pdf --model sentence-transformers:all-MiniLM-L6-v2     # loc
 vera convert manual.pdf --model hashing --embedder-option dimension=256    # provider-owned options
 ```
 
-Built-in providers are `hashing` (deterministic lexical hashing — portable,
-zero dependencies, no network) and `sentence-transformers` (local neural
+Built-in providers are `hashing` (deterministic lexical hashing; no extra
+dependencies or network access) and `sentence-transformers` (local neural
 embeddings via the `ml` extra). Third-party providers register through the
 `vera.embedders` entry-point group or `register_embedder()`, and can advertise
 option schemas, model presets, and required credential environment variables
-so hosts can preflight them without secrets in config. Unknown model names are
-rejected loudly — VERA never silently substitutes a different embedder,
-because the archive records exactly which model must answer queries. See
+so hosts can preflight them without storing secrets in configuration. Unknown
+model names are rejected with an error rather than silently substituted,
+because the archive records exactly which model must embed queries at search
+time. See
 [Creating an embedding provider](docs/creating-an-embedding-provider.md).
 
 ## The packages
@@ -346,18 +351,18 @@ vera-mcp ───────────────────────�
 
 | Package | Import / command | What it owns |
 |---------|------------------|--------------|
-| [`vera-doc`](https://pypi.org/project/vera-doc/) | `import vera` | The core: `.vera` schema and validation, transactional chunk/attachment CRUD, embedding storage, and keyword/semantic/hybrid/corpus search. Knows nothing about PDFs. |
+| [`vera-doc`](https://pypi.org/project/vera-doc/) | `import vera` | The core: `.vera` schema and validation, transactional chunk/attachment CRUD, embedding storage, and keyword/semantic/hybrid/corpus search. Has no knowledge of PDFs. |
 | [`vera-ingest`](https://pypi.org/project/vera-ingest/) | `import vera_ingest` | Provider-neutral conversion: the pipeline registry, shared block/chunk types, chunking helpers, atomic archive writing, and viewer helpers for pages, figures, and regions |
 | [`vera-ingest-pymupdf`](https://pypi.org/project/vera-ingest-pymupdf/) | plugin | Default PDF pipeline: PyMuPDF/pdfplumber parsing, table extraction, selective OCR |
 | [`vera-ingest-docling`](https://pypi.org/project/vera-ingest-docling/) | plugin | Optional Docling pipeline with layout models and hybrid chunking |
 | [`vera-cli`](https://pypi.org/project/vera-cli/) | `vera` | The command line: argument parsing, text/JSON output contracts, exit codes, and retrieval evaluation |
 | [`vera-mcp`](https://pypi.org/project/vera-mcp/) | `vera mcp` | Thin MCP adapter exposing search, inspection, figures, pages, and regions as agent tools |
-| `vera-app` | — | Electron/React desktop app with a Python sidecar — a full product built on the same stack |
+| `vera-app` | — | Electron/React desktop application with a Python sidecar, built on the same packages |
 
-The boundary that matters most: `vera-doc` never imports extraction, UI, MCP,
-or evaluation code. It is an embedded vector database that happens to be
-excellent at documents — attachments are opaque bytes and metadata is caller
-data. Everything else composes around it. Details in
+The central boundary rule: `vera-doc` never imports extraction, UI, MCP, or
+evaluation code. It is a general embedded vector database — attachments are
+opaque bytes and metadata is caller-owned JSON — and every other package
+composes around it. Details in
 [Contributing and architecture](docs/architecture.md) and the
 [package overview](packages/README.md).
 
@@ -389,7 +394,7 @@ with VeraDocument.open("knowledge.vera") as document:
     results = document.search(text="minimum pipe size", top_k=5)
 ```
 
-Full document conversion is one import away:
+PDF conversion is composed explicitly through `vera_ingest`:
 
 ```python
 from vera_ingest import convert
@@ -402,26 +407,26 @@ filters, corpus search, and embedding configuration.
 
 ## Design principles
 
-1. **Convert once, search anywhere.** The archive contains everything needed
-   to search it — the ingestion pipeline never has to run twice.
-2. **Preserve source truth.** The original document rides along inside the
+1. **Run ingestion once.** The archive contains everything needed to search
+   it; the ingestion pipeline does not run again after conversion.
+2. **Preserve source truth.** The original document is stored inside the
    archive, and every result points back to its page, heading, and region.
 3. **Be transparent.** The file declares its parser, chunking strategy,
-   embedding model, and normalization policy. `vera validate` holds it to that.
+   embedding model, and normalization policy, and `vera validate` verifies
+   those declarations.
 4. **Avoid lock-in.** SQLite container, documented schema, pluggable parsers
    and embedders — no dependence on any one vendor, model, or database.
-5. **Be useful before it is perfect.** A working local search file beats a
-   perfect design that never ships.
+5. **Be useful before it is perfect.** A working local search file is worth
+   more than a perfect design that never ships.
 
 ## Desktop app
 
-VERA also ships a desktop application for Windows — convert PDFs from the
-right-click menu, search libraries with highlighted citations, and connect an
-LLM provider for grounded Ask answers over your documents. Download it from
+VERA also includes a desktop application for Windows: PDF conversion from the
+Explorer context menu, library search with highlighted citations, and an
+optional LLM provider connection for grounded question answering over
+documents. It is built on the same packages described above. Download it from
 [GitHub Releases](https://github.com/dkylewillis/vera/releases/latest) and see
-the [desktop app guide](docs/desktop-app-getting-started.md). It is built
-entirely on the packages above — a demonstration that the archive, not the
-app, is the product.
+the [desktop app guide](docs/desktop-app-getting-started.md).
 
 ## Documentation
 
