@@ -151,6 +151,10 @@ to `vera_ingest.convert`, call `vera.register_embedder`, or pass
 `embedder_options={...}` / CLI `--embedder-option KEY=VALUE` for
 provider-owned settings advertised by the provider's Options dataclass. See
 [Creating an embedding provider plugin](creating-an-embedding-provider.md).
+Prefer environment variables for API keys (`capabilities.credential_env` /
+`preflight_embedder`); do not put secrets in Options. Convert-time knobs such
+as `batch_size` use `scope: convert` so search can resolve
+`get_embedder(stored_model_name)` with defaults.
 
 ### Hosted provider plugins
 

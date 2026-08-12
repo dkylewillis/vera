@@ -181,9 +181,22 @@ def test_hardening_json_contracts_are_documented():
     assert "EmbedderOptions" in roadmap
     assert "describe_embedding_providers" in roadmap
     assert "--embedder-option" in roadmap
+    assert "preflight_embedder" in roadmap
+    assert "list_embedding_models" in roadmap
+    assert "credential_env" in roadmap
     assert (DOCS / "creating-an-embedding-provider.md").is_file()
-    assert "EmbedderOptions" in (DOCS / "creating-an-embedding-provider.md").read_text(encoding="utf-8")
-    assert "vera.embedder_descriptors" in (DOCS / "creating-an-embedding-provider.md").read_text(encoding="utf-8")
+    guide = (DOCS / "creating-an-embedding-provider.md").read_text(encoding="utf-8")
+    assert "EmbedderOptions" in guide
+    assert "vera.embedder_descriptors" in guide
+    assert "credential_env" in guide
+    assert "Do not put API keys in Options" in guide or "do not put secrets" in guide.lower()
+    assert "scope\": \"convert\"" in guide or "scope: convert" in guide or '"scope": "convert"' in guide
+    assert "vera.embedder_models" in guide
+    assert "preflight_embedder" in conversion
+    assert "credential_env" in conversion
+    assert "list_embedding_models" in desktop_architecture
+    assert "preflight_embedder" in desktop_architecture
+    assert "credential_env" in desktop_architecture
     assert "skipped_files" in libraries
     assert "skipped_semantic_model_groups" in libraries
     assert "does not reopen archives" in libraries

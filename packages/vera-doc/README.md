@@ -470,6 +470,7 @@ them as `embedder_options={...}`, `get_embedder(..., batch_size=64)`, or CLI
 VERA does not bundle hosted providers. Prefer the Options + descriptor
 authoring model in
 [Creating an embedding provider plugin](../../docs/creating-an-embedding-provider.md).
+Keep secrets in the environment (`OPENAI_API_KEY`), not in Options fields.
 This minimal sketch shows the factory + entry points:
 
 ```toml
@@ -483,42 +484,47 @@ openai = "vera_openai_embeddings:create_embedder"
 
 [project.entry-points."vera.embedder_descriptors"]
 openai = "vera_openai_embeddings:create_descriptor"
+
+[project.entry-points."vera.embedder_models"]
+openai = "vera_openai_embeddings:list_models"
 ```
 
 ```python
 # vera_openai_embeddings.py
 import os
+from dataclasses import dataclass, field
 
 import numpy as np
 from openai import OpenAI
 
-from vera import EmbedderCapabilities, EmbedderDescriptor, EmbedderOptions
+from vera import (
+    EmbedderCapabilities,
+    EmbedderDescriptor,
+    EmbedderOptions,
+    EmbeddingModelInfo,
+)
 from vera.core.embedder_descriptors import fields_from_dataclass
-from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
 class OpenAIOptions(EmbedderOptions):
-    api_key: str = field(
-        default="",
-        metadata={
-            "label": "API key",
-            "allow_empty": True,
-            "description": "Optional override; otherwise uses OPENAI_API_KEY.",
-        },
-    )
     batch_size: int = field(
         default=128,
-        metadata={"label": "Batch size", "minimum": 1, "maximum": 2048},
+        metadata={
+            "label": "Batch size",
+            "minimum": 1,
+            "maximum": 2048,
+            "scope": "convert",
+        },
     )
 
 
 class OpenAIEmbedder:
     normalization = "l2"
 
-    def __init__(self, model_id: str, *, api_key: str, batch_size: int):
+    def __init__(self, model_id: str, *, batch_size: int):
         self.model_name = f"openai:{model_id}"
-        self._client = OpenAI(api_key=api_key or os.environ["OPENAI_API_KEY"])
+        self._client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         self._model = model_id
         self._batch_size = batch_size
         self.dimension = len(self.embed(["dimension probe"])[0])
@@ -541,11 +547,7 @@ class OpenAIEmbedder:
 
 def create_embedder(model_id: str, **config):
     options = OpenAIOptions.from_mapping(config)
-    return OpenAIEmbedder(
-        model_id,
-        api_key=options.api_key,
-        batch_size=options.batch_size,
-    )
+    return OpenAIEmbedder(model_id, batch_size=options.batch_size)
 
 
 def create_descriptor() -> EmbedderDescriptor:
@@ -558,9 +560,21 @@ def create_descriptor() -> EmbedderDescriptor:
         capabilities=EmbedderCapabilities(
             requires_network=True,
             requires_api_key=True,
+            credential_env="OPENAI_API_KEY",
             local_model=False,
+            supports_model_listing=True,
         ),
         fields=fields_from_dataclass(OpenAIOptions),
+    )
+
+
+def list_models():
+    return (
+        EmbeddingModelInfo(
+            model_id="text-embedding-3-small",
+            label="text-embedding-3-small",
+            spec="openai:text-embedding-3-small",
+        ),
     )
 ```
 
@@ -574,9 +588,10 @@ vera convert "manual.pdf" --model openai:text-embedding-3-small \
 Or pass provider-specific settings from Python:
 
 ```python
-from vera import get_embedder
+from vera import get_embedder, preflight_embedder
 from vera_ingest import convert
 
+assert preflight_embedder("openai:text-embedding-3-large").ok
 embedder = get_embedder(
     "openai:text-embedding-3-large",
     embedder_options={"batch_size": 64},

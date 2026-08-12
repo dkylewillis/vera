@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import threading
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 from typing import Any, Callable, Iterable, Protocol
@@ -13,17 +14,22 @@ import numpy as np
 from .embedder_descriptors import (
     EmbedderCapabilities,
     EmbedderDescriptor,
+    EmbedderPreflightResult,
+    EmbeddingModelInfo,
     fields_from_dataclass,
     generic_embedder_descriptor,
 )
 from .embedder_options import EmbedderOptions
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
+_HASHING_NAME_RE = re.compile(r"^vera-hashing-(\d+)$")
 _ENTRY_POINT_GROUP = "vera.embedders"
 _DESCRIPTOR_ENTRY_POINT_GROUP = "vera.embedder_descriptors"
+_MODELS_ENTRY_POINT_GROUP = "vera.embedder_models"
 _REGISTRY_LOCK = threading.RLock()
 _PROVIDERS: dict[str, Callable[..., EmbeddingFunction]] = {}
 _DESCRIPTOR_FACTORIES: dict[str, Callable[[], EmbedderDescriptor]] = {}
+_MODEL_LISTERS: dict[str, Callable[[], Sequence[EmbeddingModelInfo]]] = {}
 _ENTRY_POINTS_LOADED = False
 _INSTANCE_CACHE: dict[tuple[Any, ...], EmbeddingFunction] = {}
 
@@ -79,10 +85,14 @@ class HashingOptions(EmbedderOptions):
         default=384,
         metadata={
             "label": "Dimension",
-            "description": "Output vector length for the hashing embedder.",
+            "description": (
+                "Output vector length. Encoded into model_name as "
+                "vera-hashing-<N> so search resolves the same size."
+            ),
             "minimum": 8,
             "maximum": 4096,
             "step": 8,
+            "scope": "always",
         },
     )
 
@@ -97,20 +107,26 @@ class SentenceTransformersOptions(EmbedderOptions):
             "label": "Device",
             "description": (
                 "Optional torch device (for example cpu or cuda). "
-                "Leave blank to let Sentence Transformers choose."
+                "Leave blank to let Sentence Transformers choose. "
+                "Convert-time only — search may use the default device."
             ),
             "allow_empty": True,
             "placeholder": "cpu",
+            "scope": "convert",
         },
     )
     batch_size: int = field(
         default=32,
         metadata={
             "label": "Batch size",
-            "description": "Texts encoded per Sentence Transformers batch.",
+            "description": (
+                "Texts encoded per Sentence Transformers batch. "
+                "Convert-time only — search may use the default batch size."
+            ),
             "minimum": 1,
             "maximum": 2048,
             "step": 1,
+            "scope": "convert",
         },
     )
 
@@ -161,10 +177,15 @@ class SentenceTransformerEmbedder:
 
 
 def _hashing_factory(model_id: str = "vera-hashing-384", **config: Any) -> HashingEmbedder:
-    options = HashingOptions.from_mapping(config)
+    raw = dict(config)
     name = (model_id or "").strip() or "vera-hashing-384"
-    if name in {"hashing", "vera-hashing-384"}:
-        name = "vera-hashing-384"
+    match = _HASHING_NAME_RE.match(name)
+    if match and "dimension" not in raw:
+        raw["dimension"] = int(match.group(1))
+    options = HashingOptions.from_mapping(raw)
+    if name in {"hashing", "vera-hashing-384"} or match is not None:
+        # Keep archive identity and search resolve aligned with dimension.
+        name = f"vera-hashing-{options.dimension}"
     return HashingEmbedder(dimension=options.dimension, model_name=name)
 
 
@@ -202,6 +223,7 @@ def _hashing_descriptor() -> EmbedderDescriptor:
             requires_api_key=False,
             local_model=True,
             configurable_dimension=True,
+            supports_model_listing=True,
         ),
         fields=fields_from_dataclass(HashingOptions),
     )
@@ -226,11 +248,41 @@ def _sentence_transformers_descriptor() -> EmbedderDescriptor:
             requires_api_key=False,
             local_model=True,
             configurable_dimension=False,
+            supports_model_listing=True,
         ),
         fields=fields_from_dataclass(SentenceTransformersOptions),
         notes=(
             "Install vera-doc[ml] (or sentence-transformers) before first use. "
-            "The first resolve may download model weights.",
+            "The first resolve may download model weights. "
+            "device and batch_size are convert-time options; search uses defaults.",
+        ),
+    )
+
+
+def _hashing_models() -> tuple[EmbeddingModelInfo, ...]:
+    return (
+        EmbeddingModelInfo(
+            model_id="vera-hashing-384",
+            label="Hashing 384-d",
+            spec="hashing:vera-hashing-384",
+            description="Default deterministic offline hashing embedder.",
+        ),
+    )
+
+
+def _sentence_transformers_models() -> tuple[EmbeddingModelInfo, ...]:
+    return (
+        EmbeddingModelInfo(
+            model_id="all-MiniLM-L6-v2",
+            label="all-MiniLM-L6-v2",
+            spec="sentence-transformers:all-MiniLM-L6-v2",
+            description="Compact general-purpose Sentence Transformers model.",
+        ),
+        EmbeddingModelInfo(
+            model_id="all-MiniLM-L12-v2",
+            label="all-MiniLM-L12-v2",
+            spec="sentence-transformers:all-MiniLM-L12-v2",
+            description="Larger MiniLM variant for slightly stronger retrieval.",
         ),
     )
 
@@ -313,12 +365,55 @@ def register_embedder_descriptor(
     return None
 
 
+def register_embedder_models(
+    provider: str,
+    factory: Callable[[], Sequence[EmbeddingModelInfo]] | None = None,
+    *,
+    replace: bool = False,
+) -> (
+    Callable[
+        [Callable[[], Sequence[EmbeddingModelInfo]]],
+        Callable[[], Sequence[EmbeddingModelInfo]],
+    ]
+    | None
+):
+    """Register a model-listing callback for an embedding provider.
+
+    Also usable as a decorator when ``factory`` is omitted — see
+    :func:`register_embedder`.
+    """
+    if factory is None:
+        def decorator(
+            actual_factory: Callable[[], Sequence[EmbeddingModelInfo]],
+        ) -> Callable[[], Sequence[EmbeddingModelInfo]]:
+            register_embedder_models(provider, actual_factory, replace=replace)
+            return actual_factory
+
+        return decorator
+
+    key = provider.strip().lower()
+    if not key:
+        raise ValueError("provider name must be non-empty")
+    if ":" in key:
+        raise ValueError("embedding provider name must not contain ':'")
+    if not callable(factory):
+        raise TypeError("embedding provider model lister must be callable")
+    with _REGISTRY_LOCK:
+        if key in _MODEL_LISTERS and not replace:
+            raise ValueError(
+                f"embedding provider model lister for {provider!r} is already registered"
+            )
+        _MODEL_LISTERS[key] = factory
+    return None
+
+
 def unregister_embedder(provider: str) -> None:
     """Remove a provider registration (primarily for tests)."""
     key = provider.strip().lower()
     with _REGISTRY_LOCK:
         _PROVIDERS.pop(key, None)
         _DESCRIPTOR_FACTORIES.pop(key, None)
+        _MODEL_LISTERS.pop(key, None)
         _INSTANCE_CACHE.clear()
 
 
@@ -366,6 +461,90 @@ def list_embedding_provider_descriptors() -> list[EmbedderDescriptor]:
     return [describe_embedder(provider) for provider in list_embedding_providers()]
 
 
+def list_embedding_models(provider: str) -> list[EmbeddingModelInfo]:
+    """Return model ids advertised by ``provider`` (presets and/or live listing)."""
+    key = provider.strip().lower()
+    if not key:
+        raise ValueError("provider name must be non-empty")
+    _ensure_entry_points_loaded()
+    with _REGISTRY_LOCK:
+        if key not in _PROVIDERS:
+            available = ", ".join(sorted(_PROVIDERS)) or "(none)"
+            raise UnknownEmbeddingModelError(
+                f"Unknown embedding provider {provider!r}. "
+                f"Registered providers: {available}."
+            )
+        lister = _MODEL_LISTERS.get(key)
+    if lister is None:
+        descriptor = describe_embedder(key)
+        default_id = descriptor.default_model_id.strip()
+        if not default_id:
+            return []
+        return [
+            EmbeddingModelInfo(
+                model_id=default_id,
+                label=default_id,
+                spec=f"{key}:{default_id}",
+            )
+        ]
+    models = list(lister())
+    for item in models:
+        if not isinstance(item, EmbeddingModelInfo):
+            raise TypeError(
+                f"Embedding model lister for {provider!r} must return EmbeddingModelInfo values."
+            )
+    return models
+
+
+def preflight_embedder(model: str = "hashing") -> EmbedderPreflightResult:
+    """Check whether ``model`` can be resolved without instantiating heavy runtimes.
+
+    Validates the provider exists and, when the descriptor requires an API key,
+    that ``capabilities.credential_env`` is set in the environment. Does not
+    download models or call remote APIs.
+    """
+    try:
+        provider, model_id = parse_model_spec(model)
+    except UnknownEmbeddingModelError as exc:
+        return EmbedderPreflightResult(
+            ok=False,
+            provider="",
+            model_id="",
+            detail=str(exc),
+        )
+    try:
+        descriptor = describe_embedder(provider)
+    except UnknownEmbeddingModelError as exc:
+        return EmbedderPreflightResult(
+            ok=False,
+            provider=provider,
+            model_id=model_id,
+            detail=str(exc),
+        )
+    caps = descriptor.capabilities
+    if caps.requires_api_key:
+        env_name = (caps.credential_env or "").strip()
+        if not env_name:
+            return EmbedderPreflightResult(
+                ok=False,
+                provider=provider,
+                model_id=model_id,
+                detail=(
+                    f"Provider {provider!r} requires an API key but did not "
+                    "advertise capabilities.credential_env."
+                ),
+            )
+        if not os.environ.get(env_name, "").strip():
+            return EmbedderPreflightResult(
+                ok=False,
+                provider=provider,
+                model_id=model_id,
+                missing_credential_env=env_name,
+                detail=f"Set the {env_name} environment variable before converting or searching.",
+            )
+    return EmbedderPreflightResult(ok=True, provider=provider, model_id=model_id)
+
+
 def _register_builtins() -> None:
     with _REGISTRY_LOCK:
         _PROVIDERS.setdefault("hashing", _hashing_factory)
@@ -374,6 +553,8 @@ def _register_builtins() -> None:
         _DESCRIPTOR_FACTORIES.setdefault(
             "sentence-transformers", _sentence_transformers_descriptor
         )
+        _MODEL_LISTERS.setdefault("hashing", _hashing_models)
+        _MODEL_LISTERS.setdefault("sentence-transformers", _sentence_transformers_models)
 
 
 def _load_entry_point_group(group: str) -> list[Any]:
@@ -410,6 +591,16 @@ def _ensure_entry_points_loaded() -> None:
                 continue
             if callable(factory):
                 _DESCRIPTOR_FACTORIES[name] = factory
+        for entry in _load_entry_point_group(_MODELS_ENTRY_POINT_GROUP):
+            name = entry.name.strip().lower()
+            if not name or name in _MODEL_LISTERS:
+                continue
+            try:
+                factory = entry.load()
+            except Exception:  # noqa: BLE001, S112
+                continue
+            if callable(factory):
+                _MODEL_LISTERS[name] = factory
         _ENTRY_POINTS_LOADED = True
 
 
@@ -419,6 +610,7 @@ def reset_embedding_registry(*, builtins: bool = True) -> None:
     with _REGISTRY_LOCK:
         _PROVIDERS.clear()
         _DESCRIPTOR_FACTORIES.clear()
+        _MODEL_LISTERS.clear()
         _INSTANCE_CACHE.clear()
         _ENTRY_POINTS_LOADED = False
         if builtins:
@@ -431,15 +623,17 @@ def parse_model_spec(model: str | None) -> tuple[str, str]:
     Accepted forms:
 
     - ``provider:model-id`` (preferred)
-    - Legacy aliases: ``hashing``, ``vera-hashing-384``, ``all-MiniLM-L6-v2``,
-      and ``sentence-transformers/<id>``
+    - Legacy aliases: ``hashing``, ``vera-hashing-384``, ``vera-hashing-<N>``,
+      ``all-MiniLM-L6-v2``, and ``sentence-transformers/<id>``
     """
     normalized = (model or "hashing").strip()
     if not normalized:
         normalized = "hashing"
 
-    if normalized in {"hashing", "vera-hashing-384"}:
+    if normalized == "hashing":
         return "hashing", "vera-hashing-384"
+    if _HASHING_NAME_RE.match(normalized):
+        return "hashing", normalized
     if normalized == "all-MiniLM-L6-v2":
         return "sentence-transformers", "all-MiniLM-L6-v2"
     if normalized.startswith("sentence-transformers/"):

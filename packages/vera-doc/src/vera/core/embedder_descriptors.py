@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 
 FieldType = Literal["string", "enum", "integer", "number", "boolean"]
+FieldScope = Literal["convert", "always"]
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,11 @@ class EmbedderField:
     # When True on a string field, blank values are valid (for example an
     # optional device string that means "auto").
     allow_empty: bool = False
+    # ``convert`` options affect embedding throughput/hardware only and may use
+    # defaults at search time. ``always`` options participate in archive
+    # identity (for example hashing dimension) and must round-trip via
+    # ``model_name`` or explicit search-time config.
+    scope: FieldScope = "convert"
 
 
 @dataclass(frozen=True)
@@ -46,8 +52,41 @@ class EmbedderCapabilities:
 
     requires_network: bool = False
     requires_api_key: bool = False
+    # Environment variable the provider reads for credentials (never put secrets
+    # in Options fields or descriptors). Empty when no API key is required.
+    credential_env: str = ""
     local_model: bool = True
     configurable_dimension: bool = False
+    # When True, ``list_embedding_models(provider)`` is expected to return
+    # useful model ids (static presets and/or a live provider listing).
+    supports_model_listing: bool = False
+
+
+@dataclass(frozen=True)
+class EmbeddingModelInfo:
+    """One selectable model id advertised by an embedding provider."""
+
+    model_id: str
+    label: str = ""
+    spec: str = ""
+    description: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class EmbedderPreflightResult:
+    """Lightweight readiness check for an embedding provider or model spec."""
+
+    ok: bool
+    provider: str
+    model_id: str = ""
+    missing_credential_env: str = ""
+    detail: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass(frozen=True)
@@ -69,6 +108,14 @@ class EmbedderDescriptor:
 
     def defaults(self) -> dict[str, Any]:
         return {item.key: item.default for item in self.fields}
+
+    def convert_fields(self) -> tuple[EmbedderField, ...]:
+        """Fields that are convert-time only (safe to default at search)."""
+        return tuple(item for item in self.fields if item.scope == "convert")
+
+    def always_fields(self) -> tuple[EmbedderField, ...]:
+        """Fields that participate in archive identity / search resolve."""
+        return tuple(item for item in self.fields if item.scope == "always")
 
     def as_dict(self) -> dict[str, Any]:
         """Serialize for sidecar/CLI JSON clients."""
@@ -106,6 +153,12 @@ def fields_from_dataclass(cls: type) -> tuple[EmbedderField, ...]:
         choices = tuple(
             EmbedderFieldChoice(value, label) for value, label in meta.get("choices", ())
         )
+        scope = meta.get("scope", "convert")
+        if scope not in {"convert", "always"}:
+            raise ValueError(
+                f"Unsupported EmbedderField scope {scope!r} for {item.name}; "
+                "use 'convert' or 'always'"
+            )
         result.append(
             EmbedderField(
                 key=item.name,
@@ -121,6 +174,7 @@ def fields_from_dataclass(cls: type) -> tuple[EmbedderField, ...]:
                 placeholder=meta.get("placeholder"),
                 allow_custom=meta.get("allow_custom", False),
                 allow_empty=meta.get("allow_empty", False),
+                scope=scope,
             )
         )
     return tuple(result)

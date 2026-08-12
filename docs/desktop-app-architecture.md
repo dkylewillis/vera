@@ -65,6 +65,8 @@ Initial actions:
 - `list_models`
 - `list_embedding_providers`
 - `describe_embedding_providers`
+- `list_embedding_models`
+- `preflight_embedder`
 - `list_ingest_pipelines`
 - `describe_ingest_pipelines`
 - `list_modes`
@@ -222,6 +224,10 @@ and renders them with `PipelineConfigForm` inside a collapsed
 **Advanced pipeline options** section. Embedding providers are listed via
 `list_embedding_providers`; `describe_embedding_providers` returns the same
 Options-derived field metadata for schema-driven embedder controls.
+`list_embedding_models` returns provider-advertised model presets, and
+`preflight_embedder` checks credential env readiness without loading
+runtimes. Secrets stay in the environment (`capabilities.credential_env`),
+not in Options fields.
 `batch_convert` also accepts an explicit `paths` list of
 PDF files; when present, directory discovery is skipped. The sidecar continues
 after per-file failures and returns converted, skipped, malformed, and failed

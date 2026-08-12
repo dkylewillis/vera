@@ -12,6 +12,8 @@ from .core.embedder_descriptors import (
     EmbedderDescriptor,
     EmbedderField,
     EmbedderFieldChoice,
+    EmbedderPreflightResult,
+    EmbeddingModelInfo,
 )
 from .core.embedder_options import EmbedderOptions
 from .core.embeddings import (
@@ -20,10 +22,13 @@ from .core.embeddings import (
     clear_embedder_cache,
     describe_embedder,
     get_embedder,
+    list_embedding_models,
     list_embedding_provider_descriptors,
     list_embedding_providers,
+    preflight_embedder,
     register_embedder,
     register_embedder_descriptor,
+    register_embedder_models,
 )
 from .document import (
     DuplicateRecordError,
@@ -48,14 +53,19 @@ __all__ = [
     "EmbedderField",
     "EmbedderFieldChoice",
     "EmbedderCapabilities",
+    "EmbeddingModelInfo",
+    "EmbedderPreflightResult",
     "EmbeddingNormalization",
     "UnknownEmbeddingModelError",
     "get_embedder",
     "register_embedder",
     "register_embedder_descriptor",
+    "register_embedder_models",
     "describe_embedder",
     "list_embedding_providers",
     "list_embedding_provider_descriptors",
+    "list_embedding_models",
+    "preflight_embedder",
     "clear_embedder_cache",
     "ChunkRecord",
     "AttachmentRecord",
