@@ -168,36 +168,53 @@ can highlight exactly where an answer came from.
 
 ## How it works
 
-**Conversion** runs the ingestion pipeline once and writes a validated archive:
+**Conversion** runs the expensive pipeline exactly once, in five steps:
 
-```text
-PDF ──> parse pages & layout ──> detect headings, tables, figures
-            │                        │
-            ├─ selective OCR         ├─ heading-aware chunking
-            ▼                        ▼
-        page text              chunks + provenance
-                                     │
-                        embed each chunk (pluggable model)
-                                     │
-                                     ▼
-        ┌────────────────────── .vera file ──────────────────────┐
-        │ chunks · embeddings · FTS5 keyword index · metadata ·  │
-        │ figures · page/block geometry · original PDF           │
-        └─────────────────────────────────────────────────────────┘
+1. **Parse.** The ingest pipeline extracts text and layout from every page,
+   selectively OCRing image-based pages that have little or no native text.
+2. **Structure.** Each page is decomposed into typed layout blocks — headings,
+   paragraphs, tables, captions, and images — each with a page number and
+   bounding box.
+3. **Chunk.** Blocks are assembled into heading-aware chunks that keep their
+   provenance: source filename, page range, heading path, and the regions
+   they came from.
+4. **Embed and index.** Every chunk gets one vector from the chosen embedding
+   model and one row in the FTS5 keyword index.
+5. **Package.** Chunks, embeddings, the keyword index, figures, page geometry,
+   archive metadata, and the original PDF are written into a single SQLite
+   file, validated, and published atomically.
+
+```mermaid
+flowchart LR
+    PDF["PDF"] --> Parse["Parse + OCR"] --> Blocks["Layout blocks"] --> Chunks["Chunks with citations"]
+    Chunks --> Embed["Embeddings"]
+    Chunks --> FTS["Keyword index"]
+    Embed --> Vera[".vera file"]
+    FTS --> Vera
+    PDF -. "original stored too" .-> Vera
 ```
 
-**Search** never touches the source document again. Hybrid retrieval embeds
-the query with the same model recorded in the archive, scores it against the
-stored vectors (cosine similarity), runs the keyword query through FTS5
-(BM25), min-max normalizes both rankings, and fuses them with equal weight:
+**Search** never repeats any of that work. A query runs both retrieval paths
+against the local file and fuses them:
 
-```text
-query ──┬─> semantic ranking ──┐
-        │                      ├─> normalized fusion ─> cited chunks
-        └─> keyword ranking  ──┘        (page, heading, score, text)
+1. The query is embedded with the same model recorded in the archive and
+   scored against the stored vectors by cosine similarity.
+2. The same query runs through the FTS5 keyword index, ranked with BM25.
+3. Both rankings are min-max normalized and combined with equal weight
+   (`--mode semantic` or `--mode keyword` uses just one path).
+4. The top chunks come back with their score, text, source filename, page
+   range, and heading path — ready to cite.
+
+```mermaid
+flowchart LR
+    Query["Query"] --> Semantic["Semantic ranking<br/>(cosine over stored vectors)"]
+    Query --> Keyword["Keyword ranking<br/>(FTS5 + BM25)"]
+    Semantic --> Fuse["Score fusion"]
+    Keyword --> Fuse
+    Fuse --> Results["Cited chunks<br/>(page, heading, score, text)"]
 ```
 
-Both halves run against local SQLite — a search is just opening a file.
+Both paths read plain SQLite — a search is just opening a file.
 
 ## Inside a `.vera` file
 
