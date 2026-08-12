@@ -113,8 +113,8 @@ class IngestOptions:
         )
 
 
-def coerce_ingest_request(options: IngestRequest | IngestOptions) -> IngestRequest:
-    """Normalize deprecated :class:`IngestOptions` into :class:`IngestRequest`."""
+def ensure_ingest_request(options: IngestRequest | IngestOptions) -> IngestRequest:
+    """Return ``options`` as an :class:`IngestRequest`, converting deprecated :class:`IngestOptions`."""
     if isinstance(options, IngestRequest):
         return options
     return options.to_request()

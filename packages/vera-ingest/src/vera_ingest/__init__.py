@@ -36,7 +36,7 @@ from .types import (
     IngestResult,
     ParsedBlock,
     ParsedPage,
-    coerce_ingest_request,
+    ensure_ingest_request,
 )
 from .viewer import (
     export_source_document,
@@ -69,10 +69,10 @@ __all__ = [
     "build_chunks_from_blocks",
     "chunk_pages",
     "clear_ingest_pipeline_cache",
-    "coerce_ingest_request",
     "convert",
     "describe_ingest_pipeline",
     "detect_heading",
+    "ensure_ingest_request",
     "export_source_document",
     "figures",
     "figures_for",

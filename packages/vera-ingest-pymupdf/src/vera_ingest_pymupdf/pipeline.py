@@ -12,7 +12,7 @@ from vera_ingest.types import (
     IngestRequest,
     IngestResult,
     ParsedBlock,
-    coerce_ingest_request,
+    ensure_ingest_request,
 )
 
 from .options import PyMuPDFOptions, describe_pipeline
@@ -45,7 +45,7 @@ def _drop_repeated_images(
 
 def pymupdf_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
     """Default PDF ingest pipeline using PyMuPDF parsing and Tesseract OCR."""
-    request = coerce_ingest_request(options)
+    request = ensure_ingest_request(options)
     config = PyMuPDFOptions.from_mapping(request.pipeline_options)
     diagnostics: dict[str, object] = {}
     pages, parsed_blocks = parse_pdf_structured(

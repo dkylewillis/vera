@@ -10,7 +10,7 @@ from typing import Any
 
 from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
 from vera_ingest.pipeline import UnknownIngestPipelineError
-from vera_ingest.types import IngestBlock, IngestChunk, IngestRequest, IngestResult, ParsedPage, coerce_ingest_request
+from vera_ingest.types import IngestBlock, IngestChunk, IngestRequest, IngestResult, ParsedPage, ensure_ingest_request
 
 from .options import DoclingOptions
 
@@ -748,7 +748,7 @@ class DoclingHybridPipeline:
     """
 
     def __call__(self, source_path: str, options: IngestRequest) -> IngestResult:
-        request = coerce_ingest_request(options)
+        request = ensure_ingest_request(options)
         variant = (request.variant or "hybrid").strip().lower()
         if variant not in {"", "hybrid"}:
             raise UnknownIngestPipelineError(

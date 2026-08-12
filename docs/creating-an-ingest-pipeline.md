@@ -72,7 +72,7 @@ from vera_ingest.types import (
     IngestRequest,
     IngestResult,
     ParsedPage,
-    coerce_ingest_request,
+    ensure_ingest_request,
 )
 
 from .options import ExampleOptions
@@ -80,7 +80,7 @@ from .options import ExampleOptions
 
 def example_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
     """Whole-file ingest pipeline for plain-text sources."""
-    request = coerce_ingest_request(options)
+    request = ensure_ingest_request(options)
     config = ExampleOptions.from_mapping(request.pipeline_options)
     text = Path(source_path).read_text(encoding="utf-8", errors="replace")
 
