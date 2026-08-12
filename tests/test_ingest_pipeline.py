@@ -47,6 +47,21 @@ def test_builtin_pipeline_is_cached_and_listed():
     assert "pymupdf" in list_ingest_pipelines()
 
 
+def test_pymupdf_ensure_registered_works_without_entry_points(monkeypatch):
+    """Frozen sidecars often lack dist-info; import-time registration must suffice."""
+    monkeypatch.setattr("vera_ingest.pipeline._load_entry_point_group", lambda _group: [])
+    reset_ingest_pipeline_registry()
+    assert list_ingest_pipelines() == []
+
+    from vera_ingest_pymupdf import ensure_registered
+
+    ensure_registered()
+
+    assert "pymupdf" in list_ingest_pipelines()
+    assert get_ingest_pipeline("pymupdf") is get_ingest_pipeline("pymupdf")
+    assert describe_ingest_pipeline("pymupdf").provider == "pymupdf"
+
+
 def test_builtin_conversion_records_real_pymupdf_version(tmp_path):
     import fitz
 

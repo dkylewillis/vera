@@ -260,7 +260,9 @@ npm run app:dist
 project virtualenv when it is available (honoring `VERA_SIDECAR_PYTHON`) and
 otherwise falls back to `uv run --extra app --extra sidecar`. Bundled Tesseract
 English data is passed as an absolute path so the build works from any
-directory.
+directory. The build also copies `vera-ingest-pymupdf` package metadata and the
+sidecar registers the default `pymupdf` pipeline on import so Convert works in
+frozen builds where `importlib.metadata` entry points are otherwise empty.
 
 From the repo root:
 

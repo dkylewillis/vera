@@ -15,6 +15,14 @@ const pyinstallerArgs = [
   "--onedir",
   "--add-data",
   `${tessdata}${path.delimiter}vera_ingest_pymupdf/tessdata`,
+  // Keep dist-info so importlib.metadata can still see vera.ingest_pipelines
+  // when the freeze does not rely solely on import-time registration.
+  "--copy-metadata",
+  "vera-ingest-pymupdf",
+  "--copy-metadata",
+  "vera-ingest",
+  "--hidden-import",
+  "vera_ingest_pymupdf",
   "--name",
   "vera-sidecar",
   "--distpath",
