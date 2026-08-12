@@ -113,6 +113,7 @@ nav:
           - Getting started: guides/basic-usage.md
           - Concepts: concepts/overview.md
       - Guides:
+          - Creating an embedding provider: creating-an-embedding-provider.md
           - Search: searching.md
           - Document libraries: document-libraries.md
           - Figures and regions: figures-and-regions.md

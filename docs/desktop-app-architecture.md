@@ -64,6 +64,7 @@ Initial actions:
 - `index_update`
 - `list_models`
 - `list_embedding_providers`
+- `describe_embedding_providers`
 - `list_ingest_pipelines`
 - `describe_ingest_pipelines`
 - `list_modes`
@@ -213,11 +214,14 @@ sidecar. It publishes a validated
 temporary sibling atomically, preserves an existing destination after failure,
 and rejects PDFs with no searchable text after OCR with an OCR-specific
 message. Sidecar `convert` and `batch_convert` requests accept optional
-`pipeline_options` plus legacy `chunk_size`, `overlap`, `ocr_mode`,
-`ocr_language`, and `ocr_dpi` fields. Descriptor fields determine which legacy
-aliases are forwarded; explicit `pipeline_options` win. The Convert UI loads
-descriptors through `describe_ingest_pipelines` and renders them with
-`PipelineConfigForm` inside a collapsed **Advanced pipeline options** section.
+`pipeline_options` and `embedder_options` plus legacy `chunk_size`, `overlap`,
+`ocr_mode`, `ocr_language`, and `ocr_dpi` fields. Descriptor fields determine
+which legacy ingest aliases are forwarded; explicit `pipeline_options` win.
+The Convert UI loads ingest descriptors through `describe_ingest_pipelines`
+and renders them with `PipelineConfigForm` inside a collapsed
+**Advanced pipeline options** section. Embedding providers are listed via
+`list_embedding_providers`; `describe_embedding_providers` returns the same
+Options-derived field metadata for schema-driven embedder controls.
 `batch_convert` also accepts an explicit `paths` list of
 PDF files; when present, directory discovery is skipped. The sidecar continues
 after per-file failures and returns converted, skipped, malformed, and failed

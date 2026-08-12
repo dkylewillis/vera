@@ -63,6 +63,10 @@ Options:
   Values coerce to bool (`true`/`false`), int, or float when unambiguous;
   otherwise they remain strings. Explicit `--pipeline-option` values always
   override compatibility aliases for the same key.
+- `--embedder-option KEY=VALUE` is repeatable. Sets provider-owned
+  `embedder_options` entries (for example `--embedder-option batch_size=64`
+  or `--embedder-option dimension=256`). Values coerce the same way as
+  `--pipeline-option`.
 - `--recursive` recursively discovers PDFs in directory mode.
 - `--overwrite` replaces existing outputs in directory mode.
 - `--json` emits one JSON object.

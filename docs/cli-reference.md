@@ -48,6 +48,8 @@ Options:
   into a local cache instead of failing — see `vera ocr-languages`)
 - `--pipeline-option KEY=VALUE` (repeatable; provider-owned options that
   override compatibility aliases for the same key)
+- `--embedder-option KEY=VALUE` (repeatable; provider-owned embedding options
+  forwarded to the selected embedding provider)
 - `--recursive`
 - `--overwrite`
 - `--json`
@@ -62,7 +64,9 @@ auto-fetch curated language data, or a manually installed Tesseract
 archives beside PDFs, validates existing outputs before skipping them,
 reports malformed outputs separately, and does not accept `OUTPUT`.
 Pipeline-owned defaults and validation live in each ingest plugin; see
-[Convert documents](conversion.md#pipeline-options).
+[Convert documents](conversion.md#pipeline-options). Embedding-provider
+options follow the same Options + descriptor pattern; see
+[Creating an embedding provider](creating-an-embedding-provider.md).
 
 ## `vera inspect FILE`
 

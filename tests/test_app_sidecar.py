@@ -696,6 +696,9 @@ def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):
         }
     )
     providers = handle({"id": "embedding-providers", "action": "list_embedding_providers"})
+    described = handle(
+        {"id": "embedding-providers-describe", "action": "describe_embedding_providers"}
+    )
 
     assert converted["ok"] is True
     assert captured["model"] == "openai:text-embedding-3-small"
@@ -704,6 +707,9 @@ def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):
         "ok": True,
         "result": {"providers": ["hashing", "openai"]},
     }
+    assert described["ok"] is True
+    assert "providers" in described["result"]
+    assert isinstance(described["result"]["providers"], list)
 
 
 def test_source_action_materializes_cache_file(tmp_path):

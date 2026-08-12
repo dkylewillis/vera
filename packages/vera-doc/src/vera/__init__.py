@@ -7,13 +7,23 @@ from .collection import (
     update_library_index,
 )
 from .corpus import CorpusSearchResult, VeraCorpus
+from .core.embedder_descriptors import (
+    EmbedderCapabilities,
+    EmbedderDescriptor,
+    EmbedderField,
+    EmbedderFieldChoice,
+)
+from .core.embedder_options import EmbedderOptions
 from .core.embeddings import (
     EmbeddingFunction,
     UnknownEmbeddingModelError,
     clear_embedder_cache,
+    describe_embedder,
     get_embedder,
+    list_embedding_provider_descriptors,
     list_embedding_providers,
     register_embedder,
+    register_embedder_descriptor,
 )
 from .document import (
     DuplicateRecordError,
@@ -33,11 +43,19 @@ __all__ = [
     "update_library_index",
     "library_index_status",
     "EmbeddingFunction",
+    "EmbedderOptions",
+    "EmbedderDescriptor",
+    "EmbedderField",
+    "EmbedderFieldChoice",
+    "EmbedderCapabilities",
     "EmbeddingNormalization",
     "UnknownEmbeddingModelError",
     "get_embedder",
     "register_embedder",
+    "register_embedder_descriptor",
+    "describe_embedder",
     "list_embedding_providers",
+    "list_embedding_provider_descriptors",
     "clear_embedder_cache",
     "ChunkRecord",
     "AttachmentRecord",

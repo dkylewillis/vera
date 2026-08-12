@@ -43,8 +43,14 @@ schema or normative behavior.
 - [x] Use the selected model for single-file and batch conversion.
 - [x] Show installed embedding providers as model-spec suggestions.
 - [x] Offer Convert-view presets for hashing and Sentence Transformers MiniLM.
+- [x] Advertise provider-owned options through `EmbedderOptions` dataclass
+  metadata and `vera.embedder_descriptors` (parallel to ingest pipelines).
+- [x] Accept `embedder_options` / `--embedder-option KEY=VALUE` and expose
+  `describe_embedding_providers` for schema-driven Convert controls.
 - [ ] Add conversion-time provider and credential preflight checks.
 - [ ] Improve model selection with provider-specific model discovery.
+- [ ] Drive Convert UI embedding forms from descriptors (like
+  `PipelineConfigForm`).
 
 ### Official embedding providers
 
@@ -52,7 +58,9 @@ schema or normative behavior.
 - [ ] Add Voyage AI embeddings for applications that use Claude for answers.
 - [ ] Add an Ollama embeddings provider for local models.
 - [ ] Store hosted embedding-provider credentials securely.
-- [ ] Define supported configuration for endpoints, timeouts, and batch sizes.
+- [x] Define supported configuration for endpoints, timeouts, and batch sizes
+  via provider `Options` + descriptors (built-ins advertise dimension /
+  device / batch_size; hosted plugins follow the same pattern).
 - [ ] Document which providers are bundled with each desktop release.
 
 ### Packaging and local models
