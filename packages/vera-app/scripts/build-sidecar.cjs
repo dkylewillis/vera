@@ -7,6 +7,27 @@ const repoRoot = path.resolve(appDir, "..", "..");
 const tessdata = path.join(repoRoot, "packages", "vera-ingest", "src", "vera_ingest", "tessdata");
 const entry = path.join("src", "vera_app", "sidecar.py");
 
+// Keep sentence-transformers + torch + transformers for embedding query/encode
+// support. Exclude packages that are often present in a local
+// `uv sync --extra ml --extra dev` venv but are not needed for text embeddings;
+// otherwise PyInstaller follows those imports and inflates the installer.
+const excludedModules = [
+  "torchvision",
+  "torchaudio",
+  "torchgen",
+  "functorch",
+  "tensorflow",
+  "tensorboard",
+  "pandas",
+  "cv2",
+  "pytest",
+  "_pytest",
+  "py",
+  "IPython",
+  "jupyter",
+  "notebook",
+];
+
 const pyinstallerArgs = [
   "-m",
   "PyInstaller",
@@ -15,6 +36,7 @@ const pyinstallerArgs = [
   "--onedir",
   "--add-data",
   `${tessdata}${path.delimiter}vera_ingest/tessdata`,
+  ...excludedModules.flatMap((name) => ["--exclude-module", name]),
   "--name",
   "vera-sidecar",
   "--distpath",

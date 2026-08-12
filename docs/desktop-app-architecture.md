@@ -240,7 +240,11 @@ npm run app:dist
 project virtualenv when it is available (honoring `VERA_SIDECAR_PYTHON`) and
 otherwise falls back to `uv run --extra app --extra sidecar`. Bundled Tesseract
 English data is passed as an absolute path so the build works from any
-directory.
+directory. The sidecar keeps `sentence-transformers` / `torch` / `transformers`
+so semantic embedding encode/query works when those packages are installed in
+the build environment, and excludes unrelated ML/dev imports (for example
+`torchvision`, `torchaudio`, `pandas`, `cv2`, `pytest`) that a local
+`--extra ml` / `--extra dev` venv would otherwise pull into the installer.
 
 From the repo root:
 
