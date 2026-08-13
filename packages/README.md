@@ -19,7 +19,7 @@ Published on PyPI:
 
 ## `vera-doc`
 
-Publishes `vera`. Owns only storage and search:
+Publishes `vera_doc`. Owns only storage and search:
 
 - chunk-oriented `.vera` schema and validation;
 - typed chunk, attachment, and query-result objects;

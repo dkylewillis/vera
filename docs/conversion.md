@@ -171,7 +171,7 @@ plugins can register providers under the Python entry-point group
 `vera.embedders`, with optional `vera.embedder_descriptors` metadata for
 schema-driven Convert controls (`describe_embedding_providers` in the
 sidecar). From Python, pass a custom `embedding_function`
-to `vera_ingest.convert`, call `vera.register_embedder`, or pass
+to `vera_ingest.convert`, call `vera_doc.register_embedder`, or pass
 `embedder_options={...}` / CLI `--embedder-option KEY=VALUE` for
 provider-owned settings advertised by the provider's Options dataclass.
 Advertised integer bounds are enforced (hashing `dimension` is 8–4096). See
