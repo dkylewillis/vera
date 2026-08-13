@@ -62,6 +62,7 @@ export interface VeraApi {
   pickArchive(): Promise<string | null>;
   pickFolder(): Promise<string | null>;
   listFolder(dir: string): Promise<WorkspaceFolderResult | null>;
+  pathExists(targetPath: string): Promise<boolean>;
   showInFolder(targetPath: string): Promise<void>;
   trashWorkspaceFile(filePath: string, folderPath: string): Promise<'trashed' | 'deleted' | 'cancelled'>;
   setWatchedFolders(paths: string[]): Promise<void>;
@@ -156,12 +157,14 @@ export interface InspectResult {
   format_name?: string;
   format_version?: string;
   default_embedding_model?: string;
+  embedding_model?: string;
   default_embedding_dimension?: number;
   embedding_dimension?: number;
   default_embedding_normalization?: 'l2' | 'none' | 'unknown';
   embedding_normalization?: 'l2' | 'none' | 'unknown';
   parser_name?: string;
   parser_version?: string;
+  source_attachment_id?: string | null;
   chunking_strategy?: string;
   ocr?: {
     ocr_engine?: string;

@@ -18,6 +18,18 @@ export function defaultVeraPath(pdf: string): string {
   return trimmed.toLowerCase().endsWith('.pdf') ? `${trimmed.slice(0, -4)}.vera` : `${trimmed}.vera`;
 }
 
+/** Inverse of {@link defaultVeraPath}: `manual.vera` → `manual.pdf`. */
+export function siblingPdfPath(veraPath: string): string {
+  const trimmed = veraPath.trim();
+  if (!trimmed.toLowerCase().endsWith('.vera')) return '';
+  return `${trimmed.slice(0, -5)}.pdf`;
+}
+
+export function sameFsPath(left: string, right: string): boolean {
+  const normalize = (value: string) => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  return normalize(left) === normalize(right);
+}
+
 export function isPathInsideFolder(filePath: string, folderPath: string): boolean {
   const file = filePath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
   const folder = folderPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();

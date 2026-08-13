@@ -971,6 +971,9 @@ app.whenReady().then(() => {
   ipcMain.handle('vera:pickArchive', async () => pickArchivePath());
   ipcMain.handle('vera:pickFolder', async () => pickFolderPath());
   ipcMain.handle('vera:listFolder', async (_event, dir: string) => listFolder(dir));
+  ipcMain.handle('vera:pathExists', async (_event, targetPath: string) => (
+    typeof targetPath === 'string' && Boolean(targetPath.trim()) && existsSync(resolve(targetPath))
+  ));
   ipcMain.handle('vera:showInFolder', async (_event, targetPath: string) => showInFolder(targetPath));
   ipcMain.handle('vera:trashWorkspaceFile', async (_event, filePath: string, folderPath: string) => trashWorkspaceFile(filePath, folderPath));
   ipcMain.handle('vera:setWatchedFolders', async (_event, paths: string[]) => {

@@ -71,7 +71,11 @@ models; save an optional token under **File > LLM Providers → Hugging Face**
 (or set `HF_TOKEN` in the environment / a local `.env` from `.env.example`) to
 raise Hub rate limits. Conversion progress and the current filename appear in
 the footer status bar, so progress remains visible when you switch away from
-the Convert view.
+the Convert view. Right-click a folder in Explorer and choose **Convert PDFs…**
+to open directory conversion for that folder. To rebuild an existing archive with a different ingest
+pipeline or embedding model, right-click the `.vera` file in Explorer and
+choose **Reconvert…**; Convert opens immediately with a preparing status while
+the archive is read, then prefills the current settings and turns overwrite on.
 Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,
 and keyword modes from its composer options. Its ranked passage cards open and
@@ -94,14 +98,16 @@ folder only sets the Search and Ask scope; the corpus opens on the first
 query. A fresh index makes that first search fast. If an index is missing or
 stale, the first Search or Ask prompts you to build or update it; choose
 **Don&apos;t ask again** to keep using recursive search without future prompts for
-that library. Use **Inspect** in the Info view only when you need library
+that library. Right-click a folder and choose **Build index** or **Update
+index** to start immediately without that dialog; the badge and footer show
+progress. Use **Inspect** in the Info view only when you need library
 metrics or to revalidate every archive; that operation can take substantially
 longer for large libraries. Inspection runs on a sidecar worker and the footer
 reports completed and total archives, the current filename, cumulative chunks,
 and skipped files. Its request-scoped status clears on either success or
 failure, independently of simultaneous indexing or conversion activity.
 
-After you confirm a build or update, indexing runs in the background. The
+After a build or update starts, indexing runs in the background. The
 folder's index badge spins. The footer shows completed archives, total archives,
 the current phase and filename, indexed chunks, and skipped-file count. It
 switches to a finalizing phase while the validated generation is published. You

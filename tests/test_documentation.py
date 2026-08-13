@@ -227,6 +227,14 @@ def test_hardening_json_contracts_are_documented():
     assert "pipeline_options" in desktop_architecture
     assert "PipelineConfigForm" in desktop_architecture
     assert "Advanced pipeline options" in desktop_architecture
+    assert "**Reconvert…**" in desktop_architecture
+    assert "opens Convert immediately" in desktop_architecture
+    assert "the folder badge spins" in desktop_architecture
+    assert "**Convert PDFs…**" in desktop_architecture
+    assert "not for an explicit menu action" in desktop_architecture
+    assert "Shift+click" in desktop_architecture
+    assert "## Reconvert with a different parser or embedding" in conversion
+    assert "**Reconvert…**" in conversion
     assert "PyMuPDF ingest pipeline" in desktop
     assert "ingest_pipeline" in desktop
     assert "vera-ingest-docling" in conversion or "docling:hybrid" in conversion

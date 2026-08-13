@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { convertDefaultsFromSelection, showInFolderLabel } from './formatting';
+import { convertDefaultsFromSelection, sameFsPath, siblingPdfPath, showInFolderLabel } from './formatting';
 
 describe('showInFolderLabel', () => {
   it('uses platform-specific wording', () => {
@@ -40,5 +40,21 @@ describe('convertDefaultsFromSelection', () => {
 
   it('returns null when nothing is selected', () => {
     expect(convertDefaultsFromSelection(null)).toBeNull();
+  });
+});
+
+describe('siblingPdfPath', () => {
+  it('maps a .vera archive to the same-named PDF', () => {
+    expect(siblingPdfPath('C:\\docs\\manual.vera')).toBe('C:\\docs\\manual.pdf');
+  });
+
+  it('returns empty for non-archive paths', () => {
+    expect(siblingPdfPath('manual.pdf')).toBe('');
+  });
+});
+
+describe('sameFsPath', () => {
+  it('ignores slash style and case', () => {
+    expect(sameFsPath('C:\\docs\\Manual.PDF', 'c:/docs/manual.pdf')).toBe(true);
   });
 });

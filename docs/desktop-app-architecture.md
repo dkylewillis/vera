@@ -130,16 +130,30 @@ recursive/exclusion settings, skipped archives, storage usage,
 generation/build/check timestamps, and per-model dimensions and counts. Its
 close action clears the viewer in the same way as closing a document preview.
 Libraries with at least 100
-discovered archives prompt to build or update an unavailable index, while smaller
-libraries expose build, update, rescan, show-in-system-folder, and
-close actions in the folder row's context menu. File rows offer show-in-system-
-folder (and preview/trash where applicable). Clicking a PDF selects it for conversion (and Ctrl/Cmd+click
-toggles additional PDFs into the same selection, separate from `.vera`
-search-scope checkboxes). Clicking a `.vera` sets Search/Ask scope without
-changing the document viewer. Double-click or right-click **View in document
+discovered archives prompt to build or update an unavailable index on Search or
+Ask. Folder context menus expose **Convert PDFs…**, **Build index**, **Update
+index**, rescan, show-in-system-folder, and close. **Convert PDFs…** opens
+Convert in directory mode for that folder so pipeline, embedding, overwrite,
+and nested-folder settings can be confirmed before converting. **Build index**
+and **Update index** from that menu start immediately: the folder badge spins
+and the footer reports progress.
+The Search/Ask dialog (with **Search anyway** and **Don't ask again**) is only
+for query-time prompts, not for an explicit menu action. File rows offer show-in-system-
+folder (and preview/trash where applicable). File rows use ordinary list
+selection: click selects one file, Ctrl/Cmd+click adds or removes it, Shift+click
+selects the range from the last anchor, and the checkbox always toggles that
+row. Selected `.vera` files become the Search/Ask scope; selected PDFs become
+the Convert selection. Clicking a folder name clears the file selection and
+returns Search/Ask to the whole library. Clicking a `.vera` does not collapse
+the folder or replace the document viewer. Double-click or right-click **View in document
 viewer** / **Preview embedded source** loads that PDF or archive original in
 the source pane; right-clicking a PDF also offers **Convert PDF** /
-**Convert PDFs** for the current selection (one or more files). The same menus can be opened from the keyboard with
+**Convert PDFs** for the current selection (one or more files). Right-clicking a
+`.vera` archive offers **Reconvert…**, which opens Convert immediately with a
+preparing status (and footer activity) while the sibling PDF or embedded
+original is resolved. Overwrite is enabled and the archive's current parser and
+embedding are prefilled so they can be changed before replacing the archive. A
+second Reconvert click is ignored until that preparation finishes. The same menus can be opened from the keyboard with
 Shift+F10 or the Menu key, support arrow key navigation, and close with
 Escape. Show-in-folder opens a library directory in the OS file manager, or
 reveals a selected `.vera`/`.pdf` file in its parent folder. Explorer keeps

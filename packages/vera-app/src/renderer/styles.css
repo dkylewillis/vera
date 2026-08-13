@@ -438,6 +438,17 @@ button {
   overflow-wrap: anywhere;
 }
 
+.reconvertStatus {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.reconvertStatus .spinning {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
 .sidePrimary {
   display: inline-flex;
   align-items: center;
@@ -749,6 +760,7 @@ button {
   border-radius: var(--radius-sm);
   text-align: left;
   font-size: 12px;
+  user-select: none;
   transition: background 0.1s;
 }
 

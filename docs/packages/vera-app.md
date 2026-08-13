@@ -17,9 +17,12 @@ Download `VERA Setup <version>.exe` from the
 
 ## First workflow
 
-1. Open **Convert PDF** and convert selected PDFs or a directory. Expand
+1. Open **Convert PDF** and convert selected PDFs or a directory, or
+   right-click a folder and choose **Convert PDFs…**. Expand
    **Advanced pipeline options** for schema-driven settings from
-   `describe_ingest_pipelines` / `PipelineConfigForm`.
+   `describe_ingest_pipelines` / `PipelineConfigForm`. Right-click a `.vera`
+   archive and choose **Reconvert…** to replace it with a different ingest
+   pipeline or embedding model.
 2. Use **File > Open Folder** to activate a document library.
 3. Open **Search** for fully local hybrid retrieval.
 4. To use **Ask**, configure a provider under **File > LLM Providers**.

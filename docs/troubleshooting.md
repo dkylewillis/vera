@@ -92,7 +92,8 @@ reports this as an issue, and export is unavailable. Reconvert with the default
 
 The archive was created without the original document or is damaged. Export
 cannot reconstruct the PDF from parsed text. Locate the source PDF and
-reconvert it.
+reconvert it. In the desktop app, right-click the `.vera` file and choose
+**Reconvert…** when the original PDF is beside the archive or stored inside it.
 
 ## A collection index is stale
 

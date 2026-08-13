@@ -114,6 +114,27 @@ entries include `input`, `output`, and validation `issues`. Batch conversion
 continues after an individual PDF fails and exits nonzero if any conversion
 failed or malformed existing output was found.
 
+In the desktop app, right-click a folder in Explorer and choose
+**Convert PDFs…** to open Convert in **PDF Directory** mode for that folder.
+Confirm the ingest pipeline, embedding model, overwrite, and nested-folder
+options, then convert.
+
+## Reconvert with a different parser or embedding
+
+Parser and embedding choices are stored in the archive at convert time.
+Changing them means converting the PDF again and replacing the `.vera` file.
+
+```bash
+vera convert "./proposals" --recursive --overwrite --parser docling --model hashing
+```
+
+In the desktop app, right-click a `.vera` file in Explorer and choose
+**Reconvert…**. Convert opens immediately with a preparing status while the
+sibling PDF is resolved (or the embedded original is restored). Overwrite is
+enabled, and the archive's current ingest pipeline and embedding model are
+prefilled so you can change them before converting. After replacement, update
+the library index if that folder is indexed.
+
 ## Embedding models
 
 The default model is `hashing`:

@@ -64,10 +64,17 @@ import {
   isPathInsideFolder,
   isPdfSource,
   showInFolderLabel,
+  siblingPdfPath,
   type ExplorerSelection,
 } from './lib/formatting';
 import { figureCacheKey, mergeFigureData, sameSearchResult } from './lib/figures';
-import { collapsedFoldersForActiveLibrary } from './lib/explorer';
+import { collapsedFoldersForActiveLibrary, applyFileListSelection, partitionExplorerSelection, visibleExplorerEntries, type ExplorerFileFilter } from './lib/explorer';
+import {
+  findSiblingPdfPath,
+  reconvertMissingSourceMessage,
+  reconvertPrefillFromInspect,
+  resolveReconvertPdf,
+} from './lib/reconvert';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from './lib/providers';
 import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
 import './styles.css';
@@ -77,7 +84,6 @@ type CenterView = 'chat' | 'search';
 type ViewerMode = 'selection' | 'document' | 'info';
 type FolderContextMenu = { path: string; x: number; y: number };
 type EntryContextMenu = { entry: FolderEntry; folderPath: string; x: number; y: number };
-type ExplorerFileFilter = 'all' | FolderEntry['type'];
 type ActionCallOptions = { scope?: string; timeoutMs?: number };
 
 const DEFAULT_ACTION_TIMEOUT_MS = 5 * 60 * 1000;
@@ -218,6 +224,9 @@ function App() {
   const [batchOverwrite, setBatchOverwrite] = useState(false);
   const [explorerSelection, setExplorerSelection] = useState<ExplorerSelection | null>(null);
   const [selectedPdfs, setSelectedPdfs] = useState<string[]>([]);
+  const [reconvertNotice, setReconvertNotice] = useState<string | null>(null);
+  const [reconvertBusy, setReconvertBusy] = useState(false);
+  const reconvertInFlightRef = useRef(false);
   const [storeOriginal, setStoreOriginal] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [providerErrorDetail, setProviderErrorDetail] = useState<string | null>(null);
@@ -246,6 +255,7 @@ function App() {
   const [selected, setSelected] = useState<SearchResult | null>(null);
   const [citationJumpVersion, setCitationJumpVersion] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [selectionAnchorPath, setSelectionAnchorPath] = useState<string | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState<string[]>([]);
   const [explorerFileFilter, setExplorerFileFilter] = useState<ExplorerFileFilter>('vera');
   const [chatAnswer, setChatAnswer] = useState<ChatAnswerResult | null>(null);
@@ -337,6 +347,10 @@ function App() {
   const inspectionTasks = backgroundTasks.filter((task) => task.kind === 'inspection');
   const activeOperation = operationTasks[operationTasks.length - 1] ?? null;
   const conversionInProgress = Boolean(conversionTask);
+  const convertLocked = conversionInProgress || reconvertBusy;
+  const folderMenuPdfCount = folderContextMenu
+    ? folders.find((folder) => folder.path === folderContextMenu.path)?.entries.filter((entry) => entry.type === 'pdf').length ?? 0
+    : 0;
   const conversionStatus = conversionTask?.message ?? null;
   const busyAction = activeOperation?.label ?? null;
   const chatBusy = operationTasks.some((task) => task.label === 'Asking');
@@ -352,6 +366,10 @@ function App() {
   const installedPipelineProviders = useMemo(
     () => ingestPipelineDescriptors.map((item) => item.provider),
     [ingestPipelineDescriptors],
+  );
+  const visibleExplorerFiles = useMemo(
+    () => visibleExplorerEntries(folders, collapsedFolders, explorerFileFilter),
+    [folders, collapsedFolders, explorerFileFilter],
   );
 
   const searchScopePath = activeLibraryPath || path;
@@ -501,6 +519,7 @@ function App() {
       if (selectedPdfs.length > 0) {
         setConvertMode('selected');
       }
+      setReconvertNotice(null);
     }
     setSideView(view);
     setSidebarCollapsed(false);
@@ -511,9 +530,130 @@ function App() {
       setSelectedPdfs(paths);
       setExplorerSelection({ kind: 'file', path: paths[paths.length - 1], type: 'pdf' });
     }
+    setReconvertNotice(null);
     setConvertMode('selected');
     setSideView('convert');
     setSidebarCollapsed(false);
+  }
+
+  function openConvertFolder(folderPath: string) {
+    setReconvertNotice(null);
+    setConversionError(null);
+    setBatchDirectory(folderPath);
+    setConvertMode('batch');
+    setExplorerSelection({ kind: 'folder', path: folderPath });
+    setSideView('convert');
+    setSidebarCollapsed(false);
+  }
+
+  async function openReconvert(entry: FolderEntry, folderPath: string) {
+    if (conversionInProgress || reconvertInFlightRef.current) return;
+    reconvertInFlightRef.current = true;
+    const requestId = crypto.randomUUID();
+    const folder = folders.find((item) => item.path === folderPath);
+    const listedPdf = findSiblingPdfPath(entry.path, folder?.entries ?? []);
+    setReconvertBusy(true);
+    setConversionError(null);
+    setBatchOverwrite(true);
+    setConvertMode('selected');
+    setSideView('convert');
+    setSidebarCollapsed(false);
+    setReconvertNotice(`Preparing to reconvert “${fileName(entry.path)}”…`);
+    if (listedPdf) {
+      setSelectedPdfs([listedPdf]);
+      setExplorerSelection({ kind: 'file', path: listedPdf, type: 'pdf' });
+    }
+    dispatchBackgroundTask({
+      type: 'start',
+      task: {
+        id: requestId,
+        kind: 'operation',
+        label: 'Preparing reconvert',
+        path: entry.path,
+        currentItem: entry.path,
+      },
+    });
+    try {
+      const sibling = siblingPdfPath(entry.path);
+      const siblingExists = Boolean(listedPdf) || (sibling ? await window.vera.pathExists(sibling) : false);
+      const resolution = resolveReconvertPdf(entry.path, {
+        entries: folder?.entries ?? [],
+        siblingExists,
+      });
+      const inspectResponse = await window.vera.request<InspectResult>({
+        action: 'inspect',
+        path: entry.path,
+      });
+      const prefill = reconvertPrefillFromInspect(inspectResponse.ok ? inspectResponse.result : null);
+
+      let pdfPath: string | null = listedPdf;
+      let restoredFromArchive = false;
+      if (resolution.status === 'ready') {
+        pdfPath = resolution.pdfPath;
+      } else if (resolution.status === 'export') {
+        if (inspectResponse.ok && !prefill.hasEmbeddedSource) {
+          setReconvertNotice(null);
+          setConversionError(reconvertMissingSourceMessage(entry.path));
+          return;
+        }
+        dispatchBackgroundTask({
+          type: 'update',
+          id: requestId,
+          update: { message: 'Restoring embedded PDF' },
+        });
+        const response = await window.vera.request<ExportResult>({
+          action: 'export',
+          path: entry.path,
+          output: resolution.pdfPath,
+        });
+        if (response.ok && response.result?.output) {
+          pdfPath = response.result.output;
+          restoredFromArchive = true;
+          void refreshFolder(folderPath, { showBusy: false }).catch((error) => {
+            console.error('Unable to refresh folder after restoring source PDF', error);
+          });
+        } else {
+          setReconvertNotice(null);
+          setConversionError(response.error || reconvertMissingSourceMessage(entry.path));
+          return;
+        }
+      } else {
+        setReconvertNotice(null);
+        setConversionError(reconvertMissingSourceMessage(entry.path));
+        return;
+      }
+
+      if (!pdfPath) {
+        setReconvertNotice(null);
+        setConversionError(reconvertMissingSourceMessage(entry.path));
+        return;
+      }
+
+      if (prefill.embeddingModel) setEmbeddingModel(prefill.embeddingModel);
+      if (prefill.ingestPipeline) {
+        const nextPipeline = prefill.ingestPipeline;
+        const nextDescriptor = ingestPipelineDescriptors.find(
+          (item) => item.spec === nextPipeline || item.provider === nextPipeline,
+        ) ?? null;
+        setIngestPipeline(nextPipeline);
+        setPipelineOptions(mergePipelineFieldValues(nextDescriptor, ingestPipelineConfigs[nextPipeline]));
+      }
+
+      setSelectedPdfs([pdfPath]);
+      setExplorerSelection({ kind: 'file', path: pdfPath, type: 'pdf' });
+      setReconvertNotice(
+        restoredFromArchive
+          ? 'Restored the embedded PDF beside this archive. Overwrite is on so Convert will replace the existing .vera. Choose a different pipeline or embedding if you want, then convert. Update the library index afterward if this folder is indexed.'
+          : 'Overwrite is on so Convert will replace the existing .vera. The pipeline and embedding below start from this archive — change them if you want, then convert. Update the library index afterward if this folder is indexed.',
+      );
+    } catch (error) {
+      setReconvertNotice(null);
+      setConversionError(error instanceof Error ? error.message : reconvertMissingSourceMessage(entry.path));
+    } finally {
+      reconvertInFlightRef.current = false;
+      setReconvertBusy(false);
+      dispatchBackgroundTask({ type: 'finish', id: requestId });
+    }
   }
 
   function toggleSelectedPdf(pdfPathValue: string) {
@@ -578,10 +718,10 @@ function App() {
     return `${value.exists}:${value.fresh}:${value.reasons.join('|')}`;
   }
 
-  function presentIndexPrompt(folderPath: string, value: LibraryIndexStatus, force = false) {
+  function presentIndexPrompt(folderPath: string, value: LibraryIndexStatus) {
     if (value.fresh || indexingFolders[folderPath]) return;
     const key = indexStateKey(value);
-    if (!force && (suppressedIndexPrompts.current.has(folderPath) || dismissedIndexStates.current.get(folderPath) === key)) return;
+    if (suppressedIndexPrompts.current.has(folderPath) || dismissedIndexStates.current.get(folderPath) === key) return;
     setIndexRecursive(value.exists ? Boolean(value.recursive) : true);
     setIndexExcludes(value.excludes?.join('\n') ?? '');
     setSuppressIndexPrompt(suppressedIndexPrompts.current.has(folderPath));
@@ -693,10 +833,24 @@ function App() {
     }
   }
 
-  function toggleSelectedFile(filePath: string) {
-    setSelectedFiles((prev) =>
-      prev.includes(filePath) ? prev.filter((p) => p !== filePath) : [...prev, filePath],
-    );
+  function selectExplorerEntry(entry: FolderEntry, event: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean } = {}) {
+    const visiblePaths = visibleExplorerFiles.map((item) => item.path);
+    const currentSelected = [...selectedFiles, ...selectedPdfs];
+    const next = applyFileListSelection({
+      visiblePaths,
+      selected: currentSelected,
+      anchor: selectionAnchorPath,
+      clicked: entry.path,
+      event,
+    });
+    const partitioned = partitionExplorerSelection(next.selected);
+    setSelectionAnchorPath(next.anchor);
+    setSelectedFiles(partitioned.vera);
+    setSelectedPdfs(partitioned.pdf);
+    setExplorerSelection({ kind: 'file', path: entry.path, type: entry.type });
+    if (entry.type === 'vera' && partitioned.vera.length > 0) {
+      updateTargetPath(entry.path);
+    }
   }
 
   function toggleFolderCollapsed(folderPath: string) {
@@ -709,8 +863,8 @@ function App() {
     folderContextMenuTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setFolderContextMenu({
       path: folderPath,
-      x: Math.max(8, Math.min(x, window.innerWidth - 190)),
-      y: Math.max(8, Math.min(y, window.innerHeight - 180)),
+      x: Math.max(8, Math.min(x, window.innerWidth - 220)),
+      y: Math.max(8, Math.min(y, window.innerHeight - 220)),
     });
   }
 
@@ -720,45 +874,8 @@ function App() {
       entry,
       folderPath,
       x: Math.max(8, Math.min(x, window.innerWidth - 220)),
-      y: Math.max(8, Math.min(y, window.innerHeight - 140)),
+      y: Math.max(8, Math.min(y, window.innerHeight - 180)),
     });
-  }
-
-  function openEntry(entry: FolderEntry, event?: { ctrlKey?: boolean; metaKey?: boolean }) {
-    const selection: ExplorerSelection = { kind: 'file', path: entry.path, type: entry.type };
-    if (entry.type === 'vera') {
-      setExplorerSelection(selection);
-      // Selecting a document sets Search/Ask scope only; the document viewer is
-      // unchanged until double-click / Preview / a citation loads a source.
-      // Metadata inspection is deferred until the user opens the Info panel.
-      setActiveLibraryPath('');
-      try { localStorage.removeItem('vera.activeLibraryPath'); } catch { /* ignore persistence errors */ }
-      setSelectedFiles([]);
-      updateTargetPath(entry.path);
-      return;
-    }
-    const multiSelect = Boolean(event?.ctrlKey || event?.metaKey);
-    if (multiSelect) {
-      // Match OS file-manager semantics: Ctrl/Cmd+click toggles membership.
-      // Plain click already seeds selectedPdfs with the current PDF.
-      const removing = selectedPdfs.includes(entry.path);
-      const next = removing
-        ? selectedPdfs.filter((filePath) => filePath !== entry.path)
-        : [...selectedPdfs, entry.path];
-      setSelectedPdfs(next);
-      if (next.length === 0) {
-        setExplorerSelection(null);
-      } else if (!removing) {
-        setExplorerSelection(selection);
-      } else {
-        const fallback = next[next.length - 1];
-        setExplorerSelection({ kind: 'file', path: fallback, type: 'pdf' });
-      }
-      return;
-    }
-    // Plain click selects one PDF in the same list used for Convert.
-    setExplorerSelection(selection);
-    setSelectedPdfs([entry.path]);
   }
 
   async function previewSourceDocument(entry: FolderEntry) {
@@ -918,6 +1035,8 @@ function App() {
       setActiveLibraryPath(value);
       try { localStorage.setItem('vera.activeLibraryPath', value); } catch { /* ignore persistence errors */ }
       setSelectedFiles([]);
+      setSelectedPdfs([]);
+      setSelectionAnchorPath(null);
       setPath(value);
       setValidation(null);
       setExportResult(null);
@@ -1060,21 +1179,13 @@ function App() {
     setSuppressIndexPrompt(false);
   }
 
-  async function manageLibraryIndex(folderPath: string) {
-    if (indexingFolders[folderPath]) {
-      return;
-    }
-    const value = indexStatuses[folderPath] ?? await refreshIndexStatus(folderPath);
-    if (value) presentIndexPrompt(folderPath, value, true);
-  }
-
-  async function confirmIndexAction() {
-    if (!indexPrompt) return;
-    const folderPath = indexPrompt.path;
+  async function startLibraryIndex(
+    folderPath: string,
+    operation: 'build' | 'update',
+    options: { recursive?: boolean; excludes?: string[] } = {},
+  ) {
     if (indexingFolders[folderPath]) return;
-    const action = indexPrompt.status.exists ? 'index_update' : 'index_build';
-    const operation = action === 'index_build' ? 'build' : 'update';
-    const excludes = indexExcludes.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    const action = operation === 'build' ? 'index_build' : 'index_update';
     setIndexPrompt(null);
     setIndexReport(null);
     setIndexReports((prev) => {
@@ -1125,10 +1236,10 @@ function App() {
       const response = await window.vera.request<LibraryIndexBuildReport>({
         action,
         path: folderPath,
-        ...(action === 'index_build'
+        ...(operation === 'build'
           ? {
-              recursive: indexRecursive,
-              excludes,
+              recursive: options.recursive ?? true,
+              excludes: options.excludes ?? [],
             }
           : {}),
       }, indexRequestId);
@@ -1163,6 +1274,28 @@ function App() {
     } finally {
       finishIndexTask();
     }
+  }
+
+  async function manageLibraryIndex(folderPath: string) {
+    if (indexingFolders[folderPath]) return;
+    const value = indexStatuses[folderPath] ?? await refreshIndexStatus(folderPath);
+    if (indexingFolders[folderPath]) return;
+    const exists = Boolean(value?.exists);
+    await startLibraryIndex(folderPath, exists ? 'update' : 'build', {
+      recursive: exists ? Boolean(value?.recursive) : true,
+      excludes: value?.excludes ?? [],
+    });
+  }
+
+  async function confirmIndexAction() {
+    if (!indexPrompt) return;
+    const folderPath = indexPrompt.path;
+    const operation = indexPrompt.status.exists ? 'update' : 'build';
+    const excludes = indexExcludes.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    await startLibraryIndex(folderPath, operation, {
+      recursive: indexRecursive,
+      excludes,
+    });
   }
 
   async function searchTarget() {
@@ -1876,7 +2009,7 @@ function App() {
     const directory = batchDirectory.trim();
     if (!selectedPaths.length && !directory) {
       setConversionError(selectedPaths.length === 0 && convertMode === 'selected'
-        ? 'Select one or more PDFs in Explorer (click or Ctrl/Cmd+click).'
+        ? 'Select one or more PDFs in Explorer (click, Ctrl/Cmd+click, or Shift+click).'
         : 'Choose the directory containing the PDFs to convert.');
       return;
     }
@@ -1884,6 +2017,7 @@ function App() {
     conversionInterruptRef.current = null;
     setConversionError(null);
     setBatchConvertResult(null);
+    setReconvertNotice(null);
     const conversionRequestId = crypto.randomUUID();
     conversionRequestIdRef.current = conversionRequestId;
     dispatchBackgroundTask({
@@ -2112,10 +2246,12 @@ function App() {
   }, [folderPathsKey]);
 
   // Keep folder headers scannable: expand the active library, collapse the rest.
-  // Manual caret toggles still work until the active library or folder set changes.
+  // Selecting a .vera clears the active library for Search/Ask scope but must
+  // not collapse the folder the user just clicked. Manual caret toggles still
+  // work until the active library or folder set changes.
   useEffect(() => {
     const folderPaths = folderPathsKey ? folderPathsKey.split('\n') : [];
-    setCollapsedFolders(collapsedFoldersForActiveLibrary(folderPaths, activeLibraryPath));
+    setCollapsedFolders((prev) => collapsedFoldersForActiveLibrary(folderPaths, activeLibraryPath, prev));
   }, [folderPathsKey, activeLibraryPath]);
 
   useEffect(() => window.vera.onFolderChanged((folderPath) => {
@@ -2550,29 +2686,34 @@ function App() {
                               : `No .${explorerFileFilter} files`}
                           </p>
                         ) : (
-                          visibleEntries.map((entry) => (
+                          visibleEntries.map((entry) => {
+                            const listed = selectedFiles.includes(entry.path) || selectedPdfs.includes(entry.path);
+                            const previewing = pendingSourcePath === entry.path || sourceDocumentPath === entry.path;
+                            const currentDoc = selectedFiles.length === 0 && selectedPdfs.length === 0 && path === entry.path;
+                            return (
                             <div key={entry.path} className="fileRowWrap">
-                              {entry.type === 'vera' ? (
-                                <input
-                                  type="checkbox"
-                                  className="fileRowCheck"
-                                  checked={selectedFiles.includes(entry.path)}
-                                  onChange={() => toggleSelectedFile(entry.path)}
-                                  title="Include in search scope"
-                                />
-                              ) : (
-                                <span className="fileRowCheckSpacer" />
-                              )}
+                              <input
+                                type="checkbox"
+                                className="fileRowCheck"
+                                checked={listed}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  selectExplorerEntry(entry, {
+                                    ctrlKey: true,
+                                    metaKey: event.metaKey,
+                                    shiftKey: event.shiftKey,
+                                  });
+                                }}
+                                onChange={() => undefined}
+                                title={entry.type === 'vera' ? 'Add or remove from search scope' : 'Add or remove from Convert selection'}
+                              />
                               <button
-                                className={
-                                  path === entry.path
-                                  || pendingSourcePath === entry.path
-                                  || sourceDocumentPath === entry.path
-                                  || (entry.type === 'pdf' && selectedPdfs.includes(entry.path))
-                                    ? 'fileRow active'
-                                    : 'fileRow'
-                                }
-                                onClick={(event) => openEntry(entry, event)}
+                                className={listed || previewing || currentDoc ? 'fileRow active' : 'fileRow'}
+                                aria-selected={listed || currentDoc}
+                                onMouseDown={(event) => {
+                                  if (event.shiftKey) event.preventDefault();
+                                }}
+                                onClick={(event) => selectExplorerEntry(entry, event)}
                                 onDoubleClick={() => {
                                   if (entry.type === 'vera' || entry.type === 'pdf') {
                                     void previewSourceDocument(entry);
@@ -2585,16 +2726,15 @@ function App() {
                                 title={
                                   sourceLoading
                                     ? `${entry.relativePath} — loading ${fileName(pendingSourcePath)}…`
-                                    : entry.type === 'pdf'
-                                      ? `${entry.relativePath} — click to select · Ctrl/Cmd+click to multi-select · double-click to view`
-                                      : `${entry.relativePath} — double-click to preview source`
+                                    : `${entry.relativePath} — click to select · Ctrl/Cmd+click to add or remove · Shift+click a range · double-click to preview`
                                 }
                               >
                                 {entry.type === 'vera' ? <VeraIcon size={14} className="fileRowIcon vera" /> : <FileText size={14} className="fileRowIcon pdf" />}
                                 <span className="fileRowName">{entry.relativePath}</span>
                               </button>
                             </div>
-                          ))
+                            );
+                          })
                         )}
                       </section>
                       );
@@ -2676,7 +2816,7 @@ function App() {
                         type="button"
                         className="secondaryAction"
                         onClick={() => void choosePdfs()}
-                        disabled={busy || conversionInProgress}
+                        disabled={busy || convertLocked}
                       >
                         <FolderOpen size={16} />
                         Choose PDFs
@@ -2685,7 +2825,7 @@ function App() {
                         type="button"
                         className="secondaryAction"
                         onClick={() => setSelectedPdfs([])}
-                        disabled={!selectedPdfs.length || busy || conversionInProgress}
+                        disabled={!selectedPdfs.length || busy || convertLocked}
                       >
                         Clear selection
                       </button>
@@ -2693,7 +2833,7 @@ function App() {
                         <input type="checkbox" checked={batchOverwrite} onChange={(event) => setBatchOverwrite(event.target.checked)} />
                         <span>Overwrite existing .vera files</span>
                       </label>
-                      <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Choose files here, or select them in Explorer (click / Ctrl/Cmd+click).</p>
+                      <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Choose files here, or select them in Explorer (click, Ctrl/Cmd+click, or Shift+click).</p>
                     </>
                   ) : null}
                   {convertMode === 'batch' ? (
@@ -2705,7 +2845,7 @@ function App() {
                           <input value={batchDirectory} onChange={(event) => setBatchDirectory(event.target.value)} placeholder="C:\\proposals" />
                         </div>
                       </label>
-                      <button className="secondaryAction" onClick={chooseBatchDirectory} disabled={busy || conversionInProgress}><FolderOpen size={16} />Choose Directory</button>
+                      <button className="secondaryAction" onClick={chooseBatchDirectory} disabled={busy || convertLocked}><FolderOpen size={16} />Choose Directory</button>
                       <label className="miniCheck">
                         <input type="checkbox" checked={batchRecursive} onChange={(event) => setBatchRecursive(event.target.checked)} />
                         <span>Include PDFs in nested folders</span>
@@ -2726,7 +2866,7 @@ function App() {
                           : ingestPipeline || 'pymupdf'
                       }
                       onChange={(event) => void saveIngestPipeline(event.target.value)}
-                      disabled={conversionInProgress}
+                      disabled={convertLocked}
                     >
                       {pipelineOptionsForSelect.map((option) => {
                         const available = presetOptionAvailable(option, installedPipelineProviders);
@@ -2763,7 +2903,7 @@ function App() {
                         }
                         void saveEmbeddingModel(next);
                       }}
-                      disabled={conversionInProgress}
+                      disabled={convertLocked}
                     >
                       {EMBEDDING_MODEL_PRESETS.map((option) => {
                         const available = presetOptionAvailable(option, embeddingProviders);
@@ -2785,7 +2925,7 @@ function App() {
                         onChange={(event) => setEmbeddingModel(event.target.value)}
                         onBlur={() => void saveEmbeddingModel(embeddingModel)}
                         placeholder="provider:model-id"
-                        disabled={conversionInProgress}
+                        disabled={convertLocked}
                       />
                       <datalist id="embedding-provider-specs">
                         <option value="hashing" />
@@ -2817,16 +2957,22 @@ function App() {
                     <PipelineConfigForm
                       descriptor={activePipelineDescriptor}
                       values={pipelineOptions}
-                      disabled={conversionInProgress}
+                      disabled={convertLocked}
                       onChange={(next) => { void savePipelineOptions(next); }}
                     />
                     {activePipelineDescriptor?.capabilities?.ocr_engine === 'tesseract' ? (
                       <OcrLanguagePackManager
                         language={String(pipelineOptions.ocr_language ?? 'eng')}
-                        disabled={conversionInProgress}
+                        disabled={convertLocked}
                       />
                     ) : null}
                   </details>
+                  {reconvertNotice ? (
+                    <p className="sideMuted reconvertStatus" role="status">
+                      {reconvertBusy ? <RefreshCw size={12} className="spinning" aria-hidden="true" /> : null}
+                      <span>{reconvertNotice}</span>
+                    </p>
+                  ) : null}
                   <div className="convertActions">
                     <button
                       className="sidePrimary"
@@ -2835,15 +2981,17 @@ function App() {
                         else void batchConvertPdfs();
                       }}
                       disabled={convertMode === 'selected'
-                        ? selectedPdfs.length === 0 || busy || conversionInProgress
-                        : !batchDirectory.trim() || busy || conversionInProgress}
+                        ? selectedPdfs.length === 0 || busy || convertLocked
+                        : !batchDirectory.trim() || busy || convertLocked}
                     >
-                      <RefreshCw size={16} className={conversionInProgress ? 'spinning' : undefined} />
+                      <RefreshCw size={16} className={convertLocked ? 'spinning' : undefined} />
                       {conversionInProgress
                         ? 'Converting…'
-                        : convertMode === 'selected'
-                          ? `Convert (${selectedPdfs.length})`
-                          : 'Convert Directory'}
+                        : reconvertBusy
+                          ? 'Preparing…'
+                          : convertMode === 'selected'
+                            ? `Convert (${selectedPdfs.length})`
+                            : 'Convert Directory'}
                     </button>
                     {conversionInProgress && (convertMode === 'batch' || convertMode === 'selected') ? (
                       <button
@@ -3789,6 +3937,23 @@ function App() {
             <button
               ref={folderContextMenuFirstActionRef}
               role="menuitem"
+              disabled={convertLocked || folderMenuPdfCount === 0}
+              title={
+                convertLocked
+                  ? 'Wait for conversion to finish'
+                  : folderMenuPdfCount === 0
+                    ? 'No PDF files in this folder'
+                    : 'Open Convert for every PDF in this folder'
+              }
+              onClick={() => {
+                openConvertFolder(folderContextMenu.path);
+                setFolderContextMenu(null);
+              }}
+            >
+              Convert PDFs{folderMenuPdfCount > 0 ? ` (${folderMenuPdfCount})` : ''}…
+            </button>
+            <button
+              role="menuitem"
               disabled={Boolean(indexingFolders[folderContextMenu.path])}
               onClick={() => {
                 void manageLibraryIndex(folderContextMenu.path);
@@ -3851,6 +4016,20 @@ function App() {
                 }}
               >
                 {entryContextMenu.entry.type === 'vera' ? 'Preview embedded source' : 'View in document viewer'}
+              </button>
+            ) : null}
+            {entryContextMenu.entry.type === 'vera' ? (
+              <button
+                role="menuitem"
+                disabled={convertLocked}
+                title={convertLocked ? 'Wait for reconvert preparation or conversion to finish' : 'Open Convert to replace this archive with a different parser or embedding'}
+                onClick={() => {
+                  const { entry, folderPath } = entryContextMenu;
+                  setEntryContextMenu(null);
+                  void openReconvert(entry, folderPath);
+                }}
+              >
+                Reconvert…
               </button>
             ) : null}
             {entryContextMenu.entry.type === 'pdf' ? (

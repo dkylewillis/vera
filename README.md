@@ -38,9 +38,11 @@ key. You only connect a model provider when you want AI answers.
    - **One or more PDFs** — in **Convert PDF** → **Individual PDFs**, use
      **Choose PDFs**, or select files in Explorer and right-click
      **Convert PDF**. VERA writes a portable `.vera` archive beside
-     each file.
-   - **Entire library** — choose **PDF Directory** to batch-convert a folder
-     of PDFs, then use **File > Open Folder** to activate it. On your first
+     each file. To rebuild an archive with a different parser or embedding,
+     right-click the `.vera` file and choose **Reconvert…**.
+   - **Entire library** — right-click the folder in Explorer and choose
+     **Convert PDFs…**, or use **Convert PDF** → **PDF Directory**. Then use
+     **File > Open Folder** to activate it. On your first
      Search or Ask, VERA shows **Build library index?** — select
      **Build index** to make the library fast. The footer reports completed
      files, total files, the current archive, and indexed chunks as it runs.
