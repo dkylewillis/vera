@@ -33,6 +33,24 @@ def test_is_bundled_and_is_known():
     assert not tdm.is_known("zzz")
 
 
+def test_is_bundled_rejects_path_traversal_codes():
+    assert tdm.is_bundled("../tessdata/eng") is False
+    assert tdm.is_bundled("..\\tessdata\\eng") is False
+    assert tdm.is_bundled("eng/../eng") is False
+    assert tdm.is_bundled("eng/foo") is False
+    assert tdm.is_known("../tessdata/eng") is False
+    assert tdm.is_valid_language_code("../tessdata/eng") is False
+    assert tdm.is_valid_language_code("chi_sim") is True
+
+
+def test_ensure_language_data_rejects_path_like_codes(tmp_path):
+    with pytest.raises(ValueError, match="Invalid OCR language"):
+        tdm.ensure_language_data("../tessdata/eng", allow_download=False, cache_dir=tmp_path)
+    with pytest.raises(ValueError, match="Invalid OCR language"):
+        tdm.ensure_language_data("eng+../tessdata/eng", allow_download=True, cache_dir=tmp_path)
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_known_language_codes_includes_bundled_and_registry():
     codes = tdm.known_language_codes()
     assert "eng" in codes
@@ -124,16 +142,35 @@ def test_ensure_language_data_rejects_checksum_mismatch(tmp_path, monkeypatch):
 
 
 def test_ensure_language_data_reuses_valid_cache_without_downloading(tmp_path, monkeypatch):
-    info = tdm.KNOWN_LANGUAGES["fra"]
-    cached = tmp_path / "fra.traineddata"
-    cached.write_bytes(b"0" * info.size)
+    payload = b"cached-traineddata-bytes"
+    digest = hashlib.sha256(payload).hexdigest()
+    monkeypatch.setitem(tdm.KNOWN_LANGUAGES, "tst", tdm.LanguagePackInfo("Test", digest, len(payload)))
+    (tmp_path / "tst.traineddata").write_bytes(payload)
 
     def _boom(*_args, **_kwargs):
         raise AssertionError("should not re-download an already-cached, valid file")
 
     monkeypatch.setattr(tdm.urllib.request, "urlopen", _boom)
-    resolved = tdm.ensure_language_data("fra", allow_download=True, cache_dir=tmp_path)
+    resolved = tdm.ensure_language_data("tst", allow_download=True, cache_dir=tmp_path)
     assert resolved == str(tmp_path)
+
+
+def test_ensure_language_data_does_not_trust_size_only_cache(tmp_path, monkeypatch):
+    payload = b"cached-traineddata-bytes"
+    digest = hashlib.sha256(payload).hexdigest()
+    monkeypatch.setitem(tdm.KNOWN_LANGUAGES, "tst", tdm.LanguagePackInfo("Test", digest, len(payload)))
+    (tmp_path / "tst.traineddata").write_bytes(b"0" * len(payload))
+    downloaded = []
+
+    def _fake_urlopen(*_args, **_kwargs):
+        downloaded.append(True)
+        return _fake_response(payload)
+
+    monkeypatch.setattr(tdm.urllib.request, "urlopen", _fake_urlopen)
+    resolved = tdm.ensure_language_data("tst", allow_download=True, cache_dir=tmp_path)
+    assert resolved == str(tmp_path)
+    assert downloaded
+    assert (tmp_path / "tst.traineddata").read_bytes() == payload
 
 
 def test_ensure_language_data_mixed_bundled_and_downloadable_copies_bundled_into_cache(
@@ -149,6 +186,29 @@ def test_ensure_language_data_mixed_bundled_and_downloadable_copies_bundled_into
     assert resolved == str(tmp_path)
     assert (tmp_path / "eng.traineddata").is_file()
     assert (tmp_path / "fra.traineddata").read_bytes() == payload
+
+
+def test_ensure_language_data_mixed_bundled_without_download_assembles_cache(tmp_path, monkeypatch):
+    payload = b"cached-spanish-traineddata"
+    digest = hashlib.sha256(payload).hexdigest()
+    monkeypatch.setitem(tdm.KNOWN_LANGUAGES, "spa", tdm.LanguagePackInfo("Spanish", digest, len(payload)))
+    (tmp_path / "spa.traineddata").write_bytes(payload)
+
+    resolved = tdm.ensure_language_data("eng+spa", allow_download=False, cache_dir=tmp_path)
+
+    assert resolved == str(tmp_path)
+    assert (tmp_path / "eng.traineddata").is_file()
+    assert (tmp_path / "spa.traineddata").read_bytes() == payload
+
+
+def test_download_aborts_when_stream_exceeds_pinned_size(tmp_path, monkeypatch):
+    payload = b"too-long-payload"
+    monkeypatch.setitem(tdm.KNOWN_LANGUAGES, "tst", tdm.LanguagePackInfo("Test", "0" * 64, 4))
+    monkeypatch.setattr(tdm.urllib.request, "urlopen", lambda *_a, **_k: _fake_response(payload))
+
+    with pytest.raises(tdm.OCRLanguageDownloadError, match="exceeded"):
+        tdm.ensure_language_data("tst", allow_download=True, cache_dir=tmp_path)
+    assert not (tmp_path / "tst.traineddata").exists()
 
 
 def test_download_ocr_language_data_public_helper(tmp_path, monkeypatch):

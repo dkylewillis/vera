@@ -20,7 +20,8 @@ of supported fields. New `convert()` callers should pass `parser`,
 `ocr_language`, `ocr_dpi`) remain compatibility aliases; descriptor fields
 and OCR engine control which aliases are forwarded (Tesseract-shaped
 `ocr_language`/`ocr_dpi`/`ocr_download` only go to Tesseract pipelines), and
-explicit `pipeline_options` win.
+explicit `pipeline_options` win. Omitted `convert()` aliases mean the
+pipeline's own default (they are not replaced by 500/`eng`/…).
 
 It emits ready-made `vera.ChunkRecord` values and optional opaque attachments,
 then stores them through `vera.VeraDocument`. It also provides

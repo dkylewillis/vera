@@ -21,3 +21,21 @@ def raise_if_cancelled(cancel: Any | None) -> None:
     cancelled = getattr(cancel, "raise_if_cancelled", None)
     if callable(cancelled):
         cancelled()
+
+
+def clear_user_skip(cancel: Any | None) -> None:
+    """Consume a one-shot skip request so it cannot leak onto the next file."""
+    if cancel is None:
+        return
+    clear = getattr(cancel, "clear_skip", None)
+    if callable(clear):
+        clear()
+
+
+def is_user_skip_error(exc: BaseException) -> bool:
+    """Return True when ``exc`` is a real skip/interrupt, not a leftover flag.
+
+    Sidecar skip uses ``SkipCurrentError``. Classification must not treat
+    ``skip_requested`` on an unrelated exception as a user skip.
+    """
+    return type(exc).__name__ == "SkipCurrentError"

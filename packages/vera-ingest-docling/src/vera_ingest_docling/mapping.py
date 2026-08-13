@@ -174,7 +174,8 @@ def _item_text(document: Any, item: Any, block_type: str) -> str:
         except Exception:  # noqa: BLE001 - fall back to raw text fields
             return str(getattr(item, "text", "") or "")
     if isinstance(item, PictureItem):
-        return str(getattr(item, "text", "") or getattr(item, "captions", "") or "")
+        # captions is List[RefItem], not text — do not stringify refs.
+        return str(getattr(item, "text", "") or getattr(item, "orig", "") or "")
     if block_type == "caption":
         return str(getattr(item, "text", "") or "")
     return str(getattr(item, "text", "") or getattr(item, "orig", "") or "")

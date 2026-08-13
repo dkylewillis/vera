@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 import tempfile
 import urllib.error
@@ -40,8 +41,10 @@ __all__ = [
     "ensure_language_data",
     "is_bundled",
     "is_known",
+    "is_valid_language_code",
     "known_language_codes",
     "language_choice_labels",
+    "validate_ocr_language",
 ]
 
 # Commit pinned in `tesseract-ocr/tessdata_fast` that both the bundled `eng`
@@ -117,17 +120,64 @@ downloading one language code. ``total_bytes`` falls back to the registry's
 pinned size when the server omits ``Content-Length``."""
 
 
+# Tesseract codes are identifiers, not paths. Reject anything that could
+# traverse out of the tessdata directory (``../``, separators) before
+# ``is_file`` / copy / download ever see it.
+_LANGUAGE_CODE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+
+
 def _split_language_codes(language: str) -> list[str]:
     return [part.strip() for part in (language or "").split("+") if part.strip()]
 
 
+def is_valid_language_code(code: str) -> bool:
+    """Return True when ``code`` is a single safe Tesseract language identifier."""
+    if not code or ".." in code or "/" in code or "\\" in code:
+        return False
+    return _LANGUAGE_CODE_RE.fullmatch(code) is not None
+
+
+def validate_ocr_language(language: str) -> list[str]:
+    """Split ``+``-joined codes, raising ``ValueError`` if empty or unsafe."""
+    codes = _split_language_codes(language)
+    if not codes:
+        raise ValueError("ocr_language must not be empty")
+    invalid = [code for code in codes if not is_valid_language_code(code)]
+    if invalid:
+        raise ValueError(
+            "Invalid OCR language code(s): "
+            + ", ".join(repr(code) for code in invalid)
+            + ". Each code must match [A-Za-z][A-Za-z0-9_]* "
+            "(for example 'eng' or 'chi_sim') and may be joined with '+'."
+        )
+    return codes
+
+
+def _traineddata_path(directory: Path, code: str) -> Path:
+    """Return ``directory / code.traineddata``, refusing path-like codes."""
+    if not is_valid_language_code(code):
+        raise ValueError(
+            f"Invalid OCR language code: {code!r}. "
+            "Each code must match [A-Za-z][A-Za-z0-9_]*."
+        )
+    root = directory.resolve()
+    path = (root / f"{code}.traineddata").resolve()
+    if path.parent != root:
+        raise ValueError(f"Invalid OCR language code: {code!r}")
+    return path
+
+
 def is_bundled(code: str) -> bool:
     """Return True when ``code`` ships inside VERA and needs no download."""
+    if not is_valid_language_code(code):
+        return False
     return (_BUNDLED_DIR / f"{code}.traineddata").is_file()
 
 
 def is_known(code: str) -> bool:
     """Return True when ``code`` is bundled or in the curated download registry."""
+    if not is_valid_language_code(code):
+        return False
     return is_bundled(code) or code in KNOWN_LANGUAGES
 
 
@@ -201,14 +251,16 @@ def default_cache_dir() -> Path:
 
 
 def _is_valid_cached_file(path: Path, code: str) -> bool:
-    if not path.is_file():
+    if not is_valid_language_code(code) or not path.is_file():
         return False
     info = KNOWN_LANGUAGES.get(code)
     if info is None:
         # Not in the registry (e.g. a bundled file copied into the cache for a
         # mixed "+" combination) — presence is the only signal available.
         return path.stat().st_size > 0
-    return path.stat().st_size == info.size
+    if path.stat().st_size != info.size:
+        return False
+    return _sha256_file(path) == info.sha256
 
 
 def _sha256_file(path: Path) -> str:
@@ -226,6 +278,11 @@ def _download_one(
     progress: ProgressCallback | None,
     timeout: float,
 ) -> None:
+    if not is_valid_language_code(code):
+        raise ValueError(
+            f"Invalid OCR language code: {code!r}. "
+            "Each code must match [A-Za-z][A-Za-z0-9_]*."
+        )
     info = KNOWN_LANGUAGES.get(code)
     if info is None:
         known = ", ".join(sorted(KNOWN_LANGUAGES)) or "(none)"
@@ -254,8 +311,15 @@ def _download_one(
                             break
                         handle.write(chunk)
                         downloaded += len(chunk)
+                        if downloaded > info.size:
+                            raise OCRLanguageDownloadError(
+                                f"Downloaded OCR language data for {code!r} exceeded "
+                                f"pinned size {info.size} bytes; discarded."
+                            )
                         if progress:
                             progress(code, downloaded, total)
+        except OCRLanguageDownloadError:
+            raise
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise OCRLanguageDownloadError(
                 f"Could not download OCR language data for {code!r} from {url}: {exc}"
@@ -284,14 +348,15 @@ def ensure_language_data(
     """Return a tessdata directory covering every ``+``-joined code, or ``None``.
 
     Bundled-only requests resolve immediately with no filesystem writes (the
-    default English path is unaffected). When any requested code is missing:
+    default English path is unaffected). Mixed requests (bundled + cached or
+    downloadable codes) always copy bundled files into ``cache_dir`` so
+    PyMuPDF can load every code from one directory, even when download is
+    off. When any requested code is still missing:
 
     - If ``allow_download`` is False, returns ``None`` so the caller can raise
       its existing manual-install error.
     - If ``allow_download`` is True, downloads missing known codes into
-      ``cache_dir`` (default: :func:`default_cache_dir`), copying bundled
-      files in alongside them when a request mixes bundled and non-bundled
-      codes (PyMuPDF needs every code in one directory). Raises
+      ``cache_dir`` (default: :func:`default_cache_dir`). Raises
       :class:`UnknownOCRLanguageError` for codes with no bundled or
       registry data, and :class:`OCRLanguageDownloadError` if a download
       fails or fails integrity verification.
@@ -299,23 +364,35 @@ def ensure_language_data(
     codes = _split_language_codes(language)
     if not codes:
         return None
+    codes = validate_ocr_language(language)
+
     if all(is_bundled(code) for code in codes):
         return str(_BUNDLED_DIR)
 
     cache = cache_dir or default_cache_dir()
-    missing = [
-        code for code in codes if not _is_valid_cached_file(cache / f"{code}.traineddata", code)
-    ]
+
+    def cache_file(code: str) -> Path:
+        return _traineddata_path(cache, code)
+
+    # Assemble bundled codes into the cache even when download is off.
+    # PyMuPDF needs every "+" code in one directory; TESSDATA_PREFIX alone
+    # would miss VERA's bundled English.
+    for code in codes:
+        if is_bundled(code) and not _is_valid_cached_file(cache_file(code), code):
+            cache.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(_traineddata_path(_BUNDLED_DIR, code), cache_file(code))
+
+    missing = [code for code in codes if not _is_valid_cached_file(cache_file(code), code)]
     if not missing:
         return str(cache)
     if not allow_download:
         return None
 
     for code in missing:
-        destination = cache / f"{code}.traineddata"
+        destination = cache_file(code)
         if is_bundled(code):
             cache.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(_BUNDLED_DIR / f"{code}.traineddata", destination)
+            shutil.copyfile(_traineddata_path(_BUNDLED_DIR, code), destination)
             continue
         _download_one(code, destination, progress=progress, timeout=timeout)
     return str(cache)
@@ -340,6 +417,7 @@ def download_ocr_language_data(
     missing codes — intended for an explicit "download this language pack"
     action rather than an implicit fallback during OCR.
     """
+    validate_ocr_language(language)
     resolved = ensure_language_data(
         language,
         allow_download=True,

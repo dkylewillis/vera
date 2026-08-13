@@ -85,6 +85,7 @@ export interface WorkspaceFolderResult {
   path: string;
   name: string;
   entries: FolderEntry[];
+  truncated?: boolean;
   index?: LibraryIndexStatus;
 }
 

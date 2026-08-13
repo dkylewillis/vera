@@ -348,6 +348,39 @@ class TestBuildAndSearch:
         with VeraCorpus.open(str(nested_library)) as corpus:
             assert corpus.search("!!!", mode="keyword") == []
 
+    def test_hybrid_index_and_fanout_share_chunk_order(self, nested_library):
+        query = "municipal water treatment pumping"
+        build_library_index(str(nested_library), recursive=True, excludes=["archive"])
+        with VeraCorpus.open(str(nested_library)) as indexed:
+            assert indexed.uses_index is True
+            indexed_keys = [
+                (Path(result.file).name, result.chunk_id)
+                for result in indexed.search(query, mode="hybrid", top_k=5)
+            ]
+        with VeraCorpus.open(
+            str(nested_library),
+            recursive=True,
+            excludes=["archive"],
+            use_index=False,
+        ) as fanout:
+            assert fanout.uses_index is False
+            fanout_keys = [
+                (Path(result.file).name, result.chunk_id)
+                for result in fanout.search(query, mode="hybrid", top_k=5)
+            ]
+        assert indexed_keys
+        assert indexed_keys == fanout_keys
+
+    def test_rebuild_garbage_collects_old_generations(self, nested_library):
+        from vera.collection import INDEX_DIRECTORY, INDEX_GENERATIONS
+
+        first = build_library_index(str(nested_library), recursive=True, excludes=["archive"])
+        second = build_library_index(str(nested_library), recursive=True, excludes=["archive"])
+        generations = nested_library / INDEX_DIRECTORY / INDEX_GENERATIONS
+        remaining = [path.name for path in generations.iterdir() if path.is_dir()]
+        assert remaining == [second["generation_id"]]
+        assert first["generation_id"] not in remaining
+
 
 class TestUpdatesAndFallback:
     def test_stale_index_falls_back_to_recursive_fanout(self, nested_library):

@@ -284,6 +284,8 @@ def test_hardening_json_contracts_are_documented():
     assert "allow_empty=True" in libraries
     assert "`skipped_files`" in mcp
     assert "`skipped_semantic_model_groups`" in mcp
+    assert "top_k: int = 10" in mcp
+    assert "matching the CLI" in mcp
 
 
 def test_figures_storage_map_is_documented():

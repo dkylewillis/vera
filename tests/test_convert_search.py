@@ -47,7 +47,7 @@ def test_convert_pdf_populates_vera_and_searches(tmp_path):
     out = tmp_path / "ordinance.vera"
     make_pdf(pdf)
 
-    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=5)
+    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=0)
 
     conn = sqlite3.connect(out)
     assert conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0] >= 2
@@ -67,7 +67,7 @@ def test_convert_pdf_populates_vera_and_searches(tmp_path):
     assert info["embedding_dimension"] == 384
     assert info["embedding_normalization"] == "l2"
     assert info["parser_name"] == "pymupdf"
-    assert info["chunking_strategy"] == "heading_block_sliding_window:100:5"
+    assert info["chunking_strategy"] == "heading_block_sliding_window:100:0"
 
     keyword = doc.search("restaurant parking", mode="keyword", top_k=1)[0]
     assert "parking" in keyword.text.lower()
@@ -98,7 +98,7 @@ def test_convert_accepts_custom_embedding_function(tmp_path):
     out = tmp_path / "custom.vera"
     make_pdf(pdf)
     embedder = TinyEmbedder()
-    convert(str(pdf), str(out), embedding_function=embedder, chunk_size=100, overlap=5)
+    convert(str(pdf), str(out), embedding_function=embedder, chunk_size=100, overlap=0)
 
     with VeraDocument.open(str(out), embedding_function=embedder) as doc:
         info = doc.inspect()
@@ -360,6 +360,9 @@ def test_batch_convert_skips_current_file_and_continues(tmp_path, monkeypatch):
     make_pdf(first_pdf)
     make_pdf(second_pdf)
 
+    class SkipCurrentError(RuntimeError):
+        pass
+
     class Token:
         def __init__(self):
             self.cancelled = False
@@ -372,7 +375,7 @@ def test_batch_convert_skips_current_file_and_continues(tmp_path, monkeypatch):
         def raise_if_interrupted(self):
             self.raise_if_cancelled()
             if self.skip_requested:
-                raise RuntimeError("File skipped")
+                raise SkipCurrentError("File skipped")
 
         def clear_skip(self):
             self.skip_requested = False
@@ -403,6 +406,155 @@ def test_batch_convert_skips_current_file_and_continues(tmp_path, monkeypatch):
     assert (tmp_path / "second.vera").is_file()
 
 
+def test_batch_convert_leftover_skip_flag_does_not_classify_errors_as_user_skip(
+    tmp_path, monkeypatch
+):
+    first_pdf = tmp_path / "first.pdf"
+    second_pdf = tmp_path / "second.pdf"
+    make_pdf(first_pdf)
+    make_pdf(second_pdf)
+
+    class SkipCurrentError(RuntimeError):
+        pass
+
+    class Token:
+        def __init__(self):
+            self.cancelled = False
+            self.skip_requested = False
+
+        def raise_if_cancelled(self):
+            if self.cancelled:
+                raise RuntimeError("Conversion cancelled")
+
+        def raise_if_interrupted(self):
+            self.raise_if_cancelled()
+            if self.skip_requested:
+                raise SkipCurrentError("File skipped")
+
+        def clear_skip(self):
+            self.skip_requested = False
+
+    cancel = Token()
+    convert_mod = importlib.import_module("vera_ingest.convert")
+
+    def convert_fails(input_path, output_path, **kwargs):
+        cancel.skip_requested = True
+        raise ValueError("simulated conversion failure")
+
+    monkeypatch.setattr(convert_mod, "convert", convert_fails)
+
+    report = batch_convert(str(tmp_path), model="hashing", cancel=cancel)
+
+    assert report["failed"] == 1
+    assert report["errors"][0]["input"] == str(first_pdf)
+    assert report["user_skipped"] == 1
+    assert report["skipped_by_user"] == [str(second_pdf)]
+
+
+def test_batch_convert_hash_skip_checks_interrupt_and_does_not_poison_next_file(
+    tmp_path, monkeypatch
+):
+    first_pdf = tmp_path / "first.pdf"
+    second_pdf = tmp_path / "second.pdf"
+    make_pdf(first_pdf)
+    make_pdf(second_pdf)
+    convert(str(first_pdf), str(tmp_path / "first.vera"), model="hashing")
+
+    class SkipCurrentError(RuntimeError):
+        pass
+
+    class Token:
+        def __init__(self):
+            self.cancelled = False
+            self.skip_requested = False
+
+        def raise_if_cancelled(self):
+            if self.cancelled:
+                raise RuntimeError("Conversion cancelled")
+
+        def raise_if_interrupted(self):
+            self.raise_if_cancelled()
+            if self.skip_requested:
+                raise SkipCurrentError("File skipped")
+
+        def clear_skip(self):
+            self.skip_requested = False
+
+    cancel = Token()
+    convert_mod = importlib.import_module("vera_ingest.convert")
+    real_hash = convert_mod._sha256_bytes
+    hashes = {"n": 0}
+
+    def hash_and_request_skip(data):
+        hashes["n"] += 1
+        if hashes["n"] == 1:
+            cancel.skip_requested = True
+        return real_hash(data)
+
+    monkeypatch.setattr(convert_mod, "_sha256_bytes", hash_and_request_skip)
+
+    report = batch_convert(str(tmp_path), model="hashing", cancel=cancel)
+
+    assert report["user_skipped"] == 1
+    assert report["skipped_by_user"] == [str(first_pdf)]
+    assert report["converted"] == 1
+    assert report["failed"] == 0
+    assert not cancel.skip_requested
+    assert (tmp_path / "second.vera").is_file()
+
+
+def test_batch_convert_hash_skip_clears_leftover_skip_flag(tmp_path, monkeypatch):
+    first_pdf = tmp_path / "first.pdf"
+    second_pdf = tmp_path / "second.pdf"
+    make_pdf(first_pdf)
+    make_pdf(second_pdf)
+    convert(str(first_pdf), str(tmp_path / "first.vera"), model="hashing")
+
+    class Token:
+        def __init__(self):
+            self.cancelled = False
+            self.skip_requested = False
+
+        def raise_if_cancelled(self):
+            if self.cancelled:
+                raise RuntimeError("Conversion cancelled")
+
+        def raise_if_interrupted(self):
+            self.raise_if_cancelled()
+
+        def clear_skip(self):
+            self.skip_requested = False
+
+    cancel = Token()
+    convert_mod = importlib.import_module("vera_ingest.convert")
+    real_hash = convert_mod._sha256_bytes
+    real_convert = convert_mod.convert
+    hashes = {"n": 0}
+
+    def hash_and_leave_skip(data):
+        hashes["n"] += 1
+        if hashes["n"] == 1:
+            cancel.skip_requested = True
+        return real_hash(data)
+
+    def convert_rejects_leftover_skip(input_path, output_path, **kwargs):
+        kwargs = dict(kwargs)
+        kwargs.pop("cancel", None)
+        if cancel.skip_requested:
+            raise AssertionError("hash-skip left skip_requested set for the next file")
+        return real_convert(input_path, output_path, **kwargs)
+
+    monkeypatch.setattr(convert_mod, "_sha256_bytes", hash_and_leave_skip)
+    monkeypatch.setattr(convert_mod, "convert", convert_rejects_leftover_skip)
+
+    report = batch_convert(str(tmp_path), model="hashing", cancel=cancel)
+
+    assert report["skipped_existing"] == [str(tmp_path / "first.vera")]
+    assert report["user_skipped"] == 0
+    assert report["converted"] == 1
+    assert not cancel.skip_requested
+
+
 def test_hybrid_keeps_chunk_that_tops_both_modes(tmp_path):
     """Regression: a chunk ranked #1 by both semantic and keyword search must
     rank #1 in hybrid. The old fusion buried dual-mode winners behind chunks
@@ -410,7 +562,7 @@ def test_hybrid_keeps_chunk_that_tops_both_modes(tmp_path):
     pdf = tmp_path / "ordinance.pdf"
     out = tmp_path / "ordinance.vera"
     make_pdf(pdf)
-    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=5)
+    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=0)
 
     doc = VeraDocument.open(str(out))
     query = "restaurant parking space requirements"
@@ -426,7 +578,7 @@ def test_search_can_include_context_chunks(tmp_path):
     pdf = tmp_path / "context.pdf"
     out = tmp_path / "context.vera"
     make_context_pdf(pdf)
-    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=5)
+    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=0)
 
     doc = VeraDocument.open(str(out))
     default = doc.search("beacon target", mode="keyword", top_k=1)[0]
@@ -450,7 +602,7 @@ def test_search_rejects_negative_context_chunks(tmp_path):
     pdf = tmp_path / "manual.pdf"
     out = tmp_path / "manual.vera"
     make_pdf(pdf)
-    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=5)
+    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=0)
 
     doc = VeraDocument.open(str(out))
     with pytest.raises(ValueError, match="context_chunks"):

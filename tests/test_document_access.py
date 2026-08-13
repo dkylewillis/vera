@@ -74,6 +74,32 @@ class TestExportSourceDocument:
         assert written == str(outdir / pdf.name)
         assert (outdir / pdf.name).read_bytes() == pdf.read_bytes()
 
+    def test_export_rejects_parent_and_absolute_stored_names(self, vera_doc, tmp_path, monkeypatch):
+        from vera import AttachmentRecord
+        from vera_ingest import viewer as viewer_mod
+
+        doc, _, _ = vera_doc
+        real = get_source_document(doc)
+        parent = AttachmentRecord(
+            id=real.id,
+            data=real.data,
+            media_type=real.media_type,
+            filename="../evil.pdf",
+        )
+        monkeypatch.setattr(viewer_mod, "get_source_document", lambda document: parent)
+        with pytest.raises(ValueError, match="safe relative name"):
+            export_source_document(doc, str(tmp_path))
+
+        absolute = AttachmentRecord(
+            id=real.id,
+            data=real.data,
+            media_type=real.media_type,
+            filename=str(tmp_path / "outside.pdf"),
+        )
+        monkeypatch.setattr(viewer_mod, "get_source_document", lambda document: absolute)
+        with pytest.raises(ValueError, match="safe relative name"):
+            export_source_document(doc, str(tmp_path))
+
 
 class TestGetPage:
     def test_returns_text_and_dimensions(self, vera_doc):

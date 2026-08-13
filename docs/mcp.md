@@ -65,15 +65,15 @@ Parameters:
 - `file: str`
 - `query: str`
 - `mode: str = "hybrid"`
-- `top_k: int = 5`
+- `top_k: int = 10`
 - `include_figures: bool = false`
 - `include_regions: bool = false`
 - `context_chunks: int = 0`
 
 Returns `query`, `mode`, and citation-ready `results`.
 
-The MCP search default is five results; the CLI defaults to ten. Set `top_k`
-explicitly when workflows must behave the same across both interfaces.
+The MCP search default is ten results, matching the CLI and
+`VeraDocument.search`.
 
 ### `vera_corpus_search`
 
@@ -84,7 +84,7 @@ Parameters:
 - `directory: str`
 - `query: str`
 - `mode: str = "hybrid"`
-- `top_k: int = 5`
+- `top_k: int = 10`
 - `include_figures: bool = false`
 - `include_regions: bool = false`
 - `context_chunks: int = 0`
@@ -106,14 +106,15 @@ the index's saved discovery settings.
 
 Parameter: `file: str`.
 
-Returns archive metadata and summary counts.
+Returns archive metadata and summary counts, including `file` (the requested
+path) and `path` (the opened archive).
 
 ### `vera_validate`
 
 Parameter: `file: str`.
 
-Returns the validation report, including `ok`, issues, counts, checks, and
-metadata.
+Returns the validation report, including `file` (requested), `path` (opened),
+`ok`, issues, counts, checks, and metadata.
 
 ### `vera_figures`
 

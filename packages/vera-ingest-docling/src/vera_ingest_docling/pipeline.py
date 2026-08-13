@@ -90,16 +90,19 @@ class DoclingHybridPipeline:
         whole_document_fallback_backend: str | None = None
         effective_backend = config.pdf_backend
 
-        # Users who force pypdfium2 skip adaptive recovery on the primary pass.
+        # Users who force pypdfium2 skip docling_parse retries during recovery.
         primary_backend = config.pdf_backend
         conversion: Any | None = None
         primary_raised = False
+        primary_error: BaseException | None = None
         try:
             converter = _converter._build_converter(config, backend=primary_backend)
-            raise_if_cancelled(request.cancel)
-            conversion = converter.convert(source=source_path)
-        except Exception:  # noqa: BLE001 - Docling may raise on hard native crashes
+            conversion = converter.convert(source=source_path, raises_on_error=False)
+        except Exception as exc:  # noqa: BLE001 - Docling may raise on hard native crashes
+            if _converter._is_cancellation(exc):
+                raise
             primary_raised = True
+            primary_error = exc
             conversion = None
 
         raise_if_cancelled(request.cancel)
@@ -112,6 +115,7 @@ class DoclingHybridPipeline:
             cancel=request.cancel,
             recovered_pages=recovered_pages,
             recovered_pages_backend=recovered_pages_backend,
+            primary_error=primary_error,
         )
         if mapped.whole_fallback:
             whole_document_fallback_backend = mapped.whole_fallback

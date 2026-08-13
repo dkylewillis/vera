@@ -239,8 +239,10 @@ Shared conversion accepts an opaque `pipeline_options` mapping. Each installed
 pipeline owns typed defaults, validation, and a descriptor of supported fields.
 Integer options are rejected when they fall outside the advertised `minimum`
 and `maximum` (PyMuPDF/Docling `chunk_size` is 100–3000). `vera convert`
-exposes that mapping as repeatable `--pipeline-option KEY=VALUE` flags. Values
-are coerced to bool/int/float when unambiguous; otherwise they remain strings.
+exposes that mapping as repeatable `--pipeline-option KEY=VALUE` flags. Digit-only
+tokens become ints and boolean words become bools; dotted tokens such as `3.10`
+stay strings and are not parsed as floats. Typed `from_mapping` validation then
+checks each key.
 
 ```bash
 vera convert "input.pdf" --parser pymupdf \
@@ -366,5 +368,7 @@ print(path)
 New callers should pass `parser`, `pipeline_options`, and embedder settings
 (`model` / `embedding_function` / `embedder_options`). Pipelines receive a thin
 `IngestRequest` whose `pipeline_options` dict carries provider-owned settings.
-The legacy kwargs remain compatibility aliases. See [Python API](python-api.md)
+The legacy kwargs remain compatibility aliases. Omitted aliases mean the
+pipeline's own default; the CLI still passes its argparse defaults. See
+[Python API](python-api.md)
 for more.

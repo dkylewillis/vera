@@ -12,23 +12,24 @@ import {
 export type { ActionCallOptions, SidecarCall } from '../lib/sidecarCall';
 export { DEFAULT_ACTION_TIMEOUT_MS } from '../lib/sidecarCall';
 
-export function useSidecarCall(options: {
+export type SidecarCallHost = {
   dispatchBackgroundTask: Dispatch<BackgroundTaskAction>;
   setErrorMessage: (message: string | null) => void;
   setProviderErrorDetail: (detail: string | null) => void;
-}): {
+};
+
+export function createSidecarCaller(
+  actionScopes: Map<string, string>,
+  getHost: () => SidecarCallHost,
+): {
   call: SidecarCall;
   cancelActionScope: (scope: string) => void;
 } {
-  const actionScopesRef = useRef(new Map<string, string>());
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
-
   function cancelActionScope(scope: string) {
-    const requestId = actionScopesRef.current.get(scope);
+    const requestId = actionScopes.get(scope);
     if (!requestId) return;
-    actionScopesRef.current.delete(scope);
-    optionsRef.current.dispatchBackgroundTask({ type: 'finish', id: requestId });
+    actionScopes.delete(scope);
+    getHost().dispatchBackgroundTask({ type: 'finish', id: requestId });
     void window.vera.cancelRequest(requestId);
   }
 
@@ -38,16 +39,16 @@ export function useSidecarCall(options: {
     requestId?: string,
     callOptions: ActionCallOptions = {},
   ): Promise<T | null> {
-    const { dispatchBackgroundTask, setErrorMessage, setProviderErrorDetail } = optionsRef.current;
+    const { dispatchBackgroundTask, setErrorMessage, setProviderErrorDetail } = getHost();
     const activityId = requestId || crypto.randomUUID();
     const scope = sidecarCallScope(payload, label, callOptions);
     const timeoutMs = callOptions.timeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS;
-    const previousRequestId = actionScopesRef.current.get(scope);
+    const previousRequestId = actionScopes.get(scope);
     if (previousRequestId && previousRequestId !== activityId) {
       dispatchBackgroundTask({ type: 'finish', id: previousRequestId });
       void window.vera.cancelRequest(previousRequestId);
     }
-    actionScopesRef.current.set(scope, activityId);
+    actionScopes.set(scope, activityId);
     dispatchBackgroundTask({
       type: 'start',
       task: {
@@ -70,6 +71,9 @@ export function useSidecarCall(options: {
             request.then(resolve, reject);
           })
         : await request;
+      if (actionScopes.get(scope) !== activityId) {
+        return null;
+      }
       if (!response.ok) {
         if (sidecarCallWasCancelled(response.error, response.cancelled)) {
           return null;
@@ -80,6 +84,9 @@ export function useSidecarCall(options: {
       }
       return (response.result || null) as T | null;
     } catch (error) {
+      if (actionScopes.get(scope) !== activityId) {
+        return null;
+      }
       const message = error instanceof Error ? error.message : 'Request failed';
       if (sidecarCallWasCancelled(message)) {
         return null;
@@ -89,12 +96,26 @@ export function useSidecarCall(options: {
       return null;
     } finally {
       if (timeout) clearTimeout(timeout);
-      if (actionScopesRef.current.get(scope) === activityId) {
-        actionScopesRef.current.delete(scope);
+      if (actionScopes.get(scope) === activityId) {
+        actionScopes.delete(scope);
       }
       dispatchBackgroundTask({ type: 'finish', id: activityId });
     }
   }
 
   return { call, cancelActionScope };
+}
+
+export function useSidecarCall(options: SidecarCallHost): {
+  call: SidecarCall;
+  cancelActionScope: (scope: string) => void;
+} {
+  const actionScopesRef = useRef(new Map<string, string>());
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+  const callerRef = useRef<ReturnType<typeof createSidecarCaller> | null>(null);
+  if (!callerRef.current) {
+    callerRef.current = createSidecarCaller(actionScopesRef.current, () => optionsRef.current);
+  }
+  return callerRef.current;
 }

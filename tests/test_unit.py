@@ -12,6 +12,7 @@ from vera.core.embeddings import (
     describe_embedder,
     deserialize_vector,
     get_embedder,
+    list_embedder_load_errors,
     list_embedding_models,
     list_embedding_provider_descriptors,
     list_embedding_providers,
@@ -263,6 +264,12 @@ class TestGetEmbedder:
             HashingOptions.from_mapping({"dimension": 99999})
         with pytest.raises(ValueError, match="dimension must be between 8 and 4096"):
             get_embedder("hashing", embedder_options={"dimension": 1})
+        with pytest.raises(ValueError, match="dimension must be an integer"):
+            HashingOptions.from_mapping({"dimension": True})
+        with pytest.raises(ValueError, match="dimension must be an integer"):
+            HashingOptions.from_mapping({"dimension": 8.9})
+        with pytest.raises(ValueError, match="dimension must be a multiple of 8"):
+            HashingOptions.from_mapping({"dimension": 9})
 
     def test_describe_builtin_providers(self):
         hashing = describe_embedder("hashing")
@@ -383,10 +390,13 @@ class TestGetEmbedder:
     def test_failing_entry_point_is_logged_and_not_registered(self, monkeypatch, caplog):
         import logging
 
+        load_count = {"n": 0}
+
         class BrokenEntry:
             name = "broken-remote"
 
             def load(self):
+                load_count["n"] += 1
                 raise ImportError("native library missing")
 
         def fake_entry_points(*, group=None):
@@ -411,6 +421,15 @@ class TestGetEmbedder:
             )
             assert "broken-remote" in warning_text
             assert "native library missing" in warning_text
+            errors = list_embedder_load_errors()
+            assert any(item["provider"] == "broken-remote" for item in errors)
+            with pytest.raises(UnknownEmbeddingModelError, match="Plugin load errors"):
+                get_embedder("broken-remote:unused")
+            failed = preflight_embedder("broken-remote:unused")
+            assert failed.ok is False
+            assert "Plugin load errors" in failed.detail
+            list_embedding_providers()
+            assert load_count["n"] == 1
         finally:
             reset_embedding_registry(builtins=True)
 
@@ -519,6 +538,147 @@ class TestStrToBool:
     def test_truthy_values(self, value):
         assert str_to_bool(value) is True
 
-    @pytest.mark.parametrize("value", ["false", "False", "0", "no", "n", "off", "", "random"])
+    @pytest.mark.parametrize("value", ["false", "False", "0", "no", "n", "off", ""])
     def test_falsy_values(self, value):
         assert str_to_bool(value) is False
+
+    def test_rejects_unknown_tokens(self):
+        with pytest.raises(ValueError, match="invalid boolean"):
+            str_to_bool("random")
+
+
+class TestVeraDocumentShouldFix:
+    def test_creator_library_uses_package_version(self, tmp_path):
+        path = tmp_path / "created.vera"
+        with VeraDocument.create(path) as document:
+            assert document._metadata_values()["creator_library"] == "vera-doc/0.3.0"
+
+    def test_delete_requires_ids_where_or_delete_all(self, tmp_path):
+        path = tmp_path / "delete.vera"
+        with VeraDocument.create(path) as document:
+            document.add([ChunkRecord(id="one", text="hello world")])
+            with pytest.raises(ValueError, match="delete_all"):
+                document.delete()
+            assert document.delete(["one"]) == 1
+
+    def test_delete_all_flag_clears_chunks(self, tmp_path):
+        path = tmp_path / "delete-all.vera"
+        with VeraDocument.create(path) as document:
+            document.add(
+                [
+                    ChunkRecord(id="one", text="hello world"),
+                    ChunkRecord(id="two", text="other text"),
+                ]
+            )
+            assert document.delete(delete_all=True) == 2
+            assert document.get() == []
+
+    def test_search_hydrates_only_top_k_records(self, tmp_path):
+        path = tmp_path / "topk.vera"
+        with VeraDocument.create(path) as document:
+            document.add(
+                [
+                    ChunkRecord(id=f"c{index:02d}", text=f"topic token{index} extra words")
+                    for index in range(15)
+                ]
+            )
+            calls: list[list[str] | None] = []
+            original = document.get
+
+            def wrapped(ids=None, **kwargs):
+                calls.append(list(ids) if ids is not None else None)
+                return original(ids, **kwargs)
+
+            document.get = wrapped  # type: ignore[method-assign]
+            results = document.search("token3", top_k=3)
+            assert len(results) == 3
+            assert calls
+            assert all(call is not None for call in calls)
+            assert all(len(call) <= 3 for call in calls)
+
+    def test_search_rejects_huge_top_k(self, tmp_path):
+        path = tmp_path / "limit.vera"
+        with VeraDocument.create(path) as document:
+            document.add([ChunkRecord(id="one", text="hello world")])
+            with pytest.raises(ValueError, match="top_k must be at most"):
+                document.search("hello", top_k=10_001)
+
+    def test_keyword_missing_fts_table_is_not_swallowed(self, tmp_path):
+        import sqlite3
+
+        path = tmp_path / "fts.vera"
+        with VeraDocument.create(path) as document:
+            document.add([ChunkRecord(id="one", text="hello world")])
+            document._conn.execute("DROP TABLE chunks_fts")
+            with pytest.raises(sqlite3.OperationalError):
+                document.search("hello", mode="keyword")
+
+    def test_validate_rejects_non_float32_format_and_mixed_dimensions(self, tmp_path):
+        import sqlite3
+
+        import numpy as np
+
+        path = tmp_path / "vectors.vera"
+        with VeraDocument.create(path) as document:
+            document.add([ChunkRecord(id="one", text="hello world")])
+        conn = sqlite3.connect(path)
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            "UPDATE embeddings SET vector_format = 'float64_le' WHERE chunk_id = 'one'"
+        )
+        conn.execute(
+            """
+            INSERT INTO chunks(chunk_id, text, metadata_json, created_at, updated_at)
+            VALUES ('two', 'other text', '{}', '', '')
+            """
+        )
+        small = np.zeros(8, dtype="<f4").tobytes()
+        conn.execute(
+            """
+            INSERT INTO embeddings(
+                chunk_id, model_name, model_dimension, vector, vector_format, created_at
+            ) VALUES ('two', 'vera-hashing-384', 8, ?, 'float32_le', '')
+            """,
+            (small,),
+        )
+        conn.execute("INSERT INTO chunks_fts(chunk_id, text) VALUES ('two', 'other text')")
+        conn.commit()
+        conn.close()
+        with VeraDocument.open(path) as document:
+            report = document.validate()
+        assert report["ok"] is False
+        assert any("vector_format" in issue for issue in report["issues"])
+        assert any("Mixed embedding dimensions" in issue for issue in report["issues"])
+
+
+class TestEmbedderCacheConcurrency:
+    def test_slow_factory_does_not_block_hashing_get_embedder(self):
+        import threading
+        import time
+
+        started = threading.Event()
+        release = threading.Event()
+
+        def factory(model_id: str, **config):
+            started.set()
+            assert release.wait(timeout=5)
+            return HashingEmbedder(model_name=f"slow/{model_id}")
+
+        register_embedder("slow-block", factory, replace=True)
+        clear_embedder_cache()
+        try:
+            worker = threading.Thread(target=lambda: get_embedder("slow-block:one"))
+            worker.start()
+            assert started.wait(timeout=2)
+            t0 = time.perf_counter()
+            embedder = get_embedder("hashing")
+            elapsed = time.perf_counter() - t0
+            assert elapsed < 1.0
+            assert isinstance(embedder, HashingEmbedder)
+            release.set()
+            worker.join(timeout=5)
+            assert not worker.is_alive()
+        finally:
+            release.set()
+            unregister_embedder("slow-block")
+            clear_embedder_cache()

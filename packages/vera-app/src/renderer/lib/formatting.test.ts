@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { convertDefaultsFromSelection, fileName, formatBytes, formatTimestamp, sameFsPath, siblingPdfPath, showInFolderLabel } from './formatting';
+import { convertDefaultsFromSelection, fileName, formatBytes, formatTimestamp, isPathInsideFolder, sameFsPath, siblingPdfPath, showInFolderLabel } from './formatting';
 
 describe('showInFolderLabel', () => {
   it('uses platform-specific wording', () => {
@@ -56,6 +56,19 @@ describe('siblingPdfPath', () => {
 describe('sameFsPath', () => {
   it('ignores slash style and case', () => {
     expect(sameFsPath('C:\\docs\\Manual.PDF', 'c:/docs/manual.pdf')).toBe(true);
+  });
+});
+
+describe('isPathInsideFolder', () => {
+  it('matches the folder itself and nested files', () => {
+    expect(isPathInsideFolder('C:\\library', 'C:\\library')).toBe(true);
+    expect(isPathInsideFolder('C:\\library\\manual.vera', 'C:\\library')).toBe(true);
+    expect(isPathInsideFolder('C:\\library\\nested\\manual.pdf', 'C:\\library')).toBe(true);
+  });
+
+  it('does not match a sibling path with a shared prefix', () => {
+    expect(isPathInsideFolder('C:\\library-old\\manual.vera', 'C:\\library')).toBe(false);
+    expect(isPathInsideFolder('C:\\other\\manual.pdf', 'C:\\library')).toBe(false);
   });
 });
 

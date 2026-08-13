@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, safeStorage, shell } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import { basename, delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
@@ -10,6 +10,7 @@ import type {
   ProviderProfile,
   Session,
 } from '../src/shared/contracts.js';
+import { listFolderEntries } from './folder-listing.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
 
 /** Prefer the workspace uv venv so optional plugins (ml/docling) resolve in source-run. */
@@ -43,6 +44,7 @@ interface WorkspaceFolderResult {
   path: string;
   name: string;
   entries: FolderEntry[];
+  truncated?: boolean;
 }
 
 interface FolderWatcher {
@@ -168,6 +170,15 @@ function toSourceViewerResult(result: Record<string, unknown>): Record<string, u
   };
 }
 
+function packagedSidecarExecutable(): string {
+  const dir = join(process.resourcesPath, 'python', 'sidecar');
+  const preferred = process.platform === 'win32' ? 'vera-sidecar.exe' : 'vera-sidecar';
+  const fallback = process.platform === 'win32' ? 'vera-sidecar' : 'vera-sidecar.exe';
+  const preferredPath = join(dir, preferred);
+  if (existsSync(preferredPath)) return preferredPath;
+  return join(dir, fallback);
+}
+
 class PythonSidecar {
   private child: ChildProcessWithoutNullStreams | null = null;
   private pending = new Map<string, {
@@ -178,6 +189,7 @@ class PythonSidecar {
   }>();
   private nextId = 1;
   private stdoutBuffer = '';
+  private restartWhenIdle = false;
 
   request(
     payload: SidecarPayload,
@@ -189,16 +201,26 @@ class PythonSidecar {
     const message: SidecarRequest = { ...payload, id };
     return new Promise((resolve, reject) => {
       this.pending.set(id, { child, resolve, reject, onEvent });
-      child.stdin.write(`${JSON.stringify(message)}\n`, (error) => {
-        if (error) {
-          this.pending.delete(id);
-          reject(error);
+      const failWrite = (error: unknown) => {
+        this.pending.delete(id);
+        reject(error);
+      };
+      try {
+        if (child.stdin.destroyed || !child.stdin.writable) {
+          failWrite(new Error('VERA sidecar stdin is not writable'));
+          return;
         }
-      });
+        child.stdin.write(`${JSON.stringify(message)}\n`, (error) => {
+          if (error) failWrite(error);
+        });
+      } catch (error) {
+        failWrite(error);
+      }
     });
   }
 
   stop(): void {
+    this.restartWhenIdle = false;
     if (this.child) {
       this.child.kill();
       this.child = null;
@@ -218,25 +240,36 @@ class PythonSidecar {
     return { skipped: Boolean(result.skipped) };
   }
 
-  cancelRequest(requestId: string): boolean {
-    const pending = this.pending.get(requestId);
-    if (!pending) return false;
-    this.pending.delete(requestId);
-    pending.reject(new Error('Request cancelled'));
-    pending.child.stdin.write(`${JSON.stringify({
-      id: null,
-      action: 'cancel',
-      target_id: requestId,
-    })}\n`);
-    return true;
+  async cancelRequest(requestId: string): Promise<boolean> {
+    if (!this.pending.has(requestId)) return false;
+    try {
+      const { cancelled } = await this.cancelAnswer(requestId);
+      return cancelled;
+    } catch {
+      return false;
+    }
   }
 
   /** Kill the sidecar so the next request respawns with updated env (e.g. HF_TOKEN). */
   restart(): void {
+    if (this.pending.size > 0) {
+      this.restartWhenIdle = true;
+      return;
+    }
+    this.killChild('VERA sidecar restarted');
+  }
+
+  private maybeRestartWhenIdle(): void {
+    if (!this.restartWhenIdle || this.pending.size > 0) return;
+    this.killChild('VERA sidecar restarted');
+  }
+
+  private killChild(reason: string): void {
+    this.restartWhenIdle = false;
     const child = this.child;
     if (!child) return;
     this.child = null;
-    this.rejectPending(new Error('VERA sidecar restarted'), child);
+    this.rejectPending(new Error(reason), child);
     child.kill();
   }
 
@@ -255,8 +288,7 @@ class PythonSidecar {
 
     const env = { ...process.env };
     applyHfTokenEnv(env);
-    const packagedSidecar = join(process.resourcesPath, 'python', 'sidecar', 'vera-sidecar.exe');
-    const executable = app.isPackaged ? packagedSidecar : resolveDevPython();
+    const executable = app.isPackaged ? packagedSidecarExecutable() : resolveDevPython();
     const args = app.isPackaged ? [] : ['-m', 'vera_app.sidecar'];
     if (!app.isPackaged) {
       const sourcePaths = [
@@ -272,14 +304,21 @@ class PythonSidecar {
     this.child = spawn(executable, args, {
       cwd: process.cwd(),
       env,
+      windowsHide: true,
     });
 
     this.child.stdout.on('data', (chunk: Buffer) => this.handleStdout(chunk.toString('utf8')));
     this.child.stderr.on('data', (chunk: Buffer) => console.error(`[vera-sidecar] ${chunk.toString('utf8')}`));
     const child = this.child;
+    child.on('error', (error: Error) => {
+      if (this.child === child) this.child = null;
+      this.rejectPending(error, child);
+      this.maybeRestartWhenIdle();
+    });
     child.on('exit', () => {
       if (this.child === child) this.child = null;
       this.rejectPending(new Error('VERA sidecar exited'), child);
+      this.maybeRestartWhenIdle();
     });
 
     return this.child;
@@ -313,6 +352,7 @@ class PythonSidecar {
       }
       this.pending.delete(response.id);
       pending.resolve(response as SidecarResponse);
+      this.maybeRestartWhenIdle();
     }
   }
 }
@@ -399,7 +439,10 @@ function readApiKeys(): Record<string, string> {
 
 function writeApiKeys(keys: Record<string, string>): void {
   mkdirSync(app.getPath('userData'), { recursive: true });
-  writeFileSync(secretPath(), safeStorage.encryptString(JSON.stringify(keys)));
+  const target = secretPath();
+  const temp = `${target}.tmp`;
+  writeFileSync(temp, safeStorage.encryptString(JSON.stringify(keys)));
+  renameSync(temp, target);
 }
 
 function credentialKey(baseUrl: unknown): string {
@@ -622,40 +665,7 @@ async function pickFolderPath(): Promise<string | null> {
 }
 
 function listFolder(dir: string): WorkspaceFolderResult | null {
-  if (typeof dir !== 'string' || !dir.trim() || !existsSync(dir)) {
-    return null;
-  }
-  const entries: FolderEntry[] = [];
-  const walk = (current: string, depth: number): void => {
-    if (depth > 5) return;
-    let dirents;
-    try {
-      dirents = readdirSync(current, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const dirent of dirents) {
-      if (dirent.name.startsWith('.')) continue;
-      const full = join(current, dirent.name);
-      if (dirent.isDirectory()) {
-        if (dirent.name === 'node_modules' || dirent.name === '__pycache__') continue;
-        walk(full, depth + 1);
-      } else {
-        const lower = dirent.name.toLowerCase();
-        const type = lower.endsWith('.vera') ? 'vera' : lower.endsWith('.pdf') ? 'pdf' : null;
-        if (!type) continue;
-        entries.push({
-          path: full,
-          name: dirent.name,
-          relativePath: full.slice(dir.length + 1).replace(/\\/g, '/'),
-          type,
-        });
-      }
-    }
-  };
-  walk(dir, 0);
-  entries.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-  return { path: dir, name: basename(dir) || dir, entries };
+  return listFolderEntries(dir);
 }
 
 function isWorkspaceFile(filePath: string, folderPath: string): boolean {

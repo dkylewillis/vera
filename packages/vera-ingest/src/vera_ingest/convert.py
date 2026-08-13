@@ -21,7 +21,7 @@ from vera import (
 )
 from vera.core.validation import validate_document
 
-from .cancellation import raise_if_cancelled
+from .cancellation import clear_user_skip, is_user_skip_error, raise_if_cancelled
 from .pipeline import (
     get_ingest_pipeline,
     invoke_ingest_pipeline,
@@ -69,13 +69,13 @@ class _ConvertSettings:
     model: str = "hashing"
     embedding_function: EmbeddingFunction | None = None
     parser: str = "pymupdf"
-    chunk_size: int = 500
-    overlap: int = 75
+    chunk_size: int | None = None
+    overlap: int | None = None
     store_original: bool = True
-    ocr_mode: str = "auto"
-    ocr_language: str = "eng"
-    ocr_dpi: int = 300
-    ocr_download: bool = False
+    ocr_mode: str | None = None
+    ocr_language: str | None = None
+    ocr_dpi: int | None = None
+    ocr_download: bool | None = None
     pipeline_options: dict[str, Any] | None = None
     embedder_options: dict[str, Any] | None = None
     cancel: Any | None = None
@@ -86,17 +86,22 @@ class _ConvertSettings:
         return get_embedder(self.model, embedder_options=self.embedder_options)
 
     def resolve_pipeline_options(self) -> dict[str, Any]:
+        legacy: dict[str, Any] = {}
+        for key in (
+            "chunk_size",
+            "overlap",
+            "ocr_mode",
+            "ocr_language",
+            "ocr_dpi",
+            "ocr_download",
+        ):
+            value = getattr(self, key)
+            if value is not None:
+                legacy[key] = value
         return prepare_pipeline_options(
             spec=self.parser,
             pipeline_options=self.pipeline_options,
-            legacy_options={
-                "chunk_size": self.chunk_size,
-                "overlap": self.overlap,
-                "ocr_mode": self.ocr_mode,
-                "ocr_language": self.ocr_language,
-                "ocr_dpi": self.ocr_dpi,
-                "ocr_download": self.ocr_download,
-            },
+            legacy_options=legacy,
         )
 
     def as_convert_kwargs(self) -> dict[str, Any]:
@@ -118,19 +123,14 @@ class _ConvertSettings:
 
 
 def _consume_user_skip(cancel: Any | None, exc: BaseException) -> bool:
-    """Clear a one-shot skip request if `exc` represents skipping the current file."""
+    """Clear a one-shot skip request if `exc` is a real skip/interrupt."""
     if cancel is None:
         return False
     if getattr(cancel, "cancelled", False):
         return False
-    is_skip = type(exc).__name__ == "SkipCurrentError" or bool(
-        getattr(cancel, "skip_requested", False)
-    )
-    if not is_skip:
+    if not is_user_skip_error(exc):
         return False
-    clear = getattr(cancel, "clear_skip", None)
-    if callable(clear):
-        clear()
+    clear_user_skip(cancel)
     return True
 
 
@@ -164,13 +164,13 @@ def convert(
     model: str = "hashing",
     embedding_function: EmbeddingFunction | None = None,
     parser: str = "pymupdf",
-    chunk_size: int = 500,
-    overlap: int = 75,
+    chunk_size: int | None = None,
+    overlap: int | None = None,
     store_original: bool = True,
-    ocr_mode: str = "auto",
-    ocr_language: str = "eng",
-    ocr_dpi: int = 300,
-    ocr_download: bool = False,
+    ocr_mode: str | None = None,
+    ocr_language: str | None = None,
+    ocr_dpi: int | None = None,
+    ocr_download: bool | None = None,
     pipeline_options: dict[str, Any] | None = None,
     embedder_options: dict[str, Any] | None = None,
     cancel: Any | None = None,
@@ -185,8 +185,12 @@ def convert(
     settings (``model`` / ``embedding_function`` / ``embedder_options``).
     ``chunk_size``, ``overlap``, ``ocr_mode``, ``ocr_language``, ``ocr_dpi``,
     and ``ocr_download`` remain compatibility aliases for CLI and sidecar
-    callers; they are forwarded only when the selected pipeline advertises
-    them (Tesseract OCR aliases do not leak to Docling).
+    callers; they are forwarded only when explicitly provided *and* the
+    selected pipeline advertises them (Tesseract OCR aliases do not leak
+    to Docling). Omitted aliases mean "use the pipeline's own default"
+    (for example a plugin ``chunk_size`` of 2000 is not overwritten by 500).
+    The CLI still passes its argparse defaults when invoked from the command
+    line.
 
     Args:
         input_path: Source PDF path.
@@ -199,17 +203,24 @@ def convert(
             resolved via :func:`~vera.get_embedder` before parsing begins.
         parser: Ingest pipeline spec in ``provider[:variant]`` form
             (default ``"pymupdf"``).
-        chunk_size: Compatibility alias forwarded only when the selected
-            pipeline advertises a ``chunk_size`` field.
-        overlap: Compatibility alias forwarded only when advertised by the
-            selected pipeline (PyMuPDF). Ignored by Docling.
+        chunk_size: Compatibility alias forwarded only when explicitly
+            provided and the selected pipeline advertises a ``chunk_size``
+            field. ``None`` (the default) means the pipeline default.
+        overlap: Compatibility alias forwarded only when explicitly provided
+            and advertised by the selected pipeline (PyMuPDF). Ignored by
+            Docling. ``None`` means the pipeline default.
         store_original: When ``True``, embed the original PDF as an attachment.
-        ocr_mode: Compatibility OCR mode alias when advertised by the pipeline.
+        ocr_mode: Compatibility OCR mode alias when explicitly provided and
+            advertised by the pipeline. ``None`` means the pipeline default.
         ocr_language: Tesseract OCR language alias (PyMuPDF). Forwarded only
-            when the selected pipeline's ``ocr_engine`` is ``"tesseract"``.
-        ocr_dpi: Compatibility OCR DPI alias when advertised (PyMuPDF).
+            when explicitly provided and the selected pipeline's
+            ``ocr_engine`` is ``"tesseract"``. ``None`` means the pipeline
+            default.
+        ocr_dpi: Compatibility OCR DPI alias when explicitly provided and
+            advertised (PyMuPDF). ``None`` means the pipeline default.
         ocr_download: Compatibility alias (PyMuPDF only) allowing on-demand,
             checksum-verified download of missing Tesseract language data.
+            ``None`` means the pipeline default.
         pipeline_options: Explicit provider-owned options. These override
             compatibility aliases for the same keys.
         embedder_options: Explicit provider-owned embedding options forwarded
@@ -540,13 +551,13 @@ def batch_convert(
     model: str = "hashing",
     embedding_function: EmbeddingFunction | None = None,
     parser: str = "pymupdf",
-    chunk_size: int = 500,
-    overlap: int = 75,
+    chunk_size: int | None = None,
+    overlap: int | None = None,
     store_original: bool = True,
-    ocr_mode: str = "auto",
-    ocr_language: str = "eng",
-    ocr_dpi: int = 300,
-    ocr_download: bool = False,
+    ocr_mode: str | None = None,
+    ocr_language: str | None = None,
+    ocr_dpi: int | None = None,
+    ocr_download: bool | None = None,
     pipeline_options: dict[str, Any] | None = None,
     embedder_options: dict[str, Any] | None = None,
     progress: Callable[[int, int, str], None] | None = None,
@@ -569,13 +580,19 @@ def batch_convert(
             ``"pymupdf"``). Prefer this plus ``pipeline_options`` and embedder
             settings for new callers; the OCR/chunk kwargs below are
             compatibility aliases.
-        chunk_size: Compatibility alias passed to :func:`convert`.
-        overlap: Compatibility alias passed to :func:`convert`.
+        chunk_size: Compatibility alias passed to :func:`convert`. ``None``
+            means the pipeline default.
+        overlap: Compatibility alias passed to :func:`convert`. ``None``
+            means the pipeline default.
         store_original: Whether to embed originals passed to :func:`convert`.
         ocr_mode: Compatibility OCR mode alias passed to :func:`convert`.
+            ``None`` means the pipeline default.
         ocr_language: Compatibility OCR language alias passed to :func:`convert`.
+            ``None`` means the pipeline default.
         ocr_dpi: Compatibility OCR DPI alias passed to :func:`convert`.
+            ``None`` means the pipeline default.
         ocr_download: Compatibility OCR download alias passed to :func:`convert`.
+            ``None`` means the pipeline default.
         pipeline_options: Explicit provider-owned options passed to :func:`convert`.
         embedder_options: Explicit provider-owned embedding options passed to
             :func:`convert`.
@@ -648,7 +665,9 @@ def batch_convert(
                     continue
                 stored_hash = _stored_source_file_hash(output)
                 current_hash = _sha256_bytes(pdf.read_bytes())
+                raise_if_cancelled(settings.cancel)
                 if stored_hash is not None and stored_hash == current_hash:
+                    clear_user_skip(settings.cancel)
                     skipped_existing.append(str(output))
                     continue
             outputs.append(

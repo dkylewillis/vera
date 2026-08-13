@@ -8,7 +8,7 @@ from typing import Any
 from vera_ingest.cancellation import raise_if_cancelled
 from vera_ingest.types import ParsedBlock, ParsedPage
 
-from .tessdata_manager import ensure_language_data, is_known
+from .tessdata_manager import ensure_language_data, is_known, validate_ocr_language
 
 _CAPTION_RE = re.compile(
     r"^(figure|fig\.?|table|diagram|exhibit|chart|map|photo|illustration|plate|drawing)\s*[0-9]+([.:\-\u2013]|\s|$)",
@@ -26,7 +26,9 @@ _TABLE_SETTINGS = {
     "horizontal_strategy": "lines",
 }
 _OCR_MODES = {"auto", "off", "force"}
-_OCR_MIN_USEFUL_CHARACTERS = 10
+# Native alphanumeric characters below this count on a large-image page are
+# treated as headers / Bates stamps / letterhead, not a searchable text page.
+_OCR_SPARSE_NATIVE_CHARACTERS = 200
 _OCR_IMAGE_COVERAGE_THRESHOLD = 0.5
 
 
@@ -77,7 +79,6 @@ def _bbox_coverage(
 
 
 def _page_needs_ocr(page_text: str, layout: dict[str, Any], *, width: float, height: float) -> bool:
-    useful_characters = sum(character.isalnum() for character in page_text)
     has_large_image = any(
         block.get("type") == 1
         and _bbox_coverage(
@@ -88,11 +89,13 @@ def _page_needs_ocr(page_text: str, layout: dict[str, Any], *, width: float, hei
         >= _OCR_IMAGE_COVERAGE_THRESHOLD
         for block in layout.get("blocks", [])
     )
-    if useful_characters < _OCR_MIN_USEFUL_CHARACTERS:
-        # Do not send genuinely blank pages through OCR. A scanned page normally
-        # appears as a large image covering most of the page.
-        return has_large_image
-    return False
+    if not has_large_image:
+        # Do not send genuinely blank (or native-text) pages through OCR.
+        return False
+    useful_characters = sum(character.isalnum() for character in page_text)
+    # A scanned page often still has a native header, Bates stamp, or
+    # letterhead. Those crumbs must not disable OCR of the image body.
+    return useful_characters < _OCR_SPARSE_NATIVE_CHARACTERS
 
 
 def _missing_language_install_hint(language: str) -> str:
@@ -287,8 +290,7 @@ def parse_pdf_structured(
     """
     if ocr_mode not in _OCR_MODES:
         raise ValueError(f"ocr_mode must be one of {sorted(_OCR_MODES)}")
-    if not ocr_language.strip():
-        raise ValueError("ocr_language must not be empty")
+    validate_ocr_language(ocr_language)
     if ocr_dpi <= 0:
         raise ValueError("ocr_dpi must be positive")
 
@@ -385,7 +387,7 @@ def parse_pdf_structured(
                     bbox=block.bbox,
                 )
             )
-    tables = _extract_tables_from_pdf(path)
+    tables = _extract_tables_from_pdf(path, cancel=cancel)
     blocks = _merge_tables_into_blocks(blocks, tables)
     _mark_captions(blocks)
     return pages, blocks
@@ -418,12 +420,48 @@ def _table_to_markdown(table: list[list[str | None]]) -> str:
     return "\n".join(lines)
 
 
-def _extract_tables_from_pdf(path: str) -> list[dict[str, object]]:
+def _float_bbox(bbox: Any) -> tuple[float, float, float, float]:
+    values = tuple(float(value) for value in bbox)
+    if len(values) != 4:
+        return (0.0, 0.0, 0.0, 0.0)
+    return values
+
+
+def _plumber_bbox_to_page_rect(
+    bbox: tuple[float, float, float, float],
+    crop_bbox: tuple[float, float, float, float],
+) -> tuple[float, float, float, float] | None:
+    """Map a pdfplumber table bbox from MediaBox space into CropBox / page.rect space.
+
+    pdfplumber ``Table.bbox`` is ``(x0, top, x1, bottom)`` in the page MediaBox
+    with origin at the top-left. PyMuPDF text/image blocks use ``page.rect``,
+    which is the CropBox with origin at its top-left. Subtract the CropBox
+    origin and clip to the visible page.
+    """
+    crop_x0, crop_y0, crop_x1, crop_y1 = crop_bbox
+    x0, top, x1, bottom = bbox
+    mapped = (x0 - crop_x0, top - crop_y0, x1 - crop_x0, bottom - crop_y0)
+    width = max(0.0, crop_x1 - crop_x0)
+    height = max(0.0, crop_y1 - crop_y0)
+    clipped = (
+        max(0.0, min(width, mapped[0])),
+        max(0.0, min(height, mapped[1])),
+        max(0.0, min(width, mapped[2])),
+        max(0.0, min(height, mapped[3])),
+    )
+    if clipped[2] <= clipped[0] or clipped[3] <= clipped[1]:
+        return None
+    return clipped
+
+
+def _extract_tables_from_pdf(path: str, cancel: Any | None = None) -> list[dict[str, object]]:
     """Extract bordered tables with pdfplumber."""
     pdfplumber = _open_pdfplumber()
     tables: list[dict[str, object]] = []
     with pdfplumber.open(path) as pdf:
         for page_num, page in enumerate(pdf.pages, start=1):
+            raise_if_cancelled(cancel)
+            crop_bbox = _float_bbox(page.cropbox or page.bbox)
             for table_idx, table in enumerate(page.find_tables(_TABLE_SETTINGS)):
                 data = table.extract()
                 if not data or len(data) < 2:
@@ -431,7 +469,9 @@ def _extract_tables_from_pdf(path: str) -> list[dict[str, object]]:
                 markdown = _table_to_markdown(data)
                 if not markdown:
                     continue
-                bbox = tuple(float(v) for v in table.bbox)
+                bbox = _plumber_bbox_to_page_rect(_float_bbox(table.bbox), crop_bbox)
+                if bbox is None:
+                    continue
                 tables.append(
                     {
                         "table_text": markdown,

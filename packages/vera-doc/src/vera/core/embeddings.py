@@ -35,6 +35,7 @@ _DESCRIPTOR_FACTORIES: dict[str, Callable[[], EmbedderDescriptor]] = {}
 _MODEL_LISTERS: dict[str, Callable[[], Sequence[EmbeddingModelInfo]]] = {}
 _ENTRY_POINTS_LOADED = False
 _INSTANCE_CACHE: dict[tuple[Any, ...], EmbeddingFunction] = {}
+_ENTRY_POINT_LOAD_ERRORS: list[dict[str, str]] = []
 
 
 def serialize_vector(vector: Iterable[float]) -> bytes:
@@ -165,6 +166,7 @@ class SentenceTransformerEmbedder:
 
         self.model_name = model_name
         self.normalization = "l2"
+        self._embed_lock = threading.Lock()
         if device:
             self._model = SentenceTransformer(model_name, device=device)
         else:
@@ -175,8 +177,9 @@ class SentenceTransformerEmbedder:
         self.dimension = int(dim or len(self.embed(["dimension probe"])[0]))
 
     def embed(self, texts: list[str]) -> list[np.ndarray]:
-        arr = self._model.encode(texts, normalize_embeddings=True, **self._encode_kwargs)
-        return [np.asarray(v, dtype=np.float32) for v in arr]
+        with self._embed_lock:
+            arr = self._model.encode(texts, normalize_embeddings=True, **self._encode_kwargs)
+            return [np.asarray(v, dtype=np.float32) for v in arr]
 
 
 def _hashing_factory(model_id: str = "vera-hashing-384", **config: Any) -> HashingEmbedder:
@@ -441,13 +444,7 @@ def describe_embedder(provider: str) -> EmbedderDescriptor:
     _ensure_entry_points_loaded()
     with _REGISTRY_LOCK:
         if key not in _PROVIDERS:
-            available = ", ".join(sorted(_PROVIDERS)) or "(none)"
-            raise UnknownEmbeddingModelError(
-                f"Unknown embedding provider {provider!r}. "
-                f"Registered providers: {available}. "
-                "Install a plugin that registers under the 'vera.embedders' "
-                "entry-point group, or call register_embedder()."
-            )
+            raise UnknownEmbeddingModelError(_unknown_provider_message(provider))
         factory = _DESCRIPTOR_FACTORIES.get(key)
         if factory is None:
             return generic_embedder_descriptor(key)
@@ -472,11 +469,7 @@ def list_embedding_models(provider: str) -> list[EmbeddingModelInfo]:
     _ensure_entry_points_loaded()
     with _REGISTRY_LOCK:
         if key not in _PROVIDERS:
-            available = ", ".join(sorted(_PROVIDERS)) or "(none)"
-            raise UnknownEmbeddingModelError(
-                f"Unknown embedding provider {provider!r}. "
-                f"Registered providers: {available}."
-            )
+            raise UnknownEmbeddingModelError(_unknown_provider_message(provider))
         lister = _MODEL_LISTERS.get(key)
     if lister is None:
         descriptor = describe_embedder(key)
@@ -574,6 +567,13 @@ def _safe_load_entry_point(entry: Any, provider: str, *, kind: str) -> Any | Non
         return entry.load()
     except Exception as exc:  # noqa: BLE001 - one broken plugin must not hide others
         logger.warning("Failed to load %s plugin %r: %r", kind, provider, exc)
+        _ENTRY_POINT_LOAD_ERRORS.append(
+            {
+                "provider": provider,
+                "kind": kind,
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+        )
         return None
 
 
@@ -611,6 +611,17 @@ def _ensure_entry_points_loaded() -> None:
         _ENTRY_POINTS_LOADED = True
 
 
+def list_embedder_load_errors() -> list[dict[str, str]]:
+    """Return plugin entry points that failed to load during the last registry scan.
+
+    Failed plugins are recorded once and are not retried until
+    :func:`reset_embedding_registry` runs.
+    """
+    _ensure_entry_points_loaded()
+    with _REGISTRY_LOCK:
+        return [dict(item) for item in _ENTRY_POINT_LOAD_ERRORS]
+
+
 def reset_embedding_registry(*, builtins: bool = True) -> None:
     """Reset provider registry state (primarily for tests)."""
     global _ENTRY_POINTS_LOADED
@@ -619,6 +630,7 @@ def reset_embedding_registry(*, builtins: bool = True) -> None:
         _DESCRIPTOR_FACTORIES.clear()
         _MODEL_LISTERS.clear()
         _INSTANCE_CACHE.clear()
+        _ENTRY_POINT_LOAD_ERRORS.clear()
         _ENTRY_POINTS_LOADED = False
         if builtins:
             _register_builtins()
@@ -679,6 +691,32 @@ def _merge_embedder_config(
     return merged
 
 
+def _unknown_provider_message(provider: str, *, model: str | None = None) -> str:
+    available = ", ".join(sorted(_PROVIDERS)) or "(none)"
+    if model is None:
+        message = (
+            f"Unknown embedding provider {provider!r}. "
+            f"Registered providers: {available}."
+        )
+    else:
+        message = (
+            f"Unknown embedding provider {provider!r} for model {model!r}. "
+            f"Registered providers: {available}."
+        )
+    if _ENTRY_POINT_LOAD_ERRORS:
+        details = "; ".join(
+            f"{item['provider']} ({item['kind']}): {item['error']}"
+            for item in _ENTRY_POINT_LOAD_ERRORS
+        )
+        message += f" Plugin load errors: {details}."
+    else:
+        message += (
+            " Install a plugin that registers under the 'vera.embedders' "
+            "entry-point group, or call register_embedder()."
+        )
+    return message
+
+
 def get_embedder(
     model: str = "hashing",
     *,
@@ -707,14 +745,14 @@ def get_embedder(
             return cached
         factory = _PROVIDERS.get(provider)
         if factory is None:
-            available = ", ".join(sorted(_PROVIDERS)) or "(none)"
             raise UnknownEmbeddingModelError(
-                f"Unknown embedding provider {provider!r} for model {model!r}. "
-                f"Registered providers: {available}. "
-                "Install a plugin that registers under the 'vera.embedders' "
-                "entry-point group, or call register_embedder()."
+                _unknown_provider_message(provider, model=model)
             )
-        embedder = factory(model_id, **resolved)
+    embedder = factory(model_id, **resolved)
+    with _REGISTRY_LOCK:
+        cached = _INSTANCE_CACHE.get(key)
+        if cached is not None:
+            return cached
         _INSTANCE_CACHE[key] = embedder
         return embedder
 

@@ -1,6 +1,4 @@
 import hashlib
-import json
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -28,7 +26,13 @@ def _scan_pixmap(text: str | None = None):
     return pixmap
 
 
-def make_scanned_pdf(path, *, native_first_page: bool = False, rendered_text: str | None = None):
+def make_scanned_pdf(
+    path,
+    *,
+    native_first_page: bool = False,
+    rendered_text: str | None = None,
+    native_header: str | None = None,
+):
     import fitz
 
     doc = fitz.open()
@@ -41,6 +45,8 @@ def make_scanned_pdf(path, *, native_first_page: bool = False, rendered_text: st
     page = doc.new_page(width=600, height=800)
     pixmap = _scan_pixmap(rendered_text)
     page.insert_image(page.rect, stream=pixmap.tobytes("png"))
+    if native_header:
+        page.insert_text((40, 24), native_header, fontsize=10)
     doc.save(path)
     doc.close()
 
@@ -100,6 +106,48 @@ def test_auto_ocr_processes_only_scanned_pages_and_preserves_regions(tmp_path, m
     assert recognized.page_number == 2
     assert recognized.bbox == (48.0, 72.0, 520.0, 112.0)
     assert any(block.block_type == "image" and block.page_number == 2 for block in blocks)
+
+
+_NATIVE_SCAN_HEADER = "CONFIDENTIAL Bates ABC-2024-001234"
+
+
+def test_page_needs_ocr_when_native_header_sits_on_large_image():
+    layout = {"blocks": [{"type": 1, "bbox": (0.0, 0.0, 600.0, 800.0)}]}
+    assert sum(character.isalnum() for character in _NATIVE_SCAN_HEADER) >= 10
+    assert pdf_parser._page_needs_ocr(_NATIVE_SCAN_HEADER, layout, width=600, height=800)
+    assert not pdf_parser._page_needs_ocr("x" * 250, layout, width=600, height=800)
+    assert not pdf_parser._page_needs_ocr("", {"blocks": []}, width=600, height=800)
+
+
+def test_auto_ocr_processes_scan_with_native_header(tmp_path, monkeypatch):
+    pdf = tmp_path / "header-scan.pdf"
+    make_scanned_pdf(pdf, native_header=_NATIVE_SCAN_HEADER)
+    calls = []
+
+    def fake_ocr(page, *, language, dpi, allow_download=False):
+        calls.append(page.number + 1)
+        return _recognized_content()
+
+    monkeypatch.setattr(pdf_parser, "_ocr_page_content", fake_ocr)
+    diagnostics = {}
+
+    pages, _blocks = pdf_parser.parse_pdf_structured(
+        str(pdf),
+        ocr_mode="auto",
+        diagnostics=diagnostics,
+    )
+
+    assert calls == [1]
+    assert diagnostics["ocr_pages"] == [1]
+    assert pages[0].text == "Recognized scanned stormwater requirements"
+
+
+def test_path_like_ocr_language_is_rejected(tmp_path):
+    pdf = tmp_path / "scan.pdf"
+    make_scanned_pdf(pdf)
+
+    with pytest.raises(ValueError, match="Invalid OCR language"):
+        pdf_parser.parse_pdf_structured(str(pdf), ocr_language="../tessdata/eng")
 
 
 def test_ocr_off_skips_scanned_page(tmp_path, monkeypatch):

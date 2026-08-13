@@ -69,8 +69,9 @@ in `malformed_existing`. Python `convert()` / `batch_convert()` callers should
 pass `parser` (default `pymupdf`), `pipeline_options`, and embedder settings
 (`model` / `embedding_function` / `embedder_options`); legacy kwargs such as
 `chunk_size`, `overlap`, `ocr_mode`, `ocr_language`, `ocr_dpi`, and
-`ocr_download` are compatibility aliases forwarded only when the selected
-pipeline advertises them.
+`ocr_download` are compatibility aliases forwarded only when explicitly
+provided and the selected pipeline advertises them. Omitted aliases mean
+the pipeline's own default.
 
 ### Search result shape (`--json`)
 

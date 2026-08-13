@@ -1,6 +1,7 @@
 import importlib
 import json
 import sqlite3
+import threading
 from importlib.metadata import version
 
 import numpy as np
@@ -12,6 +13,7 @@ from vera_ingest import (
     IngestOptions,
     IngestRequest,
     IngestResult,
+    ParsedBlock,
     ParsedPage,
     PipelineCapabilities,
     PipelineDescriptor,
@@ -30,6 +32,8 @@ from vera_ingest import (
     register_ingest_pipeline_descriptor,
     reset_ingest_pipeline_registry,
 )
+from vera_ingest.chunking import build_chunks_from_blocks
+from vera_ingest.pipeline import parse_ingest_pipeline_spec
 from vera_ingest_pymupdf.options import PyMuPDFOptions
 
 
@@ -43,9 +47,11 @@ def isolated_pipeline_registry():
 def test_builtin_pipeline_is_cached_and_listed():
     first = get_ingest_pipeline("pymupdf")
     second = get_ingest_pipeline("PYMUPDF")
+    third = get_ingest_pipeline("pymupdf:default")
 
-    assert first is second
+    assert first is second is third
     assert "pymupdf" in list_ingest_pipelines()
+    assert parse_ingest_pipeline_spec("pymupdf:default") == ("pymupdf", "")
 
 
 def test_pymupdf_ensure_registered_works_without_entry_points(monkeypatch):
@@ -102,6 +108,59 @@ def test_duplicate_registration_is_rejected():
 
     with pytest.raises(ValueError, match="already registered"):
         register_ingest_pipeline("custom", lambda _variant: object())
+
+
+def test_get_ingest_pipeline_instantiates_outside_registry_lock():
+    started = threading.Event()
+    release = threading.Event()
+
+    class Pipeline:
+        def ingest(self, source_path, options):
+            raise AssertionError("not called")
+
+    def factory(_variant):
+        started.set()
+        assert release.wait(timeout=5), "factory was not released"
+        return Pipeline()
+
+    register_ingest_pipeline("locking", factory)
+
+    worker = threading.Thread(target=lambda: get_ingest_pipeline("locking"))
+    worker.start()
+    assert started.wait(timeout=5), "factory did not start"
+    register_ingest_pipeline("other", lambda _variant: Pipeline())
+    release.set()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert isinstance(get_ingest_pipeline("locking"), Pipeline)
+
+
+def test_describe_ingest_pipeline_instantiates_outside_registry_lock():
+    started = threading.Event()
+    release = threading.Event()
+
+    class Pipeline:
+        def ingest(self, source_path, options):
+            raise AssertionError("not called")
+
+    def descriptor_factory(_variant):
+        started.set()
+        assert release.wait(timeout=5), "descriptor factory was not released"
+        return PipelineDescriptor(
+            provider="locking-desc", variant="", spec="locking-desc", label="locking-desc"
+        )
+
+    register_ingest_pipeline("locking-desc", lambda _variant: Pipeline())
+    register_ingest_pipeline_descriptor("locking-desc", descriptor_factory)
+
+    worker = threading.Thread(target=lambda: describe_ingest_pipeline("locking-desc"))
+    worker.start()
+    assert started.wait(timeout=5), "descriptor factory did not start"
+    register_ingest_pipeline("other-desc", lambda _variant: Pipeline())
+    release.set()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert describe_ingest_pipeline("locking-desc").label == "locking-desc"
 
 
 def test_register_ingest_pipeline_works_as_a_decorator():
@@ -410,9 +469,9 @@ def test_pymupdf_descriptor_and_strict_options():
     assert "spa" in choice_values
     assert "fra" in choice_values
     assert any(choice.label == "Spanish (spa)" for choice in ocr_language.choices)
-    options = PyMuPDFOptions.from_mapping({"chunk_size": 250, "overlap": 10})
+    options = PyMuPDFOptions.from_mapping({"chunk_size": 250, "overlap": 25})
     assert options.chunk_size == 250
-    assert options.overlap == 10
+    assert options.overlap == 25
     assert options.ocr_mode == "auto"
     # Combinations and unknown codes remain valid strings for CLI / custom installs.
     assert PyMuPDFOptions.from_mapping({"ocr_language": "eng+spa"}).ocr_language == "eng+spa"
@@ -789,7 +848,7 @@ def test_convert_does_not_leak_tesseract_ocr_language_to_non_tesseract(tmp_path)
 
     assert capturing.request.pipeline_options.get("ocr_language") != "eng"
     assert "ocr_language" not in capturing.request.pipeline_options
-    assert capturing.request.pipeline_options["ocr_mode"] == "auto"
+    assert "ocr_mode" not in capturing.request.pipeline_options
 
 
 def test_ingest_options_to_request_preserves_explicit_pipeline_options():
@@ -801,6 +860,8 @@ def test_ingest_options_to_request_preserves_explicit_pipeline_options():
     assert request.pipeline_options["chunk_size"] == 777
     assert request.pipeline_options["custom"] is True
     assert request.pipeline_options["overlap"] == 1
+    assert "ocr_language" not in request.pipeline_options
+    assert "ocr_dpi" not in request.pipeline_options
 
 
 def test_descriptor_entry_points_are_discovered_lazily(monkeypatch):
@@ -842,4 +903,141 @@ def test_descriptor_entry_points_are_discovered_lazily(monkeypatch):
     descriptor = describe_ingest_pipeline("hinted")
     assert descriptor.spec == "hinted"
     assert descriptor.label == "hinted"
+
+
+def _readable_ingest_result(parser_name: str = "capture") -> IngestResult:
+    return IngestResult(
+        pages=[ParsedPage(1, 1.0, 1.0, "readable")],
+        blocks=[
+            IngestBlock(
+                block_id="b1",
+                page_number=1,
+                block_type="paragraph",
+                text="readable",
+            )
+        ],
+        chunks=[
+            IngestChunk(
+                chunk_id="c1",
+                text="readable",
+                page_start=1,
+                page_end=1,
+                heading_path="",
+                token_count=1,
+                block_ids=["b1"],
+            )
+        ],
+        parser_name=parser_name,
+        parser_version="1",
+        chunking_strategy="capture",
+    )
+
+
+class _TinyEmbedder:
+    model_name = "isolation-test"
+    dimension = 2
+    normalization = "l2"
+
+    def embed(self, texts):
+        return np.asarray([[1.0, 0.0] for _ in texts], dtype=np.float32)
+
+
+def test_convert_omitted_legacy_kwargs_use_pipeline_default(tmp_path):
+    pdf = tmp_path / "source.pdf"
+    pdf.write_bytes(b"%PDF isolated")
+    captured = {}
+
+    class Capturing:
+        def ingest(self, source_path, options):
+            captured["options"] = options
+            return _readable_ingest_result("wide")
+
+    register_ingest_pipeline("wide", lambda _variant: Capturing())
+    register_ingest_pipeline_descriptor(
+        "wide",
+        lambda _variant: PipelineDescriptor(
+            provider="wide",
+            variant="",
+            spec="wide",
+            label="wide",
+            fields=(
+                PipelineField(
+                    key="chunk_size",
+                    label="Chunk size",
+                    type="integer",
+                    default=2000,
+                ),
+            ),
+        ),
+    )
+
+    convert(
+        str(pdf),
+        str(tmp_path / "out.vera"),
+        parser="wide",
+        embedding_function=_TinyEmbedder(),
+        store_original=False,
+    )
+    assert "chunk_size" not in captured["options"].pipeline_options
+
+    convert(
+        str(pdf),
+        str(tmp_path / "explicit.vera"),
+        parser="wide",
+        embedding_function=_TinyEmbedder(),
+        chunk_size=321,
+        store_original=False,
+    )
+    assert captured["options"].pipeline_options["chunk_size"] == 321
+
+
+def test_overlap_carry_does_not_exceed_chunk_size():
+    first = " ".join(f"a{i}" for i in range(8))
+    second = " ".join(f"b{i}" for i in range(6))
+    blocks = [
+        ("b1", ParsedBlock(1, "paragraph", first)),
+        ("b2", ParsedBlock(1, "paragraph", second)),
+    ]
+    chunk_size = 10
+    chunks = build_chunks_from_blocks(blocks, chunk_size=chunk_size, overlap=5)
+    assert chunks
+    assert all(chunk.token_count <= chunk_size for chunk in chunks)
+    assert max(chunk.token_count for chunk in chunks) == chunk_size
+
+
+def test_entry_point_load_does_not_hold_registry_lock(monkeypatch):
+    pipeline_module = importlib.import_module("vera_ingest.pipeline")
+    started = threading.Event()
+    release = threading.Event()
+
+    class Pipeline:
+        def ingest(self, source_path, options):
+            raise AssertionError("not called")
+
+    class SlowEntry:
+        name = "slow"
+
+        def load(self):
+            started.set()
+            assert release.wait(timeout=5), "entry.load was not released"
+            return lambda variant: Pipeline()
+
+    reset_ingest_pipeline_registry()
+
+    def fake_entry_points(**kwargs):
+        group = kwargs.get("group")
+        if group == "vera.ingest_pipelines":
+            return [SlowEntry()]
+        return []
+
+    monkeypatch.setattr(pipeline_module, "entry_points", fake_entry_points)
+
+    worker = threading.Thread(target=list_ingest_pipelines)
+    worker.start()
+    assert started.wait(timeout=5), "entry.load did not start"
+    register_ingest_pipeline("other-ep", lambda _variant: Pipeline())
+    release.set()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert "slow" in list_ingest_pipelines()
 

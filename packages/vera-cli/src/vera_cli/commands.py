@@ -18,6 +18,7 @@ from vera_ingest.viewer import (
     figures_for,
     get_source_document,
     regions_for,
+    result_payload,
 )
 from vera_ingest_pymupdf import (
     OCRLanguageDownloadError,
@@ -27,8 +28,17 @@ from vera_ingest_pymupdf import (
 )
 
 
+_TRUE_TOKENS = {"1", "true", "yes", "y", "on"}
+_FALSE_TOKENS = {"0", "false", "no", "n", "off", ""}
+
+
 def str_to_bool(value: str) -> bool:
-    return str(value).lower() in {"1", "true", "yes", "y", "on"}
+    lowered = str(value).strip().lower()
+    if lowered in _TRUE_TOKENS:
+        return True
+    if lowered in _FALSE_TOKENS:
+        return False
+    raise ValueError(f"invalid boolean value: {value!r}")
 
 
 def _document_for(target, result) -> VeraDocument:
@@ -37,17 +47,8 @@ def _document_for(target, result) -> VeraDocument:
     return target
 
 
-def _result_payload(result) -> dict:
-    data = result.as_dict()
-    metadata = data.pop("metadata", {})
-    payload = {**metadata, **data}
-    for key in ("before_chunks", "after_chunks"):
-        if key in payload:
-            payload[key] = [
-                {**item.pop("metadata", {}), **item}
-                for item in payload[key]
-            ]
-    return payload
+def _archive_locator(requested: str, document: VeraDocument) -> dict[str, str]:
+    return {"file": requested, "path": str(Path(document.path).resolve())}
 
 
 def _pipeline_options_from_args(args) -> dict[str, object]:
@@ -59,20 +60,24 @@ def _embedder_options_from_args(args) -> dict[str, object]:
 
 
 def _key_value_options_from_args(pairs) -> dict[str, object]:
+    """Coerce KEY=VALUE tokens without ``float()``.
+
+    Dotted tokens such as ``3.10`` or ``ocr_language=1.0`` stay strings.
+    Whole-digit tokens become ints; ``true``/``false``/``yes``/``no``/``on``/
+    ``off`` become bools. ``from_mapping`` then validates each typed field
+    (so ``ocr_download=1`` is int ``1``, accepted by ``require_bool``).
+    """
     options: dict[str, object] = {}
     for key, raw in pairs:
         text = str(raw).strip()
         lowered = text.lower()
-        if lowered in {"true", "false"}:
-            options[key] = lowered == "true"
-            continue
-        try:
-            if "." in text:
-                options[key] = float(text)
-            else:
-                options[key] = int(text)
-            continue
-        except ValueError:
+        if lowered in {"true", "yes", "y", "on"}:
+            options[key] = True
+        elif lowered in {"false", "no", "n", "off"}:
+            options[key] = False
+        elif text.isdigit() or (text.startswith("-") and text[1:].isdigit()):
+            options[key] = int(text)
+        else:
             options[key] = text
     return options
 
@@ -84,11 +89,14 @@ def cmd_convert(args) -> int:
     try:
         if input_path.is_dir():
             if args.output:
-                print(
+                message = (
                     "Directory conversion creates each .vera beside its PDF; "
-                    "do not provide an output path.",
-                    file=sys.stderr,
+                    "do not provide an output path."
                 )
+                if args.json:
+                    print(json.dumps({"ok": False, "error": message}))
+                else:
+                    print(message, file=sys.stderr)
                 return 2
             report = batch_convert(
                 args.input,
@@ -98,7 +106,7 @@ def cmd_convert(args) -> int:
                 parser=args.parser,
                 chunk_size=args.chunk_size,
                 overlap=args.overlap,
-                store_original=str_to_bool(args.store_original),
+                store_original=args.store_original,
                 ocr_mode=args.ocr_mode,
                 ocr_language=args.ocr_language,
                 ocr_dpi=args.ocr_dpi,
@@ -130,7 +138,7 @@ def cmd_convert(args) -> int:
             parser=args.parser,
             chunk_size=args.chunk_size,
             overlap=args.overlap,
-            store_original=str_to_bool(args.store_original),
+            store_original=args.store_original,
             ocr_mode=args.ocr_mode,
             ocr_language=args.ocr_language,
             ocr_dpi=args.ocr_dpi,
@@ -156,7 +164,7 @@ def cmd_inspect(args) -> int:
     try:
         info = doc.inspect()
         if args.json:
-            print(json.dumps({"file": args.file, **info}))
+            print(json.dumps({**info, **_archive_locator(args.file, doc)}))
             return 0
         print(f"File: {args.file}")
         print(f"Format: {info.get('format_name', 'VERA')} v{info.get('format_version')}")
@@ -196,7 +204,7 @@ def cmd_search(args) -> int:
         if args.json:
             payload = []
             for result in results:
-                entry = _result_payload(result)
+                entry = result_payload(result)
                 document = _document_for(target, result)
                 if args.figures:
                     entry["figures"] = figures_for(document, result)
@@ -300,7 +308,7 @@ def cmd_validate(args) -> int:
     finally:
         doc.close()
     if args.json:
-        print(json.dumps({"file": args.file, **report}))
+        print(json.dumps({**report, **_archive_locator(args.file, doc)}))
         return 0 if report["ok"] else 1
     print(f"VERA validation: {'PASS' if report['ok'] else 'FAIL'}")
     print(f"File: {args.file}")

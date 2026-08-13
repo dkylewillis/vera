@@ -9,15 +9,17 @@ import os
 import shutil
 import sqlite3
 import uuid
+from collections.abc import Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, Iterator, TypeVar
 
 import numpy as np
 
 from .core.embeddings import deserialize_vector, get_embedder
-from .document import VeraDocument
+from .document import VeraDocument, execute_fts, safe_fts_query, _MAX_TOP_K
 from .models import metadata_from_json, thaw_json
 
 INDEX_DIRECTORY = ".vera-index"
@@ -25,7 +27,22 @@ INDEX_DATABASE = "index.sqlite3"
 INDEX_POINTER = "current.json"
 INDEX_GENERATIONS = "generations"
 INDEX_VERSION = 1
+INDEX_LOCK = "build.lock"
 _RRF_K = 60.0
+T = TypeVar("T")
+
+
+def reciprocal_rank_fusion(
+    ranked_lists: Sequence[Sequence[T]],
+    *,
+    k: float = _RRF_K,
+) -> list[tuple[T, float]]:
+    """Fuse ranked lists with reciprocal rank fusion and a stable id tie-break."""
+    fused: dict[T, float] = {}
+    for ranked in ranked_lists:
+        for rank, item in enumerate(ranked, start=1):
+            fused[item] = fused.get(item, 0.0) + 1.0 / (k + rank)
+    return sorted(fused.items(), key=lambda item: (-item[1], item[0]))
 
 
 @dataclass(frozen=True)
@@ -77,6 +94,61 @@ def _path_size(path: Path) -> int:
 
 def _relative(path: Path, root: Path) -> str:
     return path.relative_to(root).as_posix()
+
+
+def _exclusive_lock(handle: Any) -> None:
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            handle.seek(0)
+            handle.write(b"\0")
+            handle.flush()
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    except OSError:
+        return
+
+
+def _exclusive_unlock(handle: Any) -> None:
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        return
+
+
+@contextmanager
+def _index_build_lock(target: Path) -> Iterator[None]:
+    target.mkdir(parents=True, exist_ok=True)
+    lock_path = target / INDEX_LOCK
+    handle = open(lock_path, "a+b")
+    try:
+        _exclusive_lock(handle)
+        yield
+    finally:
+        _exclusive_unlock(handle)
+        handle.close()
+
+
+def _gc_index_generations(target: Path, current: str) -> None:
+    generations = target / INDEX_GENERATIONS
+    if not generations.is_dir():
+        return
+    for child in generations.iterdir():
+        if not child.is_dir() or child.name == current:
+            continue
+        shutil.rmtree(child, ignore_errors=True)
 
 
 def _excluded(relative_path: str, excludes: tuple[str, ...]) -> bool:
@@ -562,19 +634,21 @@ def build_library_index(
     generation_path = target / INDEX_GENERATIONS / generation_name
     pointer_temporary = target / f"{INDEX_POINTER}.tmp-{uuid.uuid4().hex}"
     try:
-        (target / INDEX_GENERATIONS).mkdir(parents=True, exist_ok=True)
-        temporary.rename(generation_path)
-        pointer_temporary.write_text(
-            json.dumps(
-                {
-                    "generation": generation_name,
-                    "index_version": INDEX_VERSION,
-                    "created_at": metadata["created_at"],
-                }
-            ),
-            encoding="utf-8",
-        )
-        os.replace(pointer_temporary, target / INDEX_POINTER)
+        with _index_build_lock(target):
+            (target / INDEX_GENERATIONS).mkdir(parents=True, exist_ok=True)
+            temporary.rename(generation_path)
+            pointer_temporary.write_text(
+                json.dumps(
+                    {
+                        "generation": generation_name,
+                        "index_version": INDEX_VERSION,
+                        "created_at": metadata["created_at"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            os.replace(pointer_temporary, target / INDEX_POINTER)
+            _gc_index_generations(target, generation_name)
     except Exception:
         pointer_temporary.unlink(missing_ok=True)
         shutil.rmtree(temporary, ignore_errors=True)
@@ -797,15 +871,6 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
     }
 
 
-def _safe_fts_query(raw: str) -> str:
-    terms = []
-    for token in raw.split():
-        cleaned = "".join(ch for ch in token if ch.isalnum() or ch == "_")
-        if cleaned:
-            terms.append(f"{cleaned}*")
-    return " OR ".join(terms)
-
-
 class VeraCollectionIndex:
     """Opened local collection index used by VeraCorpus when it is fresh."""
 
@@ -969,12 +1034,10 @@ class VeraCollectionIndex:
             return []
         if len(per_group) == 1:
             return per_group[0][:limit]
-        fused = [
-            (row_id, 1.0 / (_RRF_K + rank))
-            for group_hits in per_group
-            for rank, (row_id, _) in enumerate(group_hits, start=1)
-        ]
-        return sorted(fused, key=lambda item: item[1], reverse=True)[:limit]
+        fused = reciprocal_rank_fusion(
+            [[row_id for row_id, _ in group_hits] for group_hits in per_group]
+        )
+        return fused[:limit]
 
     def _keyword_hits(self, query: str, limit: int) -> list[tuple[int, float]]:
         sql = """
@@ -982,18 +1045,12 @@ class VeraCollectionIndex:
             FROM chunks_fts WHERE chunks_fts MATCH ?
             ORDER BY rank LIMIT ?
         """
-        try:
-            rows = self.conn.execute(sql, (query, limit)).fetchall()
-        except sqlite3.OperationalError:
-            rows = []
+        rows = execute_fts(self.conn, sql, query, limit)
         if not rows:
-            fallback = _safe_fts_query(query)
+            fallback = safe_fts_query(query)
             if not fallback:
                 return []
-            try:
-                rows = self.conn.execute(sql, (fallback, limit)).fetchall()
-            except sqlite3.OperationalError:
-                return []
+            rows = execute_fts(self.conn, sql, fallback, limit)
         hits = []
         for row in rows:
             rank = float(row["rank"])
@@ -1001,39 +1058,63 @@ class VeraCollectionIndex:
             hits.append((int(row["row_id"]), score))
         return hits
 
-    def search(self, query: str, mode: str = "hybrid", top_k: int = 10) -> list[IndexHit]:
-        mode = mode.lower()
-        if mode not in {"semantic", "keyword", "hybrid"}:
-            raise ValueError("mode must be semantic, keyword, or hybrid")
-        self.skipped_semantic_model_groups = []
-        if top_k <= 0:
-            return []
-        candidate_limit = max(top_k * 5, 50)
-        if mode == "semantic":
-            ranked = self._semantic_hits(query, top_k)
-        elif mode == "keyword":
-            ranked = self._keyword_hits(query, top_k)
-        else:
-            semantic = self._semantic_hits(query, candidate_limit)
-            keyword = self._keyword_hits(query, candidate_limit)
-            fused: dict[int, float] = {}
-            for candidates in (semantic, keyword):
-                for rank, (row_id, _) in enumerate(candidates, start=1):
-                    fused[row_id] = fused.get(row_id, 0.0) + 1.0 / (_RRF_K + rank)
-            ranked = sorted(fused.items(), key=lambda item: item[1], reverse=True)[:top_k]
-        if not ranked:
-            return []
-        row_ids = [row_id for row_id, _ in ranked]
-        placeholders = ",".join("?" for _ in row_ids)
+    def _rows_by_id(self, row_ids: list[int]) -> dict[int, sqlite3.Row]:
+        unique = list(dict.fromkeys(row_ids))
+        if not unique:
+            return {}
+        placeholders = ",".join("?" for _ in unique)
         rows = self.conn.execute(
             f"""
             SELECT c.row_id, c.chunk_id, f.relative_path
             FROM chunks c JOIN files f ON f.file_id = c.file_id
             WHERE c.row_id IN ({placeholders})
             """,
-            row_ids,
+            unique,
         ).fetchall()
-        references = {int(row["row_id"]): row for row in rows}
+        return {int(row["row_id"]): row for row in rows}
+
+    def search(self, query: str, mode: str = "hybrid", top_k: int = 10) -> list[IndexHit]:
+        mode = mode.lower()
+        if mode not in {"semantic", "keyword", "hybrid"}:
+            raise ValueError("mode must be semantic, keyword, or hybrid")
+        self.skipped_semantic_model_groups = []
+        if top_k < 0:
+            raise ValueError("top_k must be non-negative")
+        if top_k > _MAX_TOP_K:
+            raise ValueError(f"top_k must be at most {_MAX_TOP_K}")
+        if top_k == 0:
+            return []
+        candidate_limit = max(top_k * 5, 50)
+        if mode == "hybrid":
+            semantic = self._semantic_hits(query, candidate_limit)
+            keyword = self._keyword_hits(query, candidate_limit)
+            references = self._rows_by_id(
+                [row_id for row_id, _ in semantic] + [row_id for row_id, _ in keyword]
+            )
+
+            def hit_keys(hits: list[tuple[int, float]]) -> list[tuple[str, str]]:
+                return [
+                    (
+                        str(references[row_id]["relative_path"]),
+                        str(references[row_id]["chunk_id"]),
+                    )
+                    for row_id, _ in hits
+                    if row_id in references
+                ]
+
+            return [
+                IndexHit(relative_path=key[0], chunk_id=key[1], score=score)
+                for key, score in reciprocal_rank_fusion(
+                    [hit_keys(semantic), hit_keys(keyword)]
+                )[:top_k]
+            ]
+        if mode == "semantic":
+            ranked = self._semantic_hits(query, top_k)
+        else:
+            ranked = self._keyword_hits(query, top_k)
+        if not ranked:
+            return []
+        references = self._rows_by_id([row_id for row_id, _ in ranked])
         return [
             IndexHit(
                 relative_path=references[row_id]["relative_path"],

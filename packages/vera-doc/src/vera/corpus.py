@@ -9,8 +9,13 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable
 
-from .collection import VeraCollectionIndex, discover_vera_files, library_index_status
-from .document import VeraDocument
+from .collection import (
+    VeraCollectionIndex,
+    discover_vera_files,
+    library_index_status,
+    reciprocal_rank_fusion,
+)
+from .document import VeraDocument, _MAX_TOP_K
 from .models import QueryResult
 
 _RRF_K = 60.0
@@ -49,10 +54,12 @@ class VeraCorpus:
     so a corpus may mix models.
 
     Ranking: semantic results are merged by raw cosine score (comparable
-    across files that share a model). Keyword and hybrid scores are only
-    normalized within a file. Keyword and hybrid candidates use their
-    within-file score with reciprocal rank as a tiebreaker; each result keeps
-    its original score.
+    across files that share a model). Mixed-model semantic lists and hybrid
+    semantic+keyword lists use :func:`~vera.collection.reciprocal_rank_fusion`
+    so a library searched with or without a local index returns the same
+    chunk order for a fixed hybrid query. Keyword-only scores are only
+    comparable within a file; those candidates keep their original score
+    with reciprocal rank as a tiebreaker.
     """
 
     def __init__(
@@ -369,6 +376,8 @@ class VeraCorpus:
             raise ValueError("mode must be semantic, keyword, or hybrid")
         if top_k < 0:
             raise ValueError("top_k must be non-negative")
+        if top_k > _MAX_TOP_K:
+            raise ValueError(f"top_k must be at most {_MAX_TOP_K}")
         if context_chunks < 0:
             raise ValueError("context_chunks must be non-negative")
         if top_k == 0:
@@ -380,6 +389,12 @@ class VeraCorpus:
             self.skipped_semantic_model_groups = list(
                 self._collection_index.skipped_semantic_model_groups
             )
+        elif mode == "hybrid":
+            candidate_limit = max(top_k * 5, 50)
+            semantic_files, keyword_files, models = self._search_files_hybrid(
+                text, candidate_limit
+            )
+            final = self._fuse_hybrid(semantic_files, keyword_files, models, top_k)
         else:
             per_file, models = self._search_files(text, mode, top_k)
             if mode == "semantic":
@@ -460,6 +475,49 @@ class VeraCorpus:
             {path: model for path, _, model, error in searched if not error},
         )
 
+    def _search_files_hybrid(
+        self,
+        query: str,
+        top_k: int,
+    ) -> tuple[dict[str, list[QueryResult]], dict[str, list[QueryResult]], dict[str, str]]:
+        """Search each file once for semantic and keyword hits."""
+
+        def search_path(
+            path: str,
+        ) -> tuple[str, list[QueryResult], list[QueryResult], str, str | None]:
+            try:
+                doc = VeraDocument.open(path)
+                validation = doc.validate()
+                if not validation["ok"]:
+                    return path, [], [], "", "; ".join(validation["issues"])
+                model = str(doc.inspect().get("embedding_model") or "")
+                semantic = doc.search(text=query, mode="semantic", top_k=top_k)
+                keyword = doc.search(text=query, mode="keyword", top_k=top_k)
+                return path, semantic, keyword, model, None
+            except Exception as exc:
+                return path, [], [], "", str(exc)
+            finally:
+                if "doc" in locals():
+                    doc.close()
+
+        paths = [path for path in self.paths if not self._is_invalid(path)]
+        if not paths:
+            searched: list[tuple[str, list[QueryResult], list[QueryResult], str, str | None]] = []
+        elif len(paths) == 1:
+            searched = [search_path(paths[0])]
+        else:
+            workers = min(8, len(paths))
+            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="vera-corpus") as executor:
+                searched = list(executor.map(search_path, paths))
+        for path, _, _, _, error in searched:
+            if error:
+                self._record_invalid(path, error)
+        return (
+            {path: semantic for path, semantic, _, _, error in searched if not error},
+            {path: keyword for path, _, keyword, _, error in searched if not error},
+            {path: model for path, _, _, model, error in searched if not error},
+        )
+
     @staticmethod
     def _fuse_semantic(
         per_file: dict[str, list[QueryResult]],
@@ -470,17 +528,88 @@ class VeraCorpus:
         for path, results in per_file.items():
             model_groups.setdefault(models.get(path, ""), []).extend((path, result) for result in results)
         for results in model_groups.values():
-            results.sort(key=lambda item: item[1].score, reverse=True)
+            results.sort(
+                key=lambda item: (-item[1].score, item[0], item[1].chunk_id)
+            )
         if len(model_groups) == 1:
             merged = next(iter(model_groups.values()))
             return [_with_file(result, path) for path, result in merged[:top_k]]
-        fused = [
-            (1.0 / (_RRF_K + rank), result.score, path, result)
+        lookup = {
+            (path, result.chunk_id): (path, result)
             for results in model_groups.values()
-            for rank, (path, result) in enumerate(results, start=1)
+            for path, result in results
+        }
+        fused = reciprocal_rank_fusion(
+            [
+                [(path, result.chunk_id) for path, result in results]
+                for results in model_groups.values()
+            ]
+        )
+        return [
+            _with_file(lookup[key][1], lookup[key][0])
+            for key, _ in fused[:top_k]
+            if key in lookup
         ]
-        fused.sort(key=lambda item: (item[0], item[1]), reverse=True)
-        return [_with_file(result, path) for _, _, path, result in fused[:top_k]]
+
+    def _relative_corpus_path(self, path: str) -> str:
+        return Path(path).resolve().relative_to(Path(self.directory).resolve()).as_posix()
+
+    def _fuse_hybrid(
+        self,
+        semantic_files: dict[str, list[QueryResult]],
+        keyword_files: dict[str, list[QueryResult]],
+        models: dict[str, str],
+        top_k: int,
+    ) -> list[CorpusSearchResult]:
+        semantic_limit = max(sum(len(results) for results in semantic_files.values()), 1)
+        semantic_ranked = [
+            (self._relative_corpus_path(result.file), result.chunk_id)
+            for result in self._fuse_semantic(semantic_files, models, semantic_limit)
+        ]
+        keyword_items = [
+            (result.score, self._relative_corpus_path(path), result.chunk_id)
+            for path, results in keyword_files.items()
+            for result in results
+        ]
+        keyword_items.sort(key=lambda item: (-item[0], item[1], item[2]))
+        keyword_ranked = [(relative, chunk_id) for _, relative, chunk_id in keyword_items]
+        fused = reciprocal_rank_fusion([semantic_ranked, keyword_ranked])[:top_k]
+        lookup: dict[tuple[str, str], tuple[str, QueryResult]] = {}
+        semantic_lookup: dict[tuple[str, str], QueryResult] = {}
+        keyword_lookup: dict[tuple[str, str], QueryResult] = {}
+        for path, results in semantic_files.items():
+            relative = self._relative_corpus_path(path)
+            for result in results:
+                key = (relative, result.chunk_id)
+                semantic_lookup[key] = result
+                lookup[key] = (path, result)
+        for path, results in keyword_files.items():
+            relative = self._relative_corpus_path(path)
+            for result in results:
+                key = (relative, result.chunk_id)
+                keyword_lookup[key] = result
+                lookup.setdefault(key, (path, result))
+        return [
+            _with_file(
+                QueryResult(
+                    record=lookup[key][1].record,
+                    score=score,
+                    semantic_score=(
+                        semantic_lookup[key].semantic_score
+                        if key in semantic_lookup
+                        else None
+                    ),
+                    keyword_score=(
+                        keyword_lookup[key].keyword_score
+                        if key in keyword_lookup
+                        else None
+                    ),
+                ),
+                lookup[key][0],
+            )
+            for key, score in fused
+            if key in lookup
+        ]
 
     def _search_index(self, query: str, mode: str, top_k: int) -> list[CorpusSearchResult]:
         assert self._collection_index is not None

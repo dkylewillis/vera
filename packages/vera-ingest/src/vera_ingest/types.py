@@ -97,13 +97,17 @@ class IngestOptions:
     pipeline_options: dict[str, Any] = field(default_factory=dict)
 
     def to_request(self) -> IngestRequest:
-        """Convert compatibility fields into a thin :class:`IngestRequest`."""
+        """Convert compatibility fields into a thin :class:`IngestRequest`.
+
+        Tesseract-shaped aliases (``ocr_language``, ``ocr_dpi``) are not
+        stuffed into ``pipeline_options``; put them on ``pipeline_options``
+        (or use :func:`~vera_ingest.pipeline.prepare_pipeline_options`) so
+        non-Tesseract pipelines keep their own language/DPI defaults.
+        """
         merged = {
             "chunk_size": self.chunk_size,
             "overlap": self.overlap,
             "ocr_mode": self.ocr_mode,
-            "ocr_language": self.ocr_language,
-            "ocr_dpi": self.ocr_dpi,
         }
         merged.update(self.pipeline_options)
         return IngestRequest(

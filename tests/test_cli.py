@@ -1,10 +1,12 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 import vera_cli.commands as cli_commands
 from test_convert_search import make_pdf
+from vera_cli import str_to_bool
 from vera_cli.main import build_parser
 
 
@@ -59,10 +61,17 @@ def test_cli_json_output_for_agents(tmp_path):
     info = run("inspect", str(out), "--json")
     assert info["format_version"] == "0.2"
     assert info["pages"] == 2
+    assert info["file"] == str(out)
+    assert Path(info["path"]).resolve() == out.resolve()
 
     report = run("validate", str(out), "--json")
     assert report["ok"] is True
     assert report["counts"]["chunks"] >= 2
+    assert report["file"] == str(out)
+    assert Path(report["path"]).resolve() == out.resolve()
+    assert set(report["counts"]) >= {"chunks", "embeddings", "fts_rows", "attachments"}
+    assert "documents" not in report["counts"]
+    assert "assets" not in report["counts"]
 
     payload = run("search", str(out), "restaurant parking", "--mode", "hybrid", "--top-k", "2", "--json", "--figures")
     assert payload["query"] == "restaurant parking"
@@ -345,3 +354,146 @@ def test_cli_rejects_non_positive_ocr_dpi():
         assert exc.code == 2
     else:
         raise AssertionError("non-positive OCR DPI should be rejected")
+
+
+def test_cli_pipeline_option_strings_are_not_float_coerced(tmp_path, monkeypatch):
+    pdf = tmp_path / "scan.pdf"
+    output = tmp_path / "scan.vera"
+    pdf.write_bytes(b"%PDF-test-placeholder")
+    captured = {}
+
+    def fake_convert(input_path, output_path, **kwargs):
+        captured.update(kwargs)
+        return output_path
+
+    monkeypatch.setattr(cli_commands, "convert", fake_convert)
+    args = build_parser().parse_args(
+        [
+            "convert",
+            str(pdf),
+            str(output),
+            "--pipeline-option",
+            "ocr_language=1.0",
+            "--pipeline-option",
+            "ocr_download=1",
+            "--pipeline-option",
+            "version=3.10",
+            "--pipeline-option",
+            "chunk_size=900",
+        ]
+    )
+
+    assert args.func(args) == 0
+    options = captured["pipeline_options"]
+    assert options["ocr_language"] == "1.0"
+    assert options["ocr_download"] == 1
+    assert options["version"] == "3.10"
+    assert options["chunk_size"] == 900
+
+    from vera_ingest_pymupdf.options import PyMuPDFOptions
+
+    parsed = PyMuPDFOptions.from_mapping(
+        {
+            "ocr_language": options["ocr_language"],
+            "ocr_download": options["ocr_download"],
+            "chunk_size": options["chunk_size"],
+        }
+    )
+    assert parsed.ocr_language == "1.0"
+    assert parsed.ocr_download is True
+    assert parsed.chunk_size == 900
+
+
+def test_cli_directory_convert_with_output_emits_json(tmp_path, capsys):
+    args = build_parser().parse_args(
+        ["convert", str(tmp_path), str(tmp_path / "out.vera"), "--json"]
+    )
+    assert args.func(args) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert "output path" in payload["error"]
+
+
+def test_cli_index_exclude_defaults_to_none():
+    args = build_parser().parse_args(["index", "build", "library"])
+    assert args.exclude is None
+
+
+def test_str_to_bool_rejects_unknown_tokens():
+    with pytest.raises(ValueError, match="invalid boolean"):
+        str_to_bool("maybe")
+    assert str_to_bool("false") is False
+    assert str_to_bool("1") is True
+
+
+def test_cli_rejects_unknown_store_original():
+    parser = build_parser()
+    try:
+        parser.parse_args(["convert", "scan.pdf", "--store-original", "maybe"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("unknown store-original token should be rejected")
+
+
+def test_cli_export_missing_source_matches_skill_error(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    converted = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "convert",
+            str(pdf),
+            str(out),
+            "--model",
+            "hashing",
+            "--store-original",
+            "false",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+    )
+    if converted.returncode != 0:
+        raise AssertionError(converted.stderr)
+    assert json.loads(converted.stdout)["ok"] is True
+
+    exported = subprocess.run(
+        [sys.executable, "-m", "vera_cli", "export", str(out), "--json"],
+        text=True,
+        capture_output=True,
+    )
+    payload = json.loads(exported.stdout)
+    assert exported.returncode == 1
+    assert payload == {
+        "ok": False,
+        "error": "Original source document is not stored in this archive",
+    }
+
+
+def test_export_rejects_unsafe_stored_filenames(tmp_path, monkeypatch):
+    from vera import AttachmentRecord
+    from vera_ingest import viewer as viewer_mod
+
+    source = AttachmentRecord(
+        id="src",
+        data=b"%PDF-fake",
+        media_type="application/pdf",
+        filename="../evil.pdf",
+    )
+    monkeypatch.setattr(viewer_mod, "get_source_document", lambda document: source)
+    with pytest.raises(ValueError, match="safe relative name"):
+        viewer_mod.export_source_document(object(), str(tmp_path))
+
+    source = AttachmentRecord(
+        id="src",
+        data=b"%PDF-fake",
+        media_type="application/pdf",
+        filename=str(tmp_path / "outside.pdf"),
+    )
+    monkeypatch.setattr(viewer_mod, "get_source_document", lambda document: source)
+    with pytest.raises(ValueError, match="safe relative name"):
+        viewer_mod.export_source_document(object(), str(tmp_path))

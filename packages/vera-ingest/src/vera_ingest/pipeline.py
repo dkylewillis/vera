@@ -17,6 +17,7 @@ _REGISTRY_LOCK = threading.RLock()
 _PIPELINE_FACTORIES: dict[str, Callable[[str], "IngestPipeline"]] = {}
 _DESCRIPTOR_FACTORIES: dict[str, Callable[[str], PipelineDescriptor]] = {}
 _PIPELINE_CACHE: dict[tuple[str, str], "IngestPipeline"] = {}
+_DESCRIPTOR_CACHE: dict[tuple[str, str], PipelineDescriptor] = {}
 _ENTRY_POINTS_LOADED = False
 _DEFAULT_VARIANTS = {"docling": "hybrid"}
 
@@ -63,7 +64,12 @@ def _normalize_provider(provider: str) -> str:
 
 
 def parse_ingest_pipeline_spec(spec: str | None) -> tuple[str, str]:
-    """Resolve ``provider[:variant]`` into normalized components."""
+    """Resolve ``provider[:variant]`` into normalized components.
+
+    An omitted or ``default`` variant uses the provider's registered default
+    (``hybrid`` for Docling, empty for PyMuPDF), so ``pymupdf`` and
+    ``pymupdf:default`` share a cache key.
+    """
     normalized = (spec or "pymupdf").strip().lower()
     if not normalized:
         normalized = "pymupdf"
@@ -74,7 +80,7 @@ def parse_ingest_pipeline_spec(spec: str | None) -> tuple[str, str]:
         raise UnknownIngestPipelineError(
             f"Invalid ingest pipeline spec {spec!r}; expected 'provider[:variant]'."
         )
-    if not separator:
+    if not separator or variant == "default":
         variant = _DEFAULT_VARIANTS.get(provider, "")
     return provider, variant
 
@@ -124,6 +130,9 @@ def register_ingest_pipeline(
         for cache_key in tuple(_PIPELINE_CACHE):
             if cache_key[0] == key:
                 _PIPELINE_CACHE.pop(cache_key, None)
+        for cache_key in tuple(_DESCRIPTOR_CACHE):
+            if cache_key[0] == key:
+                _DESCRIPTOR_CACHE.pop(cache_key, None)
     return None
 
 
@@ -156,6 +165,9 @@ def register_ingest_pipeline_descriptor(
                 f"ingest pipeline descriptor for {provider!r} is already registered"
             )
         _DESCRIPTOR_FACTORIES[key] = factory
+        for cache_key in tuple(_DESCRIPTOR_CACHE):
+            if cache_key[0] == key:
+                _DESCRIPTOR_CACHE.pop(cache_key, None)
     return None
 
 
@@ -185,27 +197,36 @@ def _unknown_pipeline_message(spec: str, available: str) -> str:
     )
 
 
+def _collect_entry_point_factories(group: str, *, kind: str) -> list[tuple[str, Any]]:
+    loaded: list[tuple[str, Any]] = []
+    for entry in _load_entry_point_group(group):
+        provider = entry.name.strip().lower()
+        if not provider:
+            continue
+        factory = _safe_load_entry_point(entry, provider, kind=kind)
+        if callable(factory):
+            loaded.append((provider, factory))
+    return loaded
+
+
 def _ensure_entry_points_loaded() -> None:
     global _ENTRY_POINTS_LOADED
     with _REGISTRY_LOCK:
         if _ENTRY_POINTS_LOADED:
             return
-        for entry in _load_entry_point_group(_ENTRY_POINT_GROUP):
-            provider = entry.name.strip().lower()
-            if not provider or provider in _PIPELINE_FACTORIES:
-                continue
-            factory = _safe_load_entry_point(entry, provider, kind="ingest pipeline")
-            if callable(factory):
-                _PIPELINE_FACTORIES[provider] = factory
-        for entry in _load_entry_point_group(_DESCRIPTOR_ENTRY_POINT_GROUP):
-            provider = entry.name.strip().lower()
-            if not provider or provider in _DESCRIPTOR_FACTORIES:
-                continue
-            factory = _safe_load_entry_point(
-                entry, provider, kind="ingest pipeline descriptor"
-            )
-            if callable(factory):
-                _DESCRIPTOR_FACTORIES[provider] = factory
+    pipeline_factories = _collect_entry_point_factories(
+        _ENTRY_POINT_GROUP, kind="ingest pipeline"
+    )
+    descriptor_factories = _collect_entry_point_factories(
+        _DESCRIPTOR_ENTRY_POINT_GROUP, kind="ingest pipeline descriptor"
+    )
+    with _REGISTRY_LOCK:
+        if _ENTRY_POINTS_LOADED:
+            return
+        for provider, factory in pipeline_factories:
+            _PIPELINE_FACTORIES.setdefault(provider, factory)
+        for provider, factory in descriptor_factories:
+            _DESCRIPTOR_FACTORIES.setdefault(provider, factory)
         _ENTRY_POINTS_LOADED = True
 
 
@@ -226,12 +247,16 @@ def get_ingest_pipeline(spec: str = "pymupdf") -> IngestPipeline:
         if factory is None:
             available = ", ".join(sorted(_PIPELINE_FACTORIES)) or "(none)"
             raise UnknownIngestPipelineError(_unknown_pipeline_message(spec, available))
-        pipeline = factory(variant)
-        if not (callable(pipeline) or callable(getattr(pipeline, "ingest", None))):
-            raise TypeError(
-                f"Ingest pipeline provider {provider!r} returned an object that is "
-                "neither callable nor has an ingest() method."
-            )
+    pipeline = factory(variant)
+    if not (callable(pipeline) or callable(getattr(pipeline, "ingest", None))):
+        raise TypeError(
+            f"Ingest pipeline provider {provider!r} returned an object that is "
+            "neither callable nor has an ingest() method."
+        )
+    with _REGISTRY_LOCK:
+        cached = _PIPELINE_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
         _PIPELINE_CACHE[cache_key] = pipeline
         return pipeline
 
@@ -240,18 +265,28 @@ def describe_ingest_pipeline(spec: str = "pymupdf") -> PipelineDescriptor:
     """Return metadata for an installed pipeline without instantiating it."""
     provider, variant = parse_ingest_pipeline_spec(spec)
     _ensure_entry_points_loaded()
+    cache_key = (provider, variant)
     with _REGISTRY_LOCK:
+        cached = _DESCRIPTOR_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
         if provider not in _PIPELINE_FACTORIES:
             available = ", ".join(sorted(_PIPELINE_FACTORIES)) or "(none)"
             raise UnknownIngestPipelineError(_unknown_pipeline_message(spec, available))
         factory = _DESCRIPTOR_FACTORIES.get(provider)
-        if factory is None:
-            return generic_pipeline_descriptor(provider, variant)
+    if factory is None:
+        descriptor = generic_pipeline_descriptor(provider, variant)
+    else:
         descriptor = factory(variant)
         if not isinstance(descriptor, PipelineDescriptor):
             raise TypeError(
                 f"Ingest pipeline descriptor for {provider!r} must return PipelineDescriptor."
             )
+    with _REGISTRY_LOCK:
+        cached = _DESCRIPTOR_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+        _DESCRIPTOR_CACHE[cache_key] = descriptor
         return descriptor
 
 
@@ -274,9 +309,10 @@ def list_ingest_pipeline_descriptors() -> list[PipelineDescriptor]:
 
 
 def clear_ingest_pipeline_cache() -> None:
-    """Drop resolved pipeline instances."""
+    """Drop resolved pipeline instances and cached descriptors."""
     with _REGISTRY_LOCK:
         _PIPELINE_CACHE.clear()
+        _DESCRIPTOR_CACHE.clear()
 
 
 def reset_ingest_pipeline_registry(*, builtins: bool = True) -> None:
@@ -291,6 +327,7 @@ def reset_ingest_pipeline_registry(*, builtins: bool = True) -> None:
         _PIPELINE_FACTORIES.clear()
         _DESCRIPTOR_FACTORIES.clear()
         _PIPELINE_CACHE.clear()
+        _DESCRIPTOR_CACHE.clear()
         _ENTRY_POINTS_LOADED = False
 
 

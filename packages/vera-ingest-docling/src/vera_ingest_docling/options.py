@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from vera_ingest.descriptors import (
     PipelineCapabilities,
@@ -22,9 +23,9 @@ class DoclingOptions(PipelineOptions):
     validation (inherited from :class:`~vera_ingest.pipeline_options.PipelineOptions`),
     so a setting's key, default, presentation, and validation all live in one
     place. ``ocr_language`` expects a RapidOCR-native code (for example
-    ``en``) — Docling does not translate Tesseract-style codes such as
-    ``eng``, so this pipeline's OCR language is a genuinely different setting
-    from PyMuPDF's, not a shared vocabulary.
+    ``en``). The Tesseract default ``eng`` (and ``eng+…``) is remapped to
+    RapidOCR ``en`` so a legacy :class:`~vera_ingest.types.IngestOptions`
+    call does not leak a Tesseract code; other codes pass through as given.
     """
 
     # `overlap`/`ocr_dpi` are PyMuPDF-only legacy convert()/CLI aliases that
@@ -60,8 +61,8 @@ class DoclingOptions(PipelineOptions):
             "label": "OCR language",
             "description": (
                 "RapidOCR-native language code (for example en, fr, cyrillic). "
-                "Combine multiple with + or , (for example en+fr). Not "
-                "Tesseract-compatible: PyMuPDF's 'eng' is not a valid value here."
+                "Combine multiple with + or , (for example en+fr). The Tesseract "
+                "default 'eng' is remapped to 'en'."
             ),
             "placeholder": "en",
         },
@@ -82,6 +83,28 @@ class DoclingOptions(PipelineOptions):
             ),
         },
     )
+
+    @classmethod
+    def from_mapping(cls, raw: Mapping[str, Any] | None = None) -> DoclingOptions:
+        data = dict(raw) if raw else {}
+        if "ocr_language" in data:
+            data["ocr_language"] = _remap_tesseract_default_ocr_language(
+                data["ocr_language"]
+            )
+        return super().from_mapping(data)
+
+
+def _remap_tesseract_default_ocr_language(value: Any) -> Any:
+    """Map Tesseract default ``eng`` tokens to RapidOCR ``en``."""
+    if not isinstance(value, str):
+        return value
+    parts = [part.strip() for part in value.replace("+", ",").split(",")]
+    remapped: list[str] = []
+    for part in parts:
+        if not part:
+            continue
+        remapped.append("en" if part.lower() == "eng" else part)
+    return "+".join(remapped) if remapped else "en"
 
 
 def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:

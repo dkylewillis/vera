@@ -60,7 +60,9 @@ Pass `embedding_function=` for a custom embedder, or use a
 `provider:model-id` model spec resolved by `vera.get_embedder`. New callers
 should pass `parser`, `pipeline_options`, and embedder settings
 (`model` / `embedding_function` / `embedder_options`); legacy
-kwargs such as `chunk_size` and `ocr_mode` remain compatibility aliases.
+kwargs such as `chunk_size` and `ocr_mode` remain compatibility aliases
+forwarded only when explicitly provided. Omitted aliases mean the pipeline's
+own default.
 
 ## Concepts
 

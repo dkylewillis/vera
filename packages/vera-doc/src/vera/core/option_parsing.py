@@ -8,7 +8,7 @@ wrappers. Public plugin imports stay on those wrappers.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import fields
+from dataclasses import MISSING, fields
 from typing import Any, ClassVar, TypeVar
 
 
@@ -78,16 +78,19 @@ def require_bounded_int(
     name: str,
     minimum: Any = None,
     maximum: Any = None,
+    step: Any = None,
 ) -> int:
-    """Parse an integer and enforce advertised ``minimum`` / ``maximum`` bounds.
+    """Parse an integer and enforce advertised ``minimum`` / ``maximum`` / ``step``.
 
-    When neither bound is a number, values must still be non-negative — the
-    same floor ``from_mapping`` used before metadata ranges were enforced.
+    Booleans and non-integral floats are rejected. When neither bound is a
+    number, values must still be non-negative — the same floor
+    ``from_mapping`` used before metadata ranges were enforced.
     """
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{name} must be an integer") from exc
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be an integer")
+    if isinstance(value, float) and not value.is_integer():
+        raise ValueError(f"{name} must be an integer")
+    parsed = int(value)
     lo = _numeric_bound(minimum)
     hi = _numeric_bound(maximum)
     if lo is not None and hi is not None:
@@ -103,6 +106,9 @@ def require_bounded_int(
             raise ValueError(f"{name} must be between 0 and {hi}")
     elif parsed < 0:
         raise ValueError(f"{name} must be non-negative")
+    step_value = _numeric_bound(step)
+    if step_value is not None and step_value > 0 and parsed % step_value != 0:
+        raise ValueError(f"{name} must be a multiple of {step_value}")
     return parsed
 
 
@@ -118,6 +124,8 @@ def require_string(value: Any, *, name: str, allow_empty: bool = False) -> str:
 def require_bool(value: Any, *, name: str) -> bool:
     if isinstance(value, bool):
         return value
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
     if isinstance(value, str):
         lowered = value.strip().lower()
         if lowered in {"true", "1", "yes", "y", "on"}:
@@ -136,12 +144,36 @@ def require_choice(value: Any, *, name: str, choices: set[str]) -> str:
     return normalized
 
 
+def _annotation_name(annotation: Any) -> str:
+    if isinstance(annotation, str):
+        return annotation.split("|", 1)[0].strip().split("[", 1)[0].strip()
+    return getattr(annotation, "__name__", str(annotation))
+
+
+def _field_kind(item: Any) -> str:
+    """Pick a validator from field metadata/annotation, not the default value."""
+    meta_type = str(item.metadata.get("type") or "").lower()
+    aliases = {
+        "boolean": "bool",
+        "bool": "bool",
+        "integer": "int",
+        "int": "int",
+        "number": "float",
+        "enum": "str",
+        "string": "str",
+        "str": "str",
+    }
+    if meta_type in aliases:
+        return aliases[meta_type]
+    return aliases.get(_annotation_name(item.type).lower(), "str")
+
+
 class OptionsBase:
     """Shared ``from_mapping`` for plugin ``Options`` dataclasses.
 
-    Subclass alongside ``@dataclass(frozen=True)``. Field defaults and
-    ``metadata`` pick the validator: ``bool``, bounded ``int``,
-    ``choices``-restricted ``str``, or free-text ``str``. Override
+    Subclass alongside ``@dataclass(frozen=True)``. Field type and
+    ``metadata`` pick the validator: ``bool``, bounded ``int`` (including
+    ``step``), ``choices``-restricted ``str``, or free-text ``str``. Override
     ``from_mapping`` when a field needs something those shapes cannot
     express.
 
@@ -152,6 +184,9 @@ class OptionsBase:
     options_label: ClassVar[str] = ""
     ignored_keys: ClassVar[frozenset[str]] = frozenset()
     options_mapping_label: ClassVar[str] = "options"
+    # Embedder options treat metadata ``step`` as a hard constraint. Pipeline
+    # ``step`` values are GUI increments and are not enforced here.
+    enforce_step: ClassVar[bool] = False
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None = None) -> Any:
@@ -165,16 +200,24 @@ class OptionsBase:
         values: dict[str, Any] = {}
         for item in fields(cls):
             name = item.name
-            default = getattr(cls, name)
-            value = data.get(name, default)
-            if isinstance(default, bool):
+            if name in data:
+                value = data[name]
+            elif item.default is not MISSING:
+                value = item.default
+            elif item.default_factory is not MISSING:  # type: ignore[misc]
+                value = item.default_factory()
+            else:
+                raise ValueError(f"{name} is required")
+            kind = _field_kind(item)
+            if kind == "bool":
                 values[name] = require_bool(value, name=name)
-            elif isinstance(default, int):
+            elif kind == "int":
                 values[name] = require_bounded_int(
                     value,
                     name=name,
                     minimum=item.metadata.get("minimum"),
                     maximum=item.metadata.get("maximum"),
+                    step=item.metadata.get("step") if cls.enforce_step else None,
                 )
             else:
                 choices = item.metadata.get("choices")

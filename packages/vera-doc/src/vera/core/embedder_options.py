@@ -30,16 +30,18 @@ class EmbedderOptions(OptionsBase):
             batch_size: int = field(default=64, metadata={"label": "Batch size"})
 
     ``MyOptions.from_mapping(raw)`` validates a raw options dict field by
-    field. For each field, its own default value's type picks the validator:
+    field. For each field, its declared type and ``metadata`` pick the
+    validator (not the default value's type):
 
-    - a ``bool`` default uses :func:`~vera.core.option_parsing.require_bool`;
-    - an ``int`` default uses :func:`~vera.core.option_parsing.require_bounded_int`
-      with ``metadata["minimum"]`` / ``metadata["maximum"]`` when those are
-      numbers (otherwise the value must be non-negative);
-    - a ``str`` default with ``metadata["choices"]`` and no
+    - a ``bool`` field uses :func:`~vera.core.option_parsing.require_bool`;
+    - an ``int`` field uses :func:`~vera.core.option_parsing.require_bounded_int`
+      with ``metadata["minimum"]`` / ``metadata["maximum"]`` / ``metadata["step"]``
+      when those are numbers (``step`` is enforced for embedder options;
+      otherwise the value must be non-negative);
+    - a ``str`` field with ``metadata["choices"]`` and no
       ``metadata["allow_custom"]`` uses
       :func:`~vera.core.option_parsing.require_choice`;
-    - any other ``str`` default uses :func:`~vera.core.option_parsing.require_string`
+    - any other ``str`` field uses :func:`~vera.core.option_parsing.require_string`
       (``metadata["allow_empty"]`` permits blank values).
 
     Two class attributes customize behavior without an override:
@@ -50,3 +52,4 @@ class EmbedderOptions(OptionsBase):
     """
 
     options_mapping_label: ClassVar[str] = "embedder_options"
+    enforce_step: ClassVar[bool] = True

@@ -47,6 +47,7 @@ from .viewer import (
     get_page,
     get_source_document,
     regions_for,
+    result_payload,
 )
 
 __all__ = [
@@ -86,6 +87,7 @@ __all__ = [
     "list_ingest_pipelines",
     "prepare_pipeline_options",
     "regions_for",
+    "result_payload",
     "register_ingest_pipeline",
     "register_ingest_pipeline_descriptor",
     "reset_ingest_pipeline_registry",

@@ -17,6 +17,7 @@ Install the integration package with: pip install vera-mcp
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from vera.corpus import VeraCorpus
@@ -27,6 +28,7 @@ from vera_ingest.viewer import (
     get_chunk_regions,
     get_page,
     regions_for,
+    result_payload,
 )
 
 
@@ -34,17 +36,8 @@ def _open(file: str) -> VeraDocument:
     return VeraDocument.open(file)
 
 
-def _result_payload(result: Any) -> dict[str, Any]:
-    data = result.as_dict()
-    metadata = data.pop("metadata", {})
-    payload = {**metadata, **data}
-    for key in ("before_chunks", "after_chunks"):
-        if key in payload:
-            payload[key] = [
-                {**item.pop("metadata", {}), **item}
-                for item in payload[key]
-            ]
-    return payload
+def _archive_locator(file: str, document: VeraDocument) -> dict[str, str]:
+    return {"file": file, "path": str(Path(document.path).resolve())}
 
 
 def build_server():
@@ -72,7 +65,7 @@ def build_server():
         file: str,
         query: str,
         mode: str = "hybrid",
-        top_k: int = 5,
+        top_k: int = 10,
         include_figures: bool = False,
         include_regions: bool = False,
         context_chunks: int = 0,
@@ -82,7 +75,7 @@ def build_server():
         try:
             results = []
             for result in doc.search(text=query, mode=mode, top_k=top_k, context_chunks=context_chunks):
-                entry = _result_payload(result)
+                entry = result_payload(result)
                 if include_figures:
                     entry["figures"] = figures_for(doc, result)
                 if include_regions:
@@ -97,7 +90,7 @@ def build_server():
         directory: str,
         query: str,
         mode: str = "hybrid",
-        top_k: int = 5,
+        top_k: int = 10,
         include_figures: bool = False,
         include_regions: bool = False,
         context_chunks: int = 0,
@@ -109,7 +102,7 @@ def build_server():
         try:
             results = []
             for result in corpus.search(text=query, mode=mode, top_k=top_k, context_chunks=context_chunks):
-                entry = _result_payload(result)
+                entry = result_payload(result)
                 document = corpus.document(result.file)
                 if include_figures:
                     entry["figures"] = figures_for(document, result)
@@ -133,7 +126,7 @@ def build_server():
         """Get metadata for a VERA file."""
         doc = _open(file)
         try:
-            return doc.inspect()
+            return {**doc.inspect(), **_archive_locator(file, doc)}
         finally:
             doc.close()
 
@@ -142,7 +135,7 @@ def build_server():
         """Validate a VERA file."""
         doc = _open(file)
         try:
-            return doc.validate()
+            return {**doc.validate(), **_archive_locator(file, doc)}
         finally:
             doc.close()
 

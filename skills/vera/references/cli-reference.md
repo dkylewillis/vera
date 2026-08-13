@@ -42,7 +42,8 @@ Options:
   pipeline advertises `overlap` (PyMuPDF, also whitespace-split words).
   Docling does not receive overlap.
 - `--store-original VALUE` defaults to `true`. Values `1`, `true`, `yes`, `y`,
-  and `on` are true, case-insensitively; other values are false.
+  and `on` are true; `0`, `false`, `no`, `n`, `off`, and empty are false
+  (case-insensitive). Any other token is rejected.
 - `--ocr auto|off|force` defaults to `auto`. Compatibility alias for
   `ocr_mode`. Automatic mode OCRs only image-dominant low-text pages.
 - `--ocr-language CODE` defaults to `eng` (PyMuPDF/Tesseract). Compatibility
@@ -63,9 +64,12 @@ Options:
   download` to pre-fetch outside a conversion.
 - `--pipeline-option KEY=VALUE` is repeatable. Sets provider-owned
   `pipeline_options` entries (for example `--pipeline-option chunk_size=900`).
-  Values coerce to bool (`true`/`false`), int, or float when unambiguous;
-  otherwise they remain strings. Explicit `--pipeline-option` values always
-  override compatibility aliases for the same key.
+  Digit-only tokens become ints and `true`/`false`/`yes`/`no`/`on`/`off`
+  become bools; dotted tokens such as `3.10` or `ocr_language=1.0` stay
+  strings (they are not passed through `float()`). Typed `from_mapping`
+  validation then checks each key, so `ocr_download=1` is usable.
+  Explicit `--pipeline-option` values always override compatibility aliases
+  for the same key.
 - `--embedder-option KEY=VALUE` is repeatable. Sets provider-owned
   `embedder_options` entries (for example `--embedder-option batch_size=64`
   or `--embedder-option dimension=256`). Values coerce the same way as
@@ -151,12 +155,14 @@ and an output path prints an error to stderr and exits 2.
 
 Options: `--json`.
 
-JSON combines the archive metadata with summary counts. Metadata is extensible,
-so agents must tolerate additional keys.
+JSON combines the archive metadata with summary counts. `file` is the
+requested path; `path` is the opened archive. Metadata is extensible, so
+agents must tolerate additional keys.
 
 ```json
 {
   "file": "manual.vera",
+  "path": "C:/docs/manual.vera",
   "format_name": "VERA",
   "format_version": "0.2",
   "created_at": "2026-01-01T00:00:00+00:00",
@@ -438,16 +444,15 @@ Options: `--json`.
 ```json
 {
   "file": "manual.vera",
+  "path": "C:/docs/manual.vera",
   "ok": true,
   "issues": [],
   "warnings": [],
   "counts": {
-    "documents": 1,
-    "pages": 120,
     "chunks": 480,
     "embeddings": 480,
     "fts_rows": 480,
-    "assets": 8
+    "attachments": 8
   },
   "checks": {
     "sqlite_integrity": "ok",
@@ -551,7 +556,10 @@ messages use stdout, so do not mix ordinary output into that stream.
 
 MCP provides `vera_search`, `vera_corpus_search`, `vera_inspect`,
 `vera_validate`, `vera_figures`, `vera_get_page`, and
-`vera_get_chunk_regions`. The final three have no direct standalone CLI
+`vera_get_chunk_regions`. `vera_search` and `vera_corpus_search` default
+`top_k` to `10`, matching `vera search` and `VeraDocument.search`.
+`vera_inspect` and `vera_validate` include both `file` (requested) and
+`path` (opened). The final three tools have no direct standalone CLI
 equivalent. See the repository's agent-skills guide for MCP setup.
 
 ### `vera ocr-languages list [LANGUAGE]`

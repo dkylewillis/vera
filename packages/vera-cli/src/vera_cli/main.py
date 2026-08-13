@@ -15,6 +15,7 @@ from .commands import (
     cmd_ocr_languages_list,
     cmd_search,
     cmd_validate,
+    str_to_bool,
 )
 
 
@@ -91,7 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
             "words; not forwarded to Docling)"
         ),
     )
-    convert_p.add_argument("--store-original", default="true")
+    convert_p.add_argument("--store-original", type=str_to_bool, default=True)
     convert_p.add_argument(
         "--ocr",
         dest="ocr_mode",
@@ -192,7 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
     index_build_p.add_argument(
         "--exclude",
         action="append",
-        default=[],
+        default=None,
         help="Exclude a relative path or name pattern (repeatable)",
     )
     index_build_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")

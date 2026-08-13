@@ -304,7 +304,9 @@ def _index_update(request: Request, write_event=None) -> dict[str, Any]:
     return update_library_index(str(request["path"]), progress=report_progress)
 
 
-def _search(request: Request) -> list[dict[str, Any]]:
+def _search(request: Request, cancel: CancellationToken | None = None) -> list[dict[str, Any]]:
+    if cancel:
+        cancel.raise_if_cancelled()
     target = _resolve_target(request)
     # When the search is scoped to a single file, stamp each result with its
     # source path so the UI can open/highlight it (corpus results already carry
@@ -317,11 +319,15 @@ def _search(request: Request) -> list[dict[str, Any]]:
             top_k=int(request.get("top_k", 10)),
             context_chunks=int(request.get("context_chunks", 0)),
         )
+        if cancel:
+            cancel.raise_if_cancelled()
         include_regions = bool(request.get("include_regions", False))
         include_figures = bool(request.get("include_figures", False))
         include_figure_data = bool(request.get("include_figure_data", False))
         payload: list[dict[str, Any]] = []
         for result in results:
+            if cancel:
+                cancel.raise_if_cancelled()
             entry = _result_payload(result)
             if scoped_file and not entry.get("file"):
                 entry["file"] = scoped_file
@@ -532,13 +538,14 @@ class _SearchTool:
     # threshold is unreliable; a per-search relative cutoff is mode-agnostic.
     _QUALITY_RATIOS = {"strict": 0.85, "balanced": 0.55, "permissive": 0.0}
 
-    def __init__(self, request: Request, mode: Mode, write_event=None, label_registry: dict[str, str] | None = None, label_start: int = 0) -> None:
+    def __init__(self, request: Request, mode: Mode, write_event=None, label_registry: dict[str, str] | None = None, label_start: int = 0, cancel: CancellationToken | None = None) -> None:
         self._request = request
         self._mode = mode
         self._by_chunk: dict[str, dict[str, Any]] = {}
         self.citations: list[dict[str, Any]] = []
         self.searches: list[dict[str, Any]] = []
         self._write_event = write_event
+        self._cancel = cancel
         # Session-wide label registry: chunk_id -> citation id (e.g. "C2"). Seeded
         # from prior turns so the same chunk keeps its id across the conversation.
         self._label_registry: dict[str, str] = dict(label_registry or {})
@@ -610,7 +617,7 @@ class _SearchTool:
             # Fetch actual image bytes (not just captions) so citations carry a
             # `data_url` the UI can render and so we can offer images to the LLM.
             "include_figure_data": include_figures,
-        })
+        }, cancel=self._cancel)
         # Relative quality filter: drop hits far weaker than the best one.
         if results:
             top_score = max(float(r.get("score") or 0.0) for r in results)
@@ -686,7 +693,7 @@ class _SearchTool:
         return response
 
 
-def _retrieval_payload(request: Request, mode: Mode, instructions: str) -> dict[str, Any]:
+def _retrieval_payload(request: Request, mode: Mode, instructions: str, cancel: CancellationToken | None = None) -> dict[str, Any]:
     """Non-agentic fallback: one search, then synthesize (or list passages)."""
     prompt = str(request.get("prompt", "")).strip()
     results = _search({
@@ -700,7 +707,7 @@ def _retrieval_payload(request: Request, mode: Mode, instructions: str) -> dict[
         # Fetch actual image bytes too (not just captions), same as the agentic
         # path, so this fallback can also offer figure images to the model.
         "include_figure_data": mode.include_figures,
-    })
+    }, cancel=cancel)
     citations = []
     label_registry, label_index = _prior_citation_labels(request)
     # Mirrors _SearchTool.run()'s image-part queueing, bounded by the same
@@ -829,7 +836,7 @@ def _answer(
     # Seed the citation labeller with ids already assigned in earlier turns so the
     # same chunk keeps its `[C#]` id across the whole session.
     label_registry, label_start = _prior_citation_labels(request)
-    tool = _SearchTool(request, mode, write_event=record, label_registry=label_registry, label_start=label_start)
+    tool = _SearchTool(request, mode, write_event=record, label_registry=label_registry, label_start=label_start, cancel=cancel)
     # Images the user attached to this message (via the composer's attach button
     # or drag-and-drop) ride along in the initial user message, alongside any
     # figure images the agent surfaces later while searching.
@@ -957,7 +964,7 @@ def _answer(
     except ToolsUnsupportedError:
         # Provider can't do tool-calling: fall back to one-shot retrieve-then-answer.
         answer_stream.abandon()
-        fallback = _retrieval_payload(request, mode, instructions)
+        fallback = _retrieval_payload(request, mode, instructions, cancel=cancel)
         fallback_user_content: Any = fallback["llm_prompt"]
         if attachment_parts:
             fallback_user_content = [{"type": "text", "text": fallback["llm_prompt"]}, *attachment_parts]
@@ -1496,6 +1503,8 @@ def _cancelled_error_message(action: str, exc: BaseException | None = None) -> s
         return "Inspection cancelled"
     if action == "source":
         return "Source loading cancelled"
+    if action == "search":
+        return "Search cancelled"
     return "Answer cancelled"
 
 
@@ -1526,6 +1535,8 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
             result = _inspect(request, write_event=_emit, cancel=cancel)
+        elif action == "search":
+            result = _search(request, cancel=cancel)
         elif action in {"index_build", "index_update"}:
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
@@ -1628,6 +1639,10 @@ def main() -> int:
                 "index_update",
                 "source",
                 "ocr_languages_download",
+                "search",
+                "list_models",
+                "figure_data",
+                "export",
             }:
                 request_id = str(request.get("id") or "")
                 if not request_id:
@@ -1644,6 +1659,7 @@ def main() -> int:
                         "inspect",
                         "source",
                         "ocr_languages_download",
+                        "search",
                     }:
                         cancel = CancellationToken()
                         with _inflight_lock:

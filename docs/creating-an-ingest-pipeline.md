@@ -315,6 +315,9 @@ without knowing anything provider-specific:
   `convert()`'s compatibility kwargs (`chunk_size`, `overlap`, `ocr_mode`, ...)
   get forwarded into `pipeline_options` for your provider — omit a field and
   that alias is silently dropped for you rather than leaking in unexpected.
+  Omitted `convert()` kwargs (Python API `None` defaults) are not forwarded
+  at all, so your `Options` defaults apply; the CLI still passes its argparse
+  defaults.
 - `fields` (`PipelineField` tuple) drives generated forms: type, default,
   bounds, and enum choices.
 

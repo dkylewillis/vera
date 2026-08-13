@@ -42,6 +42,23 @@ def detect_heading(text: str, current: str) -> str:
     return current
 
 
+def _take_overflow_windows(
+    buffer: list[str], chunk_size: int, overlap: int
+) -> tuple[list[list[str]], list[str]]:
+    """Emit ``chunk_size`` windows while ``buffer`` is oversized; keep remainder.
+
+    After overlap carry plus a new paragraph, the combined buffer can exceed
+    ``chunk_size``. Each emitted window is exactly ``chunk_size`` tokens; the
+    remainder is always ``<= chunk_size``.
+    """
+    windows: list[list[str]] = []
+    while len(buffer) > chunk_size:
+        windows.append(buffer[:chunk_size])
+        carry = buffer[chunk_size - overlap : chunk_size] if overlap else []
+        buffer = carry + buffer[chunk_size:]
+    return windows, buffer
+
+
 def chunk_pages(pages, chunk_size: int = 500, overlap: int = 75) -> list[Chunk]:
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
@@ -73,6 +90,17 @@ def chunk_pages(pages, chunk_size: int = 500, overlap: int = 75) -> list[Chunk]:
                 chunks.append(Chunk(text, page.page_number, page.page_number, heading, len(tokens(text))))
                 buffer = buffer[-overlap:] if overlap else []
                 buffer.extend(words)
+                overflow, buffer = _take_overflow_windows(buffer, chunk_size, overlap)
+                for window in overflow:
+                    chunks.append(
+                        Chunk(
+                            " ".join(window),
+                            page.page_number,
+                            page.page_number,
+                            heading,
+                            len(window),
+                        )
+                    )
             else:
                 buffer.extend(words)
         if buffer:
@@ -193,6 +221,20 @@ def build_chunks_from_blocks(
         buffer_pages.append(block.page_number)
         if starting_new_buffer:
             attach_pending_images(block.page_number, buffer_blocks)
+        overflow, buffer_words = _take_overflow_windows(
+            buffer_words, chunk_size, overlap
+        )
+        for window in overflow:
+            chunks.append(
+                Chunk(
+                    " ".join(window),
+                    min(buffer_pages),
+                    max(buffer_pages),
+                    heading_path(),
+                    len(window),
+                    list(dict.fromkeys(buffer_blocks)),
+                )
+            )
     flush()
     if pending_images:
         # Trailing images with no following text on their page: attach to the

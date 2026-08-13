@@ -1,7 +1,9 @@
 import argparse
+import json
 import re
 from pathlib import Path
 
+from vera import ChunkRecord, VeraDocument
 from vera_cli.main import build_parser
 
 
@@ -148,3 +150,42 @@ def test_portable_skill_documents_hardened_library_contracts():
     assert "ocr_language=en" in reference
     assert "does not receive" in reference
     assert "does not receive this alias" in reference
+
+
+def _first_json_fence_after(text: str, heading: str) -> dict:
+    start = text.index(heading)
+    fence = text.index("```json", start)
+    body = text[fence + len("```json") :]
+    end = body.index("```")
+    return json.loads(body[:end])
+
+
+def test_skill_validate_json_example_keys_are_subset_of_actual(tmp_path):
+    archive = tmp_path / "sample.vera"
+    with VeraDocument.create(str(archive)) as doc:
+        doc.add([ChunkRecord(id="c1", text="hello world")])
+        actual = doc.validate()
+
+    example = _first_json_fence_after(
+        CLI_REFERENCE.read_text(encoding="utf-8"),
+        "### `vera validate FILE`",
+    )
+    actual_payload_keys = set(actual) | {"file", "path"}
+    assert set(example) <= actual_payload_keys
+    assert {"chunks", "embeddings", "fts_rows", "attachments"} <= set(example["counts"])
+    assert set(example["counts"]) <= set(actual["counts"])
+    assert {"file", "path"} <= set(example)
+
+
+def test_skill_inspect_json_example_includes_file_and_path():
+    example = _first_json_fence_after(
+        CLI_REFERENCE.read_text(encoding="utf-8"),
+        "### `vera inspect FILE`",
+    )
+    assert {"file", "path"} <= set(example)
+
+
+def test_skill_documents_mcp_search_default_top_k():
+    reference = CLI_REFERENCE.read_text(encoding="utf-8")
+    assert "`top_k` to `10`" in reference
+    assert "Original source document is not stored in this archive" in reference

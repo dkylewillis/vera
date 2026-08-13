@@ -7,6 +7,7 @@ from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
 from typing import Any, Literal, Sequence, cast
 
@@ -37,6 +38,61 @@ EmbeddingNormalization = Literal["l2", "none", "unknown"]
 _EMBEDDING_NORMALIZATIONS = frozenset({"l2", "none", "unknown"})
 _L2_NORMALIZATION_RTOL = 1e-4
 _L2_NORMALIZATION_ATOL = 1e-6
+_MAX_TOP_K = 10_000
+_FTS_RUNTIME_MARKERS = (
+    "database is locked",
+    "database disk image is malformed",
+    "no such table",
+    "no such module",
+    "unable to open database",
+    "disk i/o error",
+    "attempt to write a readonly",
+    "locking protocol",
+)
+
+
+def _package_version() -> str:
+    try:
+        return package_version("vera-doc")
+    except PackageNotFoundError:
+        return "0.3.0"
+
+
+def is_fts_syntax_error(exc: BaseException) -> bool:
+    """Return True when ``exc`` is an FTS query-syntax failure, not a runtime error."""
+    if not isinstance(exc, sqlite3.OperationalError):
+        return False
+    message = str(exc).lower()
+    if any(marker in message for marker in _FTS_RUNTIME_MARKERS):
+        return False
+    return True
+
+
+def safe_fts_query(raw: str) -> str:
+    """Return an OR-joined prefix query, or empty when no safe tokens remain."""
+    terms = []
+    for token in raw.split():
+        cleaned = "".join(
+            character for character in token if character.isalnum() or character == "_"
+        )
+        if cleaned:
+            terms.append(f"{cleaned}*")
+    return " OR ".join(terms)
+
+
+def execute_fts(
+    conn: sqlite3.Connection,
+    sql: str,
+    query: str,
+    *params: Any,
+) -> list[sqlite3.Row]:
+    """Run an FTS MATCH query; syntax errors become empty hits, other errors raise."""
+    try:
+        return conn.execute(sql, (query, *params)).fetchall()
+    except sqlite3.OperationalError as exc:
+        if not is_fts_syntax_error(exc):
+            raise
+        return []
 
 
 class DuplicateRecordError(ValueError):
@@ -183,7 +239,7 @@ class VeraDocument:
                 "format_version": FORMAT_VERSION,
                 "created_at": now,
                 "created_by": "vera-doc",
-                "creator_library": f"vera-doc/{FORMAT_VERSION}",
+                "creator_library": f"vera-doc/{_package_version()}",
                 "default_embedding_model": embedder.model_name,
                 "default_embedding_dimension": str(embedder.dimension),
                 "default_embedding_normalization": normalization,
@@ -553,17 +609,26 @@ class VeraDocument:
         ids: Iterable[str] | None = None,
         *,
         where: Mapping[str, Any] | None = None,
+        delete_all: bool = False,
     ) -> int:
         """Delete chunk records by ID and/or metadata filter.
 
         Args:
             ids: Specific chunk IDs to delete.
             where: Exact equality filter on top-level metadata keys.
+            delete_all: Required to delete every chunk when ``ids`` and
+                ``where`` are omitted.
 
         Returns:
             The number of records deleted.
+
+        Raises:
+            ValueError: When neither ``ids`` nor ``where`` is given and
+                ``delete_all`` is false.
         """
         self._ensure_writable()
+        if ids is None and not where and not delete_all:
+            raise ValueError("delete() requires ids, where, or delete_all=True")
         records = self.get(ids, where=where)
         if not records:
             return 0
@@ -608,6 +673,8 @@ class VeraDocument:
             raise ValueError("mode must be semantic, keyword, or hybrid")
         if top_k < 0:
             raise ValueError("top_k must be non-negative")
+        if top_k > _MAX_TOP_K:
+            raise ValueError(f"top_k must be at most {_MAX_TOP_K}")
         if context_chunks < 0:
             raise ValueError("context_chunks must be non-negative")
         if top_k == 0:
@@ -633,15 +700,33 @@ class VeraDocument:
                 + 0.5 * keyword_norm.get(record_id, 0.0)
                 for record_id in semantic.keys() | keyword.keys()
             }
-        records = {record.id: record for record in self.get(where=where)}
+        matching_ids = self._chunk_ids(where)
         ranked = sorted(
             (
                 (record_id, score)
                 for record_id, score in combined.items()
-                if record_id in records
+                if record_id in matching_ids
             ),
             key=lambda item: (-item[1], item[0]),
         )[:top_k]
+        needed = [record_id for record_id, _ in ranked]
+        ordered_ids: list[str] = []
+        if context_chunks and needed:
+            ordered_ids = self._chunk_ids_in_order()
+            positions = {chunk_id: index for index, chunk_id in enumerate(ordered_ids)}
+            extra: list[str] = []
+            for record_id in needed:
+                position = positions.get(record_id)
+                if position is None:
+                    continue
+                extra.extend(
+                    ordered_ids[max(0, position - context_chunks):position]
+                )
+                extra.extend(
+                    ordered_ids[position + 1:position + context_chunks + 1]
+                )
+            needed = list(dict.fromkeys([*needed, *extra]))
+        records = {record.id: record for record in self.get(needed)}
         results = [
             QueryResult(
                 record=records[record_id],
@@ -650,24 +735,29 @@ class VeraDocument:
                 keyword_score=keyword.get(record_id),
             )
             for record_id, score in ranked
+            if record_id in records
         ]
-        if context_chunks:
-            ordered = self.get()
-            positions = {record.id: index for index, record in enumerate(ordered)}
+        if context_chunks and ordered_ids:
+            by_id = records
+            positions = {chunk_id: index for index, chunk_id in enumerate(ordered_ids)}
             results = [
                 replace(
                     result,
                     before=tuple(
-                        ordered[
+                        by_id[chunk_id]
+                        for chunk_id in ordered_ids[
                             max(0, positions[result.record.id] - context_chunks):
                             positions[result.record.id]
                         ]
+                        if chunk_id in by_id
                     ),
                     after=tuple(
-                        ordered[
+                        by_id[chunk_id]
+                        for chunk_id in ordered_ids[
                             positions[result.record.id] + 1:
                             positions[result.record.id] + context_chunks + 1
                         ]
+                        if chunk_id in by_id
                     ),
                 )
                 for result in results
@@ -1048,32 +1138,36 @@ class VeraDocument:
             FROM chunks_fts
             WHERE chunks_fts MATCH ?
         """
-        try:
-            rows = self._conn.execute(sql, (text,)).fetchall()
-        except sqlite3.OperationalError:
-            rows = []
+        rows = execute_fts(self._conn, sql, text)
         if not rows:
-            terms = []
-            for token in text.split():
-                cleaned = "".join(
-                    character
-                    for character in token
-                    if character.isalnum() or character == "_"
-                )
-                if cleaned:
-                    terms.append(f"{cleaned}*")
-            if terms:
-                try:
-                    rows = self._conn.execute(
-                        sql,
-                        (" OR ".join(terms),),
-                    ).fetchall()
-                except sqlite3.OperationalError:
-                    rows = []
+            fallback = safe_fts_query(text)
+            if fallback:
+                rows = execute_fts(self._conn, sql, fallback)
         return {
             row["chunk_id"]: -float(row["rank"])
             for row in rows
         }
+
+    def _chunk_ids(self, where: Mapping[str, Any] | None) -> set[str]:
+        if not where:
+            return {
+                str(row[0])
+                for row in self._conn.execute("SELECT chunk_id FROM chunks")
+            }
+        matching: set[str] = set()
+        for row in self._conn.execute("SELECT chunk_id, metadata_json FROM chunks"):
+            metadata = thaw_json(metadata_from_json(row["metadata_json"]))
+            if all(metadata.get(key) == expected for key, expected in where.items()):
+                matching.add(str(row["chunk_id"]))
+        return matching
+
+    def _chunk_ids_in_order(self) -> list[str]:
+        return [
+            str(row[0])
+            for row in self._conn.execute(
+                "SELECT chunk_id FROM chunks ORDER BY rowid"
+            )
+        ]
 
     def _metadata_values(self) -> dict[str, str]:
         return {

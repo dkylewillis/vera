@@ -87,6 +87,14 @@ def _build_converter(options: DoclingOptions, *, backend: str | None = None) -> 
     )
 
 
+def _is_cancellation(exc: BaseException) -> bool:
+    """True for sidecar cancel/skip errors (RuntimeError subclasses)."""
+    return any(
+        cls.__name__ in {"CancelledError", "SkipCurrentError"}
+        for cls in type(exc).mro()
+    )
+
+
 def _try_convert(
     source_path: str,
     config: DoclingOptions,
@@ -94,11 +102,19 @@ def _try_convert(
     backend: str,
     page_range: tuple[int, int] | None = None,
 ) -> Any | None:
-    """Run one Docling convert; return the ConversionResult or None on hard failure."""
+    """Run one Docling convert; return the ConversionResult or None on hard failure.
+
+    ``raises_on_error=False`` lets Docling return PARTIAL_SUCCESS instead of
+    re-raising page-batch OOMs. Native crashes still raise and become None
+    here (except cancel/skip, which propagate).
+    """
     converter = _build_converter(config, backend=backend)
+    kwargs: dict[str, Any] = {"source": source_path, "raises_on_error": False}
+    if page_range is not None:
+        kwargs["page_range"] = page_range
     try:
-        if page_range is None:
-            return converter.convert(source=source_path)
-        return converter.convert(source=source_path, page_range=page_range)
-    except Exception:  # noqa: BLE001 - catch native/process crashes from Docling
+        return converter.convert(**kwargs)
+    except Exception as exc:  # noqa: BLE001 - catch native/process crashes from Docling
+        if _is_cancellation(exc):
+            raise
         return None

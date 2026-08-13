@@ -105,11 +105,26 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
         ):
             warnings.append("Original document asset is missing")
     if "embeddings" in existing_tables:
+        dimensions: set[int] = set()
+        try:
+            declared_dimension = int(
+                metadata.get("default_embedding_dimension") or 0
+            )
+        except (TypeError, ValueError):
+            declared_dimension = 0
         for row in conn.execute(
-            "SELECT chunk_id, model_dimension, vector "
+            "SELECT chunk_id, model_dimension, vector, vector_format "
             "FROM embeddings ORDER BY chunk_id"
         ):
-            expected = int(row["model_dimension"] or 0) * 4
+            vector_format = row["vector_format"]
+            if vector_format != "float32_le":
+                issues.append(
+                    f"Unsupported vector_format for {row['chunk_id']}: "
+                    f"{vector_format!r} (expected 'float32_le')"
+                )
+            dimension = int(row["model_dimension"] or 0)
+            dimensions.add(dimension)
+            expected = dimension * 4
             actual = len(row["vector"] or b"")
             if expected <= 0 or actual != expected:
                 issues.append(
@@ -137,6 +152,20 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
                     f"Embedding vector for {row['chunk_id']} is not L2-normalized "
                     f"(norm {norm:.8g})"
                 )
+        if len(dimensions) > 1:
+            issues.append(
+                f"Mixed embedding dimensions in one archive: {sorted(dimensions)}"
+            )
+        elif (
+            declared_dimension
+            and dimensions
+            and dimensions != {declared_dimension}
+        ):
+            issues.append(
+                "Embedding dimensions "
+                f"{sorted(dimensions)} do not match default_embedding_dimension "
+                f"{declared_dimension}"
+            )
 
     foreign_key_issues = conn.execute("PRAGMA foreign_key_check").fetchall()
     if foreign_key_issues:

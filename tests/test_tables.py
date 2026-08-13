@@ -1,7 +1,5 @@
 """Tests for pdfplumber table extraction and overlap merge."""
 
-import sqlite3
-
 import pytest
 
 from vera import VeraDocument
@@ -10,8 +8,11 @@ from vera_ingest.viewer import get_blocks
 from vera_ingest.chunking import build_chunks_from_blocks
 from vera_ingest.types import ParsedBlock
 from vera_ingest_pymupdf.parser import (
+    _extract_tables_from_pdf,
+    _intersection_area,
     _merge_tables_into_blocks,
     _overlap_fraction,
+    _plumber_bbox_to_page_rect,
     _table_to_markdown,
     parse_pdf_structured,
 )
@@ -114,6 +115,20 @@ class TestOverlapMerge:
         assert "Additional notes" in merged[-1].text
 
 
+class TestPlumberBboxMapping:
+    def test_identity_when_cropbox_matches_mediabox(self):
+        bbox = (126.0, 114.0, 486.0, 168.0)
+        crop = (0.0, 0.0, 612.0, 792.0)
+        assert _plumber_bbox_to_page_rect(bbox, crop) == bbox
+
+    def test_subtracts_asymmetric_cropbox_origin(self):
+        mapped = _plumber_bbox_to_page_rect(
+            (126.0, 114.0, 486.0, 168.0),
+            (10.0, 80.0, 600.0, 700.0),
+        )
+        assert mapped == (116.0, 34.0, 476.0, 88.0)
+
+
 class TestParsePdfTables:
     def test_extracts_table_block_from_bordered_pdf(self, table_pdf):
         _, blocks = parse_pdf_structured(str(table_pdf))
@@ -154,6 +169,55 @@ class TestParsePdfTables:
                 for block in get_blocks(document)
             )
             assert count == 1
+
+    def test_table_bbox_is_in_page_rect_when_cropbox_differs_from_mediabox(self, tmp_path):
+        import fitz
+
+        full = tmp_path / "full-table.pdf"
+        cropped = tmp_path / "cropped-table.pdf"
+        make_bordered_table_pdf(full)
+        source = fitz.open(full)
+        source[0].set_cropbox(fitz.Rect(10, 80, 600, 700))
+        source.save(cropped)
+        source.close()
+
+        pages, blocks = parse_pdf_structured(str(cropped))
+        tables = [block for block in blocks if block.block_type == "table"]
+        assert len(tables) == 1
+        table_bbox = tables[0].bbox
+        assert table_bbox is not None
+        assert pages[0].width == 590.0
+        assert pages[0].height == 620.0
+        assert 0 <= table_bbox[0] < table_bbox[2] <= pages[0].width
+        assert 0 <= table_bbox[1] < table_bbox[3] <= pages[0].height
+
+        doc = fitz.open(cropped)
+        cell_bbox = None
+        for block in doc[0].get_text("dict")["blocks"]:
+            if block.get("type") != 0:
+                continue
+            text = "".join(
+                span.get("text", "")
+                for line in block.get("lines", [])
+                for span in line.get("spans", [])
+            )
+            if "Restaurant" in text:
+                cell_bbox = tuple(float(value) for value in block["bbox"])
+                break
+        doc.close()
+        assert cell_bbox is not None
+        assert _intersection_area(cell_bbox, table_bbox) > 0
+
+        paragraphs = [block.text for block in blocks if block.block_type == "paragraph"]
+        assert not any("Restaurant" in text and "Retail" in text for text in paragraphs)
+
+    def test_extract_tables_honors_cancellation(self, table_pdf):
+        class Token:
+            def raise_if_interrupted(self):
+                raise RuntimeError("Conversion cancelled")
+
+        with pytest.raises(RuntimeError, match="Conversion cancelled"):
+            _extract_tables_from_pdf(str(table_pdf), cancel=Token())
 
 
 class TestTableChunking:

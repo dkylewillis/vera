@@ -1,6 +1,7 @@
 """Tests for the MCP server tools (called in-process, no stdio transport)."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -14,7 +15,7 @@ def vera_file(tmp_path_factory):
     pdf = tmp / "manual.pdf"
     out = tmp / "manual.vera"
     make_pdf(pdf)
-    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=5)
+    convert(str(pdf), str(out), model="hashing")
     return out
 
 
@@ -64,9 +65,14 @@ async def test_inspect_and_validate_tools(server, vera_file):
     assert info["format_version"] == "0.2"
     assert info["pages"] == 2
     assert info["default_embedding_normalization"] == "l2"
+    assert info["file"] == str(vera_file)
+    assert Path(info["path"]).resolve() == vera_file.resolve()
 
     report = _payload(await server.call_tool("vera_validate", {"file": str(vera_file)}))
     assert report["ok"] is True
+    assert report["file"] == str(vera_file)
+    assert Path(report["path"]).resolve() == vera_file.resolve()
+    assert set(report["counts"]) >= {"chunks", "embeddings", "fts_rows", "attachments"}
 
 
 @pytest.mark.anyio
@@ -110,6 +116,14 @@ def _payload(call_result):
     if structured is not None:
         return structured.get("result", structured)
     return json.loads(content[0].text)
+
+
+@pytest.mark.anyio
+async def test_search_tools_default_top_k_matches_cli(server):
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    for name in ("vera_search", "vera_corpus_search"):
+        schema = tools[name].inputSchema
+        assert schema["properties"]["top_k"]["default"] == 10
 
 
 @pytest.fixture

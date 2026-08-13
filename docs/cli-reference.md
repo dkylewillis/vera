@@ -81,7 +81,8 @@ time, embedding dimensions and normalization policy, parser/chunking settings,
 OCR diagnostics, and attachment count when recorded. Normalization is `l2`,
 `none`, or `unknown`.
 
-Options: `--json`.
+Options: `--json`. JSON includes `file` (the requested path) and `path` (the
+opened archive).
 
 ## `vera search FILE_OR_DIRECTORY QUERY`
 
@@ -140,7 +141,9 @@ Exits 1 when the index is missing or stale while still emitting a report.
 
 Validate archive integrity and consistency.
 
-Options: `--json`.
+Options: `--json`. JSON includes `file` (the requested path) and `path` (the
+opened archive). Counts keys are `chunks`, `embeddings`, `fts_rows`, and
+`attachments`.
 
 Exits 1 when validation finds an issue while still emitting a report.
 

@@ -10,11 +10,13 @@ import pytest
 pytest.importorskip("docling")
 pytest.importorskip("docling_core")
 
-from docling.datamodel.base_models import ConversionStatus
+from docling.datamodel.base_models import ConversionStatus, DoclingComponentType, ErrorItem
 from docling_core.types.doc import (
     DocItemLabel,
     DoclingDocument,
+    PictureItem,
     ProvenanceItem,
+    RefItem,
 )
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from PIL import Image
@@ -26,8 +28,10 @@ from vera_ingest import (
     list_ingest_pipelines,
     reset_ingest_pipeline_registry,
 )
+from vera_ingest.types import IngestChunk, IngestOptions, IngestRequest
 
 from vera_ingest_docling import create_pipeline
+from vera_ingest_docling.mapping import _item_text
 from vera_ingest_docling.pipeline import (
     DoclingHybridPipeline,
     WhitespaceTokenizer,
@@ -215,14 +219,14 @@ def test_docling_options_ignore_pymupdf_only_keys_and_reject_unknown():
 
     options = DoclingOptions.from_mapping(
         {
-            "chunk_size": 420,
+                "chunk_size": 400,
             "ocr_mode": "force",
             "ocr_language": "fr",
             "overlap": 75,
             "ocr_dpi": 300,
         }
     )
-    assert options.chunk_size == 420
+    assert options.chunk_size == 400
     assert options.ocr_mode == "force"
     assert options.ocr_language == "fr"
     assert options.pdf_backend == "docling_parse"
@@ -278,8 +282,9 @@ def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, 
             self.document = doc
 
     class Converter:
-        def convert(self, source=None, **_kwargs):
+        def convert(self, source=None, raises_on_error=True, **_kwargs):
             assert str(source).endswith(".pdf")
+            assert raises_on_error is False
             return Result(document)
 
     monkeypatch.setattr(
@@ -290,8 +295,6 @@ def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, 
     pdf = tmp_path / "fixture.pdf"
     pdf.write_bytes(b"%PDF-1.4 fixture")
     pipeline = DoclingHybridPipeline()
-    from vera_ingest.types import IngestRequest
-
     result = pipeline(
         str(pdf),
         IngestRequest(
@@ -412,8 +415,6 @@ def test_partial_success_is_rejected(monkeypatch, tmp_path):
     )
     pdf = tmp_path / "partial.pdf"
     pdf.write_bytes(b"%PDF-1.4")
-    from vera_ingest.types import IngestRequest
-
     with pytest.raises(ValueError, match="did not fully succeed"):
         DoclingHybridPipeline()(str(pdf), IngestRequest())
 
@@ -463,17 +464,41 @@ def test_convert_uses_docling_pipeline_end_to_end(monkeypatch, tmp_path):
         assert hits
 
 
-class _ErrorItem:
-    def __init__(self, page_no: int | None, error_message: str):
-        self.page_no = page_no
-        self.error_message = error_message
+def _page_failed_error(zero_based_page: int, detail: str = "std::bad_alloc") -> ErrorItem:
+    """Build a real Docling 2.118 ErrorItem (no page_no field)."""
+    item = ErrorItem(
+        component_type=DoclingComponentType.DOCUMENT_BACKEND,
+        module_name="DoclingParseDocumentBackend",
+        error_message=f"Page {zero_based_page} failed to parse. {detail}",
+    )
+    # Real Docling ErrorItem either omits page_no or leaves it unset.
+    assert getattr(item, "page_no", None) is None
+    return item
 
 
-def _multi_page_document(page_count: int = 5, *, missing_pages: set[int] | None = None) -> DoclingDocument:
-    """Build a multi-page fixture; omit text on ``missing_pages`` to simulate failures."""
+def _memory_error(detail: str = "std::bad_alloc") -> ErrorItem:
+    item = ErrorItem(
+        component_type=DoclingComponentType.DOCUMENT_BACKEND,
+        module_name="DoclingParseDocumentBackend",
+        error_message=detail,
+    )
+    assert getattr(item, "page_no", None) is None
+    return item
+
+
+def _multi_page_document(
+    page_count: int = 5,
+    *,
+    missing_pages: set[int] | None = None,
+    omit_pages: set[int] | None = None,
+) -> DoclingDocument:
+    """Build a multi-page fixture; omit text and/or page entries to simulate failures."""
     missing = missing_pages or set()
+    omitted = omit_pages or set()
     doc = DoclingDocument(name="multi")
     for page_no in range(1, page_count + 1):
+        if page_no in omitted:
+            continue
         doc.add_page(page_no=page_no, size=Size(width=612.0, height=792.0))
         if page_no in missing:
             continue
@@ -497,15 +522,13 @@ def _single_page_document(page_no: int, text: str) -> DoclingDocument:
 
 
 def test_partial_success_with_page_errors_recovers_via_fresh_retry(monkeypatch, tmp_path):
-    from vera_ingest.types import IngestRequest
-
     partial_doc = _multi_page_document(5, missing_pages={2})
     recovered_doc = _single_page_document(2, "Recovered page two text about ponds.")
     calls: list[dict[str, object]] = []
 
     class PartialResult:
         status = ConversionStatus.PARTIAL_SUCCESS
-        errors = [_ErrorItem(2, "Stage preprocess failed: std::bad_alloc")]
+        errors = [_page_failed_error(1, "Stage preprocess failed: std::bad_alloc")]
 
         def __init__(self, doc):
             self.document = doc
@@ -520,8 +543,14 @@ def test_partial_success_with_page_errors_recovers_via_fresh_retry(monkeypatch, 
         def __init__(self, backend: str | None):
             self.backend = backend or "docling_parse"
 
-        def convert(self, source=None, page_range=None, **_kwargs):
-            calls.append({"backend": self.backend, "page_range": page_range})
+        def convert(self, source=None, page_range=None, raises_on_error=True, **_kwargs):
+            calls.append(
+                {
+                    "backend": self.backend,
+                    "page_range": page_range,
+                    "raises_on_error": raises_on_error,
+                }
+            )
             if page_range is None:
                 return PartialResult(partial_doc)
             assert page_range == (2, 2)
@@ -543,25 +572,24 @@ def test_partial_success_with_page_errors_recovers_via_fresh_retry(monkeypatch, 
     assert result.diagnostics["recovered_pages_backend"] == {"2": "docling_parse"}
     assert any("Recovered page two" in chunk.text for chunk in result.chunks)
     assert any(call["page_range"] == (2, 2) for call in calls)
+    assert all(call["raises_on_error"] is False for call in calls)
 
 
 def test_page_recovery_falls_back_to_pypdfium2_per_page(monkeypatch, tmp_path):
-    from vera_ingest.types import IngestRequest
-
     partial_doc = _multi_page_document(5, missing_pages={2})
     recovered_doc = _single_page_document(2, "Pypdfium recovered page two.")
     calls: list[dict[str, object]] = []
 
     class PartialResult:
         status = ConversionStatus.PARTIAL_SUCCESS
-        errors = [_ErrorItem(2, "std::bad_alloc on page")]
+        errors = [_page_failed_error(1)]
 
         def __init__(self, doc):
             self.document = doc
 
     class FailResult:
         status = ConversionStatus.FAILURE
-        errors = [_ErrorItem(2, "std::bad_alloc again")]
+        errors = [_page_failed_error(1, "std::bad_alloc again")]
         document = None
 
     class SuccessResult:
@@ -574,8 +602,14 @@ def test_page_recovery_falls_back_to_pypdfium2_per_page(monkeypatch, tmp_path):
         def __init__(self, backend: str | None):
             self.backend = backend or "docling_parse"
 
-        def convert(self, source=None, page_range=None, **_kwargs):
-            calls.append({"backend": self.backend, "page_range": page_range})
+        def convert(self, source=None, page_range=None, raises_on_error=True, **_kwargs):
+            calls.append(
+                {
+                    "backend": self.backend,
+                    "page_range": page_range,
+                    "raises_on_error": raises_on_error,
+                }
+            )
             if page_range is None:
                 return PartialResult(partial_doc)
             if self.backend == "docling_parse":
@@ -600,11 +634,10 @@ def test_page_recovery_falls_back_to_pypdfium2_per_page(monkeypatch, tmp_path):
     assert any(
         call["backend"] == "pypdfium2" and call["page_range"] == (2, 2) for call in calls
     )
+    assert all(call["raises_on_error"] is False for call in calls)
 
 
 def test_too_many_failed_pages_falls_back_to_whole_document_pypdfium2(monkeypatch, tmp_path):
-    from vera_ingest.types import IngestRequest
-
     # 3/5 failed pages => 0.6 > 0.2 cap => whole-document pypdfium2.
     partial_doc = _multi_page_document(5, missing_pages={2, 3, 4})
     full_doc = _multi_page_document(5)
@@ -613,9 +646,9 @@ def test_too_many_failed_pages_falls_back_to_whole_document_pypdfium2(monkeypatc
     class PartialResult:
         status = ConversionStatus.PARTIAL_SUCCESS
         errors = [
-            _ErrorItem(2, "std::bad_alloc"),
-            _ErrorItem(3, "std::bad_alloc"),
-            _ErrorItem(4, "std::bad_alloc"),
+            _page_failed_error(1),
+            _page_failed_error(2),
+            _page_failed_error(3),
         ]
 
         def __init__(self, doc):
@@ -631,8 +664,14 @@ def test_too_many_failed_pages_falls_back_to_whole_document_pypdfium2(monkeypatc
         def __init__(self, backend: str | None):
             self.backend = backend or "docling_parse"
 
-        def convert(self, source=None, page_range=None, **_kwargs):
-            calls.append({"backend": self.backend, "page_range": page_range})
+        def convert(self, source=None, page_range=None, raises_on_error=True, **_kwargs):
+            calls.append(
+                {
+                    "backend": self.backend,
+                    "page_range": page_range,
+                    "raises_on_error": raises_on_error,
+                }
+            )
             if page_range is not None:
                 raise AssertionError("per-page recovery should be skipped when over cap")
             if self.backend == "pypdfium2":
@@ -651,11 +690,10 @@ def test_too_many_failed_pages_falls_back_to_whole_document_pypdfium2(monkeypatc
     assert result.diagnostics["pdf_backend"] == "pypdfium2"
     assert result.diagnostics["recovered_pages"] == []
     assert any(call["backend"] == "pypdfium2" and call["page_range"] is None for call in calls)
+    assert all(call["raises_on_error"] is False for call in calls)
 
 
 def test_convert_exception_triggers_whole_document_pypdfium2_fallback(monkeypatch, tmp_path):
-    from vera_ingest.types import IngestRequest
-
     full_doc = _multi_page_document(3)
     calls: list[dict[str, object]] = []
 
@@ -669,8 +707,14 @@ def test_convert_exception_triggers_whole_document_pypdfium2_fallback(monkeypatc
         def __init__(self, backend: str | None):
             self.backend = backend or "docling_parse"
 
-        def convert(self, source=None, page_range=None, **_kwargs):
-            calls.append({"backend": self.backend, "page_range": page_range})
+        def convert(self, source=None, page_range=None, raises_on_error=True, **_kwargs):
+            calls.append(
+                {
+                    "backend": self.backend,
+                    "page_range": page_range,
+                    "raises_on_error": raises_on_error,
+                }
+            )
             if self.backend != "pypdfium2":
                 raise RuntimeError("native crash")
             return SuccessResult(full_doc)
@@ -686,30 +730,29 @@ def test_convert_exception_triggers_whole_document_pypdfium2_fallback(monkeypatc
     assert result.diagnostics["whole_document_fallback_backend"] == "pypdfium2"
     assert result.chunks
     assert any(call["backend"] == "pypdfium2" for call in calls)
+    assert all(call["raises_on_error"] is False for call in calls)
 
 
 def test_unrecoverable_page_still_raises_with_page_detail(monkeypatch, tmp_path):
-    from vera_ingest.types import IngestRequest
-
     partial_doc = _multi_page_document(5, missing_pages={2})
 
     class PartialResult:
         status = ConversionStatus.PARTIAL_SUCCESS
-        errors = [_ErrorItem(2, "std::bad_alloc")]
+        errors = [_page_failed_error(1)]
 
         def __init__(self, doc):
             self.document = doc
 
     class FailResult:
         status = ConversionStatus.FAILURE
-        errors = [_ErrorItem(2, "std::bad_alloc again")]
+        errors = [_page_failed_error(1, "std::bad_alloc again")]
         document = None
 
     class Converter:
         def __init__(self, backend: str | None):
             self.backend = backend or "docling_parse"
 
-        def convert(self, source=None, page_range=None, **_kwargs):
+        def convert(self, source=None, page_range=None, raises_on_error=True, **_kwargs):
             if page_range is None:
                 return PartialResult(partial_doc)
             return FailResult()
@@ -723,6 +766,295 @@ def test_unrecoverable_page_still_raises_with_page_detail(monkeypatch, tmp_path)
     pdf.write_bytes(b"%PDF-1.4")
     with pytest.raises(ValueError, match=r"unrecoverable pages: 2"):
         DoclingHybridPipeline()(str(pdf), IngestRequest())
+
+
+def test_real_error_item_has_no_page_no():
+    item = _page_failed_error(1)
+    assert getattr(item, "page_no", None) is None
+
+
+def test_memory_error_without_page_falls_back_to_whole_pypdfium2(monkeypatch, tmp_path):
+    partial_doc = _multi_page_document(5, missing_pages={2})
+    full_doc = _multi_page_document(5)
+    calls: list[dict[str, object]] = []
+
+    class PartialResult:
+        status = ConversionStatus.PARTIAL_SUCCESS
+        errors = [_memory_error("std::bad_alloc")]
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class SuccessResult:
+        status = ConversionStatus.SUCCESS
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class Converter:
+        def __init__(self, backend: str | None):
+            self.backend = backend or "docling_parse"
+
+        def convert(self, source=None, page_range=None, raises_on_error=True, **_kwargs):
+            calls.append({"backend": self.backend, "page_range": page_range})
+            if page_range is not None:
+                raise AssertionError("per-page recovery needs attributable pages")
+            if self.backend == "pypdfium2":
+                return SuccessResult(full_doc)
+            return PartialResult(partial_doc)
+
+    monkeypatch.setattr(
+        "vera_ingest_docling.converter._build_converter",
+        lambda options, backend=None, **_kwargs: Converter(backend),
+    )
+
+    pdf = tmp_path / "no-page.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    result = DoclingHybridPipeline()(str(pdf), IngestRequest())
+    assert result.diagnostics["whole_document_fallback_backend"] == "pypdfium2"
+    assert result.diagnostics["recovered_pages"] == []
+    assert any(call["backend"] == "pypdfium2" and call["page_range"] is None for call in calls)
+
+
+def test_missing_pages_inferred_from_page_count_diff(monkeypatch, tmp_path):
+    partial_doc = _multi_page_document(5, omit_pages={2})
+    recovered_doc = _single_page_document(2, "Recovered via page-count diff.")
+    calls: list[dict[str, object]] = []
+
+    class _Input:
+        page_count = 5
+
+    class PartialResult:
+        status = ConversionStatus.PARTIAL_SUCCESS
+        errors = [_memory_error("std::bad_alloc")]
+        input = _Input()
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class SuccessResult:
+        status = ConversionStatus.SUCCESS
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class Converter:
+        def __init__(self, backend: str | None):
+            self.backend = backend or "docling_parse"
+
+        def convert(self, source=None, page_range=None, **_kwargs):
+            calls.append({"backend": self.backend, "page_range": page_range})
+            if page_range is None:
+                return PartialResult(partial_doc)
+            assert page_range == (2, 2)
+            return SuccessResult(recovered_doc)
+
+    monkeypatch.setattr(
+        "vera_ingest_docling.converter._build_converter",
+        lambda options, backend=None, **_kwargs: Converter(backend),
+    )
+
+    pdf = tmp_path / "diff-pages.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    result = DoclingHybridPipeline()(str(pdf), IngestRequest())
+    assert result.diagnostics["recovered_pages"] == [2]
+    assert any("Recovered via page-count diff" in chunk.text for chunk in result.chunks)
+    assert any(call["page_range"] == (2, 2) for call in calls)
+
+
+def test_spanning_hybrid_chunk_overlapping_failed_page_is_dropped(monkeypatch, tmp_path):
+    partial_doc = _multi_page_document(5, missing_pages={2})
+    recovered_doc = _single_page_document(2, "Recovered page two after span drop.")
+
+    def fake_chunk_document(document, blocks, config):
+        pages = getattr(document, "pages", None) or {}
+        if len(pages) == 1:
+            return [
+                IngestChunk(
+                    chunk_id="chunk_000001",
+                    text="Recovered page two after span drop.",
+                    page_start=1,
+                    page_end=1,
+                    heading_path="",
+                    token_count=6,
+                )
+            ]
+        return [
+            IngestChunk(
+                chunk_id="chunk_000001",
+                text="stale spanning text that includes failed page two",
+                page_start=1,
+                page_end=3,
+                heading_path="Chapter 1",
+                token_count=8,
+            )
+        ]
+
+    class PartialResult:
+        status = ConversionStatus.PARTIAL_SUCCESS
+        errors = [_page_failed_error(1)]
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class SuccessResult:
+        status = ConversionStatus.SUCCESS
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class Converter:
+        def __init__(self, backend: str | None):
+            self.backend = backend or "docling_parse"
+
+        def convert(self, source=None, page_range=None, **_kwargs):
+            if page_range is None:
+                return PartialResult(partial_doc)
+            return SuccessResult(recovered_doc)
+
+    monkeypatch.setattr(
+        "vera_ingest_docling.converter._build_converter",
+        lambda options, backend=None, **_kwargs: Converter(backend),
+    )
+    monkeypatch.setattr(
+        "vera_ingest_docling.recovery._chunk_document",
+        fake_chunk_document,
+    )
+
+    pdf = tmp_path / "span.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    result = DoclingHybridPipeline()(str(pdf), IngestRequest())
+    assert all("stale spanning" not in chunk.text for chunk in result.chunks)
+    assert any("Recovered page two after span drop" in chunk.text for chunk in result.chunks)
+
+
+def test_forced_pypdfium2_skips_docling_parse_page_retry(monkeypatch, tmp_path):
+    partial_doc = _multi_page_document(5, missing_pages={2})
+    recovered_doc = _single_page_document(2, "Forced pypdfium recovered page two.")
+    calls: list[dict[str, object]] = []
+
+    class PartialResult:
+        status = ConversionStatus.PARTIAL_SUCCESS
+        errors = [_page_failed_error(1)]
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class SuccessResult:
+        status = ConversionStatus.SUCCESS
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class Converter:
+        def __init__(self, backend: str | None):
+            self.backend = backend or "docling_parse"
+
+        def convert(self, source=None, page_range=None, **_kwargs):
+            calls.append({"backend": self.backend, "page_range": page_range})
+            if page_range is None:
+                return PartialResult(partial_doc)
+            assert self.backend == "pypdfium2"
+            return SuccessResult(recovered_doc)
+
+    monkeypatch.setattr(
+        "vera_ingest_docling.converter._build_converter",
+        lambda options, backend=None, **_kwargs: Converter(backend),
+    )
+
+    pdf = tmp_path / "forced.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    result = DoclingHybridPipeline()(
+        str(pdf),
+        IngestRequest(pipeline_options={"pdf_backend": "pypdfium2"}),
+    )
+    assert result.diagnostics["recovered_pages"] == [2]
+    assert result.diagnostics["recovered_pages_backend"] == {"2": "pypdfium2"}
+    assert not any(call["backend"] == "docling_parse" and call["page_range"] is not None for call in calls)
+    assert any(call["backend"] == "pypdfium2" and call["page_range"] == (2, 2) for call in calls)
+
+
+def test_docling_options_from_mapping_remaps_tesseract_eng():
+    from vera_ingest_docling.options import DoclingOptions
+
+    assert DoclingOptions.from_mapping({"ocr_language": "eng"}).ocr_language == "en"
+    assert DoclingOptions.from_mapping({"ocr_language": "ENG"}).ocr_language == "en"
+    assert DoclingOptions.from_mapping({"ocr_language": "eng+fr"}).ocr_language == "en+fr"
+    assert DoclingOptions.from_mapping({"ocr_language": "fr"}).ocr_language == "fr"
+
+
+def test_pipeline_ingest_options_does_not_leak_tesseract_eng(monkeypatch, tmp_path):
+    document = _fixture_document()
+    captured: dict[str, object] = {}
+
+    class Result:
+        status = ConversionStatus.SUCCESS
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class Converter:
+        def convert(self, source=None, **_kwargs):
+            return Result(document)
+
+    def fake_build(options, **_kwargs):
+        captured["options"] = options
+        return Converter()
+
+    monkeypatch.setattr("vera_ingest_docling.converter._build_converter", fake_build)
+
+    pdf = tmp_path / "legacy.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    result = DoclingHybridPipeline()(str(pdf), IngestOptions())
+    assert captured["options"].ocr_language == "en"
+    assert result.diagnostics["ocr_language"] == "en"
+    assert result.diagnostics["ocr_languages"] == ["en"]
+
+
+def test_cancelled_error_is_not_swallowed(monkeypatch, tmp_path):
+    class CancelledError(RuntimeError):
+        pass
+
+    class Converter:
+        def convert(self, source=None, **_kwargs):
+            raise CancelledError("user cancelled")
+
+    monkeypatch.setattr(
+        "vera_ingest_docling.converter._build_converter",
+        lambda options, **_kwargs: Converter(),
+    )
+    pdf = tmp_path / "cancel.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    with pytest.raises(CancelledError, match="user cancelled"):
+        DoclingHybridPipeline()(str(pdf), IngestRequest())
+
+
+def test_fallback_failure_preserves_original_exception_as_cause(monkeypatch, tmp_path):
+    class Converter:
+        def convert(self, source=None, **_kwargs):
+            raise RuntimeError("std::bad_alloc native crash")
+
+    monkeypatch.setattr(
+        "vera_ingest_docling.converter._build_converter",
+        lambda options, **_kwargs: Converter(),
+    )
+    pdf = tmp_path / "both-fail.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    with pytest.raises(ValueError, match="pypdfium2") as info:
+        DoclingHybridPipeline()(str(pdf), IngestRequest())
+    assert info.value.__cause__ is not None
+    assert "bad_alloc" in str(info.value.__cause__)
+
+
+def test_picture_item_does_not_stringify_caption_refs():
+    item = PictureItem(
+        self_ref="#/pictures/0",
+        captions=[RefItem(cref="#/texts/5")],
+    )
+    text = _item_text(None, item, "image")
+    assert "RefItem" not in text
+    assert "#/texts/5" not in text
+    assert text == ""
 
 
 @pytest.mark.docling_integration

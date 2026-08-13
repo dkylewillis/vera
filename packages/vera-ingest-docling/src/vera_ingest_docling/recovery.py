@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, NoReturn
 
 from vera_ingest.cancellation import raise_if_cancelled
 from vera_ingest.types import IngestBlock, IngestChunk, ParsedPage
@@ -15,6 +16,10 @@ from .options import DoclingOptions
 # Above this ratio of failed pages, skip per-page recovery and reconvert the
 # whole document once with pypdfium2 (avoids paying model-init per page).
 _MAX_RECOVERABLE_PAGE_RATIO = 0.2
+
+# Docling 2.118 ErrorItem has no page_no; StandardPdfPipeline records
+# ``Page {page.page_no} failed to parse.`` with 0-based Page.page_no.
+_PAGE_FAILED_RE = re.compile(r"(?i)\bpage\s+(\d+)\s+failed")
 
 
 @dataclass
@@ -63,19 +68,68 @@ def _format_docling_errors(result: Any) -> str:
     return joined
 
 
-def _failed_page_numbers(result: Any) -> list[int]:
-    """Return distinct sorted 1-indexed page numbers from Docling ErrorItems."""
-    pages: set[int] = set()
-    for entry in getattr(result, "errors", None) or []:
-        page_no = getattr(entry, "page_no", None)
+def _page_from_error_message(text: str) -> int | None:
+    """Parse a 1-based page number from a Docling ``Page N failed…`` message."""
+    match = _PAGE_FAILED_RE.search(text or "")
+    if match is None:
+        return None
+    # Page.page_no in the stock message is 0-based; VERA pages are 1-based.
+    return int(match.group(1)) + 1
+
+
+def _page_from_error_entry(entry: Any) -> int | None:
+    text = str(getattr(entry, "error_message", None) or "")
+    parsed = _page_from_error_message(text)
+    if parsed is not None:
+        return parsed
+    page_no = getattr(entry, "page_no", None)
+    if page_no is None:
+        return None
+    try:
+        page_int = int(page_no)
+    except (TypeError, ValueError):
+        return None
+    if page_int >= 0:
+        # 0-based leftover; anything >0 is treated as already 1-based.
+        return page_int + 1 if page_int == 0 else page_int
+    return None
+
+
+def _missing_pages_from_counts(result: Any) -> list[int]:
+    """Infer failed 1-based pages by diffing input page_count vs assembled pages."""
+    input_doc = getattr(result, "input", None)
+    page_count = getattr(input_doc, "page_count", None)
+    if not isinstance(page_count, int) or page_count <= 0:
+        return []
+    expected = set(range(1, page_count + 1))
+    present: set[int] = set()
+    document = getattr(result, "document", None)
+    if document is not None:
+        pages = getattr(document, "pages", None) or {}
+        present.update(int(page) for page in pages)
+    conv_pages = getattr(result, "pages", None) or []
+    for page in conv_pages:
+        page_no = getattr(page, "page_no", None)
         if page_no is None:
             continue
         try:
-            page_int = int(page_no)
+            raw = int(page_no)
         except (TypeError, ValueError):
             continue
-        if page_int > 0:
-            pages.add(page_int)
+        # ConversionResult.pages use 0-based Page.page_no.
+        present.add(raw + 1 if raw >= 0 else raw)
+    return sorted(expected - present)
+
+
+def _failed_page_numbers(result: Any) -> list[int]:
+    """Return distinct sorted 1-indexed page numbers from Docling errors."""
+    pages: set[int] = set()
+    for entry in getattr(result, "errors", None) or []:
+        parsed = _page_from_error_entry(entry)
+        if parsed is not None:
+            pages.add(parsed)
+    if not pages:
+        pages.update(_missing_pages_from_counts(result))
     return sorted(pages)
 
 
@@ -157,6 +211,13 @@ def _unique_block_id(block_id: str, seen: set[str]) -> str:
     return unique
 
 
+def _chunk_overlaps_pages(chunk: IngestChunk, pages: set[int]) -> bool:
+    """Return True when the chunk's inclusive page range overlaps ``pages``."""
+    if not pages:
+        return False
+    return any(chunk.page_start <= page <= chunk.page_end for page in pages)
+
+
 def _merge_recovered_page(
     pages: list[ParsedPage],
     blocks: list[IngestBlock],
@@ -168,11 +229,7 @@ def _merge_recovered_page(
     # Drop any residual content that Docling left for the failed page.
     pages = [page for page in pages if page.page_number != page_no]
     blocks = [block for block in blocks if block.page_number != page_no]
-    chunks = [
-        chunk
-        for chunk in chunks
-        if not (chunk.page_start == page_no and chunk.page_end == page_no)
-    ]
+    chunks = [chunk for chunk in chunks if not _chunk_overlaps_pages(chunk, {page_no})]
 
     recovered_pages = [page for page in recovered.pages if page.page_number == page_no]
     if not recovered_pages and recovered.pages:
@@ -241,12 +298,26 @@ def _merge_recovered_page(
 
 
 def _page_count_estimate(result: Any, failed_pages: list[int]) -> int:
+    input_doc = getattr(result, "input", None)
+    page_count = getattr(input_doc, "page_count", None)
+    if isinstance(page_count, int) and page_count > 0:
+        return page_count
     document = getattr(result, "document", None)
     if document is not None:
         pages = getattr(document, "pages", None) or {}
         if pages:
-            return max(len(pages), max(failed_pages, default=0))
+            try:
+                highest = max(int(page) for page in pages)
+            except (TypeError, ValueError):
+                highest = len(pages)
+            return max(highest, max(failed_pages, default=0), len(pages))
     return max(failed_pages, default=1)
+
+
+def _raise_from(message: str, cause: BaseException | None) -> NoReturn:
+    if cause is None:
+        raise ValueError(message)
+    raise ValueError(message) from cause
 
 
 def _whole_document_pypdfium2_fallback(
@@ -255,15 +326,20 @@ def _whole_document_pypdfium2_fallback(
     config: DoclingOptions,
     cancel: Any | None,
     prior: Any | None,
+    cause: BaseException | None = None,
 ) -> _MappedConversion:
     raise_if_cancelled(cancel)
     if config.pdf_backend == _converter._PDF_BACKEND_PYPDFIUM2:
         # Already on pypdfium2; nothing left to try.
         if prior is not None:
-            _assert_conversion_ok(prior)
-        raise ValueError(
+            try:
+                _assert_conversion_ok(prior)
+            except ValueError as exc:
+                raise exc from cause
+        _raise_from(
             "Docling conversion failed with pdf_backend=pypdfium2; "
-            "no further backend fallback is available."
+            "no further backend fallback is available.",
+            cause,
         )
     result = _converter._try_convert(
         source_path,
@@ -272,16 +348,48 @@ def _whole_document_pypdfium2_fallback(
     )
     if result is None:
         if prior is not None:
-            _assert_conversion_ok(prior)
-        raise ValueError(
+            try:
+                _assert_conversion_ok(prior)
+            except ValueError as exc:
+                raise exc from cause
+        _raise_from(
             "Docling conversion failed and the pypdfium2 whole-document "
-            "fallback also failed."
+            "fallback also failed.",
+            cause,
         )
+    assert result is not None
     mapped = _mapped_from_success(result, config, backend=_converter._PDF_BACKEND_PYPDFIUM2)
     if mapped is None:
-        _assert_conversion_ok(result)
+        try:
+            _assert_conversion_ok(result)
+        except ValueError as exc:
+            raise exc from cause
         raise AssertionError("unreachable")  # pragma: no cover
     return replace(mapped, whole_fallback=_converter._PDF_BACKEND_PYPDFIUM2)
+
+
+def _recover_page(
+    source_path: str,
+    page_no: int,
+    config: DoclingOptions,
+) -> tuple[_MappedConversion | None, str]:
+    """Retry one page; skip docling_parse when the user forced pypdfium2."""
+    if config.pdf_backend != _converter._PDF_BACKEND_PYPDFIUM2:
+        recovered = _convert_single_page(
+            source_path,
+            page_no,
+            config,
+            _converter._PDF_BACKEND_DOCLING_PARSE,
+        )
+        if recovered is not None:
+            return recovered, _converter._PDF_BACKEND_DOCLING_PARSE
+    recovered = _convert_single_page(
+        source_path,
+        page_no,
+        config,
+        _converter._PDF_BACKEND_PYPDFIUM2,
+    )
+    return recovered, _converter._PDF_BACKEND_PYPDFIUM2
 
 
 def _resolve_conversion(
@@ -294,6 +402,7 @@ def _resolve_conversion(
     cancel: Any | None,
     recovered_pages: list[int],
     recovered_pages_backend: dict[int, str],
+    primary_error: BaseException | None = None,
 ) -> _MappedConversion:
     from docling.datamodel.base_models import ConversionStatus
 
@@ -303,40 +412,41 @@ def _resolve_conversion(
         if mapped is not None:
             return mapped
 
-    # Decide whether adaptive recovery applies.
-    can_recover = False
-    failed_pages: list[int] = []
-    if conversion is not None:
-        status = getattr(conversion, "status", None)
-        failed_pages = _failed_page_numbers(conversion)
-        if (
-            status == ConversionStatus.PARTIAL_SUCCESS
-            and failed_pages
-            and _result_has_memory_errors(conversion)
-        ):
-            can_recover = True
+    failed_pages: list[int] = _failed_page_numbers(conversion) if conversion is not None else []
+    has_memory = conversion is not None and _result_has_memory_errors(conversion)
+    status = getattr(conversion, "status", None) if conversion is not None else None
+    can_recover = (
+        status == ConversionStatus.PARTIAL_SUCCESS
+        and bool(failed_pages)
+        and has_memory
+    )
 
-    # Whole-document pypdfium2 fallback for hard raises or too many failed pages.
     need_whole_fallback = primary_raised
+    if has_memory and not can_recover:
+        # Memory errors with no attributable pages (typical real ErrorItem)
+        # must fall back to whole-document pypdfium2 instead of rejecting.
+        need_whole_fallback = True
     if can_recover:
         total_pages = _page_count_estimate(conversion, failed_pages)
         ratio = len(failed_pages) / max(total_pages, 1)
         if ratio > _MAX_RECOVERABLE_PAGE_RATIO:
             need_whole_fallback = True
 
-    if need_whole_fallback or (not can_recover and primary_raised):
+    if need_whole_fallback:
         return _whole_document_pypdfium2_fallback(
             source_path=source_path,
             config=config,
             cancel=cancel,
             prior=conversion,
+            cause=primary_error,
         )
 
     if not can_recover:
         # Document-scoped / non-memory partial failures keep today's reject path.
         if conversion is None:
-            raise ValueError(
-                "Docling conversion failed and recovery could not obtain a result."
+            _raise_from(
+                "Docling conversion failed and recovery could not obtain a result.",
+                primary_error,
             )
         _assert_conversion_ok(conversion)
         raise AssertionError("unreachable")  # pragma: no cover
@@ -350,16 +460,16 @@ def _resolve_conversion(
             config=config,
             cancel=cancel,
             prior=conversion,
+            cause=primary_error,
         )
 
     pages, blocks = map_docling_document(document)
-    # Drop chunks that touch failed pages; they will be replaced by recovery.
     failed_set = set(failed_pages)
     all_chunks = _chunk_document(document, blocks, config)
     chunks = [
         chunk
         for chunk in all_chunks
-        if chunk.page_start not in failed_set and chunk.page_end not in failed_set
+        if not _chunk_overlaps_pages(chunk, failed_set)
     ]
     # Also drop blocks/pages for failed pages so recovered content replaces them.
     pages = [page for page in pages if page.page_number not in failed_set]
@@ -368,21 +478,7 @@ def _resolve_conversion(
     unrecoverable: list[int] = []
     for page_no in failed_pages:
         raise_if_cancelled(cancel)
-        recovered = _convert_single_page(
-            source_path,
-            page_no,
-            config,
-            _converter._PDF_BACKEND_DOCLING_PARSE,
-        )
-        backend_used = _converter._PDF_BACKEND_DOCLING_PARSE
-        if recovered is None:
-            recovered = _convert_single_page(
-                source_path,
-                page_no,
-                config,
-                _converter._PDF_BACKEND_PYPDFIUM2,
-            )
-            backend_used = _converter._PDF_BACKEND_PYPDFIUM2
+        recovered, backend_used = _recover_page(source_path, page_no, config)
         if recovered is None:
             unrecoverable.append(page_no)
             continue

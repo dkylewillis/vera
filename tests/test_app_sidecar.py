@@ -269,6 +269,7 @@ def test_library_inspect_streams_request_scoped_progress(monkeypatch, nested_app
     [
         ("inspect", "Inspection cancelled"),
         ("source", "Source loading cancelled"),
+        ("search", "Search cancelled"),
     ],
 )
 def test_inspection_and_source_honor_cancellation(action, expected_error):
@@ -286,7 +287,10 @@ def test_inspection_and_source_honor_cancellation(action, expected_error):
     assert response["error"] == expected_error
 
 
-@pytest.mark.parametrize("background_action", ["index_build", "inspect"])
+@pytest.mark.parametrize(
+    "background_action",
+    ["index_build", "inspect", "search", "list_models", "figure_data", "export"],
+)
 def test_library_work_does_not_block_other_sidecar_requests(monkeypatch, background_action):
     sidecar = importlib.import_module("vera_app.sidecar")
     work_started = threading.Event()
@@ -326,6 +330,59 @@ def test_library_work_does_not_block_other_sidecar_requests(monkeypatch, backgro
     assert all_responses.wait(timeout=1)
     assert observed["ping_while_working"] is True
     assert {response["id"] for response in responses} == {"work", "ping"}
+
+
+def test_search_action_can_be_cancelled_while_in_flight(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    search_started = threading.Event()
+    control_acked = threading.Event()
+    release_search = threading.Event()
+    all_responses = threading.Event()
+    responses = []
+    stdin = _ScriptedStdin()
+
+    def fake_search(request, cancel=None):
+        assert cancel is not None
+        search_started.set()
+        assert release_search.wait(timeout=2)
+        cancel.raise_if_cancelled()
+        return []
+
+    def capture_response(response):
+        responses.append(response)
+        if response.get("id") == "cancel":
+            control_acked.set()
+        if len(responses) >= 3:
+            all_responses.set()
+
+    monkeypatch.setattr(sidecar, "_search", fake_search)
+    monkeypatch.setattr(sidecar, "_write_response", capture_response)
+    monkeypatch.setattr(sidecar.sys, "stdin", stdin)
+
+    thread = threading.Thread(target=sidecar.main, daemon=True)
+    thread.start()
+    stdin.push('{"id":"search","action":"search","path":"manual.vera","query":"detention"}\n')
+    assert search_started.wait(timeout=2)
+    stdin.push('{"id":"ping","action":"ping"}\n')
+    stdin.push('{"id":"cancel","action":"cancel","target_id":"search"}\n')
+    assert control_acked.wait(timeout=2)
+    release_search.set()
+    stdin.push(None)
+    thread.join(timeout=2)
+    assert all_responses.wait(timeout=2)
+
+    ping_response = next(item for item in responses if item.get("id") == "ping")
+    cancel_response = next(item for item in responses if item.get("id") == "cancel")
+    search_response = next(item for item in responses if item.get("id") == "search")
+    assert ping_response["ok"] is True
+    assert cancel_response["ok"] is True
+    assert cancel_response["result"]["cancelled"] is True
+    assert search_response == {
+        "id": "search",
+        "ok": False,
+        "error": "Search cancelled",
+        "cancelled": True,
+    }
 
 
 @pytest.mark.parametrize(
