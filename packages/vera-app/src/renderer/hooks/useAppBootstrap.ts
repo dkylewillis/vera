@@ -1,4 +1,5 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
+import { SIDECAR_ACTIONS } from '../../shared/protocol';
 import type { AppSettings, PipelineDescriptor, Session } from '../types';
 
 export function fallbackPipelineDescriptors(pipelines: string[]): PipelineDescriptor[] {
@@ -34,7 +35,7 @@ export function useAppBootstrap(options: {
     }
     async function loadEmbeddingProviders() {
       const response = await window.vera.request<{ providers: string[] }>({
-        action: 'list_embedding_providers',
+        action: SIDECAR_ACTIONS.listEmbeddingProviders,
       });
       if (!canceled && response.ok) {
         optionsRef.current.setEmbeddingProviders(response.result?.providers ?? []);
@@ -42,7 +43,7 @@ export function useAppBootstrap(options: {
     }
     async function loadIngestPipelines() {
       const response = await window.vera.request<{ pipelines: PipelineDescriptor[] }>({
-        action: 'describe_ingest_pipelines',
+        action: SIDECAR_ACTIONS.describeIngestPipelines,
       });
       if (canceled) return;
       if (response.ok && response.result?.pipelines?.length) {
@@ -50,7 +51,7 @@ export function useAppBootstrap(options: {
         return;
       }
       const fallback = await window.vera.request<{ pipelines: string[] }>({
-        action: 'list_ingest_pipelines',
+        action: SIDECAR_ACTIONS.listIngestPipelines,
       });
       if (!canceled && fallback.ok) {
         const pipelines = fallback.result?.pipelines?.length

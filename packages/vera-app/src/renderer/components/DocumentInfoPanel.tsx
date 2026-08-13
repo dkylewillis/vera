@@ -1,3 +1,4 @@
+import { SIDECAR_ACTIONS } from '../../shared/protocol';
 import { CheckCircle2, Download, Info, ShieldCheck } from 'lucide-react';
 import type { SidecarCall } from '../lib/sidecarCall';
 import { formatChunkingStrategy, formatOcrSummary } from '../lib/documentInfo';
@@ -53,20 +54,20 @@ export function DocumentInfoPanel({
   onPageResult: (result: PageResult) => void;
 }) {
   async function handleValidate() {
-    const result = await call<ValidateResult>({ action: 'validate', path: viewerInfoPath }, 'Validating');
+    const result = await call<ValidateResult>({ action: SIDECAR_ACTIONS.validate, path: viewerInfoPath }, 'Validating');
     if (result) onValidation(result);
   }
 
   async function handleExport() {
     const output = await window.vera.saveAny();
     if (!output) return;
-    const result = await call<ExportResult>({ action: 'export', path: viewerInfoPath, output }, 'Exporting source');
+    const result = await call<ExportResult>({ action: SIDECAR_ACTIONS.export, path: viewerInfoPath, output }, 'Exporting source');
     if (result) onExportResult(result);
   }
 
   async function handleLoadPage() {
     const result = await call<PageResult>(
-      { action: 'page', path: viewerInfoPath, page_number: pageNumber },
+      { action: SIDECAR_ACTIONS.page, path: viewerInfoPath, page_number: pageNumber },
       'Loading page',
     );
     if (result) onPageResult(result);

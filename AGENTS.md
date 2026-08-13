@@ -182,8 +182,7 @@ non-obvious caveats for this environment; standard commands live in the sections
   `/workspace/.venv`.
 - Standard checks: `uv run --extra dev python -m pytest -q` (or `npm test`) for Python,
   `npm run app:typecheck` and `npm --prefix packages/vera-app run test:unit` for the app.
-- Desktop app on Linux: the root `npm run app:dev` script hardcodes `npm.cmd` and only works
-  on Windows. On Linux run the app directly: `npm --prefix packages/vera-app run dev`. Electron
+- Desktop app: `npm run app:dev` works on Linux, macOS, and Windows. Electron
   spawns the Python sidecar as `python -m vera_app.sidecar`, so set
   `VERA_APP_PYTHON=/workspace/.venv/bin/python` (the venv Python has numpy/pymupdf/pdfplumber);
   otherwise the sidecar fails to import its deps. In the cloud VM also set `DISPLAY=:1` and

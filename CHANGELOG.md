@@ -88,6 +88,11 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Explorer type filters prune files hidden by the filter from the current
   selection.
 - Removed unused `saveVera` / `defaultVeraPath` helpers.
+- Shared IPC channel, sidecar action, and stream event names, with a contract
+  test that TypeScript `StreamEvent` names match sidecar emissions.
+- Split the renderer shell into `AppShell`, `ExplorerSidebar`, `ChatsSidebar`,
+  `CenterChatView`, and `CenterSearchView`.
+- `npm run app:dev` uses `npm` instead of Windows-only `npm.cmd`.
 
 Hosted embedding providers, Convert UI embedder preflight/forms, and a
 packaged-app plugin runtime are follow-ups after this tag (0.3.1 or later).

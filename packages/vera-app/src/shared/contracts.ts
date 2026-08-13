@@ -1,3 +1,8 @@
+import type { StreamEventName } from './protocol';
+
+export type { StreamEventName } from './protocol';
+export { IPC_CHANNELS, SIDECAR_ACTIONS, STREAM_EVENTS } from './protocol';
+
 export type ContentPart =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string } };
@@ -18,7 +23,7 @@ export interface TraceToolCall {
 
 export interface StreamEvent {
   id: string;
-  event: 'search_start' | 'search_done' | 'llm_request' | 'llm_response' | 'tool_call' | 'answer_delta' | 'answer_reset' | 'conversion_progress' | 'index_progress' | 'inspection_progress' | 'ocr_download_progress';
+  event: StreamEventName;
   turn?: number;
   query?: string;
   mode?: string;

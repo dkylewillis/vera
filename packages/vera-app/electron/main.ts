@@ -10,6 +10,7 @@ import type {
   ProviderProfile,
   Session,
 } from '../src/shared/contracts.js';
+import { IPC_CHANNELS, SIDECAR_ACTIONS } from '../src/shared/protocol.js';
 import { listFolderEntries } from './folder-listing.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
 
@@ -229,13 +230,13 @@ class PythonSidecar {
   }
 
   async cancelAnswer(requestId: string): Promise<{ cancelled: boolean }> {
-    const response = await this.request({ action: 'cancel', target_id: requestId });
+    const response = await this.request({ action: SIDECAR_ACTIONS.cancel, target_id: requestId });
     const result = (response.result || {}) as { cancelled?: boolean };
     return { cancelled: Boolean(result.cancelled) };
   }
 
   async skipConversion(requestId: string): Promise<{ skipped: boolean }> {
-    const response = await this.request({ action: 'skip', target_id: requestId });
+    const response = await this.request({ action: SIDECAR_ACTIONS.skip, target_id: requestId });
     const result = (response.result || {}) as { skipped?: boolean };
     return { skipped: Boolean(result.skipped) };
   }
@@ -744,7 +745,7 @@ function scheduleFolderChanged(folderPath: string): void {
   folderChangeTimers.set(key, setTimeout(() => {
     folderChangeTimers.delete(key);
     for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.isDestroyed()) win.webContents.send('vera:folderChanged', folderPath);
+      if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.folderChanged, folderPath);
     }
   }, 200));
 }
@@ -789,11 +790,11 @@ function stopFolderWatchers(): void {
 
 function sendOpenTarget(path: string | null): void {
   if (!path) return;
-  BrowserWindow.getFocusedWindow()?.webContents.send('vera:openTarget', path);
+  BrowserWindow.getFocusedWindow()?.webContents.send(IPC_CHANNELS.openTarget, path);
 }
 
 function sendOpenSettings(): void {
-  BrowserWindow.getFocusedWindow()?.webContents.send('vera:openSettings');
+  BrowserWindow.getFocusedWindow()?.webContents.send(IPC_CHANNELS.openSettings);
 }
 
 function configureMenu(): void {
@@ -921,7 +922,7 @@ app.whenReady().then(() => {
       return new Response('Not found', { status: 404 });
     }
   });
-  ipcMain.handle('vera:showMenu', (event, menuId: string, x: number, y: number) => {
+  ipcMain.handle(IPC_CHANNELS.showMenu, (event, menuId: string, x: number, y: number) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const item = Menu.getApplicationMenu()?.getMenuItemById(menuId);
     if (!win || !item?.submenu) return false;
@@ -932,13 +933,13 @@ app.whenReady().then(() => {
     });
     return true;
   });
-  ipcMain.handle('vera:getSessions', async () => readSessions());
-  ipcMain.handle('vera:saveSession', async (_event, session: Session) => upsertSession(session));
-  ipcMain.handle('vera:deleteSession', async (_event, id: string) => deleteSession(id));
-  ipcMain.handle('vera:request', async (event, payload: SidecarPayload, requestId?: string) => {
+  ipcMain.handle(IPC_CHANNELS.getSessions, async () => readSessions());
+  ipcMain.handle(IPC_CHANNELS.saveSession, async (_event, session: Session) => upsertSession(session));
+  ipcMain.handle(IPC_CHANNELS.deleteSession, async (_event, id: string) => deleteSession(id));
+  ipcMain.handle(IPC_CHANNELS.request, async (event, payload: SidecarPayload, requestId?: string) => {
     const sender = event.sender;
     const onEvent = (e: SidecarEvent) => {
-      if (!sender.isDestroyed()) sender.send('vera:answerEvent', e);
+      if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.answerEvent, e);
     };
     const prepared = withModesDir(withStoredApiKey(payload));
     const request = prepared.action === 'source'
@@ -967,29 +968,29 @@ app.whenReady().then(() => {
     }
     return response;
   });
-  ipcMain.handle('vera:cancelAnswer', (_event, requestId: string) => sidecar.cancelAnswer(requestId));
-  ipcMain.handle('vera:cancelRequest', (_event, requestId: string) => sidecar.cancelRequest(requestId));
-  ipcMain.handle('vera:skipConversion', (_event, requestId: string) => sidecar.skipConversion(requestId));
-  ipcMain.handle('vera:listModes', async () => sidecar.request({ action: 'list_modes', modes_dir: modesDir() }));
-  ipcMain.handle('vera:openModesFolder', async () => shell.openPath(modesDir()));
-  ipcMain.handle('vera:getSettings', async () => readSettings());
-  ipcMain.handle('vera:saveSettings', async (_event, settings: AppSettings) => writeSettings(settings));
-  ipcMain.handle('vera:saveApiKey', async (_event, providerId: string, apiKey: string) => saveApiKey(providerId, apiKey));
-  ipcMain.handle('vera:clearApiKey', async (_event, providerId: string) => clearApiKey(providerId));
-  ipcMain.handle('vera:saveHfToken', async (_event, token: string) => saveHfToken(token));
-  ipcMain.handle('vera:clearHfToken', async () => clearHfToken());
-  ipcMain.handle('vera:pickArchive', async () => pickArchivePath());
-  ipcMain.handle('vera:pickFolder', async () => pickFolderPath());
-  ipcMain.handle('vera:listFolder', async (_event, dir: string) => listFolder(dir));
-  ipcMain.handle('vera:pathExists', async (_event, targetPath: string) => (
+  ipcMain.handle(IPC_CHANNELS.cancelAnswer, (_event, requestId: string) => sidecar.cancelAnswer(requestId));
+  ipcMain.handle(IPC_CHANNELS.cancelRequest, (_event, requestId: string) => sidecar.cancelRequest(requestId));
+  ipcMain.handle(IPC_CHANNELS.skipConversion, (_event, requestId: string) => sidecar.skipConversion(requestId));
+  ipcMain.handle(IPC_CHANNELS.listModes, async () => sidecar.request({ action: SIDECAR_ACTIONS.listModes, modes_dir: modesDir() }));
+  ipcMain.handle(IPC_CHANNELS.openModesFolder, async () => shell.openPath(modesDir()));
+  ipcMain.handle(IPC_CHANNELS.getSettings, async () => readSettings());
+  ipcMain.handle(IPC_CHANNELS.saveSettings, async (_event, settings: AppSettings) => writeSettings(settings));
+  ipcMain.handle(IPC_CHANNELS.saveApiKey, async (_event, providerId: string, apiKey: string) => saveApiKey(providerId, apiKey));
+  ipcMain.handle(IPC_CHANNELS.clearApiKey, async (_event, providerId: string) => clearApiKey(providerId));
+  ipcMain.handle(IPC_CHANNELS.saveHfToken, async (_event, token: string) => saveHfToken(token));
+  ipcMain.handle(IPC_CHANNELS.clearHfToken, async () => clearHfToken());
+  ipcMain.handle(IPC_CHANNELS.pickArchive, async () => pickArchivePath());
+  ipcMain.handle(IPC_CHANNELS.pickFolder, async () => pickFolderPath());
+  ipcMain.handle(IPC_CHANNELS.listFolder, async (_event, dir: string) => listFolder(dir));
+  ipcMain.handle(IPC_CHANNELS.pathExists, async (_event, targetPath: string) => (
     typeof targetPath === 'string' && Boolean(targetPath.trim()) && existsSync(resolve(targetPath))
   ));
-  ipcMain.handle('vera:showInFolder', async (_event, targetPath: string) => showInFolder(targetPath));
-  ipcMain.handle('vera:trashWorkspaceFile', async (_event, filePath: string, folderPath: string) => trashWorkspaceFile(filePath, folderPath));
-  ipcMain.handle('vera:setWatchedFolders', async (_event, paths: string[]) => {
+  ipcMain.handle(IPC_CHANNELS.showInFolder, async (_event, targetPath: string) => showInFolder(targetPath));
+  ipcMain.handle(IPC_CHANNELS.trashWorkspaceFile, async (_event, filePath: string, folderPath: string) => trashWorkspaceFile(filePath, folderPath));
+  ipcMain.handle(IPC_CHANNELS.setWatchedFolders, async (_event, paths: string[]) => {
     setWatchedFolders(Array.isArray(paths) ? paths : []);
   });
-  ipcMain.handle('vera:pickPdf', async (event) => {
+  ipcMain.handle(IPC_CHANNELS.pickPdf, async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const options: Electron.OpenDialogOptions = {
       title: 'Open PDFs',
@@ -1002,7 +1003,7 @@ app.whenReady().then(() => {
       : await dialog.showOpenDialog(options);
     return result.canceled ? [] : result.filePaths;
   });
-  ipcMain.handle('vera:saveAny', async () => {
+  ipcMain.handle(IPC_CHANNELS.saveAny, async () => {
     const result = await dialog.showSaveDialog({ title: 'Save file' });
     return result.canceled ? null : result.filePath;
   });

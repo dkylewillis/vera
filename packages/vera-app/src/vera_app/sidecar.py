@@ -62,6 +62,7 @@ from vera_app.llm import (
     list_models,
 )
 from vera_app.modes import Mode, load_modes, resolve_mode
+from vera_app.protocol import SIDECAR_ACTIONS
 
 Request = dict[str, Any]
 Response = dict[str, Any]
@@ -1528,6 +1529,12 @@ HANDLERS: dict[str, Handler] = {
     "ocr_languages_download": _ocr_languages_download,
     "list_modes": _list_modes,
 }
+
+_CONTROL_ACTIONS = {"cancel", "skip"}
+if set(HANDLERS) | _CONTROL_ACTIONS != set(SIDECAR_ACTIONS):
+    missing = set(SIDECAR_ACTIONS) - (set(HANDLERS) | _CONTROL_ACTIONS)
+    extra = (set(HANDLERS) | _CONTROL_ACTIONS) - set(SIDECAR_ACTIONS)
+    raise RuntimeError(f"sidecar action mismatch missing={sorted(missing)} extra={sorted(extra)}")
 
 _stdout_lock = threading.Lock()
 _inflight_lock = threading.Lock()
