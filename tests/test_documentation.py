@@ -235,6 +235,13 @@ def test_hardening_json_contracts_are_documented():
     assert "Shift+click" in desktop_architecture
     assert "## Reconvert with a different parser or embedding" in conversion
     assert "**Reconvert…**" in conversion
+    assert "registers the default" in desktop_architecture and "pymupdf" in desktop_architecture
+    assert "copy-metadata" in (ROOT / "packages" / "vera-app" / "scripts" / "build-sidecar.cjs").read_text(
+        encoding="utf-8"
+    )
+    assert "ensure_registered" in (
+        ROOT / "packages" / "vera-ingest-pymupdf" / "src" / "vera_ingest_pymupdf" / "__init__.py"
+    ).read_text(encoding="utf-8")
     assert "PyMuPDF ingest pipeline" in desktop
     assert "ingest_pipeline" in desktop
     assert "vera-ingest-docling" in conversion or "docling:hybrid" in conversion

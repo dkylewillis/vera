@@ -383,8 +383,11 @@ button {
 }
 
 .sidePanelBody--explorer {
+  display: flex;
+  flex-direction: column;
   padding: 4px 3px;
   overflow-x: hidden;
+  outline: none;
 }
 
 .sidePanelBody--chats {
@@ -481,6 +484,8 @@ button {
   display: grid;
   gap: 4px;
   min-width: 0;
+  flex: 1;
+  align-content: start;
 }
 
 .explorerFileFilter {

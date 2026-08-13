@@ -144,7 +144,10 @@ selection: click selects one file, Ctrl/Cmd+click adds or removes it, Shift+clic
 selects the range from the last anchor, and the checkbox always toggles that
 row. Selected `.vera` files become the Search/Ask scope; selected PDFs become
 the Convert selection. Clicking a folder name clears the file selection and
-returns Search/Ask to the whole library. Clicking a `.vera` does not collapse
+returns Search/Ask to the whole library. Clicking empty Explorer space or pressing Escape
+(while the sidebar has focus) clears file selection — PDF picks, `.vera`
+checkboxes, and a single-document scope (restoring the parent library when
+possible). Clicking a `.vera` does not collapse
 the folder or replace the document viewer. Double-click or right-click **View in document
 viewer** / **Preview embedded source** loads that PDF or archive original in
 the source pane; right-clicking a PDF also offers **Convert PDF** /
@@ -270,7 +273,9 @@ npm run app:dist
 project virtualenv when it is available (honoring `VERA_SIDECAR_PYTHON`) and
 otherwise falls back to `uv run --extra app --extra sidecar`. Bundled Tesseract
 English data is passed as an absolute path so the build works from any
-directory.
+directory. The build also copies `vera-ingest-pymupdf` package metadata and the
+sidecar registers the default `pymupdf` pipeline on import so Convert works in
+frozen builds where `importlib.metadata` entry points are otherwise empty.
 
 From the repo root:
 

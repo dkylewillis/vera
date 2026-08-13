@@ -54,7 +54,10 @@ convert("manual.pdf", "manual.vera", parser="pymupdf")
 Packaged and source-run desktop conversions use this pipeline by default.
 Convert controls are schema-driven from the pipeline descriptor
 (`describe_ingest_pipelines` / `PipelineConfigForm`). The sidecar build
-bundles the English tessdata directory from this package.
+bundles the English tessdata directory from this package and copies package
+metadata for entry-point discovery; importing the package also calls
+`ensure_registered()` so PyInstaller freezes still resolve `pymupdf` when
+dist-info is missing.
 
 ## See also
 

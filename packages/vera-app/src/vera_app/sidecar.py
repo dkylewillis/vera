@@ -44,7 +44,13 @@ from vera_ingest_pymupdf import (
     UnknownOCRLanguageError,
     describe_ocr_languages,
     download_ocr_language_data,
+    ensure_registered as ensure_pymupdf_pipeline_registered,
 )
+
+# PyInstaller freezes and PYTHONPATH-only app runs often omit entry-point
+# metadata; the sidecar hard-depends on the default PDF pipeline.
+ensure_pymupdf_pipeline_registered()
+
 from vera_app.cancellation import CancellationToken, CancelledError, SkipCurrentError
 from vera_app.llm import (
     ChatResponse,

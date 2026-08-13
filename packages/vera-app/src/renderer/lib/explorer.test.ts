@@ -1,31 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyFileListSelection,
-  collapsedFoldersForActiveLibrary,
   explorerEntryType,
   partitionExplorerSelection,
+  syncCollapsedFolders,
   visibleExplorerEntries,
 } from './explorer';
 
-describe('collapsedFoldersForActiveLibrary', () => {
+describe('syncCollapsedFolders', () => {
   it('keeps the current expansion when no library is active', () => {
-    expect(collapsedFoldersForActiveLibrary(['/a', '/b'], '', ['/b'])).toEqual(['/b']);
+    expect(syncCollapsedFolders(['/a', '/b'], '', ['/b'])).toEqual(['/b']);
   });
 
   it('drops closed folders from the collapsed list when none is active', () => {
-    expect(collapsedFoldersForActiveLibrary(['/a'], '', ['/a', '/gone'])).toEqual(['/a']);
+    expect(syncCollapsedFolders(['/a'], '', ['/a', '/gone'])).toEqual(['/a']);
   });
 
   it('expands every remaining folder when none is active and none were collapsed', () => {
-    expect(collapsedFoldersForActiveLibrary(['/a', '/b'], '')).toEqual([]);
+    expect(syncCollapsedFolders(['/a', '/b'], '')).toEqual([]);
   });
 
   it('keeps the active library expanded and collapses the rest', () => {
-    expect(collapsedFoldersForActiveLibrary(['/a', '/b', '/c'], '/b')).toEqual(['/a', '/c']);
+    expect(syncCollapsedFolders(['/a', '/b', '/c'], '/b', ['/a'])).toEqual(['/a', '/c']);
   });
 
   it('expands a lone active library', () => {
-    expect(collapsedFoldersForActiveLibrary(['/only'], '/only')).toEqual([]);
+    expect(syncCollapsedFolders(['/only'], '/only', ['/only'])).toEqual([]);
   });
 });
 

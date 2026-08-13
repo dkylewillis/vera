@@ -1,5 +1,10 @@
-/** Paths that should start collapsed so only the active library's files show. */
-export function collapsedFoldersForActiveLibrary(
+/**
+ * Keep Explorer scannable around the active library without fighting file
+ * selection: expand the active library and collapse the rest when one is set;
+ * when none is active (e.g. a single .vera is scoped), preserve the user's
+ * expand/collapse state and only drop folders that are no longer open.
+ */
+export function syncCollapsedFolders(
   folderPaths: string[],
   activeLibraryPath: string,
   previousCollapsed: string[] = [],
@@ -8,7 +13,7 @@ export function collapsedFoldersForActiveLibrary(
   if (!active) {
     // Selecting a document clears the active library. Keep the user's expanded
     // folders so the file they clicked stays visible.
-    return previousCollapsed.filter((path) => folderPaths.includes(path));
+    return previousCollapsed.filter((folderPath) => folderPaths.includes(folderPath));
   }
   return folderPaths.filter((folderPath) => folderPath !== active);
 }
