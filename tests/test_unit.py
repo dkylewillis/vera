@@ -380,6 +380,40 @@ class TestGetEmbedder:
         finally:
             reset_embedding_registry(builtins=True)
 
+    def test_failing_entry_point_is_logged_and_not_registered(self, monkeypatch, caplog):
+        import logging
+
+        class BrokenEntry:
+            name = "broken-remote"
+
+            def load(self):
+                raise ImportError("native library missing")
+
+        def fake_entry_points(*, group=None):
+            if group == "vera.embedders":
+                return [BrokenEntry()]
+            return []
+
+        reset_embedding_registry(builtins=True)
+        monkeypatch.setattr(
+            "vera.core.embeddings.entry_points",
+            fake_entry_points,
+        )
+        try:
+            with caplog.at_level(logging.WARNING, logger="vera.core.embeddings"):
+                providers = list_embedding_providers()
+            assert "broken-remote" not in providers
+            assert "hashing" in providers
+            warning_text = " ".join(
+                record.getMessage()
+                for record in caplog.records
+                if record.levelno == logging.WARNING
+            )
+            assert "broken-remote" in warning_text
+            assert "native library missing" in warning_text
+        finally:
+            reset_embedding_registry(builtins=True)
+
 
 # ---------------------------------------------------------------------------
 # serialize / deserialize vector round-trip

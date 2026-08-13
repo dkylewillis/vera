@@ -6,6 +6,11 @@ the same contract — nothing in `vera-doc`, `vera-cli`, or `vera-app`
 special-cases a hosted OpenAI or Voyage package. Write your own to add a new
 API, a local runtime, or an experimental embedder.
 
+Registry and descriptor APIs (`register_embedder`, descriptor/model listing
+helpers) are experimental and may change before 1.0. Hosted providers
+(OpenAI, Voyage, Ollama) are examples you can implement yourself; they are
+not bundled with VERA.
+
 This guide mirrors [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md):
 a plain factory, one Options dataclass whose field `metadata` drives both
 validation and GUI/CLI descriptors, and entry points for discovery.
@@ -50,7 +55,10 @@ Archives store `model_name`, dimension, and normalization — not your
 Use `preflight_embedder("openai:text-embedding-3-small")` to check that a
 required credential env var is present without loading model weights.
 
-## Minimal example
+## Minimal example (DIY hosted provider)
+
+The OpenAI sketch below is an example you can implement yourself. OpenAI,
+Voyage, and Ollama are not bundled with VERA.
 
 ```text
 vera-openai-embeddings/

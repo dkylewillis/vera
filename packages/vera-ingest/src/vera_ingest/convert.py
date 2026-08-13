@@ -134,6 +134,13 @@ def convert(
     result through :class:`~vera.document.VeraDocument`. The archive is
     validated before the temporary file is published atomically.
 
+    New callers should pass ``parser``, ``pipeline_options``, and embedder
+    settings (``model`` / ``embedding_function`` / ``embedder_options``).
+    ``chunk_size``, ``overlap``, ``ocr_mode``, ``ocr_language``, ``ocr_dpi``,
+    and ``ocr_download`` remain compatibility aliases for CLI and sidecar
+    callers; they are forwarded only when the selected pipeline advertises
+    them (Tesseract OCR aliases do not leak to Docling).
+
     Args:
         input_path: Source PDF path.
         output_path: Destination ``.vera`` path.
@@ -143,7 +150,8 @@ def convert(
         embedding_function: Optional custom embedder satisfying
             :class:`~vera.EmbeddingFunction`. When omitted, ``model`` is
             resolved via :func:`~vera.get_embedder` before parsing begins.
-        parser: Ingest pipeline spec in ``provider[:variant]`` form.
+        parser: Ingest pipeline spec in ``provider[:variant]`` form
+            (default ``"pymupdf"``).
         chunk_size: Compatibility alias forwarded only when the selected
             pipeline advertises a ``chunk_size`` field.
         overlap: Compatibility alias forwarded only when advertised by the
@@ -510,14 +518,17 @@ def batch_convert(
             hash-less archives are reconverted.
         model: Embedding model spec passed to :func:`convert`.
         embedding_function: Optional custom embedder passed to :func:`convert`.
-        parser: PDF parser backend passed to :func:`convert`.
-        chunk_size: Target chunk size passed to :func:`convert`.
-        overlap: Chunk overlap passed to :func:`convert`.
+        parser: Ingest pipeline spec passed to :func:`convert` (default
+            ``"pymupdf"``). Prefer this plus ``pipeline_options`` and embedder
+            settings for new callers; the OCR/chunk kwargs below are
+            compatibility aliases.
+        chunk_size: Compatibility alias passed to :func:`convert`.
+        overlap: Compatibility alias passed to :func:`convert`.
         store_original: Whether to embed originals passed to :func:`convert`.
-        ocr_mode: OCR mode passed to :func:`convert`.
-        ocr_language: OCR language passed to :func:`convert`.
-        ocr_dpi: OCR DPI passed to :func:`convert`.
-        ocr_download: OCR language auto-download flag passed to :func:`convert`.
+        ocr_mode: Compatibility OCR mode alias passed to :func:`convert`.
+        ocr_language: Compatibility OCR language alias passed to :func:`convert`.
+        ocr_dpi: Compatibility OCR DPI alias passed to :func:`convert`.
+        ocr_download: Compatibility OCR download alias passed to :func:`convert`.
         pipeline_options: Explicit provider-owned options passed to :func:`convert`.
         embedder_options: Explicit provider-owned embedding options passed to
             :func:`convert`.

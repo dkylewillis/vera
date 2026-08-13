@@ -8,13 +8,9 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Download,
-  Database,
   FileInput,
-  FileText,
   Folder,
   FolderOpen,
-  Info,
   ListChecks,
   Maximize2,
   MessageSquareText,
@@ -27,9 +23,6 @@ import {
   RefreshCw,
   Search,
   Settings,
-  ShieldCheck,
-  SkipForward,
-  Square,
   Terminal,
   Trash2,
   X,
@@ -39,24 +32,18 @@ import { TraceView } from './components/activity/TraceView';
 import { AppStatusBar } from './components/AppStatusBar';
 import { ChatComposer } from './components/ChatComposer';
 import { ChatTurn } from './components/ChatTurn';
+import { ConvertPanel } from './components/ConvertPanel';
+import { DocumentInfoPanel } from './components/DocumentInfoPanel';
+import { ExplorerPanel } from './components/ExplorerPanel';
 import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexModal';
 import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { ModelManager, ProviderManager } from './components/ProviderManagers';
-import { mergePipelineFieldValues, PipelineConfigForm } from './components/PipelineConfigForm';
-import { OcrLanguagePackManager } from './components/OcrLanguagePackManager';
+import { mergePipelineFieldValues } from './components/PipelineConfigForm';
 import { VeraIcon } from './components/VeraIcon';
 import { firstCitationInAnswer } from './lib/citations';
 import { backgroundTasksReducer, type BackgroundTask } from './lib/backgroundTasks';
 import { EMPTY_FIGURES, EMPTY_REGIONS } from './lib/constants';
 import { awaitConversionRequest } from './lib/conversion';
-import {
-  CUSTOM_EMBEDDING_VALUE,
-  EMBEDDING_MODEL_PRESETS,
-  embeddingSelectValue,
-  pipelineInstallHint,
-  pipelineSelectOptions,
-  presetOptionAvailable,
-} from './lib/convertPresets';
 import {
   convertDefaultsFromSelection,
   formatBox,
@@ -69,13 +56,8 @@ import {
 } from './lib/formatting';
 import { figureCacheKey, mergeFigureData, sameSearchResult } from './lib/figures';
 import {
-  applyFileListSelection,
-  explorerFileMatchesFilter,
-  partitionExplorerSelection,
-  pruneExplorerSelectionForFilter,
   routeOpenTarget,
   syncCollapsedFolders,
-  visibleExplorerEntries,
   type ExplorerFileFilter,
 } from './lib/explorer';
 import {
@@ -94,8 +76,6 @@ import './styles.css';
 type SideView = 'explorer' | 'chats' | 'convert';
 type CenterView = 'chat' | 'search';
 type ViewerMode = 'selection' | 'document' | 'info';
-type FolderContextMenu = { path: string; x: number; y: number };
-type EntryContextMenu = { entry: FolderEntry; folderPath: string; x: number; y: number };
 type ActionCallOptions = { scope?: string; timeoutMs?: number };
 
 const DEFAULT_ACTION_TIMEOUT_MS = 5 * 60 * 1000;
@@ -113,46 +93,6 @@ function traceKey(sessionId: string, timestamp: number): string {
 
 function fileName(filePath: string): string {
   return filePath.split(/[\\/]/).pop() || filePath;
-}
-
-function formatBytes(value?: number): string {
-  if (value === undefined || value === null) return '-';
-  if (value < 1024) return `${value} B`;
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let amount = value / 1024;
-  let unit = units[0];
-  for (let index = 1; index < units.length && amount >= 1024; index += 1) {
-    amount /= 1024;
-    unit = units[index];
-  }
-  return `${amount >= 10 ? amount.toFixed(1) : amount.toFixed(2)} ${unit}`;
-}
-
-function formatTimestamp(value?: string | null): string {
-  if (!value) return '-';
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
-}
-
-function formatChunkingStrategy(value?: string): string {
-  if (!value) return '-';
-  const match = /^heading_block_sliding_window:(\d+):(\d+)$/.exec(value);
-  if (!match) return value;
-  return `Heading-aware sliding window · ${match[1]} words · ${match[2]} overlap`;
-}
-
-function formatOcrSummary(ocr?: InspectResult['ocr']): string {
-  if (!ocr) return 'Not recorded';
-  const pages = ocr.ocr_pages ?? [];
-  const mode = ocr.ocr_mode ? `${ocr.ocr_mode[0].toUpperCase()}${ocr.ocr_mode.slice(1)}` : 'Unknown mode';
-  const details = [
-    ocr.ocr_engine,
-    mode,
-    ocr.ocr_language,
-    ocr.ocr_dpi ? `${ocr.ocr_dpi} DPI` : null,
-    `${pages.length} page${pages.length === 1 ? '' : 's'} OCR’d`,
-  ].filter(Boolean);
-  return details.join(' · ');
 }
 
 function stripTrace(turn: SessionTurn): SessionTurn {
@@ -176,12 +116,6 @@ function App() {
   const [indexStatuses, setIndexStatuses] = useState<Record<string, LibraryIndexStatus>>({});
   const [indexStatusChecking, setIndexStatusChecking] = useState<Record<string, boolean>>({});
   const [indexReports, setIndexReports] = useState<Record<string, LibraryIndexBuildReport>>({});
-  const [folderContextMenu, setFolderContextMenu] = useState<FolderContextMenu | null>(null);
-  const folderContextMenuFirstActionRef = useRef<HTMLButtonElement | null>(null);
-  const folderContextMenuTriggerRef = useRef<HTMLElement | null>(null);
-  const [entryContextMenu, setEntryContextMenu] = useState<EntryContextMenu | null>(null);
-  const entryContextMenuActionRef = useRef<HTMLButtonElement | null>(null);
-  const entryContextMenuTriggerRef = useRef<HTMLElement | null>(null);
   const [indexPrompt, setIndexPrompt] = useState<IndexPrompt | null>(null);
   const [indexReport, setIndexReport] = useState<LibraryIndexBuildReport | null>(null);
   const [indexRecursive, setIndexRecursive] = useState(true);
@@ -290,49 +224,6 @@ function App() {
     }
   });
 
-  useEffect(() => {
-    if (!folderContextMenu) return;
-    folderContextMenuFirstActionRef.current?.focus();
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setFolderContextMenu(null);
-        folderContextMenuTriggerRef.current?.focus();
-        return;
-      }
-      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-
-      const menu = document.querySelector('.folderContextMenu');
-      const actions = [...(menu?.querySelectorAll<HTMLButtonElement>('button') ?? [])];
-      if (actions.length === 0) return;
-      event.preventDefault();
-      const current = document.activeElement;
-      const currentIndex = actions.indexOf(current as HTMLButtonElement);
-      const nextIndex = event.key === 'Home'
-        ? 0
-        : event.key === 'End'
-          ? actions.length - 1
-          : (currentIndex + (event.key === 'ArrowDown' ? 1 : -1) + actions.length) % actions.length;
-      actions[nextIndex].focus();
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [folderContextMenu]);
-
-  useEffect(() => {
-    if (!entryContextMenu) return;
-    entryContextMenuActionRef.current?.focus();
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape') return;
-      setEntryContextMenu(null);
-      entryContextMenuTriggerRef.current?.focus();
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [entryContextMenu]);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollThreadRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -360,29 +251,10 @@ function App() {
   const activeOperation = operationTasks[operationTasks.length - 1] ?? null;
   const conversionInProgress = Boolean(conversionTask);
   const convertLocked = conversionInProgress || reconvertBusy;
-  const folderMenuPdfCount = folderContextMenu
-    ? folders.find((folder) => folder.path === folderContextMenu.path)?.entries.filter((entry) => entry.type === 'pdf').length ?? 0
-    : 0;
   const conversionStatus = conversionTask?.message ?? null;
   const busyAction = activeOperation?.label ?? null;
   const chatBusy = operationTasks.some((task) => task.label === 'Asking');
   const searchBusy = operationTasks.some((task) => task.label === 'Searching');
-  const activePipelineDescriptor = useMemo(
-    () => ingestPipelineDescriptors.find((item) => item.spec === ingestPipeline || item.provider === ingestPipeline) ?? null,
-    [ingestPipeline, ingestPipelineDescriptors],
-  );
-  const pipelineOptionsForSelect = useMemo(
-    () => pipelineSelectOptions(ingestPipelineDescriptors),
-    [ingestPipelineDescriptors],
-  );
-  const installedPipelineProviders = useMemo(
-    () => ingestPipelineDescriptors.map((item) => item.provider),
-    [ingestPipelineDescriptors],
-  );
-  const visibleExplorerFiles = useMemo(
-    () => visibleExplorerEntries(folders, collapsedFolders, explorerFileFilter),
-    [folders, collapsedFolders, explorerFileFilter],
-  );
 
   const searchScopePath = activeLibraryPath || path;
   const activeIndexStatus = activeLibraryPath ? indexStatuses[activeLibraryPath] : undefined;
@@ -862,68 +734,6 @@ function App() {
     }
   }
 
-  function applyExplorerFileFilter(filter: ExplorerFileFilter) {
-    setExplorerFileFilter(filter);
-    const next = pruneExplorerSelectionForFilter(
-      [...selectedFiles, ...selectedPdfs],
-      filter,
-      selectionAnchorPath,
-    );
-    const partitioned = partitionExplorerSelection(next.selected);
-    setSelectedFiles(partitioned.vera);
-    setSelectedPdfs(partitioned.pdf);
-    setSelectionAnchorPath(next.anchor);
-    setExplorerSelection((current) => {
-      if (current?.kind !== 'file') return current;
-      return explorerFileMatchesFilter(current.type, filter) ? current : null;
-    });
-  }
-
-  function selectExplorerEntry(entry: FolderEntry, event: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean } = {}) {
-    const visiblePaths = visibleExplorerFiles.map((item) => item.path);
-    const currentSelected = [...selectedFiles, ...selectedPdfs];
-    const next = applyFileListSelection({
-      visiblePaths,
-      selected: currentSelected,
-      anchor: selectionAnchorPath,
-      clicked: entry.path,
-      event,
-    });
-    const partitioned = partitionExplorerSelection(next.selected);
-    setSelectionAnchorPath(next.anchor);
-    setSelectedFiles(partitioned.vera);
-    setSelectedPdfs(partitioned.pdf);
-    setExplorerSelection({ kind: 'file', path: entry.path, type: entry.type });
-    if (entry.type === 'vera' && partitioned.vera.length > 0) {
-      updateTargetPath(entry.path);
-    }
-  }
-
-  function toggleFolderCollapsed(folderPath: string) {
-    setCollapsedFolders((prev) =>
-      prev.includes(folderPath) ? prev.filter((p) => p !== folderPath) : [...prev, folderPath],
-    );
-  }
-
-  function showFolderContextMenu(folderPath: string, x: number, y: number) {
-    folderContextMenuTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setFolderContextMenu({
-      path: folderPath,
-      x: Math.max(8, Math.min(x, window.innerWidth - 220)),
-      y: Math.max(8, Math.min(y, window.innerHeight - 220)),
-    });
-  }
-
-  function showEntryContextMenu(entry: FolderEntry, folderPath: string, x: number, y: number) {
-    entryContextMenuTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setEntryContextMenu({
-      entry,
-      folderPath,
-      x: Math.max(8, Math.min(x, window.innerWidth - 220)),
-      y: Math.max(8, Math.min(y, window.innerHeight - 180)),
-    });
-  }
-
   function parentFolderForPath(filePath: string): string | undefined {
     return folders.find((folder) => folder.entries.some((entry) => entry.path === filePath))?.path;
   }
@@ -969,42 +779,6 @@ function App() {
     event.currentTarget.focus({ preventScroll: true });
     clearExplorerFileSelection();
   }
-
-  // Windows Explorer-style: Escape clears file selection while Explorer has focus,
-  // but only after menus/modals have already had a chance to consume Escape.
-  useEffect(() => {
-    if (sideView !== 'explorer' || sidebarCollapsed) return;
-    if (folderContextMenu || entryContextMenu || settingsOpen || indexPrompt || indexReport) return;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      const active = document.activeElement;
-      if (!(active instanceof HTMLElement)) return;
-      if (active.closest('input, textarea, select, [contenteditable="true"]')) return;
-      if (!active.closest('.sidePanel')) return;
-      if (clearExplorerFileSelection()) {
-        event.preventDefault();
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [
-    sideView,
-    sidebarCollapsed,
-    folderContextMenu,
-    entryContextMenu,
-    settingsOpen,
-    indexPrompt,
-    indexReport,
-    selectedPdfs,
-    selectedFiles,
-    explorerSelection,
-    activeLibraryPath,
-    path,
-    folders,
-  ]);
-
 
   async function previewSourceDocument(entry: FolderEntry) {
     if (entry.type !== 'vera' && entry.type !== 'pdf') return;
@@ -2696,192 +2470,54 @@ function App() {
               onMouseDown={sideView === 'explorer' ? (event) => handleExplorerBlankPointer(event) : undefined}
             >
               {sideView === 'explorer' ? (
-                folders.length === 0 ? (
-                  <div className="sideEmpty">
-                    <Folder size={28} />
-                    <p>No folders open yet.</p>
-                    <button className="sidePrimary" onClick={() => void addFolder()}><FolderOpen size={15} />Open Folder</button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="explorerFileFilter" role="group" aria-label="Filter explorer files">
-                      {([
-                        ['all', 'All'],
-                        ['vera', 'VERA'],
-                        ['pdf', 'PDFs'],
-                      ] as const).map(([filter, label]) => (
-                        <button
-                          type="button"
-                          key={filter}
-                          className={explorerFileFilter === filter ? 'active' : ''}
-                          onClick={() => applyExplorerFileFilter(filter)}
-                          aria-pressed={explorerFileFilter === filter}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="explorerTree">
-                      {folders.map((folder) => {
-                      const visibleEntries = explorerFileFilter === 'all'
-                        ? folder.entries
-                        : folder.entries.filter((entry) => entry.type === explorerFileFilter);
-                      const folderIndex = indexStatuses[folder.path];
-                      const folderIndexChecking = Boolean(indexStatusChecking[folder.path]);
-                      const folderBusy = busyFolderPath === folder.path;
-                      const folderIndexing = indexingFolders[folder.path];
-                      const folderIndexReport = indexReports[folder.path];
-                      const indexBadgeClass = folderIndexing
-                        ? 'indexing'
-                        : folderIndexChecking && !folderIndex
-                          ? 'checking'
-                        : folderIndexReport?.skipped
-                          ? 'warning'
-                          : folderIndex?.fresh
-                            ? 'fresh'
-                            : folderIndex?.exists ? 'stale' : 'missing';
-                      const indexBadgeTitle = folderIndexing
-                        ? `${folderIndexing === 'build' ? 'Building' : 'Updating'} library index in the background`
-                        : folderIndexChecking && !folderIndex
-                          ? 'Checking index status…'
-                        : folderIndexReport?.skipped
-                          ? `Indexed with ${folderIndexReport.skipped} skipped archive(s). Select for details.`
-                          : folderIndex?.fresh
-                            ? `${folderIndexReport ? 'Indexed. Select for the latest build report.' : 'Indexed'}${folderIndexChecking ? ' Verifying current folder state…' : ''}`
-                            : folderIndex?.exists
-                              ? `Index needs updating: ${folderIndex.reasons.join('; ')}${folderIndexChecking ? ' Verifying current folder state…' : ''}`
-                              : 'No index';
-                      return (
-                      <section
-                        className={activeLibraryPath === folder.path
-                          ? selectedFiles.length > 0 ? 'folderGroup' : 'folderGroup activeLibrary'
-                          : 'folderGroup'}
-                        key={folder.path}
-                      >
-                        <div
-                          className="folderGroupHead"
-                          title={folder.path}
-                          onContextMenu={(event) => {
-                            event.preventDefault();
-                            showFolderContextMenu(folder.path, event.clientX, event.clientY);
-                          }}
-                        >
-                          <button
-                            className="folderCollapseAction"
-                            onClick={() => toggleFolderCollapsed(folder.path)}
-                            title={folderBusy ? busyAction || 'Working…' : collapsedFolders.includes(folder.path) ? 'Expand' : 'Collapse'}
-                          >
-                            <span className={folderBusy ? 'folderToggleIcon loading' : 'folderToggleIcon'}>
-                              {folderBusy ? (
-                                <RefreshCw size={14} className="folderStateIcon spinning" aria-hidden="true" />
-                              ) : (
-                                <>
-                                  {collapsedFolders.includes(folder.path) ? <Folder size={14} className="folderStateIcon" /> : <FolderOpen size={14} className="folderStateIcon" />}
-                                  {collapsedFolders.includes(folder.path) ? <ChevronRight size={14} className="folderCaretIcon" /> : <ChevronDown size={14} className="folderCaretIcon" />}
-                                </>
-                              )}
-                            </span>
-                          </button>
-                          <button
-                            className="folderGroupToggle"
-                            onClick={() => selectExplorerFolder(folder.path)}
-                            onDoubleClick={() => void openLibraryInfo(folder.path)}
-                            onKeyDown={(event) => {
-                              if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
-                              event.preventDefault();
-                              const bounds = event.currentTarget.getBoundingClientRect();
-                              showFolderContextMenu(folder.path, bounds.left, bounds.bottom);
-                            }}
-                            title="Use as active library · double-click for Library Info"
-                            aria-haspopup="menu"
-                            aria-expanded={folderContextMenu?.path === folder.path}
-                          >
-                            <span className="folderGroupName">{folder.name}</span>
-                          </button>
-                          <button
-                            type="button"
-                            className={`indexBadge ${indexBadgeClass}`}
-                            title={indexBadgeTitle}
-                            aria-label={`Index status: ${folderIndexing ? 'indexing' : folderIndexChecking && !folderIndex ? 'checking' : folderIndexReport?.skipped ? `indexed with ${folderIndexReport.skipped} skipped` : folderIndex?.fresh ? 'indexed' : folderIndex?.exists ? 'needs updating' : 'no index'}`}
-                            disabled={Boolean(folderIndexing) || !folderIndexReport}
-                            onClick={() => {
-                              if (!folderIndexReport) return;
-                              setIndexPrompt(null);
-                              setIndexReport(folderIndexReport);
-                            }}
-                          >
-                            {folderIndexing
-                              ? <RefreshCw size={11} className="spinning" aria-hidden="true" />
-                              : folderIndexChecking && !folderIndex
-                                ? <RefreshCw size={11} className="spinning" aria-hidden="true" />
-                              : folderIndexReport?.skipped
-                                ? <AlertTriangle size={11} aria-hidden="true" />
-                                : <Database size={11} aria-hidden="true" />}
-                          </button>
-                        </div>
-                        {collapsedFolders.includes(folder.path) ? null : visibleEntries.length === 0 ? (
-                          <p className="folderEmpty">
-                            {explorerFileFilter === 'all'
-                              ? 'No .vera or .pdf files'
-                              : `No .${explorerFileFilter} files`}
-                          </p>
-                        ) : (
-                          visibleEntries.map((entry) => {
-                            const listed = selectedFiles.includes(entry.path) || selectedPdfs.includes(entry.path);
-                            const previewing = pendingSourcePath === entry.path || sourceDocumentPath === entry.path;
-                            const currentDoc = selectedFiles.length === 0 && selectedPdfs.length === 0 && path === entry.path;
-                            return (
-                            <div key={entry.path} className="fileRowWrap">
-                              <input
-                                type="checkbox"
-                                className="fileRowCheck"
-                                checked={listed}
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  selectExplorerEntry(entry, {
-                                    ctrlKey: true,
-                                    metaKey: event.metaKey,
-                                    shiftKey: event.shiftKey,
-                                  });
-                                }}
-                                onChange={() => undefined}
-                                title={entry.type === 'vera' ? 'Add or remove from search scope' : 'Add or remove from Convert selection'}
-                              />
-                              <button
-                                className={listed || previewing || currentDoc ? 'fileRow active' : 'fileRow'}
-                                aria-selected={listed || currentDoc}
-                                onMouseDown={(event) => {
-                                  if (event.shiftKey) event.preventDefault();
-                                }}
-                                onClick={(event) => selectExplorerEntry(entry, event)}
-                                onDoubleClick={() => {
-                                  if (entry.type === 'vera' || entry.type === 'pdf') {
-                                    void previewSourceDocument(entry);
-                                  }
-                                }}
-                                onContextMenu={(event) => {
-                                  event.preventDefault();
-                                  showEntryContextMenu(entry, folder.path, event.clientX, event.clientY);
-                                }}
-                                title={
-                                  sourceLoading
-                                    ? `${entry.relativePath} — loading ${fileName(pendingSourcePath)}…`
-                                    : `${entry.relativePath} — click to select · Ctrl/Cmd+click to add or remove · Shift+click a range · click empty space or Esc to clear · double-click to preview`
-                                }
-                              >
-                                {entry.type === 'vera' ? <VeraIcon size={14} className="fileRowIcon vera" /> : <FileText size={14} className="fileRowIcon pdf" />}
-                                <span className="fileRowName">{entry.relativePath}</span>
-                              </button>
-                            </div>
-                            );
-                          })
-                        )}
-                      </section>
-                      );
-                      })}
-                    </div>
-                  </>
-                )
+                <ExplorerPanel
+                  folders={folders}
+                  activeLibraryPath={activeLibraryPath}
+                  path={path}
+                  selectedFiles={selectedFiles}
+                  selectedPdfs={selectedPdfs}
+                  selectionAnchorPath={selectionAnchorPath}
+                  explorerSelection={explorerSelection}
+                  explorerFileFilter={explorerFileFilter}
+                  collapsedFolders={collapsedFolders}
+                  pendingSourcePath={pendingSourcePath}
+                  sourceDocumentPath={sourceDocumentPath}
+                  sourceLoading={sourceLoading}
+                  indexStatuses={indexStatuses}
+                  indexStatusChecking={indexStatusChecking}
+                  indexReports={indexReports}
+                  indexingFolders={indexingFolders}
+                  busyFolderPath={busyFolderPath}
+                  busyAction={busyAction}
+                  convertLocked={convertLocked}
+                  escapeBlocked={Boolean(settingsOpen || indexPrompt || indexReport)}
+                  onClearFileSelection={clearExplorerFileSelection}
+                  onAddFolder={() => { void addFolder(); }}
+                  onFileFilterChange={setExplorerFileFilter}
+                  onCollapsedFoldersChange={setCollapsedFolders}
+                  onFileSelectionChange={(next) => {
+                    setSelectedFiles(next.selectedFiles);
+                    setSelectedPdfs(next.selectedPdfs);
+                    setSelectionAnchorPath(next.selectionAnchorPath);
+                    setExplorerSelection(next.explorerSelection);
+                  }}
+                  onSelectFolder={selectExplorerFolder}
+                  onOpenLibraryInfo={(folderPath) => { void openLibraryInfo(folderPath); }}
+                  onUpdateTargetPath={updateTargetPath}
+                  onPreview={(entry) => { void previewSourceDocument(entry); }}
+                  onShowIndexReport={(report) => {
+                    setIndexPrompt(null);
+                    setIndexReport(report);
+                  }}
+                  onConvertFolder={openConvertFolder}
+                  onConvertSelected={openConvertSelected}
+                  onReconvert={(entry, folderPath) => { void openReconvert(entry, folderPath); }}
+                  onManageIndex={(folderPath) => { void manageLibraryIndex(folderPath); }}
+                  onRefreshFolder={(folderPath) => { void refreshFolder(folderPath); }}
+                  onRevealInFolder={(targetPath) => { void revealInFolder(targetPath); }}
+                  onRemoveFolder={removeFolder}
+                  onTrashEntry={(entry, folderPath) => { void trashEntry(entry, folderPath); }}
+                />
               ) : null}
 
               {sideView === 'chats' ? (
@@ -2904,283 +2540,48 @@ function App() {
               ) : null}
 
               {sideView === 'convert' ? (
-                <div className="convertView">
-                  <div className="convertModeToggle">
-                    <button
-                      className={convertMode === 'selected' ? 'active' : ''}
-                      onClick={() => setConvertMode('selected')}
-                    >
-                      {selectedPdfs.length > 0 ? `Individual PDFs (${selectedPdfs.length})` : 'Individual PDFs'}
-                    </button>
-                    <button
-                      className={convertMode === 'batch' ? 'active' : ''}
-                      onClick={() => {
-                        setConvertMode('batch');
-                        const defaults = convertDefaultsFromSelection(explorerSelection, activeLibraryPath);
-                        const directory = defaults?.batchDirectory
-                          || (selectedPdfs[0]
-                            ? selectedPdfs[0].replace(/[/\\][^/\\]+$/, '')
-                            : activeLibraryPath);
-                        if (directory) setBatchDirectory(directory);
-                      }}
-                    >
-                      PDF Directory
-                    </button>
-                  </div>
-                  {convertMode === 'selected' ? (
-                    <>
-                      <div className="selectedPdfList">
-                        <span className="fieldLabel">{selectedPdfs.length} PDF{selectedPdfs.length === 1 ? '' : 's'} selected</span>
-                        {selectedPdfs.length > 0 ? (
-                          <ul>
-                            {selectedPdfs.map((filePath) => (
-                              <li key={filePath} title={filePath}>
-                                <span>{filePath.replace(/^.*[/\\]/, '')}</span>
-                                <button
-                                  type="button"
-                                  className="ghostIcon tiny visible"
-                                  onClick={() => toggleSelectedPdf(filePath)}
-                                  title="Remove from selection"
-                                  aria-label={`Remove ${filePath}`}
-                                >
-                                  <X size={12} />
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="sideMuted">No PDFs selected yet.</p>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        className="secondaryAction"
-                        onClick={() => void choosePdfs()}
-                        disabled={busy || convertLocked}
-                      >
-                        <FolderOpen size={16} />
-                        Choose PDFs
-                      </button>
-                      <button
-                        type="button"
-                        className="secondaryAction"
-                        onClick={() => setSelectedPdfs([])}
-                        disabled={!selectedPdfs.length || busy || convertLocked}
-                      >
-                        Clear selection
-                      </button>
-                      <label className="miniCheck">
-                        <input type="checkbox" checked={batchOverwrite} onChange={(event) => setBatchOverwrite(event.target.checked)} />
-                        <span>Overwrite existing .vera files</span>
-                      </label>
-                      <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Choose files here, or select them in Explorer (click, Ctrl/Cmd+click, or Shift+click).</p>
-                    </>
-                  ) : null}
-                  {convertMode === 'batch' ? (
-                    <>
-                      <label className="field">
-                        <span>PDF directory</span>
-                        <div className="pathInput">
-                          <Folder size={16} />
-                          <input value={batchDirectory} onChange={(event) => setBatchDirectory(event.target.value)} placeholder="C:\\proposals" />
-                        </div>
-                      </label>
-                      <button className="secondaryAction" onClick={chooseBatchDirectory} disabled={busy || convertLocked}><FolderOpen size={16} />Choose Directory</button>
-                      <label className="miniCheck">
-                        <input type="checkbox" checked={batchRecursive} onChange={(event) => setBatchRecursive(event.target.checked)} />
-                        <span>Include PDFs in nested folders</span>
-                      </label>
-                      <label className="miniCheck">
-                        <input type="checkbox" checked={batchOverwrite} onChange={(event) => setBatchOverwrite(event.target.checked)} />
-                        <span>Overwrite existing .vera files</span>
-                      </label>
-                      <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Existing archives are skipped unless overwrite is enabled.</p>
-                    </>
-                  ) : null}
-                  <label className="field">
-                    <span>Ingest pipeline</span>
-                    <select
-                      value={
-                        pipelineOptionsForSelect.some((option) => option.value === ingestPipeline)
-                          ? ingestPipeline
-                          : ingestPipeline || 'pymupdf'
-                      }
-                      onChange={(event) => void saveIngestPipeline(event.target.value)}
-                      disabled={convertLocked}
-                    >
-                      {pipelineOptionsForSelect.map((option) => {
-                        const available = presetOptionAvailable(option, installedPipelineProviders);
-                        return (
-                          <option key={option.value} value={option.value} disabled={!available}>
-                            {available ? option.label : `${option.label} (not installed)`}
-                          </option>
-                        );
-                      })}
-                      {!pipelineOptionsForSelect.some((option) => option.value === ingestPipeline)
-                        && ingestPipeline
-                        ? <option value={ingestPipeline}>{ingestPipeline}</option>
-                        : null}
-                    </select>
-                  </label>
-                  <p className="sideMuted">
-                    {activePipelineDescriptor?.installed
-                      ? (activePipelineDescriptor.description || 'Pipeline ready for conversion.')
-                      : (pipelineInstallHint(ingestPipeline, ingestPipelineDescriptors)
-                        || 'Choose an ingest pipeline.')}
-                    {' '}Packaged releases do not bundle optional ingest plugins.
-                  </p>
-                  <label className="field">
-                    <span>Embedding model</span>
-                    <select
-                      value={embeddingSelectValue(embeddingModel)}
-                      onChange={(event) => {
-                        const next = event.target.value;
-                        if (next === CUSTOM_EMBEDDING_VALUE) {
-                          if (embeddingSelectValue(embeddingModel) !== CUSTOM_EMBEDDING_VALUE) {
-                            setEmbeddingModel('');
-                          }
-                          return;
-                        }
-                        void saveEmbeddingModel(next);
-                      }}
-                      disabled={convertLocked}
-                    >
-                      {EMBEDDING_MODEL_PRESETS.map((option) => {
-                        const available = presetOptionAvailable(option, embeddingProviders);
-                        return (
-                          <option key={option.value} value={option.value} disabled={!available}>
-                            {available ? option.label : `${option.label} (not installed)`}
-                          </option>
-                        );
-                      })}
-                      <option value={CUSTOM_EMBEDDING_VALUE}>Custom provider:model-id…</option>
-                    </select>
-                  </label>
-                  {embeddingSelectValue(embeddingModel) === CUSTOM_EMBEDDING_VALUE ? (
-                    <label className="field">
-                      <span>Custom embedding spec</span>
-                      <input
-                        list="embedding-provider-specs"
-                        value={embeddingModel}
-                        onChange={(event) => setEmbeddingModel(event.target.value)}
-                        onBlur={() => void saveEmbeddingModel(embeddingModel)}
-                        placeholder="provider:model-id"
-                        disabled={convertLocked}
-                      />
-                      <datalist id="embedding-provider-specs">
-                        <option value="hashing" />
-                        <option value="hashing:vera-hashing-384" />
-                        <option value="sentence-transformers:all-MiniLM-L6-v2" />
-                        {embeddingProviders.map((provider) => (
-                          <option key={provider} value={`${provider}:`} />
-                        ))}
-                      </datalist>
-                    </label>
-                  ) : null}
-                  <p className="sideMuted">
-                    {embeddingProviders.includes('sentence-transformers')
-                      ? 'Sentence Transformers is available. The conversion embedding model is independent of Chat.'
-                      : <>Sentence Transformers is not installed. From the repo root run <code>uv sync --extra ml</code> and restart the app.</>}
-                    {' '}Custom specs are saved when the field loses focus.
-                  </p>
-                  <label className="miniCheck">
-                    <input type="checkbox" checked={storeOriginal} onChange={(event) => setStoreOriginal(event.target.checked)} />
-                    <span>Store original PDF</span>
-                  </label>
-                  <details className="convertAdvanced">
-                    <summary>Advanced pipeline options</summary>
-                    <p className="sideMuted">
-                      Controls advertised by the selected ingest pipeline descriptor
-                      {activePipelineDescriptor?.spec ? ` (${activePipelineDescriptor.spec})` : ''}.
-                      Defaults apply until you change them.
-                    </p>
-                    <PipelineConfigForm
-                      descriptor={activePipelineDescriptor}
-                      values={pipelineOptions}
-                      disabled={convertLocked}
-                      onChange={(next) => { void savePipelineOptions(next); }}
-                    />
-                    {activePipelineDescriptor?.capabilities?.ocr_engine === 'tesseract' ? (
-                      <OcrLanguagePackManager
-                        language={String(pipelineOptions.ocr_language ?? 'eng')}
-                        disabled={convertLocked}
-                      />
-                    ) : null}
-                  </details>
-                  {reconvertNotice ? (
-                    <p className="sideMuted reconvertStatus" role="status">
-                      {reconvertBusy ? <RefreshCw size={12} className="spinning" aria-hidden="true" /> : null}
-                      <span>{reconvertNotice}</span>
-                    </p>
-                  ) : null}
-                  <div className="convertActions">
-                    <button
-                      className="sidePrimary"
-                      onClick={() => {
-                        if (convertMode === 'selected') void batchConvertPdfs({ paths: selectedPdfs });
-                        else void batchConvertPdfs();
-                      }}
-                      disabled={convertMode === 'selected'
-                        ? selectedPdfs.length === 0 || busy || convertLocked
-                        : !batchDirectory.trim() || busy || convertLocked}
-                    >
-                      <RefreshCw size={16} className={convertLocked ? 'spinning' : undefined} />
-                      {conversionInProgress
-                        ? 'Converting…'
-                        : reconvertBusy
-                          ? 'Preparing…'
-                          : convertMode === 'selected'
-                            ? `Convert (${selectedPdfs.length})`
-                            : 'Convert Directory'}
-                    </button>
-                    {conversionInProgress && (convertMode === 'batch' || convertMode === 'selected') ? (
-                      <button
-                        type="button"
-                        className="secondaryAction convertStop"
-                        onClick={skipCurrentConversion}
-                        disabled={conversionStatus === 'Stopping…'}
-                        title="Skip current file and continue"
-                        aria-label="Skip current file"
-                      >
-                        <SkipForward size={14} />
-                        Skip
-                      </button>
-                    ) : null}
-                    {conversionInProgress ? (
-                      <button
-                        type="button"
-                        className="secondaryAction convertStop"
-                        onClick={stopConversion}
-                        disabled={conversionStatus === 'Stopping…'}
-                        title="Stop conversion"
-                        aria-label="Stop conversion"
-                      >
-                        <Square size={12} fill="currentColor" />
-                        Stop
-                      </button>
-                    ) : null}
-                  </div>
-                  {conversionError ? <p className="sideMuted" role="alert">{conversionError}</p> : null}
-                  {(convertMode === 'batch' || convertMode === 'selected') && batchConvertResult ? (
-                    <div className="batchConvertReport">
-                      <strong>{batchConvertResult.converted} converted</strong>
-                      <span>
-                        {batchConvertResult.discovered} PDFs found · {batchConvertResult.skipped} skipped
-                        {batchConvertResult.user_skipped ? ` · ${batchConvertResult.user_skipped} user-skipped` : ''}
-                        {' · '}{batchConvertResult.malformed} malformed · {batchConvertResult.failed} failed
-                      </span>
-                      {batchConvertResult.malformed_existing.map((entry) => (
-                        <span className="batchConvertError" key={entry.output} title={entry.issues.join('; ')}>{entry.output}: {entry.issues.join('; ')}</span>
-                      ))}
-                      {(batchConvertResult.skipped_by_user || []).map((filePath) => (
-                        <span className="batchConvertSkipped" key={filePath} title="Skipped by user">{filePath}: skipped</span>
-                      ))}
-                      {batchConvertResult.errors.map((entry) => (
-                        <span className="batchConvertError" key={entry.input} title={entry.error}>{entry.input}: {entry.error}</span>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+                <ConvertPanel
+                  convertMode={convertMode}
+                  selectedPdfs={selectedPdfs}
+                  batchDirectory={batchDirectory}
+                  batchRecursive={batchRecursive}
+                  batchOverwrite={batchOverwrite}
+                  storeOriginal={storeOriginal}
+                  embeddingModel={embeddingModel}
+                  embeddingProviders={embeddingProviders}
+                  ingestPipeline={ingestPipeline}
+                  ingestPipelineDescriptors={ingestPipelineDescriptors}
+                  pipelineOptions={pipelineOptions}
+                  explorerSelection={explorerSelection}
+                  activeLibraryPath={activeLibraryPath}
+                  busy={busy}
+                  convertLocked={convertLocked}
+                  conversionInProgress={conversionInProgress}
+                  reconvertBusy={reconvertBusy}
+                  reconvertNotice={reconvertNotice}
+                  conversionStatus={conversionStatus}
+                  conversionError={conversionError}
+                  batchConvertResult={batchConvertResult}
+                  onConvertModeChange={setConvertMode}
+                  onSelectedPdfsChange={setSelectedPdfs}
+                  onBatchDirectoryChange={setBatchDirectory}
+                  onBatchRecursiveChange={setBatchRecursive}
+                  onBatchOverwriteChange={setBatchOverwrite}
+                  onStoreOriginalChange={setStoreOriginal}
+                  onEmbeddingModelChange={setEmbeddingModel}
+                  onSaveEmbeddingModel={(model) => { void saveEmbeddingModel(model); }}
+                  onSaveIngestPipeline={(pipeline) => { void saveIngestPipeline(pipeline); }}
+                  onSavePipelineOptions={(next) => { void savePipelineOptions(next); }}
+                  onChoosePdfs={() => { void choosePdfs(); }}
+                  onChooseDirectory={() => { void chooseBatchDirectory(); }}
+                  onToggleSelectedPdf={toggleSelectedPdf}
+                  onConvert={() => {
+                    if (convertMode === 'selected') void batchConvertPdfs({ paths: selectedPdfs });
+                    else void batchConvertPdfs();
+                  }}
+                  onSkip={skipCurrentConversion}
+                  onStop={stopConversion}
+                />
               ) : null}
 
             </div>
@@ -3778,140 +3179,26 @@ function App() {
           </div>
           {!viewerCollapsed ? (
             viewerMode === 'info' ? (
-              <article className="viewerInfoView infoView">
-                {viewerInfoPath ? (
-                  <>
-                    <div className="infoActions">
-                      {viewerInfoIsCorpus ? (
-                        <button className="secondaryAction" onClick={() => void inspectTarget(viewerInfoPath)} disabled={!viewerInfoInspectable || activeLibraryIsEmpty || busy}><ShieldCheck size={15} />Inspect</button>
-                      ) : (
-                        <>
-                          <button className="secondaryAction" onClick={() => void validateTarget(viewerInfoPath)} disabled={!viewerInfoInspectable || busy}><CheckCircle2 size={15} />Validate</button>
-                          <button className="secondaryAction" onClick={() => void exportSource(viewerInfoPath)} disabled={!viewerInfoInspectable || busy}><Download size={15} />Export</button>
-                        </>
-                      )}
-                    </div>
-                    {viewerInfoIsCorpus ? (
-                      <>
-                        <dl className="infoList">
-                          <div><dt>Library</dt><dd>{viewerInfoPath}</dd></div>
-                          <div>
-                            <dt>Documents</dt>
-                            <dd>
-                              {viewerInspect?.file_count ?? viewerIndexStatus?.file_count ?? '-'} indexed
-                              {' / '}{viewerInspect?.discovered_file_count ?? viewerIndexStatus?.discovered ?? '-'} discovered
-                              {' / '}{viewerInspect?.skipped ?? viewerIndexStatus?.skipped ?? 0} skipped
-                            </dd>
-                          </div>
-                          <div><dt>Pages</dt><dd>{viewerInspect?.pages ?? '-'}</dd></div>
-                          <div><dt>Chunks</dt><dd>{viewerInspect?.chunks ?? viewerIndexStatus?.indexed_chunks ?? '-'}</dd></div>
-                          <div><dt>Models</dt><dd>{viewerInspect?.embedding_models?.join(', ') || viewerIndexStatus?.model_groups?.map((group) => group.model).join(', ') || '-'}</dd></div>
-                          <div>
-                            <dt>Index</dt>
-                            <dd className={viewerIndexStatus?.fresh ? 'infoStatus infoStatus--good' : 'infoStatus infoStatus--warn'}>
-                              {viewerIndexStatus?.fresh ? 'Fresh' : viewerIndexStatus?.exists ? 'Stale' : 'Missing'}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Coverage</dt>
-                            <dd>
-                              {viewerIndexStatus?.indexed_chunks ?? '-'} / {viewerIndexStatus?.source_chunks ?? '-'} chunks embedded
-                              {viewerIndexStatus?.source_chunks
-                                ? ` (${Math.round(((viewerIndexStatus.indexed_chunks ?? 0) / viewerIndexStatus.source_chunks) * 100)}%)`
-                                : ''}
-                            </dd>
-                          </div>
-                          <div><dt>Storage</dt><dd>{formatBytes(viewerIndexStatus?.index_size_bytes)} total · {formatBytes(viewerIndexStatus?.database_size_bytes)} database · {formatBytes(viewerIndexStatus?.vector_size_bytes)} vectors</dd></div>
-                          <div><dt>Built</dt><dd>{formatTimestamp(viewerIndexStatus?.created_at)}</dd></div>
-                          <div><dt>Checked</dt><dd>{formatTimestamp(viewerIndexStatus?.checked_at)}</dd></div>
-                          <div><dt>Verified</dt><dd>{formatTimestamp(viewerIndexStatus?.verified_at)}</dd></div>
-                          <div><dt>Generation</dt><dd>{viewerIndexStatus?.generation_id || '-'}</dd></div>
-                          <div><dt>Recursive</dt><dd>{viewerIndexStatus?.recursive ? 'Yes' : 'No'}</dd></div>
-                          <div><dt>Excludes</dt><dd>{viewerIndexStatus?.excludes?.length ? viewerIndexStatus.excludes.join(', ') : 'None'}</dd></div>
-                          <div><dt>Summary</dt><dd>{viewerInspect?.summary_source === 'index' ? 'Persistent index' : viewerInspect?.summary_source === 'archives' ? 'Archive scan' : 'File discovery only'}</dd></div>
-                        </dl>
-                        {viewerIndexStatus?.model_groups?.length ? (
-                          <section className="infoSection">
-                            <h3>Model groups</h3>
-                            <div className="modelGroupList">
-                              {viewerIndexStatus.model_groups.map((group) => (
-                                <article className="modelGroupCard" key={`${group.model}-${group.dimension}`}>
-                                  <strong>{group.model}</strong>
-                                  <span>{group.dimension} dimensions</span>
-                                  <span>{group.documents} document{group.documents === 1 ? '' : 's'} · {group.chunks} chunks</span>
-                                  <span>{formatBytes(group.vector_size_bytes)} vectors</span>
-                                </article>
-                              ))}
-                            </div>
-                          </section>
-                        ) : null}
-                        {(viewerIndexStatus?.reasons.length || viewerIndexStatus?.skipped_files?.length) ? (
-                          <section className="infoSection">
-                            <h3>Index health</h3>
-                            <div className="indexHealthList">
-                              {viewerIndexStatus.reasons.map((reason) => <p key={reason}>{reason}</p>)}
-                              {viewerIndexStatus.skipped_files?.map((entry) => (
-                                <p key={entry.file}><strong>{entry.file}</strong> · {entry.category}: {entry.reason}</p>
-                              ))}
-                            </div>
-                          </section>
-                        ) : null}
-                      </>
-                    ) : (
-                      <dl className="infoList">
-                        {viewerInfoIsArchive ? <div><dt>Archive</dt><dd>{viewerInfoPath}</dd></div> : null}
-                        <div><dt>Title</dt><dd>{viewerInspect?.title || '-'}</dd></div>
-                        <div><dt>Created</dt><dd>{formatTimestamp(viewerInspect?.created_at)}</dd></div>
-                        <div><dt>Archive size</dt><dd>{formatBytes(viewerInspect?.archive_size_bytes ?? undefined)}</dd></div>
-                        <div><dt>Format</dt><dd>{viewerInspect ? `${viewerInspect.format_name || 'VERA'} ${viewerInspect.format_version || ''}` : '-'}</dd></div>
-                        <div><dt>Source</dt><dd>{viewerInspect?.source || '-'}</dd></div>
-                        <div><dt>Pages</dt><dd>{viewerInspect?.pages ?? '-'}</dd></div>
-                        <div><dt>Chunks</dt><dd>{viewerInspect?.chunks ?? '-'}</dd></div>
-                        <div><dt>Model</dt><dd>{viewerInspect?.default_embedding_model || viewerInspect?.embedding_models?.join(', ') || '-'}</dd></div>
-                        <div><dt>Dimensions</dt><dd>{viewerInspect?.default_embedding_dimension ?? viewerInspect?.embedding_dimension ?? '-'}</dd></div>
-                        <div><dt>Normalization</dt><dd>{viewerInspect?.default_embedding_normalization ?? viewerInspect?.embedding_normalization ?? 'unknown'}</dd></div>
-                        <div><dt>Parser</dt><dd>{viewerInspect?.parser_name ? `${viewerInspect.parser_name}${viewerInspect.parser_version ? ` ${viewerInspect.parser_version}` : ''}` : '-'}</dd></div>
-                        <div><dt>Chunking</dt><dd>{formatChunkingStrategy(viewerInspect?.chunking_strategy)}</dd></div>
-                        <div><dt>OCR</dt><dd>{formatOcrSummary(viewerInspect?.ocr)}</dd></div>
-                        <div><dt>Attachments</dt><dd>{viewerInspect?.attachments ?? '-'}</dd></div>
-                        <div><dt>Validation</dt><dd>{validation ? (validation.ok ? 'PASS' : 'FAIL') : '-'}</dd></div>
-                        <div><dt>Issues</dt><dd>{validation?.issues?.length ? validation.issues.join('; ') : '0'}</dd></div>
-                        <div><dt>Export</dt><dd>{exportResult?.output || '-'}</dd></div>
-                      </dl>
-                    )}
-                    {sourceDocument ? (
-                      <section className="infoSection">
-                        <h3>Source Document</h3>
-                        <dl className="infoList">
-                          <div><dt>File</dt><dd>{sourceDocument.filename}</dd></div>
-                          <div><dt>Type</dt><dd>{sourceDocument.mime_type}</dd></div>
-                          <div><dt>Size</dt><dd>{Math.round(sourceDocument.size / 1024).toLocaleString()} KB</dd></div>
-                        </dl>
-                      </section>
-                    ) : null}
-                    {!viewerInfoIsCorpus ? <section className="infoSection">
-                      <h3>Page Text</h3>
-                      <div className="pageControls">
-                        <input className="numberInput" type="number" min={1} max={viewerInspect?.pages || undefined} value={pageNumber} onChange={(event) => setPageNumber(Number(event.target.value))} />
-                        <button className="secondaryAction" onClick={() => void loadPage(viewerInfoPath)} disabled={!viewerInfoInspectable || viewerInfoIsCorpus || busy}>Load Page</button>
-                      </div>
-                      {pageResult ? (
-                        <article className="pageText">
-                          <span>p. {pageResult.page_number} · {pageResult.width ?? '-'} x {pageResult.height ?? '-'}</span>
-                          <p>{pageResult.text || 'No text was extracted for this page.'}</p>
-                        </article>
-                      ) : (
-                        <p className="sideMuted">Load a page to inspect extracted text.</p>
-                      )}
-                    </section> : null}
-                  </>
-                ) : (
-                  <div className="emptyState">
-                    <Info size={28} />
-                    <p>Open a document to see its details.</p>
-                  </div>
-                )}
-              </article>
+              <DocumentInfoPanel
+                viewerInfoPath={viewerInfoPath}
+                viewerInfoIsCorpus={viewerInfoIsCorpus}
+                viewerInfoIsArchive={viewerInfoIsArchive}
+                viewerInfoInspectable={viewerInfoInspectable}
+                viewerInspect={viewerInspect}
+                viewerIndexStatus={viewerIndexStatus}
+                activeLibraryIsEmpty={activeLibraryIsEmpty}
+                busy={busy}
+                validation={validation}
+                exportResult={exportResult}
+                sourceDocument={sourceDocument}
+                pageNumber={pageNumber}
+                pageResult={pageResult}
+                onInspect={(target) => { void inspectTarget(target); }}
+                onValidate={(target) => { void validateTarget(target); }}
+                onExport={(target) => { void exportSource(target); }}
+                onPageNumberChange={setPageNumber}
+                onLoadPage={(target) => { void loadPage(target); }}
+              />
             ) : selected && viewerMode === 'selection' ? (
               <article className="sourceDetails sourceViewerOnly">
                 {results.length > 1 ? (
@@ -4066,155 +3353,6 @@ function App() {
         tasks={backgroundTasks}
         busyFolderPath={busyFolderPath}
       />
-      {folderContextMenu ? (
-        <div className="folderContextMenuBackdrop" onClick={() => setFolderContextMenu(null)}>
-          <div
-            className="folderContextMenu"
-            role="menu"
-            style={{ left: folderContextMenu.x, top: folderContextMenu.y }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              ref={folderContextMenuFirstActionRef}
-              role="menuitem"
-              disabled={convertLocked || folderMenuPdfCount === 0}
-              title={
-                convertLocked
-                  ? 'Wait for conversion to finish'
-                  : folderMenuPdfCount === 0
-                    ? 'No PDF files in this folder'
-                    : 'Open Convert for every PDF in this folder'
-              }
-              onClick={() => {
-                openConvertFolder(folderContextMenu.path);
-                setFolderContextMenu(null);
-              }}
-            >
-              Convert PDFs{folderMenuPdfCount > 0 ? ` (${folderMenuPdfCount})` : ''}…
-            </button>
-            <button
-              role="menuitem"
-              disabled={Boolean(indexingFolders[folderContextMenu.path])}
-              onClick={() => {
-                void manageLibraryIndex(folderContextMenu.path);
-                setFolderContextMenu(null);
-              }}
-            >
-              {indexingFolders[folderContextMenu.path]
-                ? 'Indexing…'
-                : indexStatuses[folderContextMenu.path]?.exists ? 'Update index' : 'Build index'}
-            </button>
-            <button
-              role="menuitem"
-              onClick={() => {
-                void refreshFolder(folderContextMenu.path);
-                setFolderContextMenu(null);
-              }}
-            >
-              Rescan folder
-            </button>
-            <button
-              role="menuitem"
-              onClick={() => {
-                void revealInFolder(folderContextMenu.path);
-                setFolderContextMenu(null);
-              }}
-            >
-              {showInFolderLabel(window.vera.platform)}
-            </button>
-            <div className="folderContextMenuSeparator" role="separator" />
-            <button
-              className="danger"
-              role="menuitem"
-              onClick={() => {
-                removeFolder(folderContextMenu.path);
-                setFolderContextMenu(null);
-              }}
-            >
-              Close folder
-            </button>
-          </div>
-        </div>
-      ) : null}
-      {entryContextMenu ? (
-        <div className="folderContextMenuBackdrop" onClick={() => setEntryContextMenu(null)}>
-          <div
-            className="folderContextMenu"
-            role="menu"
-            style={{ left: entryContextMenu.x, top: entryContextMenu.y }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            {entryContextMenu.entry.type === 'vera' || entryContextMenu.entry.type === 'pdf' ? (
-              <button
-                ref={entryContextMenuActionRef}
-                role="menuitem"
-                disabled={sourceLoading}
-                title={sourceLoading ? `Waiting for ${fileName(pendingSourcePath)} to finish loading` : undefined}
-                onClick={() => {
-                  void previewSourceDocument(entryContextMenu.entry);
-                  setEntryContextMenu(null);
-                }}
-              >
-                {entryContextMenu.entry.type === 'vera' ? 'Preview embedded source' : 'View in document viewer'}
-              </button>
-            ) : null}
-            {entryContextMenu.entry.type === 'vera' ? (
-              <button
-                role="menuitem"
-                disabled={convertLocked}
-                title={convertLocked ? 'Wait for reconvert preparation or conversion to finish' : 'Open Convert to replace this archive with a different parser or embedding'}
-                onClick={() => {
-                  const { entry, folderPath } = entryContextMenu;
-                  setEntryContextMenu(null);
-                  void openReconvert(entry, folderPath);
-                }}
-              >
-                Reconvert…
-              </button>
-            ) : null}
-            {entryContextMenu.entry.type === 'pdf' ? (
-              <button
-                role="menuitem"
-                onClick={() => {
-                  const entry = entryContextMenu.entry;
-                  const paths = selectedPdfs.includes(entry.path) && selectedPdfs.length > 0
-                    ? selectedPdfs
-                    : [entry.path];
-                  openConvertSelected(paths);
-                  setEntryContextMenu(null);
-                }}
-              >
-                Convert {
-                  selectedPdfs.includes(entryContextMenu.entry.path) && selectedPdfs.length > 1
-                    ? `PDFs (${selectedPdfs.length})`
-                    : 'PDF'
-                }
-              </button>
-            ) : null}
-            <button
-              ref={entryContextMenu.entry.type === 'vera' || entryContextMenu.entry.type === 'pdf' ? undefined : entryContextMenuActionRef}
-              role="menuitem"
-              onClick={() => {
-                void revealInFolder(entryContextMenu.entry.path);
-                setEntryContextMenu(null);
-              }}
-            >
-              {showInFolderLabel(window.vera.platform)}
-            </button>
-            <div className="folderContextMenuSeparator" role="separator" />
-            <button
-              className="danger"
-              role="menuitem"
-              onClick={() => {
-                void trashEntry(entryContextMenu.entry, entryContextMenu.folderPath);
-                setEntryContextMenu(null);
-              }}
-            >
-              Move to Recycle Bin
-            </button>
-          </div>
-        </div>
-      ) : null}
       {modelManagerOpen ? (
         <ModelManager
           providers={providers}

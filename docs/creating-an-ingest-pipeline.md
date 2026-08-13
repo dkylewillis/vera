@@ -7,6 +7,10 @@ nothing in `vera-ingest`, `vera-cli`, or `vera-app` special-cases either one.
 Write your own to support a new source format, a different parsing engine, or
 an experimental chunking strategy.
 
+Registry and descriptor APIs (`register_ingest_pipeline`,
+`register_ingest_pipeline_descriptor`, `PipelineDescriptor`, and related
+discovery helpers) are experimental and may change before 1.0.
+
 See [Architecture](architecture.md) for how pipeline packages fit into the
 rest of VERA, and [Pipeline options](conversion.md#pipeline-options) for how
 `--pipeline-option` and descriptors work from the user's side.
@@ -369,9 +373,10 @@ produced by each pipeline and compare hit rate / MRR — see
   Start here.
 - [`vera-ingest-docling`](packages/vera-ingest-docling.md) — a more involved
   pipeline: `DoclingHybridPipeline` is a class implementing `__call__`
-  (needed because its recovery/fallback logic is decomposed into private
-  helper methods, not because it holds state across calls), with its own
-  chunker, layout/table/figure mapping, and page-level failure recovery.
+  (needed because its recovery/fallback logic is decomposed into helper
+  modules — `mapping.py`, `converter.py`, `recovery.py` — not because it
+  holds state across calls), with its own chunker, layout/table/figure
+  mapping, and page-level failure recovery.
   `DoclingOptions` inherits `PipelineOptions` too, using `ignored_keys` for
   the PyMuPDF-only legacy aliases it doesn't support. Use it as a model once
   your pipeline needs more than a single function.

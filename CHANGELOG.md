@@ -68,6 +68,16 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - There is no silent fallback to a different embedding model or ingest
   pipeline when a named provider is missing or fails to load.
 
+### Desktop
+
+- File → Open Folder adds the chosen directory to Explorer as a library
+  folder (same path as the sidebar Open Folder action).
+- Reconvert skips exporting a source PDF when inspect fails and no embedded
+  original is present; pipeline and OCR options prefill from inspect.
+- Explorer type filters prune files hidden by the filter from the current
+  selection.
+- Removed unused `saveVera` / `defaultVeraPath` helpers.
+
 Hosted embedding providers, Convert UI embedder preflight/forms, and a
 packaged-app plugin runtime are follow-ups after this tag (0.3.1 or later).
 See [ROADMAP.md](ROADMAP.md).

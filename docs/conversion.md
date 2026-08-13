@@ -353,21 +353,18 @@ from vera_ingest import convert
 path = convert(
     "input.pdf",
     "output.vera",
-    model="hashing",
     parser="pymupdf",
+    pipeline_options={"chunk_size": 700, "ocr_mode": "force"},
+    model="hashing",
+    # embedder_options={"device": "cpu"},
     # Compatibility aliases (forwarded when the pipeline advertises them):
-    chunk_size=500,
-    overlap=75,
-    store_original=True,
-    ocr_mode="auto",
-    ocr_language="eng",
-    ocr_dpi=300,
-    # Explicit provider-owned options win for matching keys:
-    # pipeline_options={"chunk_size": 700, "ocr_mode": "force"},
+    # chunk_size=500, overlap=75, ocr_mode="auto", ocr_language="eng",
 )
 print(path)
 ```
 
-Pipelines receive a thin `IngestRequest` whose `pipeline_options` dict carries
-provider-owned settings. Prefer `pipeline_options=` for new code; the legacy
-kwargs remain compatibility aliases. See [Python API](python-api.md) for more.
+New callers should pass `parser`, `pipeline_options`, and embedder settings
+(`model` / `embedding_function` / `embedder_options`). Pipelines receive a thin
+`IngestRequest` whose `pipeline_options` dict carries provider-owned settings.
+The legacy kwargs remain compatibility aliases. See [Python API](python-api.md)
+for more.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Callable
 from importlib.metadata import entry_points
@@ -7,6 +8,8 @@ from typing import Any
 
 from .descriptors import PipelineDescriptor, generic_pipeline_descriptor
 from .types import IngestRequest, IngestResult
+
+logger = logging.getLogger(__name__)
 
 _ENTRY_POINT_GROUP = "vera.ingest_pipelines"
 _DESCRIPTOR_ENTRY_POINT_GROUP = "vera.ingest_pipeline_descriptors"
@@ -164,6 +167,24 @@ def _load_entry_point_group(group: str) -> list[Any]:
     return list(selected)
 
 
+def _safe_load_entry_point(entry: Any, provider: str, *, kind: str) -> Any | None:
+    """Load an entry point, logging a warning instead of hiding import failures."""
+    try:
+        return entry.load()
+    except Exception as exc:  # noqa: BLE001 - one broken plugin must not hide others
+        logger.warning("Failed to load %s plugin %r: %r", kind, provider, exc)
+        return None
+
+
+def _unknown_pipeline_message(spec: str, available: str) -> str:
+    return (
+        f"Unknown ingest parser pipeline {spec!r}. "
+        f"Installed providers: {available}. "
+        f"Install a plugin registered under the '{_ENTRY_POINT_GROUP}' "
+        "entry-point group, or call register_ingest_pipeline()."
+    )
+
+
 def _ensure_entry_points_loaded() -> None:
     global _ENTRY_POINTS_LOADED
     with _REGISTRY_LOCK:
@@ -173,20 +194,16 @@ def _ensure_entry_points_loaded() -> None:
             provider = entry.name.strip().lower()
             if not provider or provider in _PIPELINE_FACTORIES:
                 continue
-            try:
-                factory = entry.load()
-            except Exception:  # noqa: BLE001, S112 - one broken plugin must not hide others
-                continue
+            factory = _safe_load_entry_point(entry, provider, kind="ingest pipeline")
             if callable(factory):
                 _PIPELINE_FACTORIES[provider] = factory
         for entry in _load_entry_point_group(_DESCRIPTOR_ENTRY_POINT_GROUP):
             provider = entry.name.strip().lower()
             if not provider or provider in _DESCRIPTOR_FACTORIES:
                 continue
-            try:
-                factory = entry.load()
-            except Exception:  # noqa: BLE001, S112
-                continue
+            factory = _safe_load_entry_point(
+                entry, provider, kind="ingest pipeline descriptor"
+            )
             if callable(factory):
                 _DESCRIPTOR_FACTORIES[provider] = factory
         _ENTRY_POINTS_LOADED = True
@@ -208,13 +225,7 @@ def get_ingest_pipeline(spec: str = "pymupdf") -> IngestPipeline:
         factory = _PIPELINE_FACTORIES.get(provider)
         if factory is None:
             available = ", ".join(sorted(_PIPELINE_FACTORIES)) or "(none)"
-            raise UnknownIngestPipelineError(
-                f"Unknown ingest parser pipeline {spec!r}. "
-                f"Installed providers: {available}. "
-                f"Install vera-ingest-pymupdf for the default PDF pipeline, "
-                f"another plugin registered under the '{_ENTRY_POINT_GROUP}' "
-                "entry-point group, or call register_ingest_pipeline()."
-            )
+            raise UnknownIngestPipelineError(_unknown_pipeline_message(spec, available))
         pipeline = factory(variant)
         if not (callable(pipeline) or callable(getattr(pipeline, "ingest", None))):
             raise TypeError(
@@ -232,13 +243,7 @@ def describe_ingest_pipeline(spec: str = "pymupdf") -> PipelineDescriptor:
     with _REGISTRY_LOCK:
         if provider not in _PIPELINE_FACTORIES:
             available = ", ".join(sorted(_PIPELINE_FACTORIES)) or "(none)"
-            raise UnknownIngestPipelineError(
-                f"Unknown ingest parser pipeline {spec!r}. "
-                f"Installed providers: {available}. "
-                f"Install vera-ingest-pymupdf for the default PDF pipeline, "
-                f"another plugin registered under the '{_ENTRY_POINT_GROUP}' "
-                "entry-point group, or call register_ingest_pipeline()."
-            )
+            raise UnknownIngestPipelineError(_unknown_pipeline_message(spec, available))
         factory = _DESCRIPTOR_FACTORIES.get(provider)
         if factory is None:
             return generic_pipeline_descriptor(provider, variant)

@@ -13,7 +13,9 @@ package. Pipelines return a normalized `IngestResult`; `convert()` writes
 validated archives through one shared atomic path.
 
 Each pipeline owns typed chunking/OCR defaults, validation, and a descriptor
-of supported fields. Shared convert accepts opaque `pipeline_options` on a thin
+of supported fields. New `convert()` callers should pass `parser`,
+`pipeline_options`, and embedder settings (`model` / `embedding_function` /
+`embedder_options`). Shared convert accepts opaque `pipeline_options` on a thin
 `IngestRequest`. Legacy kwargs (`chunk_size`, `overlap`, `ocr_mode`,
 `ocr_language`, `ocr_dpi`) remain compatibility aliases; descriptor fields
 and OCR engine control which aliases are forwarded (Tesseract-shaped

@@ -17,21 +17,12 @@ nothing else in ``vera-ingest`` that requires this base class.
 
 from __future__ import annotations
 
-from dataclasses import fields
-from typing import Any, ClassVar, Mapping
+from typing import ClassVar
 
-from .option_parsing import (
-    allowed_keys_from_dataclass,
-    reject_unknown_keys,
-    require_bool,
-    require_bounded_int,
-    require_choice,
-    require_mapping,
-    require_string,
-)
+from vera.core.option_parsing import OptionsBase
 
 
-class PipelineOptions:
+class PipelineOptions(OptionsBase):
     """Base for an ingest pipeline's typed, validated settings.
 
     Subclass alongside ``@dataclass(frozen=True)``::
@@ -69,38 +60,4 @@ class PipelineOptions:
       aliases shared with another pipeline that don't apply to this one.
     """
 
-    options_label: ClassVar[str] = ""
-    ignored_keys: ClassVar[frozenset[str]] = frozenset()
-
-    @classmethod
-    def from_mapping(cls, raw: Mapping[str, Any] | None = None) -> Any:
-        label = cls.options_label or cls.__name__.removesuffix("Options") or cls.__name__
-        data = reject_unknown_keys(
-            require_mapping(raw, label=f"{label} pipeline_options"),
-            allowed=allowed_keys_from_dataclass(cls),
-            ignored=cls.ignored_keys or None,
-            label=label,
-        )
-        values: dict[str, Any] = {}
-        for item in fields(cls):
-            name = item.name
-            default = getattr(cls, name)
-            value = data.get(name, default)
-            if isinstance(default, bool):
-                values[name] = require_bool(value, name=name)
-            elif isinstance(default, int):
-                values[name] = require_bounded_int(
-                    value,
-                    name=name,
-                    minimum=item.metadata.get("minimum"),
-                    maximum=item.metadata.get("maximum"),
-                )
-            else:
-                choices = item.metadata.get("choices")
-                if choices and not item.metadata.get("allow_custom"):
-                    values[name] = require_choice(
-                        value, name=name, choices={choice[0] for choice in choices}
-                    )
-                else:
-                    values[name] = require_string(value, name=name)
-        return cls(**values)
+    options_mapping_label: ClassVar[str] = "pipeline_options"

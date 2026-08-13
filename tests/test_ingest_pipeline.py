@@ -194,6 +194,51 @@ def test_entry_points_are_discovered_lazily(monkeypatch):
     assert isinstance(get_ingest_pipeline("example"), Pipeline)
 
 
+def test_failing_entry_point_is_logged_and_not_registered(monkeypatch, caplog):
+    import logging
+
+    pipeline_module = importlib.import_module("vera_ingest.pipeline")
+
+    class BrokenEntry:
+        name = "broken-docling"
+
+        def load(self):
+            raise ImportError("Docling native library missing")
+
+    class GoodEntry:
+        name = "example"
+
+        def load(self):
+            class Pipeline:
+                def ingest(self, source_path, options):
+                    raise AssertionError("not called")
+
+            return lambda variant: Pipeline()
+
+    def fake_entry_points(**kwargs):
+        group = kwargs.get("group")
+        if group == "vera.ingest_pipelines":
+            return [BrokenEntry(), GoodEntry()]
+        return []
+
+    reset_ingest_pipeline_registry()
+    monkeypatch.setattr(pipeline_module, "entry_points", fake_entry_points)
+
+    with caplog.at_level(logging.WARNING, logger="vera_ingest.pipeline"):
+        providers = list_ingest_pipelines()
+
+    assert "broken-docling" not in providers
+    assert "example" in providers
+    warning_text = " ".join(
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.WARNING
+    )
+    assert "broken-docling" in warning_text
+    assert "Docling native library missing" in warning_text
+    assert "example" not in warning_text
+
+
 def test_unknown_pipeline_is_strict_and_does_not_parse(tmp_path, monkeypatch):
     pdf = tmp_path / "source.pdf"
     pdf.write_bytes(b"not parsed")
@@ -203,12 +248,12 @@ def test_unknown_pipeline_is_strict_and_does_not_parse(tmp_path, monkeypatch):
         raise AssertionError("parsing must not run")
 
     monkeypatch.setattr(parser_module, "parse_pdf_structured", boom)
-    with pytest.raises(UnknownIngestPipelineError, match="vera-ingest-pymupdf"):
+    with pytest.raises(UnknownIngestPipelineError, match="entry-point group"):
         convert(str(pdf), str(tmp_path / "out.vera"), parser="missing")
 
 
 def test_batch_rejects_unknown_pipeline_before_discovery(tmp_path):
-    with pytest.raises(UnknownIngestPipelineError, match="vera-ingest-pymupdf"):
+    with pytest.raises(UnknownIngestPipelineError, match="entry-point group"):
         batch_convert(str(tmp_path / "missing"), parser="missing")
 
 

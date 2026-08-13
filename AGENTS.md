@@ -65,7 +65,12 @@ and publishes a validated temporary sibling atomically. PDFs with no searchable
 chunks after OCR fail with an OCR-specific message. Directory conversion
 skips an existing `.vera` only when it validates and its stored
 `source_file_hash` matches the current PDF, and reports malformed archives
-in `malformed_existing`.
+in `malformed_existing`. Python `convert()` / `batch_convert()` callers should
+pass `parser` (default `pymupdf`), `pipeline_options`, and embedder settings
+(`model` / `embedding_function` / `embedder_options`); legacy kwargs such as
+`chunk_size`, `overlap`, `ocr_mode`, `ocr_language`, `ocr_dpi`, and
+`ocr_download` are compatibility aliases forwarded only when the selected
+pipeline advertises them.
 
 ### Search result shape (`--json`)
 

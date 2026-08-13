@@ -71,6 +71,10 @@ Initial actions:
 - `describe_ingest_pipelines`
 - `list_modes`
 
+Sidecar JSON actions are an app-private protocol until they are versioned.
+External tools should use the CLI, MCP, or Python APIs instead of speaking
+this protocol directly.
+
 This keeps the app UI independent from Python internals while preserving a simple local development loop.
 
 ## Active Libraries and Collection Indexes

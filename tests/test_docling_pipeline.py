@@ -283,7 +283,7 @@ def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, 
             return Result(document)
 
     monkeypatch.setattr(
-        "vera_ingest_docling.pipeline._build_converter",
+        "vera_ingest_docling.converter._build_converter",
         lambda options, **_kwargs: Converter(),
     )
 
@@ -365,7 +365,7 @@ def test_convert_docling_resolves_ocr_language_to_pipeline_default(monkeypatch, 
         captured["options"] = options
         return Converter()
 
-    monkeypatch.setattr("vera_ingest_docling.pipeline._build_converter", fake_build)
+    monkeypatch.setattr("vera_ingest_docling.converter._build_converter", fake_build)
 
     pdf = tmp_path / "source.pdf"
     out = tmp_path / "source.vera"
@@ -407,7 +407,7 @@ def test_partial_success_is_rejected(monkeypatch, tmp_path):
             return Result(fixture)
 
     monkeypatch.setattr(
-        "vera_ingest_docling.pipeline._build_converter",
+        "vera_ingest_docling.converter._build_converter",
         lambda options, **_kwargs: Converter(),
     )
     pdf = tmp_path / "partial.pdf"
@@ -432,7 +432,7 @@ def test_convert_uses_docling_pipeline_end_to_end(monkeypatch, tmp_path):
             return Result(document)
 
     monkeypatch.setattr(
-        "vera_ingest_docling.pipeline._build_converter",
+        "vera_ingest_docling.converter._build_converter",
         lambda options, **_kwargs: Converter(),
     )
 
@@ -529,7 +529,7 @@ def test_partial_success_with_page_errors_recovers_via_fresh_retry(monkeypatch, 
             return SuccessResult(recovered_doc)
 
     monkeypatch.setattr(
-        "vera_ingest_docling.pipeline._build_converter",
+        "vera_ingest_docling.converter._build_converter",
         lambda options, backend=None, **_kwargs: Converter(backend),
     )
 
@@ -584,7 +584,7 @@ def test_page_recovery_falls_back_to_pypdfium2_per_page(monkeypatch, tmp_path):
             return SuccessResult(recovered_doc)
 
     monkeypatch.setattr(
-        "vera_ingest_docling.pipeline._build_converter",
+        "vera_ingest_docling.converter._build_converter",
         lambda options, backend=None, **_kwargs: Converter(backend),
     )
 
@@ -640,7 +640,7 @@ def test_too_many_failed_pages_falls_back_to_whole_document_pypdfium2(monkeypatc
             return PartialResult(partial_doc)
 
     monkeypatch.setattr(
-        "vera_ingest_docling.pipeline._build_converter",
+        "vera_ingest_docling.converter._build_converter",
         lambda options, backend=None, **_kwargs: Converter(backend),
     )
 
@@ -676,7 +676,7 @@ def test_convert_exception_triggers_whole_document_pypdfium2_fallback(monkeypatc
             return SuccessResult(full_doc)
 
     monkeypatch.setattr(
-        "vera_ingest_docling.pipeline._build_converter",
+        "vera_ingest_docling.converter._build_converter",
         lambda options, backend=None, **_kwargs: Converter(backend),
     )
 
@@ -715,7 +715,7 @@ def test_unrecoverable_page_still_raises_with_page_detail(monkeypatch, tmp_path)
             return FailResult()
 
     monkeypatch.setattr(
-        "vera_ingest_docling.pipeline._build_converter",
+        "vera_ingest_docling.converter._build_converter",
         lambda options, backend=None, **_kwargs: Converter(backend),
     )
 

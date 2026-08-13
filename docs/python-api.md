@@ -215,25 +215,26 @@ from vera_ingest import convert
 convert(
     "input.pdf",
     "output.vera",
-    model="hashing",
     parser="pymupdf",
+    pipeline_options={"chunk_size": 700, "ocr_mode": "force"},
+    model="hashing",
+    # embedder_options={"device": "cpu"},
     # Legacy compatibility aliases (forwarded when advertised by the pipeline):
-    chunk_size=500,
-    overlap=75,
-    store_original=True,
-    ocr_mode="auto",
-    # Prefer explicit provider-owned options for new code:
-    # pipeline_options={"chunk_size": 700, "ocr_mode": "force"},
+    # chunk_size=500, overlap=75, ocr_mode="auto", ocr_language="eng",
 )
 ```
 
-`model` accepts `provider:model-id` specs (and legacy aliases). Pass
+New callers should pass `parser`, `pipeline_options`, and embedder settings
+(`model` / `embedding_function` / `embedder_options`). `model` accepts
+`provider:model-id` specs (and legacy aliases). Pass
 `embedding_function=` instead when you already have an embedder object.
 Unknown model names raise `UnknownEmbeddingModelError` before parsing begins.
 `parser` accepts ingest pipeline specs `provider[:variant]` (default
-`pymupdf` from `vera-ingest-pymupdf`). Optional plugins such as
+`pymupdf`). Optional plugins such as
 `vera-ingest-docling` register additional
 providers; unknown pipelines raise `UnknownIngestPipelineError`.
+Legacy kwargs (`chunk_size`, `overlap`, `ocr_mode`, `ocr_language`, `ocr_dpi`,
+`ocr_download`) remain compatibility aliases.
 
 Shared convert builds a thin `IngestRequest` and merges legacy kwargs with
 `pipeline_options` according to each pipeline's descriptor. Explicit
@@ -244,6 +245,13 @@ and language — no overlap/DPI).
 `vera-ingest` resolves the pipeline and embedder, parses and chunks the source,
 creates `ChunkRecord` objects and optional attachments, then writes them through
 `VeraDocument`.
+
+Registry and descriptor APIs (`register_ingest_pipeline`, `register_embedder`,
+and their describe/list helpers) are experimental and may change before 1.0.
+Hosted embedding providers (OpenAI, Voyage, Ollama) are examples you can
+implement yourself; they are not bundled with VERA. See
+[Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md) and
+[Creating an embedding provider plugin](creating-an-embedding-provider.md).
 
 ## Corpus and library indexes
 

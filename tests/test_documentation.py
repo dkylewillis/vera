@@ -266,7 +266,21 @@ def test_hardening_json_contracts_are_documented():
     assert "`attachment_metadata()`" in python_api
     assert "do not contain a `data` field" in python_api
     assert "pipeline_options" in python_api
+    assert "embedder_options" in python_api
+    assert "New callers should pass" in python_api
     assert "IngestRequest" in python_api
+    assert "may change before 1.0" in python_api
+    assert "not bundled" in python_api
+    assert "register_ingest_pipeline" in python_api
+    assert "register_embedder" in python_api
+    assert "may change before 1.0" in ingest_guide
+    assert "may change before 1.0" in guide
+    assert "not bundled" in guide
+    ingest_pkg = (DOCS / "packages" / "vera-ingest.md").read_text(encoding="utf-8")
+    assert "register_ingest_pipeline" in ingest_pkg
+    assert "may change before 1.0" in ingest_pkg
+    assert "app-private" in desktop_architecture
+    assert "until" in desktop_architecture and "versioned" in desktop_architecture
     assert "allow_empty=True" in libraries
     assert "`skipped_files`" in mcp
     assert "`skipped_semantic_model_groups`" in mcp
@@ -312,6 +326,10 @@ def test_release_0_3_versioning_and_install_pins():
     assert "UnknownEmbeddingModelError" in changelog
     assert "falling back to PyMuPDF" in changelog
     assert "format remains **0.2**" in changelog
+    assert "### Desktop" in changelog
+    assert "Open Folder" in changelog
+    assert "saveVera" in changelog
+    assert "defaultVeraPath" in changelog
     assert "follow-ups after the 0.3.0 tag" in roadmap
     assert "not blockers for 0.3.0" in roadmap
     assert "HANDOFF.md" not in mkdocs

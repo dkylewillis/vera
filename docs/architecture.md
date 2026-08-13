@@ -152,6 +152,11 @@ packages/
       tessdata/
   vera-ingest-docling/
     src/vera_ingest_docling/
+      mapping.py
+      converter.py
+      recovery.py
+      pipeline.py
+      options.py
   vera-cli/
     src/vera_cli/
       commands.py

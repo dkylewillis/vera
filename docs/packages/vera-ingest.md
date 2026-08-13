@@ -49,21 +49,25 @@ from vera_ingest import convert
 convert(
     "manual.pdf",
     "manual.vera",
+    parser="pymupdf",
+    pipeline_options={"ocr_mode": "auto"},
     model="hashing",
-    ocr_mode="auto",
     store_original=True,
 )
 ```
 
 Pass `embedding_function=` for a custom embedder, or use a
-`provider:model-id` model spec resolved by `vera.get_embedder`. Prefer
-`pipeline_options={...}` for provider-owned chunking/OCR settings; legacy
+`provider:model-id` model spec resolved by `vera.get_embedder`. New callers
+should pass `parser`, `pipeline_options`, and embedder settings
+(`model` / `embedding_function` / `embedder_options`); legacy
 kwargs such as `chunk_size` and `ocr_mode` remain compatibility aliases.
 
 ## Concepts
 
-- **Pipeline registry** discovers installed providers via entry points and
-  resolves `provider[:variant]` specs strictly (no silent fallback).
+- **Pipeline registry** discovers installed providers via entry points
+  (`vera.ingest_pipelines`) or in-process `register_ingest_pipeline()`.
+  Specs resolve as `provider[:variant]` with no silent fallback. Registry and
+  descriptor APIs are experimental and may change before 1.0.
 - **Pipeline-owned config** keeps typed defaults, validation, and field
   descriptors inside each ingest plugin; shared convert passes a thin
   `IngestRequest` with opaque `pipeline_options`.

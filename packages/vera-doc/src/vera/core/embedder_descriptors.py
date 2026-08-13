@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
+
+from .option_parsing import fields_from_dataclass as _fields_from_dataclass
 
 
 FieldType = Literal["string", "enum", "integer", "number", "boolean"]
@@ -122,14 +124,6 @@ class EmbedderDescriptor:
         return asdict(self)
 
 
-_FIELD_TYPE_BY_ANNOTATION = {
-    "bool": "boolean",
-    "int": "integer",
-    "float": "number",
-    "str": "string",
-}
-
-
 def fields_from_dataclass(cls: type) -> tuple[EmbedderField, ...]:
     """Derive descriptor fields from a dataclass's fields and per-field ``metadata``.
 
@@ -140,44 +134,13 @@ def fields_from_dataclass(cls: type) -> tuple[EmbedderField, ...]:
     mapping instead of a hand-maintained, parallel list of ``EmbedderField``
     entries. A field with no ``metadata`` is treated as internal and omitted.
     """
-    result: list[EmbedderField] = []
-    for item in fields(cls):
-        meta = item.metadata
-        if not meta:
-            continue
-        annotation = item.type
-        type_name = annotation if isinstance(annotation, str) else getattr(
-            annotation, "__name__", str(annotation)
-        )
-        field_type = meta.get("type") or _FIELD_TYPE_BY_ANNOTATION.get(type_name, "string")
-        choices = tuple(
-            EmbedderFieldChoice(value, label) for value, label in meta.get("choices", ())
-        )
-        scope = meta.get("scope", "convert")
-        if scope not in {"convert", "always"}:
-            raise ValueError(
-                f"Unsupported EmbedderField scope {scope!r} for {item.name}; "
-                "use 'convert' or 'always'"
-            )
-        result.append(
-            EmbedderField(
-                key=item.name,
-                label=meta.get("label", item.name),
-                type=field_type,
-                default=item.default,
-                description=meta.get("description", ""),
-                unit=meta.get("unit"),
-                choices=choices,
-                minimum=meta.get("minimum"),
-                maximum=meta.get("maximum"),
-                step=meta.get("step"),
-                placeholder=meta.get("placeholder"),
-                allow_custom=meta.get("allow_custom", False),
-                allow_empty=meta.get("allow_empty", False),
-                scope=scope,
-            )
-        )
-    return tuple(result)
+    return _fields_from_dataclass(
+        cls,
+        field_cls=EmbedderField,
+        choice_cls=EmbedderFieldChoice,
+        include_scope=True,
+        include_allow_empty=True,
+    )
 
 
 def generic_embedder_descriptor(provider: str) -> EmbedderDescriptor:

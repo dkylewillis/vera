@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
 import threading
@@ -20,6 +21,8 @@ from .embedder_descriptors import (
     generic_embedder_descriptor,
 )
 from .embedder_options import EmbedderOptions
+
+logger = logging.getLogger(__name__)
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
 _HASHING_NAME_RE = re.compile(r"^vera-hashing-(\d+)$")
@@ -565,6 +568,15 @@ def _load_entry_point_group(group: str) -> list[Any]:
     return list(selected)
 
 
+def _safe_load_entry_point(entry: Any, provider: str, *, kind: str) -> Any | None:
+    """Load an entry point, logging a warning instead of hiding import failures."""
+    try:
+        return entry.load()
+    except Exception as exc:  # noqa: BLE001 - one broken plugin must not hide others
+        logger.warning("Failed to load %s plugin %r: %r", kind, provider, exc)
+        return None
+
+
 def _ensure_entry_points_loaded() -> None:
     global _ENTRY_POINTS_LOADED
     with _REGISTRY_LOCK:
@@ -575,30 +587,25 @@ def _ensure_entry_points_loaded() -> None:
             name = entry.name.strip().lower()
             if not name or name in _PROVIDERS:
                 continue
-            try:
-                factory = entry.load()
-            except Exception:  # noqa: BLE001, S112 - one broken plugin must not hide others
-                continue
+            factory = _safe_load_entry_point(entry, name, kind="embedding provider")
             if callable(factory):
                 _PROVIDERS[name] = factory
         for entry in _load_entry_point_group(_DESCRIPTOR_ENTRY_POINT_GROUP):
             name = entry.name.strip().lower()
             if not name or name in _DESCRIPTOR_FACTORIES:
                 continue
-            try:
-                factory = entry.load()
-            except Exception:  # noqa: BLE001, S112
-                continue
+            factory = _safe_load_entry_point(
+                entry, name, kind="embedding provider descriptor"
+            )
             if callable(factory):
                 _DESCRIPTOR_FACTORIES[name] = factory
         for entry in _load_entry_point_group(_MODELS_ENTRY_POINT_GROUP):
             name = entry.name.strip().lower()
             if not name or name in _MODEL_LISTERS:
                 continue
-            try:
-                factory = entry.load()
-            except Exception:  # noqa: BLE001, S112
-                continue
+            factory = _safe_load_entry_point(
+                entry, name, kind="embedding model lister"
+            )
             if callable(factory):
                 _MODEL_LISTERS[name] = factory
         _ENTRY_POINTS_LOADED = True
