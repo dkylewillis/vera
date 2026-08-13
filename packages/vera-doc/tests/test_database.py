@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import numpy as np
@@ -109,6 +110,58 @@ def test_database_attachments_and_references(tmp_path: Path) -> None:
         assert database.get(["chunk"])[0].attachments == (AttachmentRef("source", role="source"),)
         with pytest.raises(ValueError, match="referenced"):
             database.delete_attachment("source")
+
+
+def test_writes_survive_archives_whose_fts_rowids_drifted(tmp_path: Path) -> None:
+    """Archives written before FTS rows tracked ``chunks.rowid`` stay writable.
+
+    The 0.2 writer re-inserted an edited chunk's FTS row without a rowid, which
+    appended it and offset every chunk added afterwards.
+    """
+    path = tmp_path / "legacy.vera"
+    with VeraDocument.create(path) as database:
+        database.add(
+            [
+                ChunkRecord(id="one", text="Alpha detention basin"),
+                ChunkRecord(id="two", text="Beta landscape buffer"),
+            ]
+        )
+        database._conn.execute("DELETE FROM chunks_fts WHERE chunk_id = 'one'")
+        database._conn.execute(
+            "INSERT INTO chunks_fts(chunk_id, text) VALUES ('one', 'Alpha detention basin')"
+        )
+        aligned = database._conn.execute(
+            "SELECT c.rowid = f.rowid AS aligned FROM chunks c "
+            "JOIN chunks_fts f ON f.chunk_id = c.chunk_id WHERE c.chunk_id = 'one'"
+        ).fetchone()
+        assert aligned["aligned"] == 0
+
+        database.add([ChunkRecord(id="three", text="Gamma pipe diameter")])
+        database.upsert([ChunkRecord(id="two", text="Beta landscape buffer revised")])
+
+        assert database.validate()["ok"] is True
+        for query, expected in (
+            ("Gamma pipe", "three"),
+            ("Beta landscape", "two"),
+            ("Alpha detention", "one"),
+        ):
+            hits = database.search(text=query, mode="keyword", top_k=1)
+            assert [hit.record.id for hit in hits] == [expected]
+
+
+def test_reads_batch_chunk_ids_below_the_sql_variable_limit(tmp_path: Path) -> None:
+    """``get()`` must not bind one host variable per chunk.
+
+    SQLite caps host variables at 999 on builds older than 3.32 and 32766 on
+    current ones, so an unbatched ``IN`` clause fails on large archives.
+    """
+    path = tmp_path / "many.vera"
+    ids = [f"chunk_{index:04d}" for index in range(1200)]
+    with VeraDocument.create(path) as database:
+        database.add([ChunkRecord(id=chunk_id, text=f"Section {chunk_id}") for chunk_id in ids])
+        database._conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 999)
+        assert [record.id for record in database.get()] == ids
+        assert [record.id for record in database.get(ids)] == ids
 
 
 def test_database_batches_are_atomic(tmp_path: Path) -> None:

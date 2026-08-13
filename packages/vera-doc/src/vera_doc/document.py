@@ -45,6 +45,11 @@ _EMBEDDING_NORMALIZATIONS = frozenset({"l2", "none", "unknown"})
 _L2_NORMALIZATION_RTOL = 1e-4
 _L2_NORMALIZATION_ATOL = 1e-6
 _MAX_TOP_K = 10_000
+# SQLite rejects statements with more host variables than
+# SQLITE_LIMIT_VARIABLE_NUMBER, which is 999 on builds older than 3.32 and
+# 32766 on current ones. Batch id lists well below the lower bound so a large
+# archive cannot outgrow whichever SQLite the caller happens to link.
+_SQL_VARIABLE_BATCH = 500
 _FTS_RUNTIME_MARKERS = (
     "database is locked",
     "database disk image is malformed",
@@ -55,6 +60,11 @@ _FTS_RUNTIME_MARKERS = (
     "attempt to write a readonly",
     "locking protocol",
 )
+
+
+def _batched(values: Sequence[str], size: int) -> Iterator[tuple[str, ...]]:
+    for start in range(0, len(values), size):
+        yield tuple(values[start : start + size])
 
 
 def _package_version() -> str:
@@ -561,13 +571,18 @@ class VeraDocument:
             FROM chunks c
             JOIN embeddings e ON e.chunk_id = c.chunk_id
         """
-        params: list[Any] = []
-        if requested is not None:
-            placeholders = ",".join("?" for _ in requested)
-            sql += f" WHERE c.chunk_id IN ({placeholders})"
-            params.extend(requested)
-        sql += " ORDER BY c.rowid"
-        rows = self._conn.execute(sql, params).fetchall()
+        if requested is None:
+            rows = self._conn.execute(f"{sql} ORDER BY c.rowid").fetchall()
+        else:
+            rows = []
+            for batch in _batched(requested, _SQL_VARIABLE_BATCH):
+                placeholders = ",".join("?" for _ in batch)
+                rows.extend(
+                    self._conn.execute(
+                        f"{sql} WHERE c.chunk_id IN ({placeholders}) ORDER BY c.rowid",
+                        batch,
+                    ).fetchall()
+                )
         refs = self._attachment_refs([str(row["chunk_id"]) for row in rows])
         records = [self._row_to_record(row, refs.get(str(row["chunk_id"]), ())) for row in rows]
         records = [record for record in records if self._metadata_matches(record, where)]
@@ -1061,22 +1076,23 @@ class VeraDocument:
         refs: dict[str, list[AttachmentRef]] = {chunk_id: [] for chunk_id in chunk_ids}
         if not chunk_ids:
             return {}
-        placeholders = ",".join("?" for _ in chunk_ids)
-        for row in self._conn.execute(
-            f"""
-            SELECT chunk_id, attachment_id, role
-            FROM chunk_attachments
-            WHERE chunk_id IN ({placeholders})
-            ORDER BY chunk_id, attachment_id, role
-            """,
-            tuple(chunk_ids),
-        ):
-            refs[str(row["chunk_id"])].append(
-                AttachmentRef(
-                    attachment_id=row["attachment_id"],
-                    role=row["role"] or None,
+        for batch in _batched(chunk_ids, _SQL_VARIABLE_BATCH):
+            placeholders = ",".join("?" for _ in batch)
+            for row in self._conn.execute(
+                f"""
+                SELECT chunk_id, attachment_id, role
+                FROM chunk_attachments
+                WHERE chunk_id IN ({placeholders})
+                ORDER BY chunk_id, attachment_id, role
+                """,
+                batch,
+            ):
+                refs[str(row["chunk_id"])].append(
+                    AttachmentRef(
+                        attachment_id=row["attachment_id"],
+                        role=row["role"] or None,
+                    )
                 )
-            )
         return {chunk_id: tuple(values) for chunk_id, values in refs.items()}
 
     def _chunk_rowid(self, chunk_id: str) -> int | None:
@@ -1088,7 +1104,10 @@ class VeraDocument:
 
     def _insert_fts_row(self, chunk_id: str, text: str) -> None:
         chunk_rowid = self._chunk_rowid(chunk_id)
-        if chunk_rowid is None:
+        if chunk_rowid is None or self._fts_rowid_taken(chunk_rowid, chunk_id):
+            # Archives written before FTS rows were aligned to chunks.rowid can
+            # have another chunk squatting this rowid. Appending keeps the write
+            # working; alignment is an optimization, not a format requirement.
             self._conn.execute(
                 "INSERT INTO chunks_fts(chunk_id, text) VALUES (?, ?)",
                 (chunk_id, text),
@@ -1098,6 +1117,13 @@ class VeraDocument:
             "INSERT INTO chunks_fts(rowid, chunk_id, text) VALUES (?, ?, ?)",
             (chunk_rowid, chunk_id, text),
         )
+
+    def _fts_rowid_taken(self, rowid: int, chunk_id: str) -> bool:
+        row = self._conn.execute(
+            "SELECT chunk_id FROM chunks_fts WHERE rowid = ?",
+            (rowid,),
+        ).fetchone()
+        return row is not None and str(row["chunk_id"]) != chunk_id
 
     def _replace_fts_row(self, chunk_id: str, text: str) -> None:
         self._delete_fts_row(chunk_id)
