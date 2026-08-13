@@ -47,20 +47,6 @@ def _open_pdfplumber():
     return pdfplumber
 
 
-def parse_pdf(path: str) -> list[ParsedPage]:
-    fitz = _open_fitz()
-    doc = fitz.open(path)
-    pages: list[ParsedPage] = []
-    try:
-        for idx, page in enumerate(doc, start=1):
-            rect = page.rect
-            text = page.get_text("text") or ""
-            pages.append(ParsedPage(idx, float(rect.width), float(rect.height), text.strip()))
-    finally:
-        doc.close()
-    return pages
-
-
 @dataclass
 class _RawBlock:
     page_number: int

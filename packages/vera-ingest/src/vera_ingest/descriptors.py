@@ -41,7 +41,7 @@ class PipelineField:
 class PipelineCapabilities:
     """Capability flags that help clients hide irrelevant controls."""
 
-    chunk_unit: Literal["characters", "tokens"] = "characters"
+    chunk_unit: Literal["characters", "tokens", "words"] = "characters"
     overlap_supported: bool = True
     ocr_supported: bool = True
     ocr_engine: str | None = None

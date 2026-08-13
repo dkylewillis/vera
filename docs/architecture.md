@@ -56,7 +56,7 @@ through `VeraDocument`. `vera-doc` never imports `vera_ingest`.
 
 - PDF parsing and table extraction (PyMuPDF + pdfplumber);
 - selective OCR and bundled Tesseract English data;
-- heading detection and sliding-window chunk construction;
+- heading detection and sliding-window chunk construction (whitespace-split words);
 - mapping pages, regions, figures, and provenance to chunk metadata.
 
 `vera-cli` and `vera-app` depend on it so conversion works out of the box.

@@ -5,7 +5,7 @@
 Install only the storage and search engine:
 
 ```bash
-python -m pip install "vera-doc>=0.2.4"
+python -m pip install "vera-doc>=0.3.0"
 ```
 
 Install source ingestion separately when needed:
@@ -14,10 +14,6 @@ Install source ingestion separately when needed:
 python -m pip install "vera-ingest>=0.3.0"
 python -m pip install "vera-ingest-pymupdf>=0.3.0"
 ```
-
-`vera-ingest` may not yet be published to PyPI. If the install fails because the
-package cannot be found, install from a repository checkout instead
-(`python -m pip install ./packages/vera-doc ./packages/vera-ingest ./packages/vera-ingest-pymupdf`).
 
 ## Create and search a database
 
@@ -242,7 +238,7 @@ providers; unknown pipelines raise `UnknownIngestPipelineError`.
 Shared convert builds a thin `IngestRequest` and merges legacy kwargs with
 `pipeline_options` according to each pipeline's descriptor. Explicit
 `pipeline_options` always win. Pipelines own typed defaults and validation
-(PyMuPDF: chunk size/overlap/OCR/DPI; Docling: token `chunk_size`, OCR mode,
+(PyMuPDF: whitespace-split word chunk size/overlap/OCR/DPI; Docling: whitespace-token `chunk_size`, OCR mode,
 and language — no overlap/DPI).
 
 `vera-ingest` resolves the pipeline and embedder, parses and chunks the source,

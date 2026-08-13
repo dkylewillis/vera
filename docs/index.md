@@ -7,6 +7,9 @@ pre-computed embeddings, a keyword index, JSON metadata, and optional opaque
 attachments. Move it, share it, or search it locally without a retrieval
 service.
 
+Release **0.3.x** is the software, CLI, and Python API version. The `.vera`
+archive format remains **0.2**; existing archives are compatible.
+
 ## What VERA does
 
 VERA packages source documents into searchable archives and returns
@@ -31,19 +34,15 @@ Major capabilities:
 Install the CLI from PyPI:
 
 ```bash
-python -m pip install "vera-cli>=0.2.4"
+python -m pip install "vera-cli>=0.3.0"
 ```
 
 That pulls in `vera-doc` and `vera-ingest`. Library-only installs:
 
 ```bash
-python -m pip install "vera-doc>=0.2.4"
-python -m pip install "vera-ingest>=0.2.4"
+python -m pip install "vera-doc>=0.3.0"
+python -m pip install "vera-ingest>=0.3.0"
 ```
-
-`vera-ingest` may not yet be published to PyPI. If the install fails because the
-package cannot be found, install from a repository checkout instead
-(`python -m pip install ./packages/vera-doc ./packages/vera-ingest`).
 
 Contributors using [uv](https://docs.astral.sh/uv/) can clone the repository and
 synchronize the workspace:

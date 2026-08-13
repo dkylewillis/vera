@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   applyFileListSelection,
   explorerEntryType,
+  explorerFileMatchesFilter,
+  isDirectoryOpenTarget,
   partitionExplorerSelection,
+  pruneExplorerSelectionForFilter,
+  routeOpenTarget,
   syncCollapsedFolders,
   visibleExplorerEntries,
 } from './explorer';
@@ -70,6 +74,54 @@ describe('visibleExplorerEntries', () => {
       '/lib/b.pdf',
       '/other/c.vera',
     ]);
+  });
+});
+
+describe('routeOpenTarget', () => {
+  it('treats folders as directory targets and archives as files', () => {
+    expect(isDirectoryOpenTarget('C:\\library')).toBe(true);
+    expect(isDirectoryOpenTarget('C:\\library\\manual.vera')).toBe(false);
+    expect(isDirectoryOpenTarget('')).toBe(false);
+  });
+
+  it('routes File → Open Folder through add-folder and archives through open-file', () => {
+    const addFolder = vi.fn();
+    const openFile = vi.fn();
+    routeOpenTarget('C:\\proposals', { addFolder, openFile });
+    routeOpenTarget('C:\\proposals\\manual.vera', { addFolder, openFile });
+    expect(addFolder).toHaveBeenCalledWith('C:\\proposals');
+    expect(openFile).toHaveBeenCalledWith('C:\\proposals\\manual.vera');
+  });
+});
+
+describe('pruneExplorerSelectionForFilter', () => {
+  const mixed = ['/lib/a.vera', '/lib/b.pdf', '/lib/c.vera'];
+
+  it('keeps the full selection for All', () => {
+    expect(pruneExplorerSelectionForFilter(mixed, 'all', '/lib/b.pdf')).toEqual({
+      selected: mixed,
+      anchor: '/lib/b.pdf',
+    });
+  });
+
+  it('drops hidden PDFs when filtering to VERA', () => {
+    expect(pruneExplorerSelectionForFilter(mixed, 'vera', '/lib/b.pdf')).toEqual({
+      selected: ['/lib/a.vera', '/lib/c.vera'],
+      anchor: null,
+    });
+  });
+
+  it('drops hidden archives when filtering to PDFs and keeps a still-visible anchor', () => {
+    expect(pruneExplorerSelectionForFilter(mixed, 'pdf', '/lib/b.pdf')).toEqual({
+      selected: ['/lib/b.pdf'],
+      anchor: '/lib/b.pdf',
+    });
+  });
+
+  it('reports whether a file type remains visible under the filter', () => {
+    expect(explorerFileMatchesFilter('pdf', 'vera')).toBe(false);
+    expect(explorerFileMatchesFilter('pdf', 'all')).toBe(true);
+    expect(explorerFileMatchesFilter('vera', 'vera')).toBe(true);
   });
 });
 

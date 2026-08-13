@@ -13,7 +13,7 @@ def test_validate_passes_for_converted_vera(tmp_path):
     pdf = tmp_path / "ordinance.pdf"
     out = tmp_path / "ordinance.vera"
     make_pdf(pdf)
-    convert(str(pdf), str(out), model="hashing", chunk_size=40, overlap=5)
+    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=5)
 
     doc = VeraDocument.open(str(out))
     report = doc.validate()

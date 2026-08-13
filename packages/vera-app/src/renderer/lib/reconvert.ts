@@ -1,5 +1,5 @@
 import { siblingPdfPath, sameFsPath } from './formatting';
-import type { InspectResult } from '../types';
+import type { InspectResult, PipelineOptions } from '../types';
 
 export type ReconvertPdfResolution =
   | { status: 'ready'; pdfPath: string }
@@ -11,6 +11,10 @@ export type ReconvertPrefill = {
   ingestPipeline: string | null;
   hasEmbeddedSource: boolean;
 };
+
+export type ReconvertExportGate =
+  | { allow: true }
+  | { allow: false; reason: 'inspect-failed' | 'missing-source' };
 
 /** Locate the sibling PDF already listed next to a `.vera` archive. */
 export function findSiblingPdfPath(
@@ -51,6 +55,67 @@ export function reconvertPrefillFromInspect(
   const ingestPipeline = inspect?.parser_name?.trim() || null;
   const hasEmbeddedSource = Boolean(inspect?.source_attachment_id);
   return { embeddingModel, ingestPipeline, hasEmbeddedSource };
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
+/**
+ * Map archive inspect OCR/chunking metadata onto ingest pipeline option keys.
+ * Callers merge this over saved pipeline configs so reconvert restores the
+ * archive's settings instead of global Convert defaults.
+ */
+export function reconvertPipelineOptionsFromInspect(
+  inspect: InspectResult | null | undefined,
+): PipelineOptions {
+  if (!inspect) return {};
+  const options: PipelineOptions = {};
+  const ocr = inspect.ocr;
+  const ocrMode = ocr?.ocr_mode ?? inspect.ocr_mode;
+  const ocrLanguage = ocr?.ocr_language ?? inspect.ocr_language;
+  const ocrDpi = finiteNumber(ocr?.ocr_dpi ?? inspect.ocr_dpi);
+  if (ocrMode) options.ocr_mode = ocrMode;
+  if (ocrLanguage) options.ocr_language = ocrLanguage;
+  if (ocrDpi !== undefined) options.ocr_dpi = ocrDpi;
+
+  const chunking = inspect.chunking_strategy?.trim() || '';
+  const sliding = /^heading_block_sliding_window:(\d+):(\d+)$/.exec(chunking);
+  if (sliding) {
+    options.chunk_size = Number(sliding[1]);
+    options.overlap = Number(sliding[2]);
+    return options;
+  }
+  const hybrid = /^docling_hybrid:(\d+)$/.exec(chunking);
+  if (hybrid) {
+    options.chunk_size = Number(hybrid[1]);
+  }
+  return options;
+}
+
+/**
+ * Exporting an embedded source requires inspect metadata (or other proof of an
+ * embedded original). A failed inspect must not proceed to export.
+ */
+export function reconvertExportGate(options: {
+  inspectOk: boolean;
+  hasEmbeddedSource: boolean;
+}): ReconvertExportGate {
+  if (options.hasEmbeddedSource) return { allow: true };
+  if (!options.inspectOk) return { allow: false, reason: 'inspect-failed' };
+  return { allow: false, reason: 'missing-source' };
+}
+
+export function reconvertInspectFailedMessage(error?: string | null): string {
+  const detail = error?.trim();
+  return detail
+    ? `Could not read archive metadata: ${detail}`
+    : 'Could not read archive metadata.';
 }
 
 export function reconvertMissingSourceMessage(veraPath: string): string {

@@ -43,6 +43,40 @@ export function explorerEntryType(path: string): 'vera' | 'pdf' | null {
   return null;
 }
 
+/** File → Open Folder sends a directory; File → Open sends a `.vera` archive. */
+export function isDirectoryOpenTarget(targetPath: string): boolean {
+  const trimmed = targetPath.trim();
+  return Boolean(trimmed) && !trimmed.toLowerCase().endsWith('.vera');
+}
+
+export function routeOpenTarget(
+  targetPath: string,
+  handlers: { addFolder: (path: string) => void; openFile: (path: string) => void },
+): void {
+  if (isDirectoryOpenTarget(targetPath)) handlers.addFolder(targetPath);
+  else handlers.openFile(targetPath);
+}
+
+export function explorerFileMatchesFilter(
+  type: 'vera' | 'pdf',
+  filter: ExplorerFileFilter,
+): boolean {
+  return filter === 'all' || type === filter;
+}
+
+/** Drop hidden files from the Explorer selection when the type filter changes. */
+export function pruneExplorerSelectionForFilter(
+  selected: string[],
+  filter: ExplorerFileFilter,
+  anchor: string | null = null,
+): FileListSelection {
+  const next = filter === 'all'
+    ? selected
+    : selected.filter((path) => explorerEntryType(path) === filter);
+  const nextAnchor = anchor && next.includes(anchor) ? anchor : null;
+  return { selected: next, anchor: nextAnchor };
+}
+
 export function partitionExplorerSelection(paths: string[]): { vera: string[]; pdf: string[] } {
   const vera: string[] = [];
   const pdf: string[] = [];

@@ -35,19 +35,22 @@ Options:
   installed). Unknown providers exit with a non-zero status and an
   install-the-plugin message; there is no silent fallback.
 - `--chunk-size N` defaults to `500`. Compatibility alias forwarded only when
-  the selected pipeline advertises a `chunk_size` field.
+  the selected pipeline advertises a `chunk_size` field. PyMuPDF counts
+  whitespace-split words; Docling counts whitespace tokens (not LLM subword
+  tokens).
 - `--overlap N` defaults to `75`. Compatibility alias forwarded only when the
-  pipeline advertises `overlap` (PyMuPDF). Docling does not receive overlap.
+  pipeline advertises `overlap` (PyMuPDF, also whitespace-split words).
+  Docling does not receive overlap.
 - `--store-original VALUE` defaults to `true`. Values `1`, `true`, `yes`, `y`,
   and `on` are true, case-insensitively; other values are false.
 - `--ocr auto|off|force` defaults to `auto`. Compatibility alias for
   `ocr_mode`. Automatic mode OCRs only image-dominant low-text pages.
 - `--ocr-language CODE` defaults to `eng` (PyMuPDF/Tesseract). Compatibility
-  alias, forwarded to any pipeline that advertises an `ocr_language` field.
-  With `--parser docling`, this field expects a RapidOCR-native code (`en`,
-  `fr`, `cyrillic`, ...), not Tesseract's — `eng` is not valid, so pass
-  `--pipeline-option ocr_language=en` explicitly; Docling's own default is
-  `en`.
+  alias, forwarded only when the selected pipeline's OCR engine is Tesseract
+  (PyMuPDF). Docling/RapidOCR does not receive this alias and keeps its own
+  default `en` unless you pass `--pipeline-option ocr_language=` with a
+  RapidOCR-native code (`en`, `fr`, `cyrillic`, ...). `eng` is not valid for
+  Docling.
 - `--ocr-dpi N` defaults to `300` and must be positive. Compatibility alias
   forwarded only when the pipeline advertises `ocr_dpi` (PyMuPDF). Docling
   does not receive DPI.
@@ -68,13 +71,18 @@ Options:
   or `--embedder-option dimension=256`). Values coerce the same way as
   `--pipeline-option`.
 - `--recursive` recursively discovers PDFs in directory mode.
-- `--overwrite` replaces existing outputs in directory mode.
+- `--overwrite` replaces existing outputs in directory mode. Without it,
+  a sibling `.vera` is skipped only when it validates and its stored
+  `source_file_hash` matches the current PDF.
 - `--json` emits one JSON object.
 
-Each pipeline owns typed defaults and validation. PyMuPDF defaults:
-`chunk_size=500`, `overlap=75`, `ocr_mode=auto`, `ocr_language=eng`,
-`ocr_dpi=300`, `ocr_download=false`. Docling defaults: `chunk_size=500`
-tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse`
+Each pipeline owns typed defaults and validation. Advertised integer
+`minimum`/`maximum` bounds are enforced (`chunk_size` 100–3000; hashing
+`dimension` 8–4096). PyMuPDF defaults:
+`chunk_size=500` whitespace-split words, `overlap=75` words, `ocr_mode=auto`,
+`ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false`. Docling defaults:
+`chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`,
+`pdf_backend=docling_parse`
 (no overlap/DPI/download fields; auto page recovery / `pypdfium2` fallback on
 memory errors).
 
@@ -129,8 +137,10 @@ Directory JSON:
 }
 ```
 
-Existing outputs are validated: only valid archives appear in
-`skipped_existing`; invalid ones appear in `malformed_existing`.
+Existing outputs are validated: only valid archives whose stored
+`source_file_hash` matches the current PDF appear in `skipped_existing`.
+Changed PDFs and archives with a missing or unreadable hash are reconverted.
+Invalid archives appear in `malformed_existing`.
 `skipped_by_user` / `user_skipped` are reserved for interactive skip
 requests (desktop app); CLI runs leave them empty. Each error entry has
 `input` and `error`. A conversion failure or malformed existing output

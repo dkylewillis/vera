@@ -41,7 +41,8 @@ figures, and citation metadata in one portable `.vera` file.
 
 - [Repository architecture](architecture.md)
 - [Desktop app architecture](desktop-app-architecture.md)
-- [Development handoff](HANDOFF.md)
+- [Changelog](../CHANGELOG.md)
+- [Roadmap](../ROADMAP.md)
 
 The README is the product overview, these pages are the human user
 documentation, and `skills/vera/` is the self-contained package for AI agents.

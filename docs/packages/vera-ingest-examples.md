@@ -57,12 +57,14 @@ report = batch_convert(
 )
 
 print("converted:", report["converted"])
+print("skipped existing:", report["skipped_existing"])
 print("failed:", report["failed"])
 print("malformed existing:", report["malformed_existing"])
 ```
 
-Batch conversion continues after per-file failures. Check both `failed` and
-`malformed_existing` before treating the batch as successful.
+Batch conversion continues after per-file failures. `skipped_existing` lists
+valid archives whose stored `source_file_hash` still matches the PDF. Check
+both `failed` and `malformed_existing` before treating the batch as successful.
 
 See [Convert documents](../conversion.md) for every supported option and its
 filesystem behavior.

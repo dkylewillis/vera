@@ -157,17 +157,26 @@ def test_hardening_json_contracts_are_documented():
     roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
 
     assert "malformed_existing" in conversion
+    assert "source_file_hash" in conversion
+    assert "skipped_existing" in conversion
+    assert "source_file_hash" in cli_reference
     assert "requires OCR" in conversion
     assert "## Pipeline options" in conversion
     assert "--pipeline-option" in conversion
     assert "pipeline_options" in conversion
+    assert "100–3000" in conversion
+    assert "8–4096" in conversion
     assert "IngestRequest" in conversion
     assert "describe_ingest_pipelines" in conversion
     assert "PipelineConfigForm" in conversion
     assert "Advanced pipeline options" in conversion
     assert "compatibility alias" in conversion.lower() or "Compatibility aliases" in conversion
     assert "ocr_language=en" in conversion
+    assert "whitespace-split words" in conversion
+    assert "Sliding-window character chunks" not in conversion
     assert "overlap" in conversion and "ocr_dpi" in conversion
+    assert "**not** forwarded to" in conversion
+    assert "Tesseract `--ocr-language`" in conversion
     assert "--embedder-option" in conversion
     assert "embedder_options" in conversion
     assert "describe_embedding_providers" in conversion or "creating-an-embedding-provider.md" in conversion
@@ -192,6 +201,10 @@ def test_hardening_json_contracts_are_documented():
     assert "Do not put API keys in Options" in guide or "do not put secrets" in guide.lower()
     assert "scope\": \"convert\"" in guide or "scope: convert" in guide or '"scope": "convert"' in guide
     assert "vera.embedder_models" in guide
+    assert 'metadata["minimum"]' in guide
+    assert 'metadata["maximum"]' in guide
+    ingest_guide = (DOCS / "creating-an-ingest-pipeline.md").read_text(encoding="utf-8")
+    assert "must be between 100 and 3000" in ingest_guide
     assert "preflight_embedder" in conversion
     assert "credential_env" in conversion
     assert "list_embedding_models" in desktop_architecture
@@ -277,3 +290,52 @@ def test_figures_storage_map_is_documented():
     ):
         assert marker in figures, f"storage map missing {marker}"
     assert "figures-and-regions.md#storage-map-vera-02-schema" in spec
+
+
+def test_release_0_3_versioning_and_install_pins():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    getting_started = (DOCS / "getting-started.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+    mkdocs = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+    index = (DOCS / "user-documentation.md").read_text(encoding="utf-8")
+    skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
+
+    assert (ROOT / "CHANGELOG.md").is_file()
+    assert "### What 0.3 means" in readme
+    assert "archive format remains **0.2**" in readme
+    assert "archive format remains **0.2**" in getting_started
+    assert "vera-cli>=0.3.0" in readme
+    assert "vera-cli>=0.3.0" in getting_started
+    assert ">=0.2.4" not in readme
+    assert ">=0.2.4" not in getting_started
+    assert "UnknownEmbeddingModelError" in changelog
+    assert "falling back to PyMuPDF" in changelog
+    assert "format remains **0.2**" in changelog
+    assert "follow-ups after the 0.3.0 tag" in roadmap
+    assert "not blockers for 0.3.0" in roadmap
+    assert "HANDOFF.md" not in mkdocs
+    assert "HANDOFF.md" not in index
+    assert not (DOCS / "HANDOFF.md").exists()
+    assert not (ROOT / "TODO.md").exists()
+    assert not (ROOT / "vera_project_brief.md").exists()
+    assert "format_version` remains" in skill or "format_version remains" in skill
+    assert "may not yet be published to PyPI" not in getting_started
+    assert "may not yet be published to PyPI" not in (DOCS / "index.md").read_text(encoding="utf-8")
+    assert "may not yet be published to PyPI" not in (DOCS / "python-api.md").read_text(
+        encoding="utf-8"
+    )
+
+    skip = {".venv", "node_modules", ".git", ".pytest_cache", "dist-electron", "__pycache__"}
+    leftover_pins: list[str] = []
+    leftover_caveats: list[str] = []
+    for path in ROOT.rglob("*.md"):
+        if any(part in skip for part in path.parts):
+            continue
+        text = path.read_text(encoding="utf-8")
+        if ">=0.2.4" in text:
+            leftover_pins.append(str(path.relative_to(ROOT)))
+        if "may not yet be published to PyPI" in text:
+            leftover_caveats.append(str(path.relative_to(ROOT)))
+    assert leftover_pins == [], f"stale >=0.2.4 install pins in {leftover_pins}"
+    assert leftover_caveats == [], f"stale PyPI caveats in {leftover_caveats}"

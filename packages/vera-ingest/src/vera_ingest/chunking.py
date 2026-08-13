@@ -17,7 +17,7 @@ class Chunk:
         page_start: First page number spanned by the chunk.
         page_end: Last page number spanned by the chunk.
         heading_path: Heading breadcrumb at chunk start.
-        token_count: Approximate token count.
+        token_count: Whitespace-split word count.
         block_ids: Source layout block identifiers.
     """
 
@@ -30,6 +30,7 @@ class Chunk:
 
 
 def tokens(text: str) -> list[str]:
+    """Split on whitespace. Chunk size and overlap count these words."""
     return text.split()
 
 

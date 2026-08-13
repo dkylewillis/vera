@@ -35,7 +35,10 @@ class DoclingOptions(PipelineOptions):
         default=500,
         metadata={
             "label": "Chunk size",
-            "description": "HybridChunker token limit (whitespace tokens in VERA).",
+            "description": (
+                "HybridChunker limit in whitespace-split words "
+                "(not LLM subword tokens)."
+            ),
             "unit": "tokens",
             "minimum": 100,
             "maximum": 3000,

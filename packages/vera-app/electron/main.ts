@@ -992,14 +992,6 @@ app.whenReady().then(() => {
       : await dialog.showOpenDialog(options);
     return result.canceled ? [] : result.filePaths;
   });
-  ipcMain.handle('vera:saveVera', async (_event, defaultPath?: string) => {
-    const result = await dialog.showSaveDialog({
-      title: 'Save VERA archive',
-      defaultPath,
-      filters: [{ name: 'VERA Archives', extensions: ['vera'] }],
-    });
-    return result.canceled ? null : result.filePath;
-  });
   ipcMain.handle('vera:saveAny', async () => {
     const result = await dialog.showSaveDialog({ title: 'Save file' });
     return result.canceled ? null : result.filePath;

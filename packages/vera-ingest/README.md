@@ -16,7 +16,9 @@ Each pipeline owns typed chunking/OCR defaults, validation, and a descriptor
 of supported fields. Shared convert accepts opaque `pipeline_options` on a thin
 `IngestRequest`. Legacy kwargs (`chunk_size`, `overlap`, `ocr_mode`,
 `ocr_language`, `ocr_dpi`) remain compatibility aliases; descriptor fields
-control which aliases are forwarded, and explicit `pipeline_options` win.
+and OCR engine control which aliases are forwarded (Tesseract-shaped
+`ocr_language`/`ocr_dpi`/`ocr_download` only go to Tesseract pipelines), and
+explicit `pipeline_options` win.
 
 It emits ready-made `vera.ChunkRecord` values and optional opaque attachments,
 then stores them through `vera.VeraDocument`. It also provides
@@ -36,8 +38,7 @@ pull in `vera-ingest-pymupdf` by default):
 python -m pip install "vera-ingest-pymupdf>=0.3.0"
 ```
 
-`vera-ingest` may not yet be published to PyPI. If the install fails because the
-package cannot be found, install from a repository checkout:
+From a repository checkout:
 
 ```bash
 python -m pip install ./packages/vera-doc ./packages/vera-ingest ./packages/vera-ingest-pymupdf

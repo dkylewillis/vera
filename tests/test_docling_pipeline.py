@@ -241,6 +241,9 @@ def test_docling_options_ignore_pymupdf_only_keys_and_reject_unknown():
     assert descriptor.capabilities.overlap_supported is False
     assert descriptor.capabilities.ocr_dpi_supported is False
     assert descriptor.capabilities.chunk_unit == "tokens"
+    chunk_size_field = next(field for field in descriptor.fields if field.key == "chunk_size")
+    assert chunk_size_field.unit == "tokens"
+    assert "whitespace-split words" in chunk_size_field.description
 
 
 def test_build_converter_respects_pdf_backend_option():
@@ -292,7 +295,7 @@ def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, 
     result = pipeline(
         str(pdf),
         IngestRequest(
-            pipeline_options={"chunk_size": 40, "ocr_mode": "auto"},
+            pipeline_options={"chunk_size": 100, "ocr_mode": "auto"},
         ),
     )
 
@@ -312,6 +315,7 @@ def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, 
 
 def test_prepare_does_not_forward_pymupdf_overlap_dpi_to_docling():
     from vera_ingest import prepare_pipeline_options
+    from vera_ingest_docling.options import DoclingOptions
 
     merged = prepare_pipeline_options(
         spec="docling",
@@ -321,16 +325,71 @@ def test_prepare_does_not_forward_pymupdf_overlap_dpi_to_docling():
             "ocr_mode": "auto",
             "ocr_language": "eng",
             "ocr_dpi": 300,
+            "ocr_download": False,
         },
         pipeline_options={"chunk_size": 250},
     )
     assert merged == {
         "chunk_size": 250,
         "ocr_mode": "auto",
-        "ocr_language": "eng",
     }
+    assert "ocr_language" not in merged
     assert "overlap" not in merged
     assert "ocr_dpi" not in merged
+    assert "ocr_download" not in merged
+    assert DoclingOptions.from_mapping(merged).ocr_language == "en"
+
+    explicit = prepare_pipeline_options(
+        spec="docling",
+        legacy_options={"ocr_language": "eng", "ocr_mode": "auto"},
+        pipeline_options={"ocr_language": "fr"},
+    )
+    assert explicit["ocr_language"] == "fr"
+
+
+def test_convert_docling_resolves_ocr_language_to_pipeline_default(monkeypatch, tmp_path):
+    document = _fixture_document()
+    captured = {}
+
+    class Result:
+        status = ConversionStatus.SUCCESS
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class Converter:
+        def convert(self, source=None, **_kwargs):
+            return Result(document)
+
+    def fake_build(options, **_kwargs):
+        captured["options"] = options
+        return Converter()
+
+    monkeypatch.setattr("vera_ingest_docling.pipeline._build_converter", fake_build)
+
+    pdf = tmp_path / "source.pdf"
+    out = tmp_path / "source.vera"
+    pdf.write_bytes(b"%PDF-1.4 retained")
+
+    class Embedder:
+        model_name = "hashing-test"
+        dimension = 4
+        normalization = "l2"
+
+        def embed(self, texts):
+            vector = np.asarray([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+            return np.vstack([vector for _ in texts])
+
+    convert(
+        str(pdf),
+        str(out),
+        parser="docling",
+        embedding_function=Embedder(),
+        store_original=False,
+    )
+
+    assert captured["options"].ocr_language == "en"
+    assert captured["options"].ocr_language != "eng"
 
 
 def test_partial_success_is_rejected(monkeypatch, tmp_path):
@@ -478,7 +537,7 @@ def test_partial_success_with_page_errors_recovers_via_fresh_retry(monkeypatch, 
     pdf.write_bytes(b"%PDF-1.4")
     result = DoclingHybridPipeline()(
         str(pdf),
-        IngestRequest(pipeline_options={"chunk_size": 40}),
+        IngestRequest(pipeline_options={"chunk_size": 100}),
     )
     assert result.diagnostics["recovered_pages"] == [2]
     assert result.diagnostics["recovered_pages_backend"] == {"2": "docling_parse"}

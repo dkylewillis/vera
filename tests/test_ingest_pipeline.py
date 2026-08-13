@@ -13,6 +13,7 @@ from vera_ingest import (
     IngestRequest,
     IngestResult,
     ParsedPage,
+    PipelineCapabilities,
     PipelineDescriptor,
     PipelineField,
     PipelineOptions,
@@ -351,6 +352,11 @@ def test_pymupdf_descriptor_and_strict_options():
         "ocr_download",
     }
     assert descriptor.as_dict()["capabilities"]["ocr_engine"] == "tesseract"
+    assert descriptor.capabilities.chunk_unit == "words"
+    chunk_size = next(field for field in descriptor.fields if field.key == "chunk_size")
+    overlap = next(field for field in descriptor.fields if field.key == "overlap")
+    assert chunk_size.unit == "words"
+    assert overlap.unit == "words"
     ocr_language = next(field for field in descriptor.fields if field.key == "ocr_language")
     assert ocr_language.type == "enum"
     assert ocr_language.allow_custom is True
@@ -367,8 +373,14 @@ def test_pymupdf_descriptor_and_strict_options():
     assert PyMuPDFOptions.from_mapping({"ocr_language": "eng+spa"}).ocr_language == "eng+spa"
     with pytest.raises(ValueError, match="Unknown PyMuPDF option"):
         PyMuPDFOptions.from_mapping({"chunk_size": 250, "bogus": 1})
-    with pytest.raises(ValueError, match="chunk_size must be positive"):
+    assert PyMuPDFOptions.from_mapping({"chunk_size": 100}).chunk_size == 100
+    assert PyMuPDFOptions.from_mapping({"chunk_size": 3000}).chunk_size == 3000
+    with pytest.raises(ValueError, match="chunk_size must be between 100 and 3000"):
         PyMuPDFOptions.from_mapping({"chunk_size": 0})
+    with pytest.raises(ValueError, match="chunk_size must be between 100 and 3000"):
+        PyMuPDFOptions.from_mapping({"chunk_size": 99})
+    with pytest.raises(ValueError, match="chunk_size must be between 100 and 3000"):
+        PyMuPDFOptions.from_mapping({"chunk_size": 99999})
 
 
 def test_fields_from_dataclass_derives_descriptor_fields_from_metadata():
@@ -422,10 +434,10 @@ def test_pipeline_options_mixin_derives_from_mapping_from_metadata():
     assert WidgetOptions.from_mapping({"chunk_size": 500, "verbose": True}) == WidgetOptions(
         chunk_size=500, verbose=True
     )
-    # minimum=10 (>0) selects require_positive_int; minimum=0 selects
-    # require_non_negative_int, so overlap=0 is fine but chunk_size=0 isn't.
+    # minimum=10 is enforced as a floor; minimum=0 still allows overlap=0.
     assert WidgetOptions.from_mapping({"overlap": 0}).overlap == 0
-    with pytest.raises(ValueError, match="chunk_size must be positive"):
+    assert WidgetOptions.from_mapping({"chunk_size": 10}).chunk_size == 10
+    with pytest.raises(ValueError, match="chunk_size must be at least 10"):
         WidgetOptions.from_mapping({"chunk_size": 0})
     # choices without allow_custom is enforced strictly.
     with pytest.raises(ValueError, match="Unsupported ocr_mode"):
@@ -573,11 +585,166 @@ def test_convert_forwards_thin_request_and_isolates_legacy_keys(tmp_path):
 
     assert isinstance(undescribed.request, IngestRequest)
     assert undescribed.request.pipeline_options["overlap"] == 33
-    assert undescribed.request.pipeline_options["ocr_dpi"] == 222
+    assert "ocr_dpi" not in undescribed.request.pipeline_options
+    assert "ocr_language" not in undescribed.request.pipeline_options
+    assert "ocr_download" not in undescribed.request.pipeline_options
     assert isinstance(described.request, IngestRequest)
     assert described.request.pipeline_options == {"chunk_size": 654}
     assert "overlap" not in described.request.pipeline_options
     assert "ocr_dpi" not in described.request.pipeline_options
+
+
+def test_prepare_does_not_forward_tesseract_legacy_keys_to_non_tesseract():
+    register_ingest_pipeline("rapidocr", lambda _variant: object())
+    register_ingest_pipeline_descriptor(
+        "rapidocr",
+        lambda _variant: PipelineDescriptor(
+            provider="rapidocr",
+            variant="",
+            spec="rapidocr",
+            label="rapidocr",
+            capabilities=PipelineCapabilities(
+                overlap_supported=False,
+                ocr_engine="rapidocr",
+                ocr_dpi_supported=False,
+            ),
+            fields=(
+                PipelineField(
+                    key="chunk_size",
+                    label="Chunk size",
+                    type="integer",
+                    default=500,
+                ),
+                PipelineField(
+                    key="ocr_mode",
+                    label="OCR mode",
+                    type="enum",
+                    default="auto",
+                ),
+                PipelineField(
+                    key="ocr_language",
+                    label="OCR language",
+                    type="string",
+                    default="en",
+                ),
+            ),
+        ),
+    )
+
+    merged = prepare_pipeline_options(
+        spec="rapidocr",
+        legacy_options={
+            "chunk_size": 500,
+            "overlap": 75,
+            "ocr_mode": "auto",
+            "ocr_language": "eng",
+            "ocr_dpi": 300,
+            "ocr_download": False,
+        },
+    )
+    assert merged == {"chunk_size": 500, "ocr_mode": "auto"}
+    assert "ocr_language" not in merged
+    assert "ocr_dpi" not in merged
+    assert "ocr_download" not in merged
+
+    overridden = prepare_pipeline_options(
+        spec="rapidocr",
+        legacy_options={"ocr_language": "eng", "ocr_mode": "auto"},
+        pipeline_options={"ocr_language": "fr"},
+    )
+    assert overridden["ocr_language"] == "fr"
+    assert overridden["ocr_mode"] == "auto"
+
+    explicit_eng = prepare_pipeline_options(
+        spec="rapidocr",
+        legacy_options={"ocr_language": "eng"},
+        pipeline_options={"ocr_language": "eng"},
+    )
+    assert explicit_eng["ocr_language"] == "eng"
+
+
+def test_convert_does_not_leak_tesseract_ocr_language_to_non_tesseract(tmp_path):
+    pdf = tmp_path / "source.pdf"
+    pdf.write_bytes(b"%PDF isolated")
+
+    class Capturing:
+        def __init__(self):
+            self.request = None
+
+        def ingest(self, source_path, options):
+            self.request = options
+            return IngestResult(
+                pages=[ParsedPage(1, 1.0, 1.0, "readable")],
+                blocks=[
+                    IngestBlock(
+                        block_id="b1",
+                        page_number=1,
+                        block_type="paragraph",
+                        text="readable",
+                    )
+                ],
+                chunks=[
+                    IngestChunk(
+                        chunk_id="c1",
+                        text="readable",
+                        page_start=1,
+                        page_end=1,
+                        heading_path="",
+                        token_count=1,
+                        block_ids=["b1"],
+                    )
+                ],
+                parser_name="rapidocr",
+                parser_version="1",
+                chunking_strategy="capture",
+            )
+
+    capturing = Capturing()
+    register_ingest_pipeline("rapidocr", lambda _variant: capturing)
+    register_ingest_pipeline_descriptor(
+        "rapidocr",
+        lambda _variant: PipelineDescriptor(
+            provider="rapidocr",
+            variant="",
+            spec="rapidocr",
+            label="rapidocr",
+            capabilities=PipelineCapabilities(ocr_engine="rapidocr"),
+            fields=(
+                PipelineField(
+                    key="ocr_language",
+                    label="OCR language",
+                    type="string",
+                    default="en",
+                ),
+                PipelineField(
+                    key="ocr_mode",
+                    label="OCR mode",
+                    type="enum",
+                    default="auto",
+                ),
+            ),
+        ),
+    )
+
+    class Embedder:
+        model_name = "isolation-test"
+        dimension = 2
+        normalization = "l2"
+
+        def embed(self, texts):
+            return np.asarray([[1.0, 0.0] for _ in texts], dtype=np.float32)
+
+    convert(
+        str(pdf),
+        str(tmp_path / "out.vera"),
+        parser="rapidocr",
+        embedding_function=Embedder(),
+        store_original=False,
+    )
+
+    assert capturing.request.pipeline_options.get("ocr_language") != "eng"
+    assert "ocr_language" not in capturing.request.pipeline_options
+    assert capturing.request.pipeline_options["ocr_mode"] == "auto"
 
 
 def test_ingest_options_to_request_preserves_explicit_pipeline_options():

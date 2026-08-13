@@ -14,7 +14,7 @@ def vera_file(tmp_path_factory):
     pdf = tmp / "manual.pdf"
     out = tmp / "manual.vera"
     make_pdf(pdf)
-    convert(str(pdf), str(out), model="hashing", chunk_size=40, overlap=5)
+    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=5)
     return out
 
 

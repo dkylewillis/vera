@@ -32,8 +32,7 @@ depend on `vera-ingest-pymupdf` by default):
 python -m pip install "vera-ingest-pymupdf>=0.3.0"
 ```
 
-`vera-ingest` may not yet be published to PyPI. If the install fails because the
-package cannot be found, install from a repository checkout instead:
+From a repository checkout:
 
 ```bash
 python -m pip install ./packages/vera-doc ./packages/vera-ingest ./packages/vera-ingest-pymupdf
@@ -69,7 +68,7 @@ kwargs such as `chunk_size` and `ocr_mode` remain compatibility aliases.
   descriptors inside each ingest plugin; shared convert passes a thin
   `IngestRequest` with opaque `pipeline_options`.
 - **Chunking helpers** remain available for providers that want sliding-window
-  behavior without owning the writer.
+  behavior (whitespace-split words, not characters) without owning the writer.
 - **Atomic conversion** validates a temporary archive before publishing it.
 
 ## Documentation

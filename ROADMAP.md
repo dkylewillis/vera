@@ -15,6 +15,13 @@ Package and application versions do not automatically change the `.vera`
 format version. The archive format remains 0.2 unless a feature changes its
 schema or normative behavior.
 
+The **0.3.0** tag ships the extensibility foundation below (pluggable ingest
+and embedders, strict unknown-provider errors, optional Docling, descriptor
+APIs). Unchecked items under Desktop application, Official embedding
+providers, Packaging and local models, and Future packaged-app plugin
+runtime are **follow-ups after the 0.3.0 tag** (0.3.1 or later). They are
+not blockers for 0.3.0.
+
 ## VERA 0.2 — Maintenance
 
 - Fix defects without intentionally breaking public behavior.
@@ -52,14 +59,21 @@ schema or normative behavior.
 - [x] Advertise model presets via `vera.embedder_models` /
   `list_embedding_models`.
 - [ ] Add conversion-time provider and credential preflight checks in the
-  Convert UI (sidecar `preflight_embedder` is ready).
+  Convert UI (sidecar `preflight_embedder` is ready). Follow-up after
+  0.3.0; not a 0.3.0 blocker.
 - [ ] Improve model selection UI with provider-specific model discovery
-  (sidecar `list_embedding_models` is ready).
+  (sidecar `list_embedding_models` is ready). Follow-up after 0.3.0; not a
+  0.3.0 blocker.
 - [ ] Drive Convert UI embedding forms from descriptors (like
-  `PipelineConfigForm`).
-- [ ] Store hosted embedding-provider credentials securely in the desktop app.
+  `PipelineConfigForm`). Follow-up after 0.3.0; not a 0.3.0 blocker.
+- [ ] Store hosted embedding-provider credentials securely in the desktop
+  app. Follow-up after 0.3.0; not a 0.3.0 blocker.
 
 ### Official embedding providers
+
+Hosted providers below are follow-ups after 0.3.0 (0.3.1 or later), not
+0.3.0 blockers. The descriptor/`credential_env` pattern they will use is
+already in 0.3.0.
 
 - [ ] Add a lightweight OpenAI-compatible embeddings provider.
 - [ ] Add Voyage AI embeddings for applications that use Claude for answers.
@@ -71,6 +85,8 @@ schema or normative behavior.
 - [ ] Document which providers are bundled with each desktop release.
 
 ### Packaging and local models
+
+Follow-ups after 0.3.0 (0.3.1 or later); not 0.3.0 blockers.
 
 - [ ] Bundle lightweight official providers with the released application.
 - [ ] Decide how optional local neural runtimes and models are distributed
@@ -107,7 +123,8 @@ schema or normative behavior.
 - [x] Own Docling defaults (`chunk_size` tokens, `ocr_mode`, `ocr_language`,
   `pdf_backend`) without advertising overlap or OCR DPI.
 - [ ] Evaluate Docling quality against representative corpora and decide
-  default-vs-optional packaging guidance.
+  default-vs-optional packaging guidance. Follow-up after 0.3.0; not a
+  0.3.0 blocker.
 
 ### CLI and source-run desktop
 
@@ -122,6 +139,10 @@ schema or normative behavior.
 - [x] Keep packaged-app plugin installation explicitly unsupported for now.
 
 ### Future packaged-app plugin runtime
+
+Follow-ups after 0.3.0 (0.3.1 or later); not 0.3.0 blockers. Source-run
+apps can already use installed pipeline plugins (including Docling);
+packaged-app plugin installation remains explicitly unsupported.
 
 - [ ] Create a plugin runtime separate from the frozen desktop sidecar for
   ingest pipelines (and embedding providers).

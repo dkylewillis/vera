@@ -35,8 +35,11 @@ class PyMuPDFOptions(PipelineOptions):
         default=500,
         metadata={
             "label": "Chunk size",
-            "description": "Target chunk size in words/characters for sliding windows.",
-            "unit": "characters",
+            "description": (
+                "Target sliding-window size in whitespace-split words "
+                "(not characters or LLM subword tokens)."
+            ),
+            "unit": "words",
             "minimum": 100,
             "maximum": 3000,
             "step": 50,
@@ -46,8 +49,11 @@ class PyMuPDFOptions(PipelineOptions):
         default=75,
         metadata={
             "label": "Overlap",
-            "description": "Overlap between consecutive sliding-window chunks.",
-            "unit": "characters",
+            "description": (
+                "Overlap between consecutive sliding-window chunks, in "
+                "whitespace-split words."
+            ),
+            "unit": "words",
             "minimum": 0,
             "maximum": 1000,
             "step": 25,
@@ -117,7 +123,7 @@ def describe_pipeline(variant: str = "default") -> PipelineDescriptor:
             "Tesseract OCR with sliding-window chunking."
         ),
         capabilities=PipelineCapabilities(
-            chunk_unit="characters",
+            chunk_unit="words",
             overlap_supported=True,
             ocr_supported=True,
             ocr_engine="tesseract",

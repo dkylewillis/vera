@@ -47,6 +47,19 @@ def _validate_output(path: Path) -> dict[str, Any]:
     return report
 
 
+def _stored_source_file_hash(path: Path) -> str | None:
+    """Return the archive's stored source SHA-256, or None if missing/unreadable."""
+    try:
+        with VeraDocument.open(path) as document:
+            stored = document.inspect().get("source_file_hash")
+    except Exception:
+        return None
+    if not isinstance(stored, str):
+        return None
+    digest = stored.strip()
+    return digest or None
+
+
 def _raise_if_cancelled(cancel: Any | None) -> None:
     if cancel is None:
         return
@@ -137,7 +150,8 @@ def convert(
             selected pipeline (PyMuPDF). Ignored by Docling.
         store_original: When ``True``, embed the original PDF as an attachment.
         ocr_mode: Compatibility OCR mode alias when advertised by the pipeline.
-        ocr_language: Compatibility OCR language alias when advertised.
+        ocr_language: Tesseract OCR language alias (PyMuPDF). Forwarded only
+            when the selected pipeline's ``ocr_engine`` is ``"tesseract"``.
         ocr_dpi: Compatibility OCR DPI alias when advertised (PyMuPDF).
         ocr_download: Compatibility alias (PyMuPDF only) allowing on-demand,
             checksum-verified download of missing Tesseract language data.
@@ -490,7 +504,10 @@ def batch_convert(
         paths: Explicit PDF file paths to convert. When set, directory discovery
             is skipped and ``recursive`` is ignored.
         recursive: When ``True``, scan subdirectories (directory mode only).
-        overwrite: When ``True``, replace existing ``.vera`` outputs.
+        overwrite: When ``True``, replace existing ``.vera`` outputs. When
+            ``False``, skip a sibling archive only when it validates and its
+            stored ``source_file_hash`` matches the current PDF. Stale or
+            hash-less archives are reconverted.
         model: Embedding model spec passed to :func:`convert`.
         embedding_function: Optional custom embedder passed to :func:`convert`.
         parser: PDF parser backend passed to :func:`convert`.
@@ -550,9 +567,7 @@ def batch_convert(
             output = pdf.with_suffix(".vera")
             if output.exists() and not overwrite:
                 validation = _validate_output(output)
-                if validation["ok"]:
-                    skipped_existing.append(str(output))
-                else:
+                if not validation["ok"]:
                     malformed_existing.append(
                         {
                             "input": str(pdf),
@@ -560,7 +575,12 @@ def batch_convert(
                             "issues": validation["issues"],
                         }
                     )
-                continue
+                    continue
+                stored_hash = _stored_source_file_hash(output)
+                current_hash = _sha256_bytes(pdf.read_bytes())
+                if stored_hash is not None and stored_hash == current_hash:
+                    skipped_existing.append(str(output))
+                    continue
             outputs.append(
                 convert(
                     str(pdf),

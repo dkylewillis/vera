@@ -44,8 +44,8 @@ convert("manual.pdf", "manual.vera", parser="pymupdf")
 
 ## Notes
 
-- Defaults: `chunk_size=500`, `overlap=75`, `ocr_mode=auto`, `ocr_language=eng`,
-  `ocr_dpi=300`.
+- Defaults: `chunk_size=500` whitespace-split words, `overlap=75` words,
+  `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300`.
 - Prefer `pipeline_options=` / `--pipeline-option KEY=VALUE` for provider-owned
   settings; `--chunk-size`, `--overlap`, and `--ocr*` remain compatibility
   aliases.

@@ -17,7 +17,7 @@ const pymupdfDescriptor: PipelineDescriptor = {
       label: 'Chunk size',
       type: 'integer',
       default: 500,
-      unit: 'characters',
+      unit: 'words',
       minimum: 100,
       maximum: 3000,
       step: 50,
@@ -27,7 +27,7 @@ const pymupdfDescriptor: PipelineDescriptor = {
       label: 'Overlap',
       type: 'integer',
       default: 75,
-      unit: 'characters',
+      unit: 'words',
     },
     {
       key: 'ocr_mode',
@@ -101,7 +101,7 @@ describe('PipelineConfigForm', () => {
         onChange={() => undefined}
       />,
     );
-    expect(html).toContain('Overlap (characters)');
+    expect(html).toContain('Overlap (words)');
     expect(html).toContain('OCR mode');
     expect(html).toContain('OCR language');
     expect(html).toContain('Spanish (spa)');
@@ -131,7 +131,7 @@ describe('PipelineConfigForm', () => {
       />,
     );
     expect(html).toContain('Chunk size (tokens)');
-    expect(html).not.toContain('Overlap (characters)');
+    expect(html).not.toContain('Overlap (words)');
     expect(html).not.toContain('>Overlap<');
     expect(html).toContain('Overlap is not applied by Docling HybridChunker.');
   });

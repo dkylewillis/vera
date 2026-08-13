@@ -53,8 +53,16 @@ Install the CLI (Python 3.10+). It bundles storage, the default PDF pipeline,
 and offline OCR data:
 
 ```bash
-python -m pip install "vera-cli>=0.2.4"
+python -m pip install "vera-cli>=0.3.0"
 ```
+
+### What 0.3 means
+
+Release **0.3.x** is the software, CLI, and Python API version. The `.vera`
+archive format remains **0.2**; existing archives are compatible. Package and
+application versions do not change the on-disk format. See the
+[changelog](CHANGELOG.md) for 0.3 behavior, including breaking unknown-provider
+errors.
 
 Convert a PDF and search it:
 
@@ -446,13 +454,15 @@ browse the [published docs](https://dkylewillis.github.io/vera/).
 - [Python API](docs/python-api.md) · [MCP integration](docs/mcp.md) · [Agent skills](docs/agent-skills.md) · [Agent quick reference](AGENTS.md)
 - [Creating an ingest pipeline](docs/creating-an-ingest-pipeline.md) · [Creating an embedding provider](docs/creating-an-embedding-provider.md)
 - [Format spec 0.2 (current)](docs/vera-spec-v0.2.md) · [Format spec 0.1 (legacy)](docs/vera-spec-v0.1.md)
-- [Architecture and contributing](docs/architecture.md) · [Roadmap](ROADMAP.md) · [Troubleshooting](docs/troubleshooting.md)
+- [Architecture and contributing](docs/architecture.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) · [Troubleshooting](docs/troubleshooting.md)
 
 ## Status and support
 
-VERA is an experimental pre-1.0 project. The `.vera` schema and format may
-change before a stable release — see the [roadmap](ROADMAP.md) for what's
-planned. The desktop installer currently targets Windows and is available from
+VERA is an experimental pre-1.0 project. Release **0.3.x** versions the
+software, CLI, and Python API; the `.vera` archive format remains **0.2**.
+Later format changes, if any, will be documented separately — see the
+[roadmap](ROADMAP.md) and [changelog](CHANGELOG.md). The desktop installer
+currently targets Windows and is available from
 [GitHub Releases](https://github.com/dkylewillis/vera/releases).
 
 VERA is licensed under [Apache-2.0](LICENSE).

@@ -289,6 +289,16 @@ def reset_ingest_pipeline_registry(*, builtins: bool = True) -> None:
         _ENTRY_POINTS_LOADED = False
 
 
+_TESSERACT_LEGACY_OPTION_KEYS = frozenset({"ocr_language", "ocr_dpi", "ocr_download"})
+
+
+def _should_forward_legacy_key(key: str, descriptor: PipelineDescriptor) -> bool:
+    """Tesseract-shaped convert()/CLI aliases stay on Tesseract pipelines."""
+    if key not in _TESSERACT_LEGACY_OPTION_KEYS:
+        return True
+    return descriptor.capabilities.ocr_engine == "tesseract"
+
+
 def prepare_pipeline_options(
     *,
     spec: str,
@@ -299,8 +309,12 @@ def prepare_pipeline_options(
 
     When a pipeline publishes descriptor fields, only those legacy keys are
     forwarded so PyMuPDF defaults such as ``overlap`` and ``ocr_dpi`` do not
-    leak into plugins that omit them. Undescribed plugins receive the full
-    compatibility bag. Explicit ``pipeline_options`` always win.
+    leak into plugins that omit them. Tesseract-shaped aliases
+    (``ocr_language``, ``ocr_dpi``, ``ocr_download``) are forwarded only when
+    ``capabilities.ocr_engine`` is ``"tesseract"``, so Docling/RapidOCR keeps
+    its own ``ocr_language`` default instead of inheriting ``eng``.
+    Undescribed plugins receive the remaining compatibility bag. Explicit
+    ``pipeline_options`` always win.
     """
     descriptor = describe_ingest_pipeline(spec)
     allowed = descriptor.field_keys()
@@ -308,10 +322,12 @@ def prepare_pipeline_options(
     legacy = legacy_options or {}
     if allowed:
         for key, value in legacy.items():
-            if key in allowed:
+            if key in allowed and _should_forward_legacy_key(key, descriptor):
                 merged[key] = value
     else:
-        merged.update(legacy)
+        for key, value in legacy.items():
+            if _should_forward_legacy_key(key, descriptor):
+                merged[key] = value
     if pipeline_options:
         merged.update(pipeline_options)
     return merged

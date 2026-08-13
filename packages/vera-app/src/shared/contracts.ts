@@ -179,7 +179,7 @@ export interface PipelineFieldDescriptor {
 }
 
 export interface PipelineCapabilities {
-  chunk_unit?: 'characters' | 'tokens';
+  chunk_unit?: 'characters' | 'tokens' | 'words';
   overlap_supported?: boolean;
   ocr_supported?: boolean;
   ocr_engine?: string | null;

@@ -36,12 +36,15 @@ Options:
 - `--parser PARSER` (`pymupdf`; accepts `provider[:variant]` specs such as
   `docling` / `docling:hybrid` when `vera-ingest-docling` is installed; unknown
   providers exit with an error)
-- `--chunk-size N` (`500`; compatibility alias)
-- `--overlap N` (`75`; compatibility alias; forwarded only when the pipeline
-  advertises overlap, e.g. PyMuPDF — not Docling)
+- `--chunk-size N` (`500`; compatibility alias; PyMuPDF counts whitespace-split
+  words, Docling counts whitespace tokens)
+- `--overlap N` (`75`; compatibility alias; PyMuPDF counts whitespace-split
+  words; forwarded only when the pipeline advertises overlap, e.g. PyMuPDF —
+  not Docling)
 - `--store-original VALUE` (`true`)
 - `--ocr auto|off|force` (`auto`; compatibility alias)
-- `--ocr-language CODE` (`eng`; compatibility alias)
+- `--ocr-language CODE` (`eng`; Tesseract/PyMuPDF compatibility alias; not
+  forwarded to Docling)
 - `--ocr-dpi N` (`300`, must be positive; compatibility alias; PyMuPDF only)
 - `--ocr-allow-download` (compatibility alias; PyMuPDF only; fetches missing
   `--ocr-language` Tesseract data from a curated, checksum-verified registry
@@ -61,11 +64,14 @@ offline, zero-setup OCR; other selected languages either require
 `--ocr-allow-download` (or the equivalent `ocr_download` pipeline option) to
 auto-fetch curated language data, or a manually installed Tesseract
 `.traineddata` file with `TESSDATA_PREFIX` set. Directory conversion writes
-archives beside PDFs, validates existing outputs before skipping them,
-reports malformed outputs separately, and does not accept `OUTPUT`.
-Pipeline-owned defaults and validation live in each ingest plugin; see
-[Convert documents](conversion.md#pipeline-options). Embedding-provider
-options follow the same Options + descriptor pattern; see
+archives beside PDFs, skips an existing `.vera` only when it validates and
+its stored `source_file_hash` matches the current PDF, reports malformed
+outputs separately, and does not accept `OUTPUT`.
+Pipeline-owned defaults and validation live in each ingest plugin; advertised
+integer `minimum`/`maximum` bounds are enforced (for example `chunk_size`
+100–3000). See [Convert documents](conversion.md#pipeline-options).
+Embedding-provider options follow the same Options + descriptor pattern
+(hashing `dimension` is 8–4096); see
 [Creating an embedding provider](creating-an-embedding-provider.md).
 
 ## `vera inspect FILE`

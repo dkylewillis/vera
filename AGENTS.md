@@ -63,7 +63,8 @@ Conversion selectively OCRs image-based low-text pages through the default
 prefer repeatable `--pipeline-option KEY=VALUE` for provider-owned settings)
 and publishes a validated temporary sibling atomically. PDFs with no searchable
 chunks after OCR fail with an OCR-specific message. Directory conversion
-validates existing outputs before skipping them and reports malformed archives
+skips an existing `.vera` only when it validates and its stored
+`source_file_hash` matches the current PDF, and reports malformed archives
 in `malformed_existing`.
 
 ### Search result shape (`--json`)

@@ -28,7 +28,6 @@ contextBridge.exposeInMainWorld('vera', {
   trashWorkspaceFile: (filePath: string, folderPath: string) => ipcRenderer.invoke('vera:trashWorkspaceFile', filePath, folderPath),
   setWatchedFolders: (paths: string[]) => ipcRenderer.invoke('vera:setWatchedFolders', paths),
   pickPdf: () => ipcRenderer.invoke('vera:pickPdf'),
-  saveVera: (defaultPath?: string) => ipcRenderer.invoke('vera:saveVera', defaultPath),
   saveAny: () => ipcRenderer.invoke('vera:saveAny'),
   onOpenTarget: (callback: (path: string) => void) => {
     const listener = (_event: unknown, path: string) => callback(path);

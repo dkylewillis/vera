@@ -108,6 +108,8 @@ vera inspect "manual.vera" --json
 
 Inspection includes `default_embedding_normalization`: `l2`, `none`, or
 `unknown`. Older archives without the field are reported as `unknown`.
+Package release 0.3.x versions the CLI and APIs; `format_version` remains
+`0.2` and existing archives stay compatible.
 
 Use validation when the user asks about archive integrity or a search failure
 suggests corruption:
@@ -133,7 +135,8 @@ commands write or replace local files and require normal user authorization:
   detection misses a scan. Prefer `--pipeline-option KEY=VALUE` for
   provider-owned settings; `--chunk-size`, `--overlap`, `--ocr`,
   `--ocr-language`, and `--ocr-dpi` remain compatibility aliases (Docling does
-  not receive overlap/DPI). English OCR is bundled in `vera-ingest-pymupdf`;
+  not receive overlap/DPI or the Tesseract `--ocr-language` alias). English OCR
+  is bundled in `vera-ingest-pymupdf`;
   other languages require installed Tesseract language data.
 - `convert --overwrite` replaces existing batch outputs.
 - `index build` and `index update` write `.vera-index/`.
@@ -149,8 +152,9 @@ request that only asks to search or explain a document.
   and a failed `export` can print useful JSON while returning 1.
 - Most missing-path and runtime failures are unstructured tracebacks on stderr.
   Do not parse stderr as JSON.
-- Directory conversion validates existing outputs before skipping them and
-  exits 1 when `malformed_existing` is nonempty.
+- Directory conversion skips an existing `.vera` only when it validates and
+  its stored `source_file_hash` matches the current PDF, and exits 1 when
+  `malformed_existing` is nonempty.
 - `vera mcp` is a long-running stdio server and does not accept `--json`.
 - If no direct answer is found, report the queries and modes tried and describe
   the closest evidence without inventing an answer.

@@ -92,9 +92,11 @@ Discover nested PDFs:
 vera convert "./proposals" --recursive
 ```
 
-Existing archives are validated before they are skipped. A malformed existing
-archive is reported separately and is not silently preserved as a successful
-skip. Replace existing outputs explicitly:
+Existing archives are validated before they are skipped. A sibling `.vera` is
+skipped only when it validates and its stored `source_file_hash` matches the
+current PDF. Changed PDFs and archives with a missing or unreadable hash are
+reconverted. A malformed existing archive is reported separately and is not
+silently preserved as a successful skip. Replace existing outputs explicitly:
 
 ```bash
 vera convert "./proposals" --recursive --overwrite
@@ -108,9 +110,10 @@ For a machine-readable batch report:
 vera convert "./proposals" --recursive --json
 ```
 
-The report distinguishes discovered, converted, valid existing skips,
-malformed existing outputs, and conversion failures. `malformed_existing`
-entries include `input`, `output`, and validation `issues`. Batch conversion
+The report distinguishes discovered, converted, same-source-hash skips,
+malformed existing outputs, and conversion failures. `skipped_existing`
+lists only unchanged valid archives. `malformed_existing` entries include
+`input`, `output`, and validation `issues`. Batch conversion
 continues after an individual PDF fails and exits nonzero if any conversion
 failed or malformed existing output was found.
 
@@ -150,7 +153,7 @@ For neural embeddings, install the optional dependency and name a
 Sentence Transformers model:
 
 ```bash
-python -m pip install "vera-cli>=0.2.4" "vera-doc[ml]>=0.2.4"
+python -m pip install "vera-cli>=0.3.0" "vera-doc[ml]>=0.3.0"
 vera convert "input.pdf" --model sentence-transformers:all-MiniLM-L6-v2
 ```
 
@@ -170,7 +173,8 @@ schema-driven Convert controls (`describe_embedding_providers` in the
 sidecar). From Python, pass a custom `embedding_function`
 to `vera_ingest.convert`, call `vera.register_embedder`, or pass
 `embedder_options={...}` / CLI `--embedder-option KEY=VALUE` for
-provider-owned settings advertised by the provider's Options dataclass. See
+provider-owned settings advertised by the provider's Options dataclass.
+Advertised integer bounds are enforced (hashing `dimension` is 8–4096). See
 [Creating an embedding provider plugin](creating-an-embedding-provider.md).
 Prefer environment variables for API keys (`capabilities.credential_env` /
 `preflight_embedder`); do not put secrets in Options. Convert-time knobs such
@@ -233,9 +237,10 @@ against a representative query set before adopting non-default values.
 
 Shared conversion accepts an opaque `pipeline_options` mapping. Each installed
 pipeline owns typed defaults, validation, and a descriptor of supported fields.
-`vera convert` exposes that mapping as repeatable `--pipeline-option KEY=VALUE`
-flags. Values are coerced to bool/int/float when unambiguous; otherwise they
-remain strings.
+Integer options are rejected when they fall outside the advertised `minimum`
+and `maximum` (PyMuPDF/Docling `chunk_size` is 100–3000). `vera convert`
+exposes that mapping as repeatable `--pipeline-option KEY=VALUE` flags. Values
+are coerced to bool/int/float when unambiguous; otherwise they remain strings.
 
 ```bash
 vera convert "input.pdf" --parser pymupdf \
@@ -245,15 +250,16 @@ vera convert "input.pdf" --parser pymupdf \
 ```
 
 Compatibility aliases (`--chunk-size`, `--overlap`, `--ocr`, `--ocr-language`,
-`--ocr-dpi`) still work. Descriptor fields determine which aliases are
-forwarded: Docling does **not** receive `overlap` or `ocr_dpi`. Explicit
-`--pipeline-option` / `pipeline_options` always override aliases for the same
-key.
+`--ocr-dpi`) still work for pipelines that accept them. Descriptor fields and
+OCR engine determine which aliases are forwarded: Docling does **not** receive
+`overlap`, `ocr_dpi`, `ocr_download`, or the Tesseract `--ocr-language` /
+`ocr_language` alias. Explicit `--pipeline-option` / `pipeline_options` always
+override aliases for the same key.
 
 | Pipeline | Defaults | Notes |
 | --- | --- | --- |
-| PyMuPDF (`pymupdf`) | `chunk_size=500`, `overlap=75`, `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false` | Sliding-window character chunks; Tesseract OCR; language picker lists bundled/downloadable codes |
-| Docling (`docling`) | `chunk_size=500` tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | No `overlap` / `ocr_dpi` fields; RapidOCR; auto page recovery / `pypdfium2` fallback on memory errors |
+| PyMuPDF (`pymupdf`) | `chunk_size=500` words, `overlap=75` words, `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false` | Sliding-window chunks of whitespace-split words (`str.split()`, not characters or LLM subword tokens); Tesseract OCR; language picker lists bundled/downloadable codes |
+| Docling (`docling`) | `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | No `overlap` / `ocr_dpi` / Tesseract `--ocr-language` aliases; RapidOCR; auto page recovery / `pypdfium2` fallback on memory errors |
 
 Discover descriptors from Python with `describe_ingest_pipeline` /
 `list_ingest_pipeline_descriptors`, or from the desktop sidecar action
@@ -286,19 +292,19 @@ VERA never silently falls back to PyMuPDF. On Docling memory errors
 to the `pypdfium2` PDF backend when needed; conversion rejects only when that
 recovery is exhausted. Force the low-memory backend with
 `--pipeline-option pdf_backend=pypdfium2`. Docling's descriptor advertises
-`chunk_size` (HybridChunker token limit), `ocr_mode`, `ocr_language`, and
-`pdf_backend` — legacy `--overlap` and `--ocr-dpi` are not forwarded.
+`chunk_size` (HybridChunker limit in whitespace-split words), `ocr_mode`, `ocr_language`, and
+`pdf_backend` — legacy `--overlap`, `--ocr-dpi`, `--ocr-allow-download`, and
+the Tesseract `--ocr-language` alias are not forwarded.
 
 Docling's `ocr_language` expects a **RapidOCR-native** code (for example
 `en`, `fr`, `cyrillic`); VERA does not translate Tesseract-style codes for
-it, so PyMuPDF's `eng` is not a valid value here. Because `--ocr-language`'s
-shared CLI default remains `eng` (PyMuPDF's own vocabulary, forwarded to any
-pipeline that advertises an `ocr_language` field), pass
-`--pipeline-option ocr_language=en` (or another RapidOCR code) explicitly
-when using `--parser docling` and OCR matters — otherwise `ocr_mode=auto`/
-`force` conversions of image-heavy pages fail once OCR actually runs, since
-RapidOCR rejects `eng` as an unrecognized language. Docling layout models run
-without `torch.compile` (so Windows does not need Visual Studio's `cl.exe`).
+it, so PyMuPDF's `eng` is not a valid value here. The shared `--ocr-language`
+CLI default (`eng`) is a Tesseract/PyMuPDF alias and is **not** forwarded to
+Docling, so `convert(..., parser="docling")` and `vera convert --parser docling`
+resolve OCR language to Docling's own default `en`. To use another RapidOCR
+code, pass `--pipeline-option ocr_language=fr` (or `pipeline_options=`).
+Docling layout models run without `torch.compile` (so Windows does not need
+Visual Studio's `cl.exe`).
 
 First Docling conversion may download model artifacts. Set
 `DOCLING_ARTIFACTS_PATH` for a local cache. Packaged desktop releases do not

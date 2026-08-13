@@ -47,7 +47,7 @@ def test_convert_pdf_populates_vera_and_searches(tmp_path):
     out = tmp_path / "ordinance.vera"
     make_pdf(pdf)
 
-    convert(str(pdf), str(out), model="hashing", chunk_size=40, overlap=5)
+    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=5)
 
     conn = sqlite3.connect(out)
     assert conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0] >= 2
@@ -67,7 +67,7 @@ def test_convert_pdf_populates_vera_and_searches(tmp_path):
     assert info["embedding_dimension"] == 384
     assert info["embedding_normalization"] == "l2"
     assert info["parser_name"] == "pymupdf"
-    assert info["chunking_strategy"] == "heading_block_sliding_window:40:5"
+    assert info["chunking_strategy"] == "heading_block_sliding_window:100:5"
 
     keyword = doc.search("restaurant parking", mode="keyword", top_k=1)[0]
     assert "parking" in keyword.text.lower()
@@ -98,7 +98,7 @@ def test_convert_accepts_custom_embedding_function(tmp_path):
     out = tmp_path / "custom.vera"
     make_pdf(pdf)
     embedder = TinyEmbedder()
-    convert(str(pdf), str(out), embedding_function=embedder, chunk_size=40, overlap=5)
+    convert(str(pdf), str(out), embedding_function=embedder, chunk_size=100, overlap=5)
 
     with VeraDocument.open(str(out), embedding_function=embedder) as doc:
         info = doc.inspect()
@@ -235,6 +235,68 @@ def test_batch_convert_skips_valid_output_without_original_asset(tmp_path):
     assert report["malformed_existing"] == []
 
 
+def test_batch_convert_skips_unchanged_pdf_and_reconverts_changed_source(tmp_path):
+    unchanged_pdf = tmp_path / "unchanged.pdf"
+    changed_pdf = tmp_path / "changed.pdf"
+    unchanged_out = tmp_path / "unchanged.vera"
+    changed_out = tmp_path / "changed.vera"
+    make_pdf(unchanged_pdf)
+    make_pdf(changed_pdf)
+    convert(str(unchanged_pdf), str(unchanged_out), model="hashing")
+    convert(str(changed_pdf), str(changed_out), model="hashing")
+    previous = VeraDocument.open(str(changed_out))
+    try:
+        previous_hash = previous.inspect()["source_file_hash"]
+    finally:
+        previous.close()
+
+    import fitz
+
+    rewritten = fitz.open()
+    page = rewritten.new_page()
+    page.insert_text((72, 72), "Revised zoning text about loading docks and aisle width.")
+    rewritten.save(changed_pdf)
+    rewritten.close()
+
+    report = batch_convert(str(tmp_path), model="hashing", overwrite=False)
+
+    assert report["skipped_existing"] == [str(unchanged_out)]
+    assert report["converted"] == 1
+    assert report["outputs"] == [str(changed_out)]
+    assert report["malformed_existing"] == []
+
+    updated = VeraDocument.open(str(changed_out))
+    try:
+        assert updated.inspect()["source_file_hash"] != previous_hash
+    finally:
+        updated.close()
+
+
+def test_batch_convert_reconverts_when_source_hash_is_missing(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing")
+    document = VeraDocument.open(str(out), mode="write")
+    try:
+        metadata = dict(document.metadata)
+        metadata.pop("source_file_hash", None)
+        document.set_metadata(metadata)
+    finally:
+        document.close()
+
+    report = batch_convert(str(tmp_path), model="hashing", overwrite=False)
+
+    assert report["skipped_existing"] == []
+    assert report["converted"] == 1
+    assert report["outputs"] == [str(out)]
+    restored = VeraDocument.open(str(out))
+    try:
+        assert restored.inspect()["source_file_hash"]
+    finally:
+        restored.close()
+
+
 def test_batch_convert_reports_progress_for_each_discovered_pdf(tmp_path):
     first_pdf = tmp_path / "first.pdf"
     second_pdf = tmp_path / "second.pdf"
@@ -348,7 +410,7 @@ def test_hybrid_keeps_chunk_that_tops_both_modes(tmp_path):
     pdf = tmp_path / "ordinance.pdf"
     out = tmp_path / "ordinance.vera"
     make_pdf(pdf)
-    convert(str(pdf), str(out), model="hashing", chunk_size=40, overlap=5)
+    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=5)
 
     doc = VeraDocument.open(str(out))
     query = "restaurant parking space requirements"
@@ -364,7 +426,7 @@ def test_search_can_include_context_chunks(tmp_path):
     pdf = tmp_path / "context.pdf"
     out = tmp_path / "context.vera"
     make_context_pdf(pdf)
-    convert(str(pdf), str(out), model="hashing", chunk_size=80, overlap=5)
+    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=5)
 
     doc = VeraDocument.open(str(out))
     default = doc.search("beacon target", mode="keyword", top_k=1)[0]
@@ -388,7 +450,7 @@ def test_search_rejects_negative_context_chunks(tmp_path):
     pdf = tmp_path / "manual.pdf"
     out = tmp_path / "manual.vera"
     make_pdf(pdf)
-    convert(str(pdf), str(out), model="hashing", chunk_size=40, overlap=5)
+    convert(str(pdf), str(out), model="hashing", chunk_size=100, overlap=5)
 
     doc = VeraDocument.open(str(out))
     with pytest.raises(ValueError, match="context_chunks"):

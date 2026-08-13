@@ -73,8 +73,24 @@ def build_parser() -> argparse.ArgumentParser:
             "vera-ingest-docling is installed). Unknown providers exit with an error."
         ),
     )
-    convert_p.add_argument("--chunk-size", type=int, default=500)
-    convert_p.add_argument("--overlap", type=int, default=75)
+    convert_p.add_argument(
+        "--chunk-size",
+        type=int,
+        default=500,
+        help=(
+            "Compatibility alias for pipeline chunk_size (PyMuPDF: whitespace-split "
+            "words; Docling: whitespace tokens)"
+        ),
+    )
+    convert_p.add_argument(
+        "--overlap",
+        type=int,
+        default=75,
+        help=(
+            "Compatibility alias for pipeline overlap (PyMuPDF: whitespace-split "
+            "words; not forwarded to Docling)"
+        ),
+    )
     convert_p.add_argument("--store-original", default="true")
     convert_p.add_argument(
         "--ocr",
@@ -83,7 +99,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="OCR mode: auto scans image-based pages, off disables OCR, force OCRs every page",
     )
-    convert_p.add_argument("--ocr-language", default="eng", help="Tesseract language code (compatibility alias)")
+    convert_p.add_argument(
+        "--ocr-language",
+        default="eng",
+        help=(
+            "Tesseract language code (PyMuPDF compatibility alias; not "
+            "forwarded to Docling/RapidOCR)"
+        ),
+    )
     convert_p.add_argument("--ocr-dpi", type=positive_int, default=300, help="OCR render resolution (compatibility alias)")
     convert_p.add_argument(
         "--ocr-allow-download",

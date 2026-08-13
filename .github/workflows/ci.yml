@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, v0.3]
   pull_request:
 
 jobs:
@@ -23,6 +23,27 @@ jobs:
 
       - name: Run tests
         run: uv run --extra dev pytest -q
+
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/vera-app/package-lock.json
+
+      - name: Install app dependencies
+        run: npm --prefix packages/vera-app install
+
+      - name: Typecheck
+        run: npm run app:typecheck
+
+      - name: Unit tests
+        run: npm --prefix packages/vera-app run test:unit
 
   docling:
     runs-on: ubuntu-latest

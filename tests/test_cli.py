@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 
+import pytest
 import vera_cli.commands as cli_commands
 from test_convert_search import make_pdf
 from vera_cli.main import build_parser
@@ -311,6 +312,28 @@ def test_cli_ocr_languages_download_forwards_to_helper(monkeypatch, capsys):
     assert calls == ["fra"]
     payload = json.loads(capsys.readouterr().out)
     assert payload == {"ok": True, "language": "fra", "downloaded": ["fra"], "cache_dir": "/cache/dir"}
+
+
+def test_cli_default_ocr_language_is_not_forwarded_to_docling():
+    pytest.importorskip("vera_ingest_docling")
+    from vera_ingest import prepare_pipeline_options
+    from vera_ingest_docling.options import DoclingOptions
+
+    args = build_parser().parse_args(["convert", "scan.pdf", "--parser", "docling"])
+    assert args.ocr_language == "eng"
+    merged = prepare_pipeline_options(
+        spec=args.parser,
+        legacy_options={
+            "chunk_size": args.chunk_size,
+            "overlap": args.overlap,
+            "ocr_mode": args.ocr_mode,
+            "ocr_language": args.ocr_language,
+            "ocr_dpi": args.ocr_dpi,
+            "ocr_download": args.ocr_allow_download,
+        },
+    )
+    assert "ocr_language" not in merged
+    assert DoclingOptions.from_mapping(merged).ocr_language == "en"
 
 
 def test_cli_rejects_non_positive_ocr_dpi():

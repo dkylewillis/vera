@@ -250,9 +250,10 @@ back to a generic descriptor and the provider's `default_model_id`.
 ## When *not* to inherit `EmbedderOptions`
 
 `EmbedderOptions.from_mapping` only knows how to validate four field shapes:
-a `bool`, an `int` (positive if `metadata["minimum"]` is a positive number,
-otherwise non-negative), a `str` restricted to `metadata["choices"]` (unless
-`allow_custom` is set), or free-text `str` (`allow_empty` permits blanks).
+a `bool`, an `int` (bounded by `metadata["minimum"]` / `metadata["maximum"]`
+when those are set; otherwise non-negative), a `str` restricted to
+`metadata["choices"]` (unless `allow_custom` is set), or free-text `str`
+(`allow_empty` permits blanks).
 Override `from_mapping` when you need type conversion beyond those shapes,
 cross-field checks, or normalizing values. Use
 `vera.core.option_parsing` helpers directly in that override (`vera-ingest`

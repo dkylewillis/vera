@@ -70,14 +70,20 @@ import {
 import { figureCacheKey, mergeFigureData, sameSearchResult } from './lib/figures';
 import {
   applyFileListSelection,
+  explorerFileMatchesFilter,
   partitionExplorerSelection,
+  pruneExplorerSelectionForFilter,
+  routeOpenTarget,
   syncCollapsedFolders,
   visibleExplorerEntries,
   type ExplorerFileFilter,
 } from './lib/explorer';
 import {
   findSiblingPdfPath,
+  reconvertExportGate,
+  reconvertInspectFailedMessage,
   reconvertMissingSourceMessage,
+  reconvertPipelineOptionsFromInspect,
   reconvertPrefillFromInspect,
   resolveReconvertPdf,
 } from './lib/reconvert';
@@ -132,7 +138,7 @@ function formatChunkingStrategy(value?: string): string {
   if (!value) return '-';
   const match = /^heading_block_sliding_window:(\d+):(\d+)$/.exec(value);
   if (!match) return value;
-  return `Heading-aware sliding window · ${match[1]} characters · ${match[2]} overlap`;
+  return `Heading-aware sliding window · ${match[1]} words · ${match[2]} overlap`;
 }
 
 function formatOcrSummary(ocr?: InspectResult['ocr']): string {
@@ -590,16 +596,25 @@ function App() {
         action: 'inspect',
         path: entry.path,
       });
-      const prefill = reconvertPrefillFromInspect(inspectResponse.ok ? inspectResponse.result : null);
+      const inspectResult = inspectResponse.ok ? inspectResponse.result : null;
+      const prefill = reconvertPrefillFromInspect(inspectResult);
 
       let pdfPath: string | null = listedPdf;
       let restoredFromArchive = false;
       if (resolution.status === 'ready') {
         pdfPath = resolution.pdfPath;
       } else if (resolution.status === 'export') {
-        if (inspectResponse.ok && !prefill.hasEmbeddedSource) {
+        const gate = reconvertExportGate({
+          inspectOk: inspectResponse.ok,
+          hasEmbeddedSource: prefill.hasEmbeddedSource,
+        });
+        if (!gate.allow) {
           setReconvertNotice(null);
-          setConversionError(reconvertMissingSourceMessage(entry.path));
+          setConversionError(
+            gate.reason === 'inspect-failed'
+              ? reconvertInspectFailedMessage(inspectResponse.error)
+              : reconvertMissingSourceMessage(entry.path),
+          );
           return;
         }
         dispatchBackgroundTask({
@@ -636,14 +651,18 @@ function App() {
       }
 
       if (prefill.embeddingModel) setEmbeddingModel(prefill.embeddingModel);
-      if (prefill.ingestPipeline) {
-        const nextPipeline = prefill.ingestPipeline;
-        const nextDescriptor = ingestPipelineDescriptors.find(
-          (item) => item.spec === nextPipeline || item.provider === nextPipeline,
-        ) ?? null;
-        setIngestPipeline(nextPipeline);
-        setPipelineOptions(mergePipelineFieldValues(nextDescriptor, ingestPipelineConfigs[nextPipeline]));
-      }
+      const nextPipeline = prefill.ingestPipeline || ingestPipeline;
+      const nextDescriptor = ingestPipelineDescriptors.find(
+        (item) => item.spec === nextPipeline || item.provider === nextPipeline,
+      ) ?? null;
+      const inspectOptions = reconvertPipelineOptionsFromInspect(inspectResult);
+      const mergedOptions = mergePipelineFieldValues(nextDescriptor, {
+        ...ingestPipelineConfigs[nextPipeline],
+        ...inspectOptions,
+      });
+      if (prefill.ingestPipeline) setIngestPipeline(prefill.ingestPipeline);
+      setIngestPipelineConfigs((prev) => ({ ...prev, [nextPipeline]: mergedOptions }));
+      setPipelineOptions(mergedOptions);
 
       setSelectedPdfs([pdfPath]);
       setExplorerSelection({ kind: 'file', path: pdfPath, type: 'pdf' });
@@ -783,9 +802,7 @@ function App() {
     }
   }
 
-  async function addFolder() {
-    const dir = await window.vera.pickFolder();
-    if (!dir) return;
+  async function addFolderFromPath(dir: string) {
     const folder = await window.vera.listFolder(dir);
     if (!folder) return;
     setFolders((prev) => {
@@ -794,6 +811,12 @@ function App() {
       return next;
     });
     await openTargetPath(folder.path, { asLibrary: true });
+  }
+
+  async function addFolder() {
+    const dir = await window.vera.pickFolder();
+    if (!dir) return;
+    await addFolderFromPath(dir);
   }
 
   function removeFolder(folderPath: string) {
@@ -837,6 +860,23 @@ function App() {
         setBusyFolderPath((current) => (current === folderPath ? '' : current));
       }
     }
+  }
+
+  function applyExplorerFileFilter(filter: ExplorerFileFilter) {
+    setExplorerFileFilter(filter);
+    const next = pruneExplorerSelectionForFilter(
+      [...selectedFiles, ...selectedPdfs],
+      filter,
+      selectionAnchorPath,
+    );
+    const partitioned = partitionExplorerSelection(next.selected);
+    setSelectedFiles(partitioned.vera);
+    setSelectedPdfs(partitioned.pdf);
+    setSelectionAnchorPath(next.anchor);
+    setExplorerSelection((current) => {
+      if (current?.kind !== 'file') return current;
+      return explorerFileMatchesFilter(current.type, filter) ? current : null;
+    });
   }
 
   function selectExplorerEntry(entry: FolderEntry, event: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean } = {}) {
@@ -2318,8 +2358,16 @@ function App() {
     }
   }
 
+  const handleOpenTargetRef = useRef<(targetPath: string) => void>(() => {});
+  handleOpenTargetRef.current = (targetPath: string) => {
+    routeOpenTarget(targetPath, {
+      addFolder: (folderPath) => { void addFolderFromPath(folderPath); },
+      openFile: (filePath) => { void openTargetPath(filePath); },
+    });
+  };
+
   useEffect(() => window.vera.onOpenTarget((targetPath) => {
-    void openTargetPath(targetPath);
+    handleOpenTargetRef.current(targetPath);
   }), []);
 
   useEffect(() => window.vera.onOpenSettings(() => {
@@ -2666,7 +2714,7 @@ function App() {
                           type="button"
                           key={filter}
                           className={explorerFileFilter === filter ? 'active' : ''}
-                          onClick={() => setExplorerFileFilter(filter)}
+                          onClick={() => applyExplorerFileFilter(filter)}
                           aria-pressed={explorerFileFilter === filter}
                         >
                           {label}

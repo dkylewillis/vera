@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any
 
 
 @dataclass
@@ -131,8 +131,3 @@ class IngestResult:
     parser_version: str
     chunking_strategy: str
     diagnostics: dict[str, Any] = field(default_factory=dict)
-
-
-def mapping_without_none(values: Mapping[str, Any]) -> dict[str, Any]:
-    """Copy mapping entries whose values are not ``None``."""
-    return {key: value for key, value in values.items() if value is not None}

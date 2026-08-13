@@ -61,6 +61,46 @@ def require_non_negative_int(value: Any, *, name: str) -> int:
     return parsed
 
 
+def _numeric_bound(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return int(value)
+
+
+def require_bounded_int(
+    value: Any,
+    *,
+    name: str,
+    minimum: Any = None,
+    maximum: Any = None,
+) -> int:
+    """Parse an integer and enforce advertised ``minimum`` / ``maximum`` bounds.
+
+    When neither bound is a number, values must still be non-negative — the
+    same floor ``from_mapping`` used before metadata ranges were enforced.
+    """
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+    lo = _numeric_bound(minimum)
+    hi = _numeric_bound(maximum)
+    if lo is not None and hi is not None:
+        if parsed < lo or parsed > hi:
+            raise ValueError(f"{name} must be between {lo} and {hi}")
+    elif lo is not None:
+        if parsed < lo:
+            if lo == 0:
+                raise ValueError(f"{name} must be non-negative")
+            raise ValueError(f"{name} must be at least {lo}")
+    elif hi is not None:
+        if parsed < 0 or parsed > hi:
+            raise ValueError(f"{name} must be between 0 and {hi}")
+    elif parsed < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return parsed
+
+
 def require_string(value: Any, *, name: str, allow_empty: bool = False) -> str:
     if not isinstance(value, str):
         raise ValueError(f"{name} must be a string")

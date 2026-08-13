@@ -125,8 +125,10 @@ vera index build "./library" --recursive --json
 
 ## Conversion skips files
 
-Directory conversion validates existing same-named `.vera` files before
-skipping them. Review `skipped_existing` for valid skips and
+Directory conversion skips an existing same-named `.vera` only when it
+validates and its stored `source_file_hash` matches the current PDF.
+Changed PDFs and archives with a missing or unreadable hash are reconverted.
+Review `skipped_existing` for unchanged skips and
 `malformed_existing` for archives that must be repaired or replaced. Use
 `--overwrite` only when replacement is intentional:
 

@@ -12,7 +12,7 @@ MCP tools, or implement the desktop application.
 From PyPI:
 
 ```bash
-python -m pip install "vera-doc>=0.2.4"
+python -m pip install "vera-doc>=0.3.0"
 ```
 
 From a repository checkout:

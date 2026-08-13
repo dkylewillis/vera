@@ -236,7 +236,9 @@ vera index build "./proposals" --recursive --json
 vera search "./proposals" "termination clause" --top-k 10 --json
 ```
 
-Batch conversion validates existing outputs before skipping them. Check
+Batch conversion skips an existing `.vera` only when it validates and its
+stored `source_file_hash` matches the current PDF. Changed PDFs and
+archives with a missing or unreadable hash are reconverted. Check
 `malformed_existing` and replace those archives intentionally with
 `--overwrite`. Automatic conversion selectively OCRs image-based low-text
 pages via `vera-ingest-pymupdf` with bundled English language data. Other

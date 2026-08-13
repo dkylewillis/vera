@@ -1,10 +1,10 @@
 """Base class for plugin ``Options`` dataclasses.
 
 Most pipeline settings are one of a handful of shapes: a boolean flag, an
-integer with a floor, a string restricted to a fixed set of choices, or free
-text. :class:`PipelineOptions` validates a raw ``pipeline_options`` mapping
-against exactly those shapes, inferred from each dataclass field's default
-value and ``metadata`` — the same ``metadata`` already used by
+integer with advertised bounds, a string restricted to a fixed set of choices,
+or free text. :class:`PipelineOptions` validates a raw ``pipeline_options``
+mapping against exactly those shapes, inferred from each dataclass field's
+default value and ``metadata`` — the same ``metadata`` already used by
 :func:`vera_ingest.descriptors.fields_from_dataclass` to build the CLI/GUI
 descriptor — so a plugin whose settings all fit those shapes needs no
 validation code at all.
@@ -24,10 +24,9 @@ from .option_parsing import (
     allowed_keys_from_dataclass,
     reject_unknown_keys,
     require_bool,
+    require_bounded_int,
     require_choice,
     require_mapping,
-    require_non_negative_int,
-    require_positive_int,
     require_string,
 )
 
@@ -47,9 +46,9 @@ class PipelineOptions:
     annotations``) picks the validator:
 
     - a ``bool`` default uses :func:`~vera_ingest.option_parsing.require_bool`;
-    - an ``int`` default uses :func:`~vera_ingest.option_parsing.require_positive_int`
-      when ``metadata["minimum"]`` is a positive number, otherwise
-      :func:`~vera_ingest.option_parsing.require_non_negative_int`;
+    - an ``int`` default uses :func:`~vera_ingest.option_parsing.require_bounded_int`
+      with ``metadata["minimum"]`` / ``metadata["maximum"]`` when those are
+      numbers (otherwise the value must be non-negative);
     - a ``str`` default with ``metadata["choices"]`` and no
       ``metadata["allow_custom"]`` uses
       :func:`~vera_ingest.option_parsing.require_choice` restricted to those
@@ -90,11 +89,12 @@ class PipelineOptions:
             if isinstance(default, bool):
                 values[name] = require_bool(value, name=name)
             elif isinstance(default, int):
-                minimum = item.metadata.get("minimum")
-                if isinstance(minimum, (int, float)) and minimum > 0:
-                    values[name] = require_positive_int(value, name=name)
-                else:
-                    values[name] = require_non_negative_int(value, name=name)
+                values[name] = require_bounded_int(
+                    value,
+                    name=name,
+                    minimum=item.metadata.get("minimum"),
+                    maximum=item.metadata.get("maximum"),
+                )
             else:
                 choices = item.metadata.get("choices")
                 if choices and not item.metadata.get("allow_custom"):

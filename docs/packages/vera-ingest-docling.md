@@ -7,7 +7,7 @@ group.
 ## Install
 
 ```bash
-python -m pip install "vera-ingest-docling>=0.2.4"
+python -m pip install "vera-ingest-docling>=0.3.0"
 ```
 
 From a repository checkout:
@@ -50,12 +50,13 @@ The default Docling variant is `hybrid`. Unknown variants fail before parsing.
 
 - Parses PDFs with Docling's `DocumentConverter` (tables and picture crops on).
 - Chunks with Docling `HybridChunker` and an explicit whitespace tokenizer so
-  `chunk_size` maps to a token limit without downloading a HuggingFace
+  `chunk_size` maps to whitespace-split words without downloading a HuggingFace
   tokenizer.
-- Owns typed defaults: `chunk_size=500` tokens, `ocr_mode=auto`,
+- Owns typed defaults: `chunk_size=500` whitespace tokens, `ocr_mode=auto`,
   `ocr_language=en`, `pdf_backend=docling_parse`. Descriptor fields do **not**
   include `overlap` or `ocr_dpi`, so those legacy convert/CLI aliases are not
-  forwarded.
+  forwarded. The Tesseract `--ocr-language` / `ocr_language` alias is also
+  not forwarded (`capabilities.ocr_engine` is RapidOCR, not Tesseract).
 - Stores readable chunk text for keyword search and contextualized text for
   embeddings.
 - Maps provenance boxes from Docling bottom-left coordinates to VERA top-left
@@ -65,9 +66,9 @@ The default Docling variant is `hybrid`. Unknown variants fail before parsing.
   an incomplete archive.
 - `ocr_language` expects a RapidOCR-native code (for example `en`, `fr`,
   `cyrillic`); it is **not** translated from Tesseract-style codes, so
-  PyMuPDF's `eng` is not valid here — pass
-  `--pipeline-option ocr_language=en` explicitly (the shared `--ocr-language`
-  CLI default, `eng`, is PyMuPDF's own vocabulary).
+  PyMuPDF's `eng` is not valid here. The shared `--ocr-language` CLI default
+  (`eng`) is not forwarded to this pipeline; Docling keeps `en` unless you
+  pass `--pipeline-option ocr_language=...`.
 - Disables Docling's `torch.compile` path so Windows conversions do not require
   Visual Studio's `cl.exe`, and keeps Docling's default `images_scale`.
 

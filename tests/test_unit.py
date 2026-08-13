@@ -5,6 +5,7 @@ import pytest
 from vera_ingest.chunking import chunk_pages, detect_heading
 from vera.core.embeddings import (
     HashingEmbedder,
+    HashingOptions,
     UnknownEmbeddingModelError,
     clear_embedder_cache,
     cosine_similarity,
@@ -251,6 +252,17 @@ class TestGetEmbedder:
         assert again.model_name == "vera-hashing-128"
         with pytest.raises(ValueError, match="Unknown Hashing option"):
             get_embedder("hashing", embedder_options={"typo": 1})
+
+    def test_hashing_options_enforces_dimension_bounds(self):
+        assert HashingOptions.from_mapping({"dimension": 8}).dimension == 8
+        assert HashingOptions.from_mapping({"dimension": 4096}).dimension == 4096
+        assert HashingOptions.from_mapping({"dimension": 128}).dimension == 128
+        with pytest.raises(ValueError, match="dimension must be between 8 and 4096"):
+            HashingOptions.from_mapping({"dimension": 1})
+        with pytest.raises(ValueError, match="dimension must be between 8 and 4096"):
+            HashingOptions.from_mapping({"dimension": 99999})
+        with pytest.raises(ValueError, match="dimension must be between 8 and 4096"):
+            get_embedder("hashing", embedder_options={"dimension": 1})
 
     def test_describe_builtin_providers(self):
         hashing = describe_embedder("hashing")

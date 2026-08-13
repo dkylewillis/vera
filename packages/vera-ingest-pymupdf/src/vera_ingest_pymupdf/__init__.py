@@ -12,7 +12,7 @@ from vera_ingest.pipeline import (
 from vera_ingest.types import ParsedBlock, ParsedPage
 
 from .options import PyMuPDFOptions, describe_pipeline
-from .parser import parse_pdf, parse_pdf_structured
+from .parser import parse_pdf_structured
 from .pipeline import pymupdf_pipeline
 from .tessdata_manager import (
     OCRLanguageDownloadError,
@@ -35,7 +35,6 @@ __all__ = [
     "describe_pipeline",
     "download_ocr_language_data",
     "ensure_registered",
-    "parse_pdf",
     "parse_pdf_structured",
     "pymupdf_pipeline",
 ]

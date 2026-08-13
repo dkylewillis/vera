@@ -143,6 +143,7 @@ class ExampleOptions(PipelineOptions):
             "label": "Chunk size",
             "description": "Maximum characters kept from the file.",
             "minimum": 100,
+            "maximum": 3000,
         },
     )
 
@@ -171,27 +172,28 @@ Traced through concretely:
   back to the dataclass default).
 - `ExampleOptions.from_mapping({"chunk_size": 500})` → `ExampleOptions(chunk_size=500)`.
 - `ExampleOptions.from_mapping({"chunk_size": 0})` → raises `ValueError`
-  (`"chunk_size must be positive"`) — because `metadata["minimum"]` (`100`)
-  is a positive number, `PipelineOptions` picked the "must be positive"
-  validator for this field, not just "must be an integer."
+  (`"chunk_size must be between 100 and 3000"`) — `from_mapping` enforces
+  advertised `metadata["minimum"]` / `metadata["maximum"]`, not just
+  "must be a positive integer."
+- `ExampleOptions.from_mapping({"chunk_size": 99999})` → the same range error.
 - `ExampleOptions.from_mapping({"typo": 1})` → raises `ValueError`
   (`"Unknown Example option(s): 'typo'"`), since `"typo"` isn't a real field.
 - `fields_from_dataclass(ExampleOptions)` walks the one `chunk_size` field and
   returns one `PipelineField(key="chunk_size", type="integer", default=2000,
   label="Chunk size", description="Maximum characters kept from the file.",
-  minimum=100)` — `key`/`type`/`default` came from the field itself
-  (`type` inferred from the `int` annotation); only the human-facing `label`,
-  `description`, and `minimum` needed to be spelled out, and only once.
+  minimum=100, maximum=3000)` — `key`/`type`/`default` came from the field
+  itself (`type` inferred from the `int` annotation); only the human-facing
+  `label`, `description`, and bounds needed to be spelled out, and only once.
 
 ### When *not* to inherit `PipelineOptions`
 
 `PipelineOptions.from_mapping` only knows how to validate four field shapes:
-a `bool`, an `int` (positive if `metadata["minimum"]` is a positive number,
-otherwise non-negative), a `str` restricted to `metadata["choices"]` (unless
-`allow_custom` is set), or free-text `str`. Both real pipelines
-(`vera-ingest-pymupdf`, `vera-ingest-docling`) fit entirely within those four
-shapes and inherit `PipelineOptions` as-is, with no `from_mapping` of their
-own. If a future field ever needs something those four shapes can't express
+a `bool`, an `int` (bounded by `metadata["minimum"]` / `metadata["maximum"]`
+when those are set; otherwise non-negative), a `str` restricted to
+`metadata["choices"]` (unless `allow_custom` is set), or free-text `str`. Both
+real pipelines (`vera-ingest-pymupdf`, `vera-ingest-docling`) fit entirely
+within those four shapes and inherit `PipelineOptions` as-is, with no
+`from_mapping` of their own. If a future field ever needs something those four shapes can't express
 — type conversion beyond bool/int/str, a cross-field check, or normalizing a
 value rather than just validating it — override `from_mapping` on your own
 subclass and write it with the `vera_ingest.option_parsing` helpers directly,
@@ -201,6 +203,10 @@ override: `options_label` (the name used in error messages) and
 `ignored_keys` (legacy `pipeline_options` keys to silently drop instead of
 rejecting as unknown — see `DoclingOptions.ignored_keys` for `overlap`/
 `ocr_dpi`, PyMuPDF-only legacy CLI aliases Docling doesn't have fields for).
+`prepare_pipeline_options` also withholds Tesseract-shaped convert()/CLI
+aliases (`ocr_language`, `ocr_dpi`, `ocr_download`) when
+`capabilities.ocr_engine` is not `"tesseract"`, even if the plugin advertises
+an `ocr_language` field with a different vocabulary (Docling/RapidOCR).
 
 `__init__.py` exposes the entry-point factories. `create_pipeline` returns the
 bare function itself — there's nothing to instantiate:
@@ -322,9 +328,10 @@ and omitted from the descriptor. `vera-ingest-pymupdf` and
 `options.py` for larger examples with `enum` and `boolean` fields.
 
 `from_mapping` (inherited from `PipelineOptions` in `ExampleOptions` above,
-or written by hand for pipelines that need more) is still what actually
-validates `pipeline_options` — the descriptor is metadata for callers, not a
-validator VERA runs on your behalf.
+or written by hand for pipelines that need more) is what validates
+`pipeline_options`, using the same field `metadata` — including
+`minimum`/`maximum` — that `fields_from_dataclass` copies into the descriptor
+for CLI/GUI forms.
 
 ## Validate and compare against a baseline
 
@@ -356,7 +363,8 @@ produced by each pipeline and compare hit rate / MRR — see
 - [`vera-ingest-pymupdf`](packages/vera-ingest-pymupdf.md) — the simplest real
   pipeline: a plain `pymupdf_pipeline(source_path, options)` function,
   deterministic parsing, shared sliding-window chunking helpers
-  (`vera_ingest.chunking`), selective Tesseract OCR — and its `PyMuPDFOptions`
+  (`vera_ingest.chunking`, which count whitespace-split words, not characters),
+  selective Tesseract OCR — and its `PyMuPDFOptions`
   inherits `PipelineOptions` for `from_mapping`, same as this guide's example.
   Start here.
 - [`vera-ingest-docling`](packages/vera-ingest-docling.md) — a more involved

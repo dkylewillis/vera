@@ -11,7 +11,7 @@ for embeddings.
 ## Install
 
 ```bash
-python -m pip install "vera-ingest-docling>=0.2.4"
+python -m pip install "vera-ingest-docling>=0.3.0"
 ```
 
 From a repository checkout with uv:
@@ -45,16 +45,20 @@ convert("manual.pdf", "manual.vera", parser="docling")
 
 ## Notes
 
-- Defaults: `chunk_size=500` tokens, `ocr_mode=auto`, `ocr_language=en`,
+- Defaults: `chunk_size=500` whitespace tokens (not LLM subword tokens),
+  `ocr_mode=auto`, `ocr_language=en`,
   `pdf_backend=docling_parse`. Docling does **not** advertise `overlap` or
-  `ocr_dpi`, so those legacy convert/CLI aliases are not forwarded.
+  `ocr_dpi`, so those legacy convert/CLI aliases are not forwarded. The
+  Tesseract `--ocr-language` alias is also not forwarded; Docling keeps `en`.
 - Prefer `pipeline_options=` / `--pipeline-option KEY=VALUE` for provider-owned
-  settings; `--chunk-size` and `--ocr*` remain compatibility aliases.
+  settings; `--chunk-size` and `--ocr*` remain compatibility aliases for
+  pipelines that accept them.
 - OCR modes map to Docling/RapidOCR: `off`, `auto` (default), and `force`
   (full-page OCR). `ocr_language` expects a RapidOCR-native code (`en`, `fr`,
   `cyrillic`, ...) — Tesseract-style codes such as `eng` are **not**
-  translated; pass `--pipeline-option ocr_language=en` explicitly since the
-  shared `--ocr-language` CLI default (`eng`) is PyMuPDF's own vocabulary.
+  translated. The shared `--ocr-language` CLI default (`eng`) is not
+  forwarded; pass `--pipeline-option ocr_language=fr` (or another RapidOCR
+  code) when you need a non-default language.
 - Torch model compilation is disabled so Windows does not need MSVC `cl.exe`.
 - On page-level memory errors (`bad_alloc`), VERA retries failed pages then
   falls back to `pypdfium2`; force that backend with

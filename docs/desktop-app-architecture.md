@@ -234,8 +234,10 @@ temporary sibling atomically, preserves an existing destination after failure,
 and rejects PDFs with no searchable text after OCR with an OCR-specific
 message. Sidecar `convert` and `batch_convert` requests accept optional
 `pipeline_options` and `embedder_options` plus legacy `chunk_size`, `overlap`,
-`ocr_mode`, `ocr_language`, and `ocr_dpi` fields. Descriptor fields determine
-which legacy ingest aliases are forwarded; explicit `pipeline_options` win.
+`ocr_mode`, `ocr_language`, and `ocr_dpi` fields. Descriptor fields and OCR
+engine determine which legacy ingest aliases are forwarded (Tesseract
+`ocr_language`/`ocr_dpi`/`ocr_download` are not sent to Docling); explicit
+`pipeline_options` win.
 The Convert UI loads ingest descriptors through `describe_ingest_pipelines`
 and renders them with `PipelineConfigForm` inside a collapsed
 **Advanced pipeline options** section. Embedding providers are listed via

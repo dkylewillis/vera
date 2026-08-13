@@ -42,10 +42,12 @@ convert("manual.pdf", "manual.vera", parser="pymupdf")
 - Parses PDFs with PyMuPDF; extracts bordered tables with pdfplumber.
 - Selectively OCRs image-dominant low-text pages (`ocr_mode=auto`), with
   `force` for full-page OCR and `off` to disable OCR.
-- Owns typed defaults: `chunk_size=500`, `overlap=75`, `ocr_mode=auto`,
+- Owns typed defaults: `chunk_size=500` whitespace-split words, `overlap=75`
+  words, `ocr_mode=auto`,
   `ocr_language=eng`, `ocr_dpi=300`.
 - Sliding-window chunking with heading detection produces searchable text and
-  figure metadata.
+  figure metadata. Size and overlap count `str.split()` words, not characters
+  or LLM subword tokens.
 - OCR is designed for scanned prose and does not reconstruct complex scanned
   forms or tables.
 

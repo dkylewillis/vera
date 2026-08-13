@@ -595,6 +595,47 @@ def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):
     assert captured["batch"]["parser"] == "docling"
 
 
+def test_sidecar_default_ocr_language_is_not_forwarded_to_docling(monkeypatch):
+    pytest.importorskip("vera_ingest_docling")
+    from vera_ingest import prepare_pipeline_options
+    from vera_ingest_docling.options import DoclingOptions
+
+    sidecar = importlib.import_module("vera_app.sidecar")
+    captured = {}
+
+    def fake_convert(input_path, output_path, **kwargs):
+        captured.update(kwargs)
+        return output_path
+
+    monkeypatch.setattr(sidecar, "convert", fake_convert)
+    response = handle(
+        {
+            "id": "docling-ocr-default",
+            "action": "convert",
+            "input": "scan.pdf",
+            "output": "scan.vera",
+            "parser": "docling",
+        }
+    )
+
+    assert response["ok"] is True
+    assert captured["ocr_language"] == "eng"
+    merged = prepare_pipeline_options(
+        spec=captured["parser"],
+        pipeline_options=captured.get("pipeline_options"),
+        legacy_options={
+            "chunk_size": captured["chunk_size"],
+            "overlap": captured["overlap"],
+            "ocr_mode": captured["ocr_mode"],
+            "ocr_language": captured["ocr_language"],
+            "ocr_dpi": captured["ocr_dpi"],
+            "ocr_download": captured["ocr_download"],
+        },
+    )
+    assert "ocr_language" not in merged
+    assert DoclingOptions.from_mapping(merged).ocr_language == "en"
+
+
 def test_sidecar_forwards_ocr_download_flag(monkeypatch):
     sidecar = importlib.import_module("vera_app.sidecar")
     captured = {}

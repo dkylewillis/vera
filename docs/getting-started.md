@@ -4,7 +4,9 @@ This tutorial installs the VERA CLI, converts one PDF into a portable `.vera`
 archive, and searches it.
 
 VERA is currently pre-1.0 and experimental. Preserve source documents and expect
-format or API changes before a stable release.
+API changes before a stable release. Release **0.3.x** is the software, CLI, and
+Python API version; the `.vera` archive format remains **0.2**, so existing
+archives stay compatible.
 
 ## Requirements
 
@@ -17,16 +19,14 @@ format or API changes before a stable release.
 Install the CLI and its dependencies:
 
 ```bash
-python -m pip install "vera-cli>=0.2.4"
+python -m pip install "vera-cli>=0.3.0"
 ```
 
 That installs `vera-doc`, `vera-ingest`, and `vera-ingest-pymupdf` as well.
-`vera-ingest` may not yet be published to PyPI; if the install fails because
-the package cannot be found, [install from source](#install-from-source)
-instead. Add MCP support with:
+Add MCP support with:
 
 ```bash
-python -m pip install "vera-cli[mcp]>=0.2.4"
+python -m pip install "vera-cli[mcp]>=0.3.0"
 ```
 
 Verify that the console script is available:
@@ -45,17 +45,14 @@ python -m vera_cli --help
 
 ```bash
 # Storage and search only
-python -m pip install "vera-doc>=0.2.4"
+python -m pip install "vera-doc>=0.3.0"
 
 # PDF conversion and viewer helpers
 python -m pip install "vera-ingest>=0.3.0" "vera-ingest-pymupdf>=0.3.0"
 
 # MCP server package
-python -m pip install "vera-mcp>=0.2.4"
+python -m pip install "vera-mcp>=0.3.0"
 ```
-
-`vera-ingest` may not yet be published to PyPI. If that package install fails
-because it cannot be found, use [Install from source](#install-from-source).
 
 ## Install from source
 

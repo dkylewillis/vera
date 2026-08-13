@@ -170,7 +170,6 @@ nav:
   - Project:
       - Documentation index: user-documentation.md
       - Architecture: architecture.md
-      - Handoff: HANDOFF.md
       - Troubleshooting: troubleshooting.md
 
 extra:

@@ -12,13 +12,7 @@ export function formatBox(box: number[] | undefined): string {
   return box.map((value) => Math.round(value)).join(', ');
 }
 
-export function defaultVeraPath(pdf: string): string {
-  const trimmed = pdf.trim();
-  if (!trimmed) return '';
-  return trimmed.toLowerCase().endsWith('.pdf') ? `${trimmed.slice(0, -4)}.vera` : `${trimmed}.vera`;
-}
-
-/** Inverse of {@link defaultVeraPath}: `manual.vera` → `manual.pdf`. */
+/** `manual.vera` → `manual.pdf`. */
 export function siblingPdfPath(veraPath: string): string {
   const trimmed = veraPath.trim();
   if (!trimmed.toLowerCase().endsWith('.vera')) return '';
