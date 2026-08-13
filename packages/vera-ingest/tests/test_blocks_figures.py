@@ -1,0 +1,424 @@
+"""Tests for structured block parsing, heading-aware chunking, and figures."""
+
+import pytest
+
+from helpers.pdfs import make_structured_pdf
+from vera_doc import VeraDocument
+from vera_ingest import convert
+from vera_ingest.chunking import build_chunks_from_blocks
+from vera_ingest.types import ParsedBlock
+from vera_ingest.viewer import figures, figures_for, get_blocks
+from vera_ingest_pymupdf.parser import parse_pdf_structured
+
+
+@pytest.fixture
+def structured_pdf(tmp_path):
+    pdf = tmp_path / "structured.pdf"
+    make_structured_pdf(pdf)
+    return pdf
+
+
+class TestParsePdfStructured:
+    def test_detects_headings_and_paragraphs(self, structured_pdf):
+        _, blocks = parse_pdf_structured(str(structured_pdf))
+        types = {b.block_type for b in blocks}
+        assert "heading" in types
+        assert "paragraph" in types
+
+    def test_larger_font_gets_higher_heading_level(self, structured_pdf):
+        _, blocks = parse_pdf_structured(str(structured_pdf))
+        headings = {b.text: b.heading_level for b in blocks if b.block_type == "heading"}
+        assert headings["Chapter 110 Zoning"] < headings["Article 5 Parking"]
+
+    def test_detects_embedded_image(self, structured_pdf):
+        _, blocks = parse_pdf_structured(str(structured_pdf))
+        images = [b for b in blocks if b.block_type == "image"]
+        assert len(images) == 1
+        assert images[0].page_number == 1
+        assert images[0].image_bytes
+
+    def test_pages_still_returned(self, structured_pdf):
+        pages, _ = parse_pdf_structured(str(structured_pdf))
+        assert len(pages) == 2
+        assert "Zoning" in pages[0].text
+
+    def test_rotated_text_is_not_a_heading(self, tmp_path):
+        import fitz
+
+        pdf = tmp_path / "rotated.pdf"
+        doc = fitz.open()
+        page = doc.new_page()
+        # Vertical watermark in large type (like an arXiv sidebar).
+        page.insert_text((30, 400), "arXiv:2408.09869v5", fontsize=22, rotate=90)
+        page.insert_text((72, 72), "Chapter 1 Zoning", fontsize=20)
+        page.insert_text((72, 110), "Body text about zoning regulations.", fontsize=11)
+        doc.save(pdf)
+        doc.close()
+
+        _, blocks = parse_pdf_structured(str(pdf))
+        headings = [b.text for b in blocks if b.block_type == "heading"]
+        assert "Chapter 1 Zoning" in headings
+        assert not any("arXiv" in h for h in headings)
+
+
+class TestBuildChunksFromBlocks:
+    def _blocks(self):
+        return [
+            ("b1", ParsedBlock(1, "heading", "Chapter 1 Zoning", heading_level=1)),
+            ("b2", ParsedBlock(1, "heading", "Section 1.1 Parking", heading_level=2)),
+            ("b3", ParsedBlock(1, "paragraph", "Parking spaces are required for restaurants.")),
+            ("b4", ParsedBlock(2, "heading", "Chapter 2 Stormwater", heading_level=1)),
+            ("b5", ParsedBlock(2, "paragraph", "Detention is required for impervious area.")),
+        ]
+
+    def test_hierarchical_heading_path(self):
+        chunks = build_chunks_from_blocks(self._blocks())
+        assert chunks[0].heading_path == "Chapter 1 Zoning > Section 1.1 Parking"
+
+    def test_heading_stack_pops_same_level(self):
+        chunks = build_chunks_from_blocks(self._blocks())
+        assert chunks[1].heading_path == "Chapter 2 Stormwater"
+
+    def test_chunks_record_block_ids(self):
+        chunks = build_chunks_from_blocks(self._blocks())
+        assert chunks[0].block_ids == ["b3"]
+        assert chunks[1].block_ids == ["b5"]
+
+    def test_image_blocks_excluded_from_text(self):
+        blocks = [
+            ("b1", ParsedBlock(1, "paragraph", "Some text here.")),
+            ("b2", ParsedBlock(1, "image", "", image_bytes=b"fake")),
+        ]
+        chunks = build_chunks_from_blocks(blocks)
+        assert len(chunks) == 1
+        assert "fake" not in chunks[0].text
+
+    def test_long_block_split_with_sliding_window(self):
+        words = " ".join(f"w{i}" for i in range(50))
+        blocks = [("b1", ParsedBlock(1, "paragraph", words))]
+        chunks = build_chunks_from_blocks(blocks, chunk_size=10, overlap=2)
+        assert len(chunks) > 1
+        assert all(c.block_ids == ["b1"] for c in chunks)
+
+    def test_invalid_chunk_size_raises(self):
+        with pytest.raises(ValueError):
+            build_chunks_from_blocks([], chunk_size=0)
+
+    def test_chunks_do_not_merge_across_pages(self):
+        blocks = [
+            ("b1", ParsedBlock(1, "paragraph", "one " * 30)),
+            ("b2", ParsedBlock(2, "paragraph", "two " * 30)),
+        ]
+        chunks = build_chunks_from_blocks(blocks, chunk_size=500)
+        assert len(chunks) == 2
+        assert (chunks[0].page_start, chunks[0].page_end) == (1, 1)
+        assert (chunks[1].page_start, chunks[1].page_end) == (2, 2)
+
+    def test_image_attached_to_preceding_chunk_on_same_page(self):
+        blocks = [
+            ("b1", ParsedBlock(1, "paragraph", "Alpha text describing widgets.")),
+            ("b2", ParsedBlock(1, "image", "", image_bytes=b"fake-a")),
+            ("b3", ParsedBlock(1, "heading", "Section B", heading_level=1)),
+            ("b4", ParsedBlock(1, "paragraph", "Beta text describing gadgets.")),
+            ("b5", ParsedBlock(1, "image", "", image_bytes=b"fake-b")),
+        ]
+        chunks = build_chunks_from_blocks(blocks)
+        assert len(chunks) == 2
+        assert chunks[0].block_ids == ["b1", "b2"]
+        assert chunks[1].block_ids == ["b4", "b5"]
+
+    def test_image_before_any_text_attaches_to_next_chunk(self):
+        blocks = [
+            ("b1", ParsedBlock(1, "heading", "Appendix", heading_level=1)),
+            ("b2", ParsedBlock(1, "image", "", image_bytes=b"fake")),
+            ("b3", ParsedBlock(1, "paragraph", "Text describing the appendix image.")),
+        ]
+        chunks = build_chunks_from_blocks(blocks)
+        assert len(chunks) == 1
+        assert set(chunks[0].block_ids) == {"b2", "b3"}
+
+    def test_trailing_image_with_no_following_text_attaches_to_last_chunk_on_page(self):
+        blocks = [
+            ("b1", ParsedBlock(1, "paragraph", "Alpha text here for testing.")),
+            ("b2", ParsedBlock(1, "heading", "Appendix", heading_level=1)),
+            ("b3", ParsedBlock(1, "image", "", image_bytes=b"fake")),
+        ]
+        chunks = build_chunks_from_blocks(blocks)
+        assert len(chunks) == 1
+        assert set(chunks[0].block_ids) == {"b1", "b3"}
+
+
+class TestConvertWithBlocks:
+    def test_blocks_and_chunk_blocks_populated(self, tmp_path, structured_pdf):
+        out = tmp_path / "out.vera"
+        convert(str(structured_pdf), str(out), model="hashing")
+        with VeraDocument.open(str(out)) as doc:
+            blocks = get_blocks(doc)
+            assert sum(block["block_type"] == "heading" for block in blocks) >= 3
+            assert sum(block["block_type"] == "image" for block in blocks) == 1
+            assert figures(doc)
+
+    def test_heading_path_stored_in_chunks(self, tmp_path, structured_pdf):
+        out = tmp_path / "out.vera"
+        convert(str(structured_pdf), str(out), model="hashing")
+        with VeraDocument.open(str(out)) as doc:
+            paths = [
+                result.heading_path for result in doc.search("parking", mode="keyword", top_k=10)
+            ]
+        assert any("Chapter 110 Zoning" in (p or "") for p in paths)
+
+    def test_image_asset_stored(self, tmp_path, structured_pdf):
+        out = tmp_path / "out.vera"
+        convert(str(structured_pdf), str(out), model="hashing")
+        with VeraDocument.open(str(out)) as doc:
+            assert len(figures(doc)) == 1
+
+    def test_validation_still_passes(self, tmp_path, structured_pdf):
+        out = tmp_path / "out.vera"
+        convert(str(structured_pdf), str(out), model="hashing")
+        doc = VeraDocument.open(str(out))
+        try:
+            report = doc.validate()
+        finally:
+            doc.close()
+        assert report["ok"], report["issues"]
+
+
+class TestFiguresAPI:
+    @pytest.fixture
+    def vera_doc(self, tmp_path, structured_pdf):
+        out = tmp_path / "out.vera"
+        convert(str(structured_pdf), str(out), model="hashing")
+        doc = VeraDocument.open(str(out))
+        yield doc
+        doc.close()
+
+    def test_figures_lists_extracted_images(self, vera_doc):
+        items = figures(vera_doc)
+        assert len(items) == 1
+        assert items[0]["page_number"] == 1
+        assert items[0]["mime_type"].startswith("image/")
+        assert "data" not in items[0]
+
+    def test_figures_include_data(self, vera_doc):
+        items = figures(vera_doc, include_data=True)
+        assert items[0]["data"]
+
+    def test_figures_page_filter(self, vera_doc):
+        assert len(figures(vera_doc, page_start=1, page_end=1)) == 1
+        assert figures(vera_doc, page_start=2, page_end=2) == []
+
+    def test_figures_for_search_result_reads_only_linked_image_data(
+        self,
+        vera_doc,
+        monkeypatch,
+    ):
+        result = vera_doc.search("restaurant parking", mode="keyword", top_k=1)[0]
+        assert result.page_start == 1
+        image_ids = {ref.attachment_id for ref in result.record.attachments if ref.role == "figure"}
+        loaded_ids = []
+        get_attachment = vera_doc.get_attachment
+        monkeypatch.setattr(
+            vera_doc,
+            "get_attachment",
+            lambda attachment_id: (
+                loaded_ids.append(attachment_id),
+                get_attachment(attachment_id),
+            )[1],
+        )
+
+        items = figures_for(vera_doc, result)
+        assert len(items) == 1
+        assert image_ids
+        assert image_ids.isdisjoint(loaded_ids)
+
+        items_with_data = figures_for(vera_doc, result, include_data=True)
+        assert items_with_data[0]["data"]
+        assert image_ids <= set(loaded_ids)
+        assert not (set(loaded_ids) - image_ids) & {item["asset_id"] for item in figures(vera_doc)}
+
+    def test_no_figures_for_other_page_result(self, vera_doc):
+        result = vera_doc.search("detention impervious", mode="keyword", top_k=1)[0]
+        assert result.page_start == 2
+        assert figures_for(vera_doc, result) == []
+
+
+def make_captioned_pdf(path):
+    """PDF with an image followed by a caption, plus a decoy 'Table 1' sentence far away."""
+    import fitz
+
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Chapter 5 Stormwater Design", fontsize=20)
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40))
+    pix.clear_with(90)
+    page.insert_image(fitz.Rect(72, 120, 272, 270), pixmap=pix)
+    page.insert_text((72, 295), "Figure 3: Detention pond sizing diagram", fontsize=10)
+    page.insert_text(
+        (72, 600),
+        "Table 1 lists requirements but this paragraph is far from any image and long enough to read like prose.",
+        fontsize=11,
+    )
+    doc.save(path)
+    doc.close()
+
+
+class TestCaptions:
+    @pytest.fixture
+    def captioned_pdf(self, tmp_path):
+        pdf = tmp_path / "captioned.pdf"
+        make_captioned_pdf(pdf)
+        return pdf
+
+    def test_caption_block_detected(self, captioned_pdf):
+        _, blocks = parse_pdf_structured(str(captioned_pdf))
+        captions = [b for b in blocks if b.block_type == "caption"]
+        assert len(captions) == 1
+        assert "Detention pond sizing" in captions[0].text
+
+    def test_distant_table_sentence_not_marked_caption(self, captioned_pdf):
+        _, blocks = parse_pdf_structured(str(captioned_pdf))
+        captions = [b.text for b in blocks if b.block_type == "caption"]
+        assert not any("Table 1 lists" in c for c in captions)
+
+    def test_caption_text_searchable_in_chunks(self, tmp_path, captioned_pdf):
+        out = tmp_path / "out.vera"
+        convert(str(captioned_pdf), str(out), model="hashing")
+        doc = VeraDocument.open(str(out))
+        try:
+            results = doc.search("detention pond sizing diagram", mode="keyword", top_k=1)
+            assert results
+            assert "detention pond sizing" in results[0].text.lower()
+        finally:
+            doc.close()
+
+    def test_figures_return_caption(self, tmp_path, captioned_pdf):
+        out = tmp_path / "out.vera"
+        convert(str(captioned_pdf), str(out), model="hashing")
+        doc = VeraDocument.open(str(out))
+        try:
+            items = figures(doc)
+            assert len(items) == 1
+            assert items[0]["caption"] is not None
+            assert "Detention pond sizing" in items[0]["caption"]
+        finally:
+            doc.close()
+
+    def test_figure_without_caption_returns_none(self, tmp_path, structured_pdf):
+        out = tmp_path / "out.vera"
+        convert(str(structured_pdf), str(out), model="hashing")
+        doc = VeraDocument.open(str(out))
+        try:
+            items = figures(doc)
+            assert items[0]["caption"] is None
+        finally:
+            doc.close()
+
+
+class TestCaptionKeywords:
+    @pytest.mark.parametrize(
+        "caption",
+        [
+            "Illustration 2: Site layout",
+            "Plate 4 - Aerial view",
+            "Drawing 1: Foundation plan",
+        ],
+    )
+    def test_additional_caption_keywords_recognized(self, caption):
+        from vera_ingest_pymupdf.parser import _CAPTION_RE
+
+        assert _CAPTION_RE.match(caption)
+
+
+def make_pdf_with_tiny_image(path):
+    """PDF with body text and a tiny (10x10pt) decorative image."""
+    import fitz
+
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Chapter 1 Notes", fontsize=20)
+    page.insert_text((72, 110), "Body text with a tiny decorative icon nearby.", fontsize=11)
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 8, 8))
+    pix.clear_with(50)
+    page.insert_image(fitz.Rect(72, 140, 82, 150), pixmap=pix)  # 10x10pt, below threshold
+    doc.save(path)
+    doc.close()
+
+
+def make_pdf_with_repeated_logo(path):
+    """PDF with the same image embedded on two different pages."""
+    import fitz
+
+    doc = fitz.open()
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40))
+    pix.clear_with(200)
+    for page_num in range(2):
+        page = doc.new_page()
+        page.insert_text((72, 72), f"Chapter {page_num + 1}", fontsize=20)
+        page.insert_text((72, 110), "Body text on this page for context.", fontsize=11)
+        page.insert_image(fitz.Rect(72, 200, 172, 300), pixmap=pix)
+    doc.save(path)
+    doc.close()
+
+
+def make_two_figures_same_page_pdf(path):
+    """PDF with two distinct images on one page, each tied to its own paragraph."""
+    import fitz
+
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Section Alpha", fontsize=16)
+    page.insert_text(
+        (72, 100),
+        "Alpha widgets are described in this paragraph about alpha components.",
+        fontsize=11,
+    )
+    pix_a = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40))
+    pix_a.clear_with(60)
+    page.insert_image(fitz.Rect(72, 130, 172, 230), pixmap=pix_a)
+    page.insert_text((72, 260), "Section Beta", fontsize=16)
+    page.insert_text(
+        (72, 290),
+        "Beta gadgets are described in this paragraph about beta components.",
+        fontsize=11,
+    )
+    pix_b = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40))
+    pix_b.clear_with(180)
+    page.insert_image(fitz.Rect(72, 320, 172, 420), pixmap=pix_b)
+    doc.save(path)
+    doc.close()
+
+
+class TestFigureQualityFixes:
+    def test_tiny_images_are_not_treated_as_figures(self, tmp_path):
+        pdf = tmp_path / "tiny.pdf"
+        make_pdf_with_tiny_image(pdf)
+        _, blocks = parse_pdf_structured(str(pdf))
+        assert not any(b.block_type == "image" for b in blocks)
+
+    def test_repeated_identical_image_is_stored_once(self, tmp_path):
+        pdf = tmp_path / "repeated.pdf"
+        make_pdf_with_repeated_logo(pdf)
+        out = tmp_path / "out.vera"
+        convert(str(pdf), str(out), model="hashing")
+        with VeraDocument.open(str(out)) as doc:
+            assert sum(block["block_type"] == "image" for block in get_blocks(doc)) == 1
+            assert len(figures(doc)) == 1
+
+    def test_figures_for_result_prefers_tight_chunk_link(self, tmp_path):
+        pdf = tmp_path / "two_figures.pdf"
+        make_two_figures_same_page_pdf(pdf)
+        out = tmp_path / "out.vera"
+        convert(str(pdf), str(out), model="hashing")
+        doc = VeraDocument.open(str(out))
+        try:
+            assert len(figures(doc)) == 2
+            alpha_result = doc.search("alpha widgets components", mode="keyword", top_k=1)[0]
+            beta_result = doc.search("beta gadgets components", mode="keyword", top_k=1)[0]
+            alpha_figures = figures_for(doc, alpha_result)
+            beta_figures = figures_for(doc, beta_result)
+            assert len(alpha_figures) == 1
+            assert len(beta_figures) == 1
+            assert alpha_figures[0]["block_id"] != beta_figures[0]["block_id"]
+        finally:
+            doc.close()

@@ -3,7 +3,7 @@
 This is an automatically generated API reference for rebuildable library-level
 search indexes (`.vera-index/`).
 
-::: vera.collection
+::: vera_doc.collection
     handler: python
     options:
       members:

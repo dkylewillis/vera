@@ -18,7 +18,7 @@ evaluation tooling, or a source-file format.
 
 ### `vera-doc`
 
-`vera-doc` publishes the `vera` Python package. It is an embedded vector
+`vera-doc` publishes the `vera_doc` Python package. It is an embedded vector
 database backed by one portable SQLite `.vera` file.
 
 It owns:
@@ -85,7 +85,7 @@ providers, sessions, and application state. It depends on `vera-doc`,
 Applications that already have chunks need only `vera-doc`:
 
 ```python
-from vera import ChunkRecord, VeraDocument
+from vera_doc import ChunkRecord, VeraDocument
 
 with VeraDocument.create("knowledge.vera") as document:
     document.add(
@@ -105,7 +105,7 @@ with VeraDocument.open("knowledge.vera") as document:
 The write API accepts only final chunks and optional opaque attachments:
 
 ```python
-from vera import AttachmentRecord, AttachmentRef, ChunkRecord
+from vera_doc import AttachmentRecord, AttachmentRef, ChunkRecord
 
 source = AttachmentRecord(
     id="source",
@@ -133,10 +133,10 @@ convert("manual.pdf", "manual.vera")
 ```text
 packages/
   vera-doc/
-    src/vera/
-      core/
+    src/vera_doc/
       document.py
       models.py
+      embeddings.py
       collection.py
       corpus.py
   vera-ingest/
@@ -176,8 +176,8 @@ not dependency mechanisms.
 New archives and conversions write VERA 0.2 only. The chunk-oriented current
 format is documented in [vera-spec-v0.2.md](vera-spec-v0.2.md). The older
 0.1 document/page/block schema remains in
-[vera-spec-v0.1.md](vera-spec-v0.1.md) for historical reference and is no
-longer read by `vera-doc`.
+[vera-spec-v0.1.md](vera-spec-v0.1.md) for historical reference. That schema is
+deprecated and is no longer read by `vera-doc`.
 
 ## Repository strategy
 

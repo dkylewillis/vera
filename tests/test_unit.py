@@ -2,8 +2,10 @@
 
 import pytest
 
-from vera_ingest.chunking import chunk_pages, detect_heading
-from vera.core.embeddings import (
+from vera_cli import str_to_bool
+from vera_doc import ChunkRecord, QueryResult, VeraDocument
+from vera_doc.embedder_descriptors import EmbedderDescriptor
+from vera_doc.embeddings import (
     HashingEmbedder,
     HashingOptions,
     UnknownEmbeddingModelError,
@@ -23,25 +25,26 @@ from vera.core.embeddings import (
     serialize_vector,
     unregister_embedder,
 )
-from vera.core.embedder_descriptors import EmbedderDescriptor
-from vera import ChunkRecord, QueryResult, VeraDocument
-from vera_cli import str_to_bool
+from vera_ingest.chunking import chunk_pages, detect_heading
 from vera_ingest.types import ParsedPage
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _pages(*texts: str) -> list[ParsedPage]:
     """Build a list of ParsedPage objects from plain strings."""
-    return [ParsedPage(page_number=i + 1, width=612.0, height=792.0, text=t)
-            for i, t in enumerate(texts)]
+    return [
+        ParsedPage(page_number=i + 1, width=612.0, height=792.0, text=t)
+        for i, t in enumerate(texts)
+    ]
 
 
 # ---------------------------------------------------------------------------
 # chunk_pages
 # ---------------------------------------------------------------------------
+
 
 class TestChunkPages:
     def test_empty_pages_returns_no_chunks(self):
@@ -109,6 +112,7 @@ class TestChunkPages:
 # detect_heading
 # ---------------------------------------------------------------------------
 
+
 class TestDetectHeading:
     def test_chapter_line_detected(self):
         result = detect_heading("Chapter 1 Introduction\nText here.", "")
@@ -128,26 +132,31 @@ class TestDetectHeading:
 # cosine_similarity
 # ---------------------------------------------------------------------------
 
+
 class TestCosineSimilarity:
     def test_identical_vectors_return_one(self):
         import numpy as np
+
         v = np.array([1.0, 0.0, 0.0], dtype=np.float32)
         assert pytest.approx(cosine_similarity(v, v), abs=1e-6) == 1.0
 
     def test_orthogonal_vectors_return_zero(self):
         import numpy as np
+
         a = np.array([1.0, 0.0], dtype=np.float32)
         b = np.array([0.0, 1.0], dtype=np.float32)
         assert pytest.approx(cosine_similarity(a, b), abs=1e-6) == 0.0
 
     def test_zero_vector_returns_zero(self):
         import numpy as np
+
         z = np.zeros(4, dtype=np.float32)
         v = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
         assert cosine_similarity(z, v) == 0.0
 
     def test_both_zero_vectors_return_zero(self):
         import numpy as np
+
         z = np.zeros(4, dtype=np.float32)
         assert cosine_similarity(z, z) == 0.0
 
@@ -155,6 +164,7 @@ class TestCosineSimilarity:
 # ---------------------------------------------------------------------------
 # HashingEmbedder
 # ---------------------------------------------------------------------------
+
 
 class TestHashingEmbedder:
     def test_dimension_matches_output(self):
@@ -168,6 +178,7 @@ class TestHashingEmbedder:
 
     def test_vectors_are_normalised(self):
         import numpy as np
+
         emb = HashingEmbedder()
         v = emb.embed(["some text here"])[0]
         assert pytest.approx(float(np.linalg.norm(v)), abs=1e-5) == 1.0
@@ -188,6 +199,7 @@ class TestHashingEmbedder:
 # ---------------------------------------------------------------------------
 # get_embedder / registry
 # ---------------------------------------------------------------------------
+
 
 class TestGetEmbedder:
     def test_hashing_keyword_returns_hashing_embedder(self):
@@ -292,7 +304,7 @@ class TestGetEmbedder:
         assert any(item.model_id == "all-MiniLM-L6-v2" for item in st_models)
         assert preflight_embedder("hashing").ok is True
 
-        from vera import EmbedderCapabilities, EmbedderDescriptor, register_embedder_descriptor
+        from vera_doc import EmbedderCapabilities, EmbedderDescriptor, register_embedder_descriptor
 
         @register_embedder("unit-test-creds", replace=True)
         def factory(model_id: str, **config):
@@ -376,7 +388,7 @@ class TestGetEmbedder:
 
         reset_embedding_registry(builtins=True)
         monkeypatch.setattr(
-            "vera.core.embeddings.entry_points",
+            "vera_doc.embeddings.entry_points",
             fake_entry_points,
         )
         try:
@@ -406,11 +418,11 @@ class TestGetEmbedder:
 
         reset_embedding_registry(builtins=True)
         monkeypatch.setattr(
-            "vera.core.embeddings.entry_points",
+            "vera_doc.embeddings.entry_points",
             fake_entry_points,
         )
         try:
-            with caplog.at_level(logging.WARNING, logger="vera.core.embeddings"):
+            with caplog.at_level(logging.WARNING, logger="vera_doc.embeddings"):
                 providers = list_embedding_providers()
             assert "broken-remote" not in providers
             assert "hashing" in providers
@@ -438,6 +450,7 @@ class TestGetEmbedder:
 # serialize / deserialize vector round-trip
 # ---------------------------------------------------------------------------
 
+
 class TestVectorSerialization:
     def test_round_trip_preserves_values(self):
         original = [1.5, -0.25, 3.0, 0.0]
@@ -457,6 +470,7 @@ class TestVectorSerialization:
 # ---------------------------------------------------------------------------
 # QueryResult
 # ---------------------------------------------------------------------------
+
 
 class TestQueryResult:
     def _make(self, **kwargs):
@@ -485,14 +499,74 @@ class TestQueryResult:
         d["score"] = 0.0
         assert r.score == pytest.approx(0.85)
 
+    def test_citation_from_metadata(self):
+        r = self._make(
+            record=ChunkRecord(
+                id="c001",
+                text="Sample text",
+                metadata={
+                    "page_start": 12,
+                    "page_end": 13,
+                    "heading_path": "Chapter 4 > Detention",
+                    "source_filename": "manual.pdf",
+                    "document_id": "document_0001",
+                },
+            )
+        )
+        citation = r.citation
+        assert citation.page_start == 12
+        assert citation.page_end == 13
+        assert citation.heading_path == "Chapter 4 > Detention"
+        assert citation.source_filename == "manual.pdf"
+        assert citation.document_id == "document_0001"
+        assert r.page_start == 12
+        assert r.heading_path == "Chapter 4 > Detention"
+
+
+# ---------------------------------------------------------------------------
+# ranking
+# ---------------------------------------------------------------------------
+
+
+class TestRanking:
+    def test_normalize_scores_unit_interval(self):
+        from vera_doc.ranking import normalize_scores
+
+        assert normalize_scores({"a": 2.0, "b": 4.0, "c": 6.0}) == {
+            "a": 0.0,
+            "b": 0.5,
+            "c": 1.0,
+        }
+
+    def test_combine_hybrid_scores_respects_weights(self):
+        from vera_doc.ranking import combine_hybrid_scores
+
+        semantic = {"a": 1.0, "b": 0.0}
+        keyword = {"a": 0.0, "b": 1.0}
+        balanced = combine_hybrid_scores(semantic, keyword)
+        assert balanced["a"] == pytest.approx(0.5)
+        assert balanced["b"] == pytest.approx(0.5)
+        semantic_heavy = combine_hybrid_scores(
+            semantic, keyword, semantic_weight=1.0, keyword_weight=0.0
+        )
+        assert semantic_heavy["a"] == pytest.approx(1.0)
+        assert semantic_heavy["b"] == pytest.approx(0.0)
+
+    def test_reciprocal_rank_fusion_prefers_shared_ranks(self):
+        from vera_doc.ranking import reciprocal_rank_fusion
+
+        fused = reciprocal_rank_fusion([["a", "b"], ["b", "c"]])
+        assert [item for item, _ in fused][0] == "b"
+
 
 # ---------------------------------------------------------------------------
 # VeraDocument.search — invalid mode
 # ---------------------------------------------------------------------------
 
+
 class TestVeraDocumentSearchValidation:
     def test_invalid_mode_raises_value_error(self, tmp_path):
-        from test_convert_search import make_pdf
+        from helpers.pdfs import make_pdf
         from vera_ingest import convert
 
         pdf = tmp_path / "test.pdf"
@@ -512,6 +586,7 @@ class TestVeraDocumentSearchValidation:
 # convert() — error paths
 # ---------------------------------------------------------------------------
 
+
 class TestConvertErrors:
     def test_missing_input_raises_file_not_found(self, tmp_path):
         from vera_ingest.convert import convert as vera_convert
@@ -520,7 +595,7 @@ class TestConvertErrors:
             vera_convert(str(tmp_path / "missing.pdf"), str(tmp_path / "out.vera"))
 
     def test_unsupported_parser_raises_value_error(self, tmp_path):
-        from test_convert_search import make_pdf
+        from helpers.pdfs import make_pdf
         from vera_ingest.convert import convert as vera_convert
 
         pdf = tmp_path / "test.pdf"
@@ -532,6 +607,7 @@ class TestConvertErrors:
 # ---------------------------------------------------------------------------
 # str_to_bool (CLI helper)
 # ---------------------------------------------------------------------------
+
 
 class TestStrToBool:
     @pytest.mark.parametrize("value", ["true", "True", "TRUE", "1", "yes", "YES", "y", "on"])
@@ -623,9 +699,7 @@ class TestVeraDocumentShouldFix:
             document.add([ChunkRecord(id="one", text="hello world")])
         conn = sqlite3.connect(path)
         conn.row_factory = sqlite3.Row
-        conn.execute(
-            "UPDATE embeddings SET vector_format = 'float64_le' WHERE chunk_id = 'one'"
-        )
+        conn.execute("UPDATE embeddings SET vector_format = 'float64_le' WHERE chunk_id = 'one'")
         conn.execute(
             """
             INSERT INTO chunks(chunk_id, text, metadata_json, created_at, updated_at)

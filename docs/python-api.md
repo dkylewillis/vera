@@ -20,7 +20,7 @@ python -m pip install "vera-ingest-pymupdf>=0.3.0"
 `vera-doc` accepts final chunks. It never parses or chunks source files.
 
 ```python
-from vera import ChunkRecord, VeraDocument
+from vera_doc import ChunkRecord, VeraDocument
 
 records = [
     ChunkRecord(
@@ -47,7 +47,7 @@ with VeraDocument.open("manual.vera") as document:
         top_k=5,
     )
     for result in results:
-        print(result.score, result.record.text)
+        print(result.score, result.citation.page_start, result.record.text)
 ```
 
 `create()` refuses to overwrite an existing path unless `overwrite=True`.
@@ -72,7 +72,7 @@ non-zero precomputed and generated vectors must have unit L2 norm.
 ## Records
 
 ```python
-from vera import AttachmentRef, ChunkRecord
+from vera_doc import AttachmentRef, ChunkRecord
 
 record = ChunkRecord(
     id="chunk-1",
@@ -91,7 +91,7 @@ the configured embedding function embeds the text.
 ## Add, upsert, get, and delete
 
 ```python
-from vera import ChunkRecord, VeraDocument
+from vera_doc import ChunkRecord, VeraDocument
 
 with VeraDocument.open("manual.vera", mode="write") as document:
     document.add([ChunkRecord(id="new", text="New chunk")])
@@ -129,7 +129,7 @@ Attachments are opaque bytes. `vera-doc` stores and retrieves them but does not
 parse, OCR, chunk, embed, or search them.
 
 ```python
-from vera import AttachmentRecord, AttachmentRef, ChunkRecord, VeraDocument
+from vera_doc import AttachmentRecord, AttachmentRef, ChunkRecord, VeraDocument
 
 source = AttachmentRecord(
     id="source",
@@ -259,7 +259,7 @@ implement yourself; they are not bundled with VERA. See
 ## Corpus and library indexes
 
 ```python
-from vera import VeraCorpus, build_library_index, update_library_index
+from vera_doc import VeraCorpus, build_library_index, update_library_index
 
 build_library_index("./library", recursive=True)
 

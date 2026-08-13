@@ -29,8 +29,21 @@ vera search "manual.vera" "stormwater detention requirements" --top-k 5 --json
 vera search "manual.vera" "when must runoff be detained?" --mode hybrid
 ```
 
-Hybrid combines normalized semantic and keyword rankings. Use it for most
-questions, especially when both concepts and document terminology matter.
+Hybrid combines min-max-normalized semantic and keyword rankings with equal
+weights by default. The Python API can change the blend:
+
+```python
+results = document.search(
+    "when must runoff be detained?",
+    mode="hybrid",
+    semantic_weight=0.7,
+    keyword_weight=0.3,
+)
+print(results[0].citation.page_start, results[0].citation.heading_path)
+```
+
+Use hybrid for most questions, especially when both concepts and document
+terminology matter.
 
 ### Keyword
 

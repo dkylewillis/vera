@@ -91,7 +91,7 @@ carefully.
 ## Python API
 
 ```python
-from vera import VeraDocument
+from vera_doc import VeraDocument
 from vera_ingest.viewer import export_source_document, get_source_document
 
 doc = VeraDocument.open("manual.vera")

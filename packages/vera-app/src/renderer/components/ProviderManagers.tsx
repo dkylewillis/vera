@@ -1,3 +1,4 @@
+import { SIDECAR_ACTIONS } from '../../shared/protocol';
 import { useState } from 'react';
 import {
   CheckCircle2,
@@ -372,7 +373,7 @@ export function ProviderManager({
       // Use the just-typed key if present so fetch works before saving.
       const typedKey = (keyInputs[row.key] ?? '').trim();
       if (typedKey) llm.api_key = typedKey;
-      const response = await window.vera.request<{ models: string[] }>({ action: 'list_models', llm });
+      const response = await window.vera.request<{ models: string[] }>({ action: SIDECAR_ACTIONS.listModels, llm });
       if (!response.ok) {
         setAvailableModels([]);
         setMessage(response.error || 'Unable to fetch models');

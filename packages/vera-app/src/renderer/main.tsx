@@ -1,40 +1,27 @@
-import React, { type CSSProperties, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import {
   AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  FileInput,
-  Folder,
   FolderOpen,
-  ListChecks,
   Maximize2,
-  MessageSquareText,
   Minimize2,
-  PanelLeftClose,
-  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
-  Plus,
   RefreshCw,
-  Search,
-  Settings,
-  Terminal,
-  Trash2,
   X,
 } from 'lucide-react';
-import { ActivityTrace } from './components/activity/ActivityTrace';
 import { TraceView } from './components/activity/TraceView';
+import { AppShell } from './components/AppShell';
+import type { CenterView, SideView } from './components/AppShell';
 import { AppStatusBar } from './components/AppStatusBar';
-import { ChatComposer } from './components/ChatComposer';
-import { ChatTurn } from './components/ChatTurn';
+import { CenterChatView } from './components/CenterChatView';
+import { CenterSearchView } from './components/CenterSearchView';
+import { ChatsSidebar } from './components/ChatsSidebar';
 import { ConvertPanel } from './components/ConvertPanel';
 import { DocumentInfoPanel } from './components/DocumentInfoPanel';
-import { ExplorerPanel } from './components/ExplorerPanel';
+import { ExplorerSidebar } from './components/ExplorerSidebar';
 import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexModal';
 import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { ModelManager, ProviderManager } from './components/ProviderManagers';
@@ -75,12 +62,11 @@ import {
   reconvertPrefillFromInspect,
   resolveReconvertPdf,
 } from './lib/reconvert';
-import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from './lib/providers';
+import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS } from './lib/providers';
+import { SIDECAR_ACTIONS } from '../shared/protocol';
 import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
 import './styles.css';
 
-type SideView = 'explorer' | 'chats' | 'convert';
-type CenterView = 'chat' | 'search';
 type ViewerMode = 'selection' | 'document' | 'info';
 
 const SOURCE_LOAD_TIMEOUT_MS = 2 * 60 * 1000;
@@ -547,7 +533,7 @@ function App() {
         siblingExists,
       });
       const inspectResult = await call<InspectResult>(
-        { action: 'inspect', path: entry.path },
+        { action: SIDECAR_ACTIONS.inspect, path: entry.path },
         'Preparing reconvert',
         undefined,
         reconvertCall,
@@ -573,7 +559,7 @@ function App() {
           return;
         }
         const exported = await call<ExportResult>(
-          { action: 'export', path: entry.path, output: resolution.pdfPath },
+          { action: SIDECAR_ACTIONS.export, path: entry.path, output: resolution.pdfPath },
           'Restoring embedded PDF',
           undefined,
           reconvertCall,
@@ -683,7 +669,7 @@ function App() {
     setViewerCollapsed(false);
     setViewerExpanded(false);
     const response = await window.vera.request<InspectResult>({
-      action: 'inspect',
+      action: SIDECAR_ACTIONS.inspect,
       path: folderPath,
       summary_only: true,
       default_recursive: true,
@@ -732,7 +718,7 @@ function App() {
     setIndexStatusChecking((prev) => ({ ...prev, [folderPath]: true }));
     try {
       const response = await window.vera.request<LibraryIndexStatus>({
-        action: 'index_status',
+        action: SIDECAR_ACTIONS.indexStatus,
         path: folderPath,
         verify_hashes: verifyHashes,
       });
@@ -918,7 +904,7 @@ function App() {
     }
     const generation = ++inspectGenerationRef.current;
     updateTargetPath(value);
-    const result = await call<InspectResult>({ action: 'inspect', path: value }, 'Opening');
+    const result = await call<InspectResult>({ action: SIDECAR_ACTIONS.inspect, path: value }, 'Opening');
     if (result && generation === inspectGenerationRef.current) {
       setInspect(result);
       setValidation(null);
@@ -985,7 +971,7 @@ function App() {
     setProviderErrorDetail(null);
     try {
       const response = await window.vera.request<InspectResult>({
-        action: 'inspect',
+        action: SIDECAR_ACTIONS.inspect,
         path: targetPath,
         ...(targetPath === activeLibraryPath ? { recursive: activeIndexStatus?.recursive ?? true, excludes: activeIndexStatus?.excludes ?? [] } : {}),
       }, inspectionRequestId);
@@ -1109,7 +1095,7 @@ function App() {
       const [refreshed, inspectedResponse] = await Promise.all([
         refreshIndexStatus(folderPath),
         window.vera.request<InspectResult>({
-          action: 'inspect',
+          action: SIDECAR_ACTIONS.inspect,
           path: folderPath,
           summary_only: true,
           default_recursive: true,
@@ -1161,7 +1147,7 @@ function App() {
     }
     if (await promptForIndexBeforeQuery()) return;
     const result = await call<SearchResult[]>({
-      action: 'search',
+      action: SIDECAR_ACTIONS.search,
       path: searchScopePath,
       ...(selectedFiles.length ? { paths: selectedFiles } : {}),
       ...(activeLibraryPath && selectedFiles.length === 0
@@ -1359,7 +1345,7 @@ function App() {
     });
 
     const result = await call<ChatAnswerResult>({
-      action: 'answer',
+      action: SIDECAR_ACTIONS.answer,
       path: searchScopePath,
       ...(selectedFiles.length ? { paths: selectedFiles } : {}),
       ...(activeLibraryPath && selectedFiles.length === 0
@@ -1645,7 +1631,7 @@ function App() {
     setModelRefreshMessage(`Refreshing ${providerDisplayName(profile)}…`);
     try {
       const response = await window.vera.request<{ models: string[] }>({
-        action: 'list_models',
+        action: SIDECAR_ACTIONS.listModels,
         llm: {
           provider: profile.provider,
           base_url: profile.base_url,
@@ -1894,7 +1880,7 @@ function App() {
     try {
       const response = await awaitConversionRequest(
         window.vera.request<BatchConvertResult>({
-          action: 'batch_convert',
+          action: SIDECAR_ACTIONS.batchConvert,
           ...(selectedPaths.length
             ? { paths: selectedPaths }
             : { directory, recursive: batchRecursive }),
@@ -1956,7 +1942,7 @@ function App() {
     setPendingSourcePath(targetPath);
     try {
       const result = await call<SourceDocumentResult>(
-        { action: 'source', path: targetPath },
+        { action: SIDECAR_ACTIONS.source, path: targetPath },
         'Loading source',
         undefined,
         { scope: 'source', timeoutMs: SOURCE_LOAD_TIMEOUT_MS },
@@ -2011,7 +1997,7 @@ function App() {
       .map((figure) => figure.asset_id as string);
     if (resultPath && missingAssetIds.length) {
       void window.vera.request<FigureResult[]>({
-        action: 'figure_data',
+        action: SIDECAR_ACTIONS.figureData,
         path: resultPath,
         asset_ids: missingAssetIds,
       }).then((response) => {
@@ -2250,68 +2236,27 @@ function App() {
           </nav>
         </header>
       ) : null}
-      <div
-        className={[
-          'appBody',
-          sidebarCollapsed ? 'appBody--sidebarCollapsed' : '',
-          viewerCollapsed ? 'appBody--viewerCollapsed' : '',
-          viewerExpanded && !viewerCollapsed ? 'appBody--viewerExpanded' : '',
-        ].filter(Boolean).join(' ')}
-        ref={workspaceRef}
-        style={{ '--source-pane-width': `${sourcePaneWidth}%`, '--side-panel-width': `${sidePanelWidth}px` } as CSSProperties}
-      >
-        <aside className={sidebarCollapsed ? 'sidePanel sidePanel--collapsed' : 'sidePanel'}>
-          <div className="sidePanelHeader">
-            <button
-              type="button"
-              className="ghostIcon"
-              onClick={() => setSidebarCollapsed((value) => !value)}
-              title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-              aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-              aria-pressed={!sidebarCollapsed}
-            >
-              {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-            </button>
-            {!sidebarCollapsed ? (
-              <>
-                <nav className="sideViewNav" aria-label="Sidebar views">
-                  {([
-                    ['explorer', 'Explorer', Folder],
-                    ['chats', 'Chats', MessageSquareText],
-                    ['convert', 'Convert PDF', FileInput],
-                  ] as const).map(([view, label, Icon]) => (
-                    <button
-                      className={`ghostIcon sideViewButton${sideView === view ? ' active' : ''}`}
-                      key={view}
-                      onClick={() => openSide(view)}
-                      title={label}
-                      aria-label={label}
-                      aria-pressed={sideView === view}
-                    >
-                      <Icon size={15} />
-                    </button>
-                  ))}
-                </nav>
-                <div className="sidePanelActions">
-                  {sideView === 'explorer' ? (
-                    <>
-                      <button className="ghostIcon" onClick={() => void addFolder()} title="Open folder"><FolderOpen size={15} /></button>
-                      <button className="ghostIcon" onClick={async () => { const f = await window.vera.pickArchive(); if (f) void openTargetPath(f); }} title="Open .vera file"><VeraIcon size={15} /></button>
-                    </>
-                  ) : null}
-                  <button className="ghostIcon" onClick={() => setSettingsOpen(true)} title="LLM Providers" aria-label="LLM Providers"><Settings size={15} /></button>
-                </div>
-              </>
-            ) : null}
-          </div>
-          {!sidebarCollapsed ? (
-            <div
-              className={`sidePanelBody${sideView === 'explorer' ? ' sidePanelBody--explorer' : ''}${sideView === 'chats' ? ' sidePanelBody--chats' : ''}`}
-              tabIndex={sideView === 'explorer' ? -1 : undefined}
-              onMouseDown={sideView === 'explorer' ? (event) => handleExplorerBlankPointer(event) : undefined}
-            >
-              {sideView === 'explorer' ? (
-                <ExplorerPanel
+      <AppShell
+        workspaceRef={workspaceRef}
+        sidebarCollapsed={sidebarCollapsed}
+        viewerCollapsed={viewerCollapsed}
+        viewerExpanded={viewerExpanded}
+        sourcePaneWidth={sourcePaneWidth}
+        sidePanelWidth={sidePanelWidth}
+        sideView={sideView}
+        centerView={centerView}
+        isResizingSide={isResizingSide}
+        isResizingSource={isResizingSource}
+        headerActions={sideView === 'explorer' ? (
+          <>
+            <button className="ghostIcon" onClick={() => void addFolder()} title="Open folder"><FolderOpen size={15} /></button>
+            <button className="ghostIcon" onClick={async () => { const f = await window.vera.pickArchive(); if (f) void openTargetPath(f); }} title="Open .vera file"><VeraIcon size={15} /></button>
+          </>
+        ) : null}
+        sidebarBody={(
+          <>
+            {sideView === 'explorer' ? (
+                <ExplorerSidebar
                   folders={folders}
                   activeLibraryPath={activeLibraryPath}
                   path={path}
@@ -2359,28 +2304,17 @@ function App() {
                   onRemoveFolder={removeFolder}
                   onTrashEntry={(entry, folderPath) => { void trashEntry(entry, folderPath); }}
                 />
-              ) : null}
-
-              {sideView === 'chats' ? (
-                <div className="chatsView">
-                  <button className="sidePrimary" onClick={() => void newSession()}><Plus size={15} />New chat</button>
-                  {sessions.length === 0 ? (
-                    <p className="sideMuted">No conversations yet.</p>
-                  ) : (
-                    sessions.map((s) => (
-                      <div key={s.id} className={s.id === activeSessionId ? 'chatRow active' : 'chatRow'}>
-                        <button className="chatRowTitle" onClick={() => void loadSession(s)} title={s.title}>
-                          <MessageSquareText size={14} />
-                          <span>{s.title}</span>
-                        </button>
-                        <button className="ghostIcon tiny" onClick={() => void removeSession(s.id)} title="Delete chat"><Trash2 size={12} /></button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              ) : null}
-
-              {sideView === 'convert' ? (
+            ) : null}
+            {sideView === 'chats' ? (
+              <ChatsSidebar
+                sessions={sessions}
+                activeSessionId={activeSessionId}
+                onNewSession={() => { void newSession(); }}
+                onLoadSession={(session) => { void loadSession(session); }}
+                onRemoveSession={(id) => { void removeSession(id); }}
+              />
+            ) : null}
+            {sideView === 'convert' ? (
                 <ConvertPanel
                   convertMode={convertMode}
                   selectedPdfs={selectedPdfs}
@@ -2423,61 +2357,23 @@ function App() {
                   onSkip={skipCurrentConversion}
                   onStop={stopConversion}
                 />
-              ) : null}
-
-            </div>
-          ) : null}
-        </aside>
-
-        {!sidebarCollapsed ? (
-          <div
-            className={isResizingSide ? 'paneDivider sideDivider resizing' : 'paneDivider sideDivider'}
-            role="separator"
-            aria-label="Resize side panel"
-            aria-orientation="vertical"
-            tabIndex={0}
-            onDoubleClick={() => setSidePanelWidth(260)}
-            onKeyDown={(event) => {
-              if (event.key === 'ArrowLeft') setSidePanelWidth((value) => clampSidePanelWidth(value - 16));
-              if (event.key === 'ArrowRight') setSidePanelWidth((value) => clampSidePanelWidth(value + 16));
-              if (event.key === 'Home') setSidePanelWidth(200);
-              if (event.key === 'End') setSidePanelWidth(600);
-            }}
-            onPointerDown={(event) => {
-              event.preventDefault();
-              setIsResizingSide(true);
-              resizeSidePanel(event.clientX);
-            }}
-          />
-        ) : null}
-
-        {!(viewerExpanded && !viewerCollapsed) ? (
-        <main className="centerPane">
-          <header className="centerHeader">
-            <div className="centerViewToggle" role="group" aria-label="Center workspace">
-              <button
-                type="button"
-                className={centerView === 'chat' ? 'active' : ''}
-                onClick={() => setCenterView('chat')}
-                aria-pressed={centerView === 'chat'}
-              >
-                Chat
-              </button>
-              <button
-                type="button"
-                className={centerView === 'search' ? 'active' : ''}
-                onClick={() => setCenterView('search')}
-                aria-pressed={centerView === 'search'}
-              >
-                Search
-              </button>
-            </div>
-            {centerView === 'chat' ? (
-              <button className="centerNewChat" onClick={() => void newSession()} title="Start a new chat"><Plus size={14} />New chat</button>
             ) : null}
-          </header>
-
-          {errorMessage ? (
+          </>
+        )}
+        onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
+        onSideViewChange={(view) => openSide(view)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onExplorerBlankPointer={handleExplorerBlankPointer}
+        onResizeSide={(clientX) => { setIsResizingSide(true); resizeSidePanel(clientX); }}
+        onResetSideWidth={() => setSidePanelWidth(260)}
+        onNudgeSideWidth={(delta, edge) => {
+          if (edge === 'min') setSidePanelWidth(200);
+          else if (edge === 'max') setSidePanelWidth(600);
+          else setSidePanelWidth((value) => clampSidePanelWidth(value + delta));
+        }}
+        onCenterViewChange={setCenterView}
+        onNewChat={() => { void newSession(); }}
+        errorBanner={errorMessage ? (
             <div className="errorBanner centerBanner" role="alert">
               <AlertTriangle size={15} aria-hidden="true" />
               <span className="errorBannerMessage" title={errorMessage}>{errorMessage}</span>
@@ -2507,425 +2403,100 @@ function App() {
               </button>
             </div>
           ) : null}
-          {centerView === 'search' ? (
-            <section className={submittedSearchQuery ? 'centerSearch centerSearch--active' : 'centerSearch centerSearch--empty'}>
-              {submittedSearchQuery ? (
-                <div className="searchThread">
-                  <article className="chatMessage userMessage searchQueryMessage">
-                    <p>{submittedSearchQuery}</p>
-                  </article>
-                  <article className="chatMessage assistantMessage searchResponse">
-                    <span>{results.length} result{results.length === 1 ? '' : 's'}</span>
-                    {results.length > 0 ? (
-                      <div className="centerSearchResults">
-                        {results.map((result, index) => (
-                          <button
-                            className={selected?.chunk_id === result.chunk_id ? 'searchResultCard active' : 'searchResultCard'}
-                            key={`${result.file || result.document_id}-${result.chunk_id}`}
-                            onClick={() => { selectSearchResult(result); setViewerMode('document'); }}
-                          >
-                            <span className="searchResultRank">{index + 1}</span>
-                            <span className="searchResultBody">
-                              <span className="resultRowMeta">{result.score.toFixed(3)} · p. {formatPages(result.page_start, result.page_end)}{result.file ? ` · ${fileName(result.file)}` : ''}</span>
-                              <strong>{result.heading_path || result.source_filename || result.chunk_id}</strong>
-                              <span className="resultRowText">{result.text}</span>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="searchNoResults">No matching passages found.</p>
-                    )}
-                  </article>
-                </div>
-              ) : (
-                <div className="chatEmptyState">
-                  <Search size={26} />
-                  <p>Search your documents</p>
-                </div>
-              )}
-              <div className="searchComposerWrap">
-                <div className="composerScope searchComposerScope">
-                  <span>
-                    {selectedFiles.length > 0
-                      ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
-                      : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
-                      : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? `Current document: “${fileName(path)}”` : 'No search scope'}
-                  </span>
-                  {selectedFiles.length > 0 ? (
-                    <button type="button" onClick={() => setSelectedFiles([])}>Clear</button>
-                  ) : null}
-                </div>
-                <div className="searchComposer">
-                  <textarea
-                    value={searchQuery}
-                    rows={1}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' && !event.shiftKey) {
-                        event.preventDefault();
-                        if (hasSearchableScope && searchQuery.trim() && !busy) void searchTarget();
-                      }
-                    }}
-                    placeholder="Search the active scope…"
-                    aria-label="Search query"
-                  />
-                  <button
-                    type="button"
-                    className="askSendButton"
-                    onClick={() => void searchTarget()}
-                    disabled={!hasSearchableScope || !searchQuery.trim() || busy}
-                    aria-label="Search"
-                  >
-                    {searchBusy ? <span className="askSpinner" /> : <Search size={14} />}
-                  </button>
-                </div>
-                <div className="searchOptionsBar">
-                  <label>
-                    <span>Mode</span>
-                    <select value={mode} onChange={(event) => setMode(event.target.value)}>
-                      <option value="hybrid">Hybrid</option>
-                      <option value="semantic">Semantic</option>
-                      <option value="keyword">Keyword</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Results</span>
-                    <input type="number" min={1} max={50} value={topK} onChange={(event) => setTopK(Number(event.target.value))} />
-                  </label>
-                  <label>
-                    <span>Context</span>
-                    <input type="number" min={0} max={5} value={contextChunks} onChange={(event) => setContextChunks(Number(event.target.value))} />
-                  </label>
-                  <label className="searchFiguresOption">
-                    <input type="checkbox" checked={includeFigures} onChange={(event) => setIncludeFigures(event.target.checked)} />
-                    <span>Figures</span>
-                  </label>
-                </div>
-              </div>
-            </section>
-          ) : (
-          <div className={sessionTurns.length > 0 ? 'chatPanel chatPanel--active' : 'chatPanel chatPanel--empty'}>
-              {sessionTurns.length > 0 ? (
-                <div className="chatThreadWrap">
-                  <div className="chatThread" ref={threadRef} onScroll={handleThreadScroll}>
-                    {sessionTurns.map((turn, idx) => (
-                      <ChatTurn
-                        key={idx}
-                        turn={turn}
-                        linkableCitations={linkableCitations}
-                        selectCitation={stableSelectCitation}
-                        selectedChunkId={selected?.chunk_id}
-                        showTrace={showTrace}
-                      />
-                    ))}
-                    {chatBusy ? (
-                      <article className="chatMessage assistantMessage streamingMessage">
-                        <ActivityTrace
-                          live
-                          status={responseStatus}
-                          searches={streamEvents.map((ev) => ({
-                            query: ev.query || '',
-                            mode: ev.mode,
-                            hits: ev.hits,
-                            pending: ev.event !== 'search_done',
-                          }))}
-                        />
-                        {streamingAnswer ? (
-                          <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{streamingAnswer}</Markdown></div>
-                        ) : null}
-                        {showTrace && traceEvents.length > 0 ? <TraceView events={traceEvents} /> : null}
-                      </article>
-                    ) : null}
-                  </div>
-                  {showJumpToLatest ? (
-                    <button
-                      type="button"
-                      className="jumpToLatest"
-                      onClick={jumpToLatest}
-                      aria-label="Jump to the latest chat response"
-                    >
-                      <ChevronDown size={15} />
-                      Jump to latest
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-              <div className="askComposerWrap">
-                <div className="composerScope">
-                  {conversionInProgress
-                    ? 'Chat unavailable while the conversion completes.'
-                    : selectedFiles.length > 0
-                      ? (
-                        <details className="composerScopeDocuments">
-                          <summary>{selectedFiles.length} selected document{selectedFiles.length === 1 ? '' : 's'}</summary>
-                          <ul>
-                            {selectedFiles.map((filePath) => (
-                              <li key={filePath} title={filePath}>{fileName(filePath)}</li>
-                            ))}
-                          </ul>
-                        </details>
-                      )
-                      : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
-                      : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? `Current document: “${fileName(path)}”` : 'No search scope'}
-                </div>
-                <ChatComposer
-                  attachments={attachments}
-                  busy={chatBusy || conversionInProgress}
-                  busyAction={busyAction}
-                  hasSearchableScope={hasSearchableScope}
-                  hasPreviousTurns={sessionTurns.length > 0}
-                  resetVersion={composerResetVersion}
-                  restoredDraft={composerRestoredDraft}
-                  onAddAttachments={addAttachmentFiles}
-                  onRemoveAttachment={removeAttachment}
-                  onAsk={askTarget}
-                  onStopAnswer={stopAnswer}
-                />
-                <div className="composerBar">
-                    <div className="modelPicker">
-                      <button
-                        type="button"
-                        className="modelPickerButton"
-                        onClick={() => setModePickerOpen((open) => !open)}
-                      >
-                        <ListChecks size={14} />
-                        <span>{activeMode ? activeMode.label : 'Mode'}</span>
-                        <ChevronDown size={14} />
-                      </button>
-                      {modePickerOpen ? (
-                        <>
-                          <div className="modelPickerBackdrop" onClick={() => setModePickerOpen(false)} />
-                          <div className="modelPickerMenu" role="menu">
-                            <div className="modelPickerGroupLabel">Answer mode</div>
-                            {modes.map((entry) => (
-                              <button
-                                type="button"
-                                key={entry.id}
-                                className={entry.id === (activeMode?.id ?? '') ? 'modelOption active' : 'modelOption'}
-                                onClick={() => void selectActiveMode(entry.id)}
-                              >
-                                <span>{entry.label}{entry.builtin ? '' : ' · custom'}</span>
-                                {entry.description ? <small>{entry.description}</small> : null}
-                              </button>
-                            ))}
-                            <div className="modelPickerSep" />
-                            <button
-                              type="button"
-                              className="modelOption manageOption"
-                              onClick={() => {
-                                setModePickerOpen(false);
-                                void window.vera.openModesFolder();
-                              }}
-                            >
-                              <FolderOpen size={14} />
-                              <span>Open modes folder…</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="modelOption manageOption"
-                              onClick={() => {
-                                setModePickerOpen(false);
-                                void loadModes();
-                              }}
-                            >
-                              <RefreshCw size={14} />
-                              <span>Reload modes</span>
-                            </button>
-                          </div>
-                        </>
-                      ) : null}
-                    </div>
-                    <div className="modelPicker">
-                      <button
-                        type="button"
-                        className="modelPickerButton"
-                        title="Select model · Ctrl+Alt+/ cycles reasoning effort"
-                        onClick={() => {
-                          const opening = !modelPickerOpen;
-                          setModelPickerOpen(opening);
-                          if (!opening) return;
-                          setModelFilter('');
-                          const refreshedAt = activeProvider?.models_refreshed_at ?? 0;
-                          if (activeProvider && Date.now() - refreshedAt > 60 * 60 * 1000) {
-                            void refreshProviderModels(activeProvider.id);
-                          }
-                        }}
-                      >
-                        <span>
-                          {activeProvider && activeModel
-                            ? `${activeModel}${activeModelOptions.reasoning_effort ? ` · ${reasoningEffortLabel(activeModelOptions.reasoning_effort)}` : ''}${activeModelOptions.fast ? ' · Fast' : ''}`
-                            : 'Select model'}
-                        </span>
-                        <ChevronDown size={14} />
-                      </button>
-                      {modelPickerOpen ? (
-                        <>
-                          <div className="modelPickerBackdrop" onClick={() => setModelPickerOpen(false)} />
-                          <div className="modelPickerMenu" role="menu" onMouseLeave={() => setHoveredModelOptions(null)}>
-                            <div className="modelPickerMenuScroll">
-                              <div className="modelPickerSearch">
-                                <Search size={13} />
-                                <input value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} placeholder="Search models" autoFocus />
-                              </div>
-                              {providers.length === 0 ? (
-                                <div className="modelPickerEmpty">No providers yet — add one below.</div>
-                              ) : null}
-                              {providers.map((profile) => (
-                                <div className="modelPickerGroup" key={profile.id}>
-                                  <div className="modelPickerGroupLabel">{providerDisplayName(profile)}</div>
-                                  {profile.models.length === 0 ? (
-                                    <div className="modelPickerEmpty">No models enabled</div>
-                                  ) : (
-                                    profile.models
-                                      .filter((model) => !modelFilter.trim() || model.toLowerCase().includes(modelFilter.trim().toLowerCase()))
-                                      .map((model) => (
-                                      <button
-                                        type="button"
-                                        key={`${profile.id}-${model}`}
-                                        className={profile.id === activeProviderId && model === activeModel ? 'modelOption active' : 'modelOption'}
-                                        onClick={() => void selectActiveModel(profile.id, model)}
-                                        onMouseEnter={() => {
-                                          setHoveredModelOptions({
-                                            providerId: profile.id,
-                                            model,
-                                          });
-                                        }}
-                                      >
-                                        <span>{model}</span>
-                                      </button>
-                                    ))
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                            <div className="modelPickerSep" />
-                            <button
-                              type="button"
-                              className="modelOption manageOption"
-                              onClick={() => {
-                                if (activeProviderId) void refreshProviderModels(activeProviderId);
-                                else {
-                                  setModelPickerOpen(false);
-                                  setSettingsOpen(true);
-                                }
-                              }}
-                              disabled={Boolean(modelRefreshBusyId)}
-                            >
-                              <RefreshCw size={14} className={modelRefreshBusyId ? 'spinning' : ''} />
-                              <span>{modelRefreshBusyId ? 'Refreshing models…' : 'Refresh models'}</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="modelOption manageOption"
-                              onClick={() => {
-                                setModelPickerOpen(false);
-                                setModelManagerOpen(true);
-                              }}
-                            >
-                              <Settings size={14} />
-                              <span>Edit models…</span>
-                            </button>
-                            {hoveredModelOptions ? (() => {
-                              const profile = providers.find((entry) => entry.id === hoveredModelOptions.providerId);
-                              if (!profile) return null;
-                              const options: { reasoning_effort?: string; fast?: boolean } = profile.model_options?.[hoveredModelOptions.model] ?? {};
-                              const thinkingEnabled = options.reasoning_effort !== 'none';
-                              const selectedEffort = options.reasoning_effort && options.reasoning_effort !== 'none'
-                                ? options.reasoning_effort
-                                : 'medium';
-                              return (
-                                <div className="modelOptionsFlyout">
-                                  <span className="modelOptionsHeading">Options</span>
-                                  <label className="modelFlyoutToggle">
-                                    <span>Thinking</span>
-                                    <input
-                                      type="checkbox"
-                                      checked={thinkingEnabled}
-                                      onChange={() => void updateModelOptions(profile.id, hoveredModelOptions.model, {
-                                        ...options,
-                                        reasoning_effort: thinkingEnabled ? 'none' : 'medium',
-                                      })}
-                                    />
-                                  </label>
-                                  <label className="modelFlyoutToggle">
-                                    <span>Fast</span>
-                                    <input
-                                      type="checkbox"
-                                      checked={Boolean(options.fast)}
-                                      onChange={() => void updateModelOptions(profile.id, hoveredModelOptions.model, {
-                                        ...options,
-                                        fast: !options.fast,
-                                      })}
-                                    />
-                                  </label>
-                                  <span className="modelOptionsHeading effortHeading">Effort</span>
-                                  <div className="modelEffortMenu">
-                                    {REASONING_EFFORTS.map((effort) => (
-                                      <button
-                                        type="button"
-                                        key={effort}
-                                        className={thinkingEnabled && selectedEffort === effort ? 'active' : ''}
-                                        disabled={!thinkingEnabled}
-                                        onClick={() => void updateModelOptions(profile.id, hoveredModelOptions.model, {
-                                          ...options,
-                                          reasoning_effort: effort,
-                                        })}
-                                      >
-                                        <span>{reasoningEffortLabel(effort)}</span>
-                                        {thinkingEnabled && selectedEffort === effort ? <CheckCircle2 size={13} /> : null}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })() : null}
-                          </div>
-                        </>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      className={showTrace ? 'composerToggle active' : 'composerToggle'}
-                      onClick={() => setShowTrace((value) => {
-                        const next = !value;
-                        try { localStorage.setItem('vera.showTrace', next ? '1' : '0'); } catch { /* ignore persistence errors */ }
-                        return next;
-                      })}
-                      title="Show the prompts, tool calls, and responses exchanged with the LLM"
-                    >
-                      <Terminal size={14} />
-                      <span>Trace</span>
-                    </button>
-                  </div>
-              </div>
-            </div>
-          )}
-        </main>
-        ) : null}
-
-        {!viewerCollapsed && !viewerExpanded ? (
-          <div
-            className={isResizingSource ? 'paneDivider resizing' : 'paneDivider'}
-            role="separator"
-            aria-label="Resize Source Document pane"
-            aria-orientation="vertical"
-            tabIndex={0}
-            onDoubleClick={() => setSourcePaneWidth(34)}
-            onKeyDown={(event) => {
-              if (event.key === 'ArrowLeft') setSourcePaneWidth((value) => clampSourcePaneWidth(value + 4));
-              if (event.key === 'ArrowRight') setSourcePaneWidth((value) => clampSourcePaneWidth(value - 4));
-              if (event.key === 'Home') setSourcePaneWidth(32);
-              if (event.key === 'End') setSourcePaneWidth(70);
-            }}
-            onPointerDown={(event) => {
-              event.preventDefault();
-              setIsResizingSource(true);
-              resizeSourcePane(event.clientX);
-            }}
+        centerBody={centerView === 'search' ? (
+          <CenterSearchView
+            submittedSearchQuery={submittedSearchQuery}
+            results={results}
+            selected={selected}
+            searchQuery={searchQuery}
+            mode={mode}
+            topK={topK}
+            contextChunks={contextChunks}
+            includeFigures={includeFigures}
+            selectedFilesCount={selectedFiles.length}
+            scopeLabel={
+              selectedFiles.length > 0
+                ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
+                : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
+                : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? `Current document: “${fileName(path)}”` : 'No search scope'
+            }
+            hasSearchableScope={hasSearchableScope}
+            busy={busy}
+            searchBusy={searchBusy}
+            onSelectResult={(result) => { selectSearchResult(result); setViewerMode('document'); }}
+            onSearchQueryChange={setSearchQuery}
+            onSearch={() => { void searchTarget(); }}
+            onClearSelectedFiles={() => setSelectedFiles([])}
+            onModeChange={setMode}
+            onTopKChange={setTopK}
+            onContextChunksChange={setContextChunks}
+            onIncludeFiguresChange={setIncludeFigures}
           />
-        ) : null}
-
+        ) : (
+          <CenterChatView
+            sessionTurns={sessionTurns}
+            linkableCitations={linkableCitations}
+            selectCitation={stableSelectCitation}
+            selected={selected}
+            showTrace={showTrace}
+            chatBusy={chatBusy}
+            responseStatus={responseStatus}
+            streamEvents={streamEvents}
+            streamingAnswer={streamingAnswer}
+            traceEvents={traceEvents}
+            threadRef={threadRef}
+            showJumpToLatest={showJumpToLatest}
+            onThreadScroll={handleThreadScroll}
+            onJumpToLatest={jumpToLatest}
+            conversionInProgress={conversionInProgress}
+            selectedFiles={selectedFiles}
+            activeLibraryIsEmpty={activeLibraryIsEmpty}
+            activeLibraryPath={activeLibraryPath}
+            path={path}
+            attachments={attachments}
+            busyAction={busyAction}
+            hasSearchableScope={hasSearchableScope}
+            composerResetVersion={composerResetVersion}
+            composerRestoredDraft={composerRestoredDraft}
+            onAddAttachments={addAttachmentFiles}
+            onRemoveAttachment={removeAttachment}
+            onAsk={askTarget}
+            onStopAnswer={stopAnswer}
+            modePickerOpen={modePickerOpen}
+            onModePickerOpenChange={setModePickerOpen}
+            modes={modes}
+            activeMode={activeMode}
+            onSelectActiveMode={(id) => { void selectActiveMode(id); }}
+            onOpenModesFolder={() => { void window.vera.openModesFolder(); }}
+            onReloadModes={() => { void loadModes(); }}
+            modelPickerOpen={modelPickerOpen}
+            onModelPickerOpenChange={setModelPickerOpen}
+            activeProvider={activeProvider}
+            activeProviderId={activeProviderId}
+            activeModel={activeModel}
+            activeModelOptions={activeModelOptions}
+            modelFilter={modelFilter}
+            onModelFilterChange={setModelFilter}
+            providers={providers}
+            hoveredModelOptions={hoveredModelOptions}
+            onHoveredModelOptionsChange={setHoveredModelOptions}
+            onSelectActiveModel={(providerId, model) => { void selectActiveModel(providerId, model); }}
+            onRefreshProviderModels={(providerId) => { void refreshProviderModels(providerId); }}
+            modelRefreshBusyId={modelRefreshBusyId}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenModelManager={() => setModelManagerOpen(true)}
+            onUpdateModelOptions={(providerId, model, options) => { void updateModelOptions(providerId, model, options); }}
+            onShowTraceChange={setShowTrace}
+          />
+        )}
+        onResizeSource={(clientX) => { setIsResizingSource(true); resizeSourcePane(clientX); }}
+        onResetSourceWidth={() => setSourcePaneWidth(34)}
+        onNudgeSourceWidth={(delta, edge) => {
+          if (edge === 'min') setSourcePaneWidth(32);
+          else if (edge === 'max') setSourcePaneWidth(70);
+          else setSourcePaneWidth((value) => clampSourcePaneWidth(value + delta));
+        }}
+        viewer={(
         <aside className={viewerCollapsed ? 'viewerPane viewerPane--collapsed' : 'viewerPane'}>
           <div className="viewerHeader">
             {!viewerCollapsed ? (
@@ -3190,7 +2761,9 @@ function App() {
             )
           ) : null}
         </aside>
-      </div>
+        )}
+      />
+
       <AppStatusBar
         tasks={backgroundTasks}
         busyFolderPath={busyFolderPath}

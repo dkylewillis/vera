@@ -359,7 +359,7 @@ vera-mcp ───────────────────────�
 
 | Package | Import / command | What it owns |
 |---------|------------------|--------------|
-| [`vera-doc`](https://pypi.org/project/vera-doc/) | `import vera` | The core: `.vera` schema and validation, transactional chunk/attachment CRUD, embedding storage, and keyword/semantic/hybrid/corpus search. Has no knowledge of PDFs. |
+| [`vera-doc`](https://pypi.org/project/vera-doc/) | `import vera_doc` | The core: `.vera` schema and validation, transactional chunk/attachment CRUD, embedding storage, and keyword/semantic/hybrid/corpus search. Has no knowledge of PDFs. |
 | [`vera-ingest`](https://pypi.org/project/vera-ingest/) | `import vera_ingest` | Provider-neutral conversion: the pipeline registry, shared block/chunk types, chunking helpers, atomic archive writing, and viewer helpers for pages, figures, and regions |
 | [`vera-ingest-pymupdf`](https://pypi.org/project/vera-ingest-pymupdf/) | plugin | Default PDF pipeline: PyMuPDF/pdfplumber parsing, table extraction, selective OCR |
 | [`vera-ingest-docling`](https://pypi.org/project/vera-ingest-docling/) | plugin | Optional Docling pipeline with layout models and hybrid chunking |
@@ -371,7 +371,7 @@ The central boundary rule: `vera-doc` never imports extraction, UI, MCP, or
 evaluation code. It is a general embedded vector database — attachments are
 opaque bytes and metadata is caller-owned JSON — and every other package
 composes around it. Details in
-[Contributing and architecture](docs/architecture.md) and the
+[CONTRIBUTING.md](CONTRIBUTING.md), [architecture](docs/architecture.md), and the
 [package overview](packages/README.md).
 
 **Who installs what**
@@ -387,7 +387,7 @@ Applications that already have chunks need only `vera-doc` — no PDF or ML
 dependencies:
 
 ```python
-from vera import ChunkRecord, VeraDocument
+from vera_doc import ChunkRecord, VeraDocument
 
 with VeraDocument.create("knowledge.vera") as document:
     document.add([
@@ -454,7 +454,7 @@ browse the [published docs](https://dkylewillis.github.io/vera/).
 - [Python API](docs/python-api.md) · [MCP integration](docs/mcp.md) · [Agent skills](docs/agent-skills.md) · [Agent quick reference](AGENTS.md)
 - [Creating an ingest pipeline](docs/creating-an-ingest-pipeline.md) · [Creating an embedding provider](docs/creating-an-embedding-provider.md)
 - [Format spec 0.2 (current)](docs/vera-spec-v0.2.md) · [Format spec 0.1 (legacy)](docs/vera-spec-v0.1.md)
-- [Architecture and contributing](docs/architecture.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) · [Troubleshooting](docs/troubleshooting.md)
+- [Architecture](docs/architecture.md) · [Contributing](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) · [Troubleshooting](docs/troubleshooting.md)
 
 ## Status and support
 

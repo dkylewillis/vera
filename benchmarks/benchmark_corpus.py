@@ -10,10 +10,10 @@ import time
 import tracemalloc
 from pathlib import Path
 
-from vera.collection import build_library_index
-from vera.core.embeddings import HashingEmbedder, serialize_vector
-from vera.core.schema import create_schema
-from vera.corpus import VeraCorpus
+from vera_doc._schema import create_schema
+from vera_doc.collection import build_library_index
+from vera_doc.corpus import VeraCorpus
+from vera_doc.embeddings import HashingEmbedder, serialize_vector
 
 
 def _write_vera(path: Path, document_number: int, chunks_per_document: int) -> None:
@@ -58,21 +58,52 @@ def _write_vera(path: Path, document_number: int, chunks_per_document: int) -> N
                 metadata["created_at"],
             ),
         )
-        conn.execute("INSERT INTO pages VALUES (?, ?, ?, ?, ?, ?)", (f"page_{document_number}", doc_id, 1, 612, 792, ""))
+        conn.execute(
+            "INSERT INTO pages VALUES (?, ?, ?, ?, ?, ?)",
+            (f"page_{document_number}", doc_id, 1, 612, 792, ""),
+        )
         for chunk, (text, vector) in enumerate(zip(texts, vectors)):
             chunk_id = f"chunk_{chunk:06d}"
             conn.execute(
                 "INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (chunk_id, doc_id, 1, 1, "Project Experience", text, len(text.split()), str(chunk), chunk),
+                (
+                    chunk_id,
+                    doc_id,
+                    1,
+                    1,
+                    "Project Experience",
+                    text,
+                    len(text.split()),
+                    str(chunk),
+                    chunk,
+                ),
             )
-            conn.execute("INSERT INTO chunks_fts VALUES (?, ?, ?)", (chunk_id, text, "Project Experience"))
+            conn.execute(
+                "INSERT INTO chunks_fts VALUES (?, ?, ?)", (chunk_id, text, "Project Experience")
+            )
             conn.execute(
                 "INSERT INTO embeddings VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (f"emb_{chunk:06d}", chunk_id, embedder.model_name, embedder.dimension, serialize_vector(vector), "float32_le", metadata["created_at"]),
+                (
+                    f"emb_{chunk:06d}",
+                    chunk_id,
+                    embedder.model_name,
+                    embedder.dimension,
+                    serialize_vector(vector),
+                    "float32_le",
+                    metadata["created_at"],
+                ),
             )
         conn.execute(
             "INSERT INTO assets VALUES (?, ?, ?, ?, ?, ?, ?)",
-            ("original", doc_id, "original_document", "application/pdf", f"proposal-{document_number}.pdf", b"benchmark", metadata["source_file_hash"]),
+            (
+                "original",
+                doc_id,
+                "original_document",
+                "application/pdf",
+                f"proposal-{document_number}.pdf",
+                b"benchmark",
+                metadata["source_file_hash"],
+            ),
         )
         conn.commit()
     finally:
@@ -140,7 +171,9 @@ def main() -> int:
         )
         indexed_peak_bytes = _peak_python_memory(root, query, use_index=True)
         library_bytes = sum(path.stat().st_size for path in root.glob("*.vera"))
-        index_bytes = sum(path.stat().st_size for path in (root / ".vera-index").rglob("*") if path.is_file())
+        index_bytes = sum(
+            path.stat().st_size for path in (root / ".vera-index").rglob("*") if path.is_file()
+        )
 
     payload = {
         "documents": args.documents,

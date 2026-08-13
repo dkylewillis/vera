@@ -5,7 +5,7 @@ the package that owns the capability you need.
 
 | Package | Install name | Import or command | Use it for |
 |---------|--------------|-------------------|------------|
-| [vera-doc](vera-doc.md) | `vera-doc` | `import vera` | Creating, storing, and searching `.vera` archives |
+| [vera-doc](vera-doc.md) | `vera-doc` | `import vera_doc` | Creating, storing, and searching `.vera` archives |
 | [vera-ingest](vera-ingest.md) | `vera-ingest` | `import vera_ingest` | Conversion registry, shared types, and archive writing |
 | [vera-ingest-pymupdf](vera-ingest-pymupdf.md) | `vera-ingest-pymupdf` | `import vera_ingest_pymupdf` | Default PyMuPDF PDF parsing and Tesseract OCR |
 | [vera-ingest-docling](vera-ingest-docling.md) | `vera-ingest-docling` | `import vera_ingest_docling` | Optional Docling HybridChunker ingest pipeline |

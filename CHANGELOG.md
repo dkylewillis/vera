@@ -40,6 +40,16 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Desktop Convert view: persist the selected embedding model separately from
   Chat; show installed provider suggestions; hashing and MiniLM presets.
 
+- Typed `Citation` on search hits (`result.citation`) plus configurable hybrid
+  `semantic_weight` / `keyword_weight` on `VeraDocument.search()`.
+- Shared `vera_ingest.viewer.result_payload()` serializer for CLI, MCP, and
+  desktop search JSON.
+- Vectorized semantic scoring, batched attachment loads, and FTS writes that
+  align `chunks_fts.rowid` with `chunks.rowid` (format 0.2 compatible; legacy
+  archives fall back to deleting by `chunk_id`).
+- `VeraDocument.iter_raw_chunks()` / `format_metadata()` for library indexing
+  without private `VeraDocument` access.
+
 ### Changed
 
 - `EmbedderOptions` and `PipelineOptions` `from_mapping` reject integers
@@ -59,6 +69,7 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Breaking
 
+- The `vera-doc` distribution now imports as `vera_doc` (`from vera_doc import VeraDocument`). The previous `import vera` name collided with an unrelated PyPI package. There is no compatibility shim.
 - Unknown embedding model / provider names raise an error
   (`UnknownEmbeddingModelError`) instead of silently creating mislabeled
   hashing vectors. The archive records the model that must embed queries at
@@ -77,6 +88,11 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Explorer type filters prune files hidden by the filter from the current
   selection.
 - Removed unused `saveVera` / `defaultVeraPath` helpers.
+- Shared IPC channel, sidecar action, and stream event names, with a contract
+  test that TypeScript `StreamEvent` names match sidecar emissions.
+- Split the renderer shell into `AppShell`, `ExplorerSidebar`, `ChatsSidebar`,
+  `CenterChatView`, and `CenterSearchView`.
+- `npm run app:dev` uses `npm` instead of Windows-only `npm.cmd`.
 
 Hosted embedding providers, Convert UI embedder preflight/forms, and a
 packaged-app plugin runtime are follow-ups after this tag (0.3.1 or later).

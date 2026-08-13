@@ -7,20 +7,10 @@ import sys
 
 import pytest
 
-from vera import CorpusSearchResult, VeraCorpus
+from helpers.pdfs import make_topic_pdf
+from vera_doc import CorpusSearchResult, VeraCorpus
 from vera_ingest import convert
 from vera_ingest.viewer import regions_for
-
-
-def make_topic_pdf(path, heading, body):
-    import fitz
-
-    doc = fitz.open()
-    page = doc.new_page()
-    page.insert_text((72, 72), heading, fontsize=20)
-    page.insert_text((72, 110), body, fontsize=11)
-    doc.save(path)
-    doc.close()
 
 
 @pytest.fixture(scope="module")
@@ -159,7 +149,7 @@ class TestInspect:
         def reject_archive_open(path):
             raise AssertionError(f"summary reopened archive: {path}")
 
-        monkeypatch.setattr("vera.corpus.VeraDocument.open", reject_archive_open)
+        monkeypatch.setattr("vera_doc.corpus.VeraDocument.open", reject_archive_open)
         with VeraCorpus.open(str(corpus_dir), use_index=False) as corpus:
             info = corpus.inspect_summary()
 
@@ -173,7 +163,18 @@ class TestInspect:
 class TestCli:
     def test_search_directory_json(self, corpus_dir):
         proc = subprocess.run(
-            [sys.executable, "-m", "vera_cli", "search", str(corpus_dir), "detention ponds", "--top-k", "2", "--json", "--regions"],
+            [
+                sys.executable,
+                "-m",
+                "vera_cli",
+                "search",
+                str(corpus_dir),
+                "detention ponds",
+                "--top-k",
+                "2",
+                "--json",
+                "--regions",
+            ],
             capture_output=True,
             text=True,
         )
@@ -191,10 +192,19 @@ async def test_mcp_corpus_search_tool(corpus_dir):
     server = build_server()
     result = await server.call_tool(
         "vera_corpus_search",
-        {"directory": str(corpus_dir), "query": "restaurant parking space", "top_k": 2, "include_regions": True},
+        {
+            "directory": str(corpus_dir),
+            "query": "restaurant parking space",
+            "top_k": 2,
+            "include_regions": True,
+        },
     )
     content, structured = result
-    payload = structured.get("result", structured) if structured is not None else json.loads(content[0].text)
+    payload = (
+        structured.get("result", structured)
+        if structured is not None
+        else json.loads(content[0].text)
+    )
     first = payload["results"][0]
     assert first["file"].endswith("zoning.vera")
     assert first["regions"]

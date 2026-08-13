@@ -9,7 +9,7 @@ PDF or OCR dependencies.
 ```python
 """Minimal vera-doc example: create, populate, and search an archive."""
 
-from vera import ChunkRecord, QueryResult, VeraDocument
+from vera_doc import ChunkRecord, QueryResult, VeraDocument
 
 
 def print_result(result: QueryResult) -> None:

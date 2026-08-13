@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from vera.core.option_parsing import OptionsBase
+from vera_doc.option_parsing import OptionsBase
 
 
 class PipelineOptions(OptionsBase):
@@ -36,15 +36,15 @@ class PipelineOptions(OptionsBase):
     static annotation, which may be a string under ``from __future__ import
     annotations``) picks the validator:
 
-    - a ``bool`` default uses :func:`~vera_ingest.option_parsing.require_bool`;
-    - an ``int`` default uses :func:`~vera_ingest.option_parsing.require_bounded_int`
+    - a ``bool`` default uses :func:`~vera_doc.option_parsing.require_bool`;
+    - an ``int`` default uses :func:`~vera_doc.option_parsing.require_bounded_int`
       with ``metadata["minimum"]`` / ``metadata["maximum"]`` when those are
       numbers (otherwise the value must be non-negative);
     - a ``str`` default with ``metadata["choices"]`` and no
       ``metadata["allow_custom"]`` uses
-      :func:`~vera_ingest.option_parsing.require_choice` restricted to those
+      :func:`~vera_doc.option_parsing.require_choice` restricted to those
       choices' values;
-    - any other ``str`` default uses :func:`~vera_ingest.option_parsing.require_string`
+    - any other ``str`` default uses :func:`~vera_doc.option_parsing.require_string`
       (free text).
 
     A field of any other type (for example ``float``) is not supported;

@@ -20,14 +20,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from vera.corpus import VeraCorpus
-from vera.document import VeraDocument
+from vera_doc.corpus import VeraCorpus
+from vera_doc.document import VeraDocument
 from vera_ingest.viewer import (
     figures,
-    figures_for,
     get_chunk_regions,
     get_page,
-    regions_for,
     result_payload,
 )
 
@@ -74,13 +72,17 @@ def build_server():
         doc = _open(file)
         try:
             results = []
-            for result in doc.search(text=query, mode=mode, top_k=top_k, context_chunks=context_chunks):
-                entry = result_payload(result)
-                if include_figures:
-                    entry["figures"] = figures_for(doc, result)
-                if include_regions:
-                    entry["regions"] = regions_for(doc, result)
-                results.append(entry)
+            for result in doc.search(
+                text=query, mode=mode, top_k=top_k, context_chunks=context_chunks
+            ):
+                results.append(
+                    result_payload(
+                        result,
+                        document=doc,
+                        include_figures=include_figures,
+                        include_regions=include_regions,
+                    )
+                )
             return {"query": query, "mode": mode, "results": results}
         finally:
             doc.close()
@@ -101,14 +103,17 @@ def build_server():
         corpus = VeraCorpus.open(directory, recursive=recursive, excludes=excludes)
         try:
             results = []
-            for result in corpus.search(text=query, mode=mode, top_k=top_k, context_chunks=context_chunks):
-                entry = result_payload(result)
-                document = corpus.document(result.file)
-                if include_figures:
-                    entry["figures"] = figures_for(document, result)
-                if include_regions:
-                    entry["regions"] = regions_for(document, result)
-                results.append(entry)
+            for result in corpus.search(
+                text=query, mode=mode, top_k=top_k, context_chunks=context_chunks
+            ):
+                results.append(
+                    result_payload(
+                        result,
+                        document=corpus.document(result.file),
+                        include_figures=include_figures,
+                        include_regions=include_regions,
+                    )
+                )
             return {
                 "directory": directory,
                 "query": query,

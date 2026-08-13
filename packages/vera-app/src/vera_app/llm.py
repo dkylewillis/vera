@@ -7,11 +7,11 @@ import re
 import threading
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 from .cancellation import CancellationToken, CancelledError
-
 
 # `content` is usually a plain string, but may be a list of OpenAI-style content
 # parts (e.g. `{"type": "text", ...}` / `{"type": "image_url", ...}`) for
@@ -59,7 +59,7 @@ class LlmConfig:
     timeout: float = 60.0
 
     @classmethod
-    def from_request(cls, raw: Any) -> "LlmConfig":
+    def from_request(cls, raw: Any) -> LlmConfig:
         if not isinstance(raw, dict):
             return cls()
         return cls(
@@ -213,7 +213,9 @@ def _chat_completions_url(base_url: str) -> str:
 def _auth_headers(config: LlmConfig) -> dict[str, str]:
     headers = {"Content-Type": "application/json"}
     if config.auth_type == "oauth":
-        raise ValueError("OAuth LLM auth is not implemented yet; use a saved API key or environment variable.")
+        raise ValueError(
+            "OAuth LLM auth is not implemented yet; use a saved API key or environment variable."
+        )
     api_key = config.api_key or (os.environ.get(config.api_key_env) if config.api_key_env else None)
     if config.auth_type == "api_key" and not api_key:
         raise ValueError("LLM API key is required for API key auth")
@@ -226,14 +228,15 @@ def _tools_rejected(detail: str) -> bool:
     lowered = detail.lower()
     if "max_completion_tokens" in lowered or "'temperature'" in lowered:
         return False
-    return any(token in lowered for token in ("tool", "function call", "function_call", "functions"))
+    return any(
+        token in lowered for token in ("tool", "function call", "function_call", "functions")
+    )
 
 
 def _model_options_rejected(detail: str) -> bool:
     lowered = detail.lower()
     return any(
-        token in lowered
-        for token in ("reasoning", "service_tier", "service tier", "verbosity")
+        token in lowered for token in ("reasoning", "service_tier", "service tier", "verbosity")
     )
 
 
@@ -253,7 +256,14 @@ def _vision_rejected(detail: str) -> bool:
     lowered = detail.lower()
     return any(
         token in lowered
-        for token in ("image", "vision", "multimodal", "image_url", "unsupported content", "invalid content")
+        for token in (
+            "image",
+            "vision",
+            "multimodal",
+            "image_url",
+            "unsupported content",
+            "invalid content",
+        )
     )
 
 
@@ -276,7 +286,7 @@ _XML_TOOL_ARG_RE = re.compile(
 _XML_TOOL_MARKUP_RE = re.compile(r"</?(?:tool_call|arg_key|arg_value)\b[^>]*>", re.IGNORECASE)
 
 
-def _extract_text_tool_calls(content: str) -> tuple[str, list["ToolCall"]]:
+def _extract_text_tool_calls(content: str) -> tuple[str, list[ToolCall]]:
     """Pull inline `<functions.NAME>{json}</functions.NAME>` calls out of text content.
 
     Returns the cleaned content (with the markup removed) and any parsed tool calls.
@@ -299,7 +309,7 @@ def _extract_text_tool_calls(content: str) -> tuple[str, list["ToolCall"]]:
     return cleaned, calls
 
 
-def _extract_xml_tool_calls(content: str) -> tuple[str, list["ToolCall"]]:
+def _extract_xml_tool_calls(content: str) -> tuple[str, list[ToolCall]]:
     """Pull XML-ish `<tool_call>NAME<arg_key>...` calls from model text."""
     if "<tool_call" not in content.lower():
         return content, []
@@ -322,7 +332,9 @@ def _extract_xml_tool_calls(content: str) -> tuple[str, list["ToolCall"]]:
             except json.JSONDecodeError:
                 parsed = value
             arguments[key] = parsed
-        calls.append(ToolCall(id=f"xml_call_{index}", name=name_match.group(1), arguments=arguments))
+        calls.append(
+            ToolCall(id=f"xml_call_{index}", name=name_match.group(1), arguments=arguments)
+        )
     cleaned = _XML_TOOL_CALL_RE.sub("", content)
     cleaned = _XML_TOOL_MARKUP_RE.sub("", cleaned).strip()
     return cleaned, calls
@@ -350,7 +362,7 @@ def _consume_stream(
             line = raw_line.decode("utf-8", errors="replace").strip()
             if not line or not line.startswith("data:"):
                 continue
-            data = line[len("data:"):].strip()
+            data = line[len("data:") :].strip()
             if data == "[DONE]":
                 break
             try:
@@ -435,11 +447,13 @@ def _messages_to_response_input(messages: list[Message]) -> list[dict[str, Any]]
             continue
         role = str(message.get("role") or "")
         if role == "tool":
-            items.append({
-                "type": "function_call_output",
-                "call_id": str(message.get("tool_call_id") or ""),
-                "output": str(message.get("content") or ""),
-            })
+            items.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": str(message.get("tool_call_id") or ""),
+                    "output": str(message.get("content") or ""),
+                }
+            )
             continue
         content = message.get("content")
         if content not in (None, "", []):
@@ -449,12 +463,14 @@ def _messages_to_response_input(messages: list[Message]) -> list[dict[str, Any]]
                 if not isinstance(raw_call, dict):
                     continue
                 function = raw_call.get("function") or {}
-                items.append({
-                    "type": "function_call",
-                    "call_id": str(raw_call.get("id") or function.get("name") or ""),
-                    "name": str(function.get("name") or ""),
-                    "arguments": str(function.get("arguments") or "{}"),
-                })
+                items.append(
+                    {
+                        "type": "function_call",
+                        "call_id": str(raw_call.get("id") or function.get("name") or ""),
+                        "name": str(function.get("name") or ""),
+                        "arguments": str(function.get("arguments") or "{}"),
+                    }
+                )
     return items
 
 
@@ -464,13 +480,15 @@ def _responses_tools(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]]
         if tool.get("type") != "function" or not isinstance(tool.get("function"), dict):
             continue
         function = tool["function"]
-        converted.append({
-            "type": "function",
-            "name": str(function.get("name") or ""),
-            "description": str(function.get("description") or ""),
-            "parameters": function.get("parameters") or {"type": "object", "properties": {}},
-            "strict": bool(function.get("strict", False)),
-        })
+        converted.append(
+            {
+                "type": "function",
+                "name": str(function.get("name") or ""),
+                "description": str(function.get("description") or ""),
+                "parameters": function.get("parameters") or {"type": "object", "properties": {}},
+                "strict": bool(function.get("strict", False)),
+            }
+        )
     return converted
 
 
@@ -490,7 +508,7 @@ def _consume_responses_stream(
         line = raw_line.decode("utf-8", errors="replace").strip()
         if not line or not line.startswith("data:"):
             continue
-        data = line[len("data:"):].strip()
+        data = line[len("data:") :].strip()
         if data == "[DONE]":
             break
         try:
@@ -508,13 +526,16 @@ def _consume_responses_stream(
                 output_items[int(event.get("output_index", len(output_items)) or 0)] = item
         elif event_type == "response.function_call_arguments.delta":
             index = int(event.get("output_index", 0) or 0)
-            item = output_items.setdefault(index, {
-                "type": "function_call",
-                "id": event.get("item_id"),
-                "call_id": event.get("item_id"),
-                "name": "",
-                "arguments": "",
-            })
+            item = output_items.setdefault(
+                index,
+                {
+                    "type": "function_call",
+                    "id": event.get("item_id"),
+                    "call_id": event.get("item_id"),
+                    "name": "",
+                    "arguments": "",
+                },
+            )
             item["arguments"] = str(item.get("arguments") or "") + str(event.get("delta") or "")
         elif event_type == "response.function_call_arguments.done":
             index = int(event.get("output_index", 0) or 0)
@@ -522,8 +543,12 @@ def _consume_responses_stream(
             if isinstance(item, dict):
                 output_items[index] = item
             elif index in output_items:
-                output_items[index]["arguments"] = str(event.get("arguments") or output_items[index].get("arguments") or "")
-                output_items[index]["name"] = str(event.get("name") or output_items[index].get("name") or "")
+                output_items[index]["arguments"] = str(
+                    event.get("arguments") or output_items[index].get("arguments") or ""
+                )
+                output_items[index]["name"] = str(
+                    event.get("name") or output_items[index].get("name") or ""
+                )
         elif event_type == "response.completed":
             completed = event.get("response")
             if isinstance(completed, dict):
@@ -559,7 +584,11 @@ def _chat_response_from_responses(payload: dict[str, Any], fallback_model: str) 
         replay_items.append(item)
         if item.get("type") == "message":
             for part in item.get("content") or []:
-                if isinstance(part, dict) and part.get("type") == "output_text" and part.get("text"):
+                if (
+                    isinstance(part, dict)
+                    and part.get("type") == "output_text"
+                    and part.get("text")
+                ):
                     content_parts.append(str(part["text"]))
         elif item.get("type") == "function_call":
             call_id = str(item.get("call_id") or item.get("id") or item.get("name") or "")
@@ -572,11 +601,13 @@ def _chat_response_from_responses(payload: dict[str, Any], fallback_model: str) 
             if not isinstance(arguments, dict):
                 arguments = {}
             tool_calls.append(ToolCall(id=call_id, name=name, arguments=arguments))
-            chat_tool_calls.append({
-                "id": call_id,
-                "type": "function",
-                "function": {"name": name, "arguments": raw_arguments},
-            })
+            chat_tool_calls.append(
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {"name": name, "arguments": raw_arguments},
+                }
+            )
     content = "".join(content_parts).strip()
     message: dict[str, Any] = {
         "role": "assistant",
@@ -626,16 +657,26 @@ class OpenAiCompatibleProvider:
             if include_options:
                 effort = config.reasoning_effort.strip().lower()
                 if effort:
-                    is_openrouter = config.provider_key == "openrouter" or "openrouter.ai" in config.base_url.lower()
+                    is_openrouter = (
+                        config.provider_key == "openrouter"
+                        or "openrouter.ai" in config.base_url.lower()
+                    )
                     model_name = config.model.lower()
-                    is_adaptive_anthropic = is_openrouter and model_name.startswith("anthropic/") and any(
-                        token in model_name for token in ("fable", "mythos", "opus-4.6", "opus-4.7", "opus-4.8")
+                    is_adaptive_anthropic = (
+                        is_openrouter
+                        and model_name.startswith("anthropic/")
+                        and any(
+                            token in model_name
+                            for token in ("fable", "mythos", "opus-4.6", "opus-4.7", "opus-4.8")
+                        )
                     )
                     if is_adaptive_anthropic:
                         if effort != "none":
                             payload["verbosity"] = effort
                     elif is_openrouter:
-                        payload["reasoning"] = {"enabled": False} if effort == "none" else {"effort": effort}
+                        payload["reasoning"] = (
+                            {"enabled": False} if effort == "none" else {"effort": effort}
+                        )
                     else:
                         payload["reasoning_effort"] = effort
                 if config.service_tier.strip():
@@ -689,13 +730,19 @@ class OpenAiCompatibleProvider:
                     continue
                 if exc.code in (400, 404, 422) and tools and _tools_rejected(detail):
                     raise ToolsUnsupportedError(detail) from exc
-                if exc.code in (400, 404, 415, 422) and _has_image_content(messages) and _vision_rejected(detail):
+                if (
+                    exc.code in (400, 404, 415, 422)
+                    and _has_image_content(messages)
+                    and _vision_rejected(detail)
+                ):
                     raise VisionUnsupportedError(detail) from exc
                 raise ProviderHttpError(exc.code, detail) from exc
             except urllib.error.URLError as exc:
                 raise RuntimeError(f"Unable to reach LLM provider: {exc.reason}") from exc
         if response_payload is None:
-            raise RuntimeError("LLM provider rejected the request after adjusting unsupported parameters.")
+            raise RuntimeError(
+                "LLM provider rejected the request after adjusting unsupported parameters."
+            )
 
         choices = response_payload.get("choices") or []
         message = choices[0].get("message", {}) if choices else {}
@@ -720,7 +767,9 @@ class OpenAiCompatibleProvider:
                 arguments = raw_args
             else:
                 arguments = {}
-            tool_calls.append(ToolCall(id=str(raw_call.get("id") or name), name=name, arguments=arguments))
+            tool_calls.append(
+                ToolCall(id=str(raw_call.get("id") or name), name=name, arguments=arguments)
+            )
 
         # Fallback: some models emit tool calls as inline text instead of using the
         # structured `tool_calls` field. Parse those out so the agent loop can run
@@ -851,8 +900,10 @@ class OpenAiResponsesProvider:
             except urllib.error.HTTPError as exc:
                 detail = exc.read().decode("utf-8", errors="replace")
                 lowered = detail.lower()
-                if exc.code in (400, 422) and include_service_tier and (
-                    "service_tier" in lowered or "service tier" in lowered
+                if (
+                    exc.code in (400, 422)
+                    and include_service_tier
+                    and ("service_tier" in lowered or "service tier" in lowered)
                 ):
                     include_service_tier = False
                     continue
@@ -861,13 +912,19 @@ class OpenAiResponsesProvider:
                     continue
                 if exc.code in (400, 404, 422) and responses_tools and _tools_rejected(detail):
                     raise ToolsUnsupportedError(detail) from exc
-                if exc.code in (400, 404, 415, 422) and _has_image_content(messages) and _vision_rejected(detail):
+                if (
+                    exc.code in (400, 404, 415, 422)
+                    and _has_image_content(messages)
+                    and _vision_rejected(detail)
+                ):
                     raise VisionUnsupportedError(detail) from exc
                 raise ProviderHttpError(exc.code, detail) from exc
             except urllib.error.URLError as exc:
                 raise RuntimeError(f"Unable to reach OpenAI Responses API: {exc.reason}") from exc
         if response_payload is None:
-            raise RuntimeError("OpenAI Responses API rejected the request after adjusting unsupported parameters.")
+            raise RuntimeError(
+                "OpenAI Responses API rejected the request after adjusting unsupported parameters."
+            )
         return _chat_response_from_responses(response_payload, config.model)
 
     def generate(
@@ -893,7 +950,9 @@ _SUPPORTED_PROVIDERS = {"openai", "openai_compatible", "ollama", "lmstudio", "lm
 
 def _uses_openai_responses(config: LlmConfig) -> bool:
     model = config.model.strip().lower()
-    is_first_party_openai = config.provider_key == "openai" or "api.openai.com" in config.base_url.lower()
+    is_first_party_openai = (
+        config.provider_key == "openai" or "api.openai.com" in config.base_url.lower()
+    )
     return is_first_party_openai and (model.startswith("gpt-5.6") or model == "gpt-5.6")
 
 
@@ -908,8 +967,17 @@ def chat(
     provider = config.provider.strip().lower()
     if provider in _SUPPORTED_PROVIDERS:
         if _uses_openai_responses(config):
-            return OpenAiResponsesProvider().chat(messages, config, tools=tools, tool_choice=tool_choice, on_delta=on_delta, cancel=cancel)
-        return OpenAiCompatibleProvider().chat(messages, config, tools=tools, tool_choice=tool_choice, on_delta=on_delta, cancel=cancel)
+            return OpenAiResponsesProvider().chat(
+                messages,
+                config,
+                tools=tools,
+                tool_choice=tool_choice,
+                on_delta=on_delta,
+                cancel=cancel,
+            )
+        return OpenAiCompatibleProvider().chat(
+            messages, config, tools=tools, tool_choice=tool_choice, on_delta=on_delta, cancel=cancel
+        )
     raise ValueError(f"Unsupported LLM provider: {config.provider}")
 
 
@@ -951,7 +1019,9 @@ def list_models(config: LlmConfig) -> list[str]:
     if not config.base_url.strip():
         raise ValueError("LLM base URL is required")
     if config.auth_type == "oauth":
-        raise ValueError("OAuth LLM auth is not implemented yet; use a saved API key or environment variable.")
+        raise ValueError(
+            "OAuth LLM auth is not implemented yet; use a saved API key or environment variable."
+        )
 
     url = _models_url(config.base_url)
     headers = {"Accept": "application/json"}

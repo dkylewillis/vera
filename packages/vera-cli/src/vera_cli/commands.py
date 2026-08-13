@@ -4,10 +4,10 @@ import json
 import sys
 from pathlib import Path
 
-from vera.collection import build_library_index, library_index_status, update_library_index
-from vera.corpus import VeraCorpus
-from vera.document import VeraDocument
-from vera import UnknownEmbeddingModelError
+from vera_doc import UnknownEmbeddingModelError
+from vera_doc.collection import build_library_index, library_index_status, update_library_index
+from vera_doc.corpus import VeraCorpus
+from vera_doc.document import VeraDocument
 from vera_ingest import (
     UnknownIngestPipelineError,
     batch_convert,
@@ -15,9 +15,7 @@ from vera_ingest import (
 )
 from vera_ingest.viewer import (
     export_source_document,
-    figures_for,
     get_source_document,
-    regions_for,
     result_payload,
 )
 from vera_ingest_pymupdf import (
@@ -26,7 +24,6 @@ from vera_ingest_pymupdf import (
     describe_ocr_languages,
     download_ocr_language_data,
 )
-
 
 _TRUE_TOKENS = {"1", "true", "yes", "y", "on"}
 _FALSE_TOKENS = {"0", "false", "no", "n", "off", ""}
@@ -173,10 +170,7 @@ def cmd_inspect(args) -> int:
         print(f"Chunks: {info.get('chunks')}")
         print(f"Embedding model: {info.get('default_embedding_model')}")
         print(f"Embedding dimensions: {info.get('default_embedding_dimension')}")
-        print(
-            "Embedding normalization: "
-            f"{info.get('default_embedding_normalization', 'unknown')}"
-        )
+        print(f"Embedding normalization: {info.get('default_embedding_normalization', 'unknown')}")
         print(f"Parser: {info.get('parser_name')}")
         print(f"Created: {info.get('created_at')}")
     finally:
@@ -204,12 +198,12 @@ def cmd_search(args) -> int:
         if args.json:
             payload = []
             for result in results:
-                entry = result_payload(result)
-                document = _document_for(target, result)
-                if args.figures:
-                    entry["figures"] = figures_for(document, result)
-                if args.regions:
-                    entry["regions"] = regions_for(document, result)
+                entry = result_payload(
+                    result,
+                    document=_document_for(target, result),
+                    include_figures=args.figures,
+                    include_regions=args.regions,
+                )
                 payload.append(entry)
             response = {"query": args.query, "mode": args.mode, "results": payload}
             if isinstance(target, VeraCorpus):
@@ -231,17 +225,19 @@ def cmd_search(args) -> int:
                     f"{group['error']}"
                 )
         for result in results:
-            metadata = result.record.metadata
             print(f"Score: {result.score:.4f}")
             file = getattr(result, "file", None)
             if file:
                 print(f"File: {file}")
-            print(f"Source: {metadata.get('source_filename')}")
-            page_start = metadata.get("page_start")
-            page_end = metadata.get("page_end")
-            page = page_start if page_start == page_end else f"{page_start}-{page_end}"
+            citation = result.citation
+            print(f"Source: {citation.source_filename}")
+            page = (
+                citation.page_start
+                if citation.page_start == citation.page_end
+                else f"{citation.page_start}-{citation.page_end}"
+            )
             print(f"Page: {page}")
-            print(f"Heading: {metadata.get('heading_path') or ''}")
+            print(f"Heading: {citation.heading_path or ''}")
             print()
             print(result.record.text)
             print("-" * 72)
@@ -317,7 +313,9 @@ def cmd_validate(args) -> int:
     print(f"Embeddings: {counts['embeddings']}")
     print(f"Attachments: {counts['attachments']}")
     print(f"FTS rows: {counts['fts_rows']}")
-    print(f"Original document: {'present' if report['checks']['original_document_present'] else 'missing'}")
+    print(
+        f"Original document: {'present' if report['checks']['original_document_present'] else 'missing'}"
+    )
     print(f"Issues: {len(report['issues'])}")
     for issue in report["issues"]:
         print(f"- {issue}")
@@ -339,7 +337,17 @@ def cmd_export(args) -> int:
     finally:
         doc.close()
     if args.json:
-        print(json.dumps({"ok": True, "output": path, "filename": source.filename, "mime_type": source.media_type, "hash": source.checksum}))
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "output": path,
+                    "filename": source.filename,
+                    "mime_type": source.media_type,
+                    "hash": source.checksum,
+                }
+            )
+        )
     else:
         print(f"Exported {path}")
     return 0
@@ -386,7 +394,16 @@ def cmd_ocr_languages_download(args) -> int:
         print(file=sys.stderr)  # newline after the last progress line
     downloaded = [part.strip() for part in args.language.split("+") if part.strip()]
     if args.json:
-        print(json.dumps({"ok": True, "language": args.language, "downloaded": downloaded, "cache_dir": cache_dir}))
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "language": args.language,
+                    "downloaded": downloaded,
+                    "cache_dir": cache_dir,
+                }
+            )
+        )
     else:
         print(f"Downloaded {', '.join(downloaded)} into {cache_dir}")
     return 0
@@ -409,5 +426,7 @@ def cmd_eval(args) -> int:
             status = f"HIT rank={entry['rank']}" if entry["hit"] else "MISS"
             note = f"  # {entry['note']}" if entry["note"] else ""
             print(f"  [{status:>10}] {entry['query']}{note}")
-        print(f"  Hits: {report['hits']}/{report['total']} ({report['hit_rate']:.0%})  MRR: {report['mrr']:.3f}")
+        print(
+            f"  Hits: {report['hits']}/{report['total']} ({report['hit_rate']:.0%})  MRR: {report['mrr']:.3f}"
+        )
     return 0 if all_ok else 1

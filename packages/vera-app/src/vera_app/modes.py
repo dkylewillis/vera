@@ -8,7 +8,7 @@ files into a user modes directory (user files win on name collisions).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -103,7 +103,7 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
         if not sep:
             continue
         meta[key.strip().lower()] = value.strip().strip('"').strip("'")
-    body = "\n".join(lines[closing + 1:]).strip()
+    body = "\n".join(lines[closing + 1 :]).strip()
     return meta, body
 
 

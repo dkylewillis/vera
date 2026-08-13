@@ -3,13 +3,14 @@
 This is an automatically generated API reference of VERA record and result
 types.
 
-::: vera.models
+::: vera_doc.models
     handler: python
     options:
       members:
         - ChunkRecord
         - AttachmentRecord
         - AttachmentRef
+        - Citation
         - QueryResult
       show_if_no_docstring: true
       show_submodules: true

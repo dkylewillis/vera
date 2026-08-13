@@ -7,6 +7,7 @@ from collections import defaultdict
 from typing import Any
 
 from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
+
 from vera_ingest.types import IngestBlock, IngestChunk, ParsedPage
 
 from .options import DoclingOptions
@@ -273,9 +274,7 @@ def map_docling_document(document: Any) -> tuple[list[ParsedPage], list[IngestBl
         )
 
     pages: list[ParsedPage] = []
-    page_numbers = sorted(
-        set(getattr(document, "pages", {}).keys()) | set(page_texts.keys())
-    )
+    page_numbers = sorted(set(getattr(document, "pages", {}).keys()) | set(page_texts.keys()))
     if not page_numbers:
         page_numbers = [1]
     for page_no in page_numbers:

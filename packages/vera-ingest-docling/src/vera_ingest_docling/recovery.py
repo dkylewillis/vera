@@ -353,8 +353,7 @@ def _whole_document_pypdfium2_fallback(
             except ValueError as exc:
                 raise exc from cause
         _raise_from(
-            "Docling conversion failed and the pypdfium2 whole-document "
-            "fallback also failed.",
+            "Docling conversion failed and the pypdfium2 whole-document fallback also failed.",
             cause,
         )
     assert result is not None
@@ -415,11 +414,7 @@ def _resolve_conversion(
     failed_pages: list[int] = _failed_page_numbers(conversion) if conversion is not None else []
     has_memory = conversion is not None and _result_has_memory_errors(conversion)
     status = getattr(conversion, "status", None) if conversion is not None else None
-    can_recover = (
-        status == ConversionStatus.PARTIAL_SUCCESS
-        and bool(failed_pages)
-        and has_memory
-    )
+    can_recover = status == ConversionStatus.PARTIAL_SUCCESS and bool(failed_pages) and has_memory
 
     need_whole_fallback = primary_raised
     if has_memory and not can_recover:
@@ -466,11 +461,7 @@ def _resolve_conversion(
     pages, blocks = map_docling_document(document)
     failed_set = set(failed_pages)
     all_chunks = _chunk_document(document, blocks, config)
-    chunks = [
-        chunk
-        for chunk in all_chunks
-        if not _chunk_overlaps_pages(chunk, failed_set)
-    ]
+    chunks = [chunk for chunk in all_chunks if not _chunk_overlaps_pages(chunk, failed_set)]
     # Also drop blocks/pages for failed pages so recovered content replaces them.
     pages = [page for page in pages if page.page_number not in failed_set]
     blocks = [block for block in blocks if block.page_number not in failed_set]
@@ -482,9 +473,7 @@ def _resolve_conversion(
         if recovered is None:
             unrecoverable.append(page_no)
             continue
-        pages, blocks, chunks = _merge_recovered_page(
-            pages, blocks, chunks, page_no, recovered
-        )
+        pages, blocks, chunks = _merge_recovered_page(pages, blocks, chunks, page_no, recovered)
         recovered_pages.append(page_no)
         recovered_pages_backend[page_no] = backend_used
 

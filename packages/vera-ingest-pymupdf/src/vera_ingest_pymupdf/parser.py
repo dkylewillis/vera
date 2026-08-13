@@ -203,7 +203,9 @@ def _collect_raw_blocks(
             bbox = tuple(float(v) for v in block.get("bbox", (0, 0, 0, 0)))
             if block.get("type") == 1:
                 page_raw.append(
-                    _RawBlock(idx, "", bbox, 0.0, False, 0, block.get("image"), block.get("ext", "png"))
+                    _RawBlock(
+                        idx, "", bbox, 0.0, False, 0, block.get("image"), block.get("ext", "png")
+                    )
                 )
         for block in text_layout.get("blocks", []):
             if block.get("type") == 1:
@@ -238,7 +240,11 @@ def _collect_raw_blocks(
                         gap = span_x0 - prev_x1
                         prev_ends_space = line_parts[-1][-1:].isspace()
                         starts_space = text[:1].isspace()
-                        if not prev_ends_space and not starts_space and gap > max(1.0, 0.2 * span_size):
+                        if (
+                            not prev_ends_space
+                            and not starts_space
+                            and gap > max(1.0, 0.2 * span_size)
+                        ):
                             line_parts.append(" ")
                     line_parts.append(text)
                     prev_x1 = span_x1
@@ -344,9 +350,7 @@ def parse_pdf_structured(
             return True
         return block.bold and block.dominant_size >= body_size and len(block.text) < 120
 
-    heading_sizes = sorted(
-        {b.dominant_size for b in raw if b.text and is_heading(b)}, reverse=True
-    )
+    heading_sizes = sorted({b.dominant_size for b in raw if b.text and is_heading(b)}, reverse=True)
     size_to_level = {size: min(idx + 1, 6) for idx, size in enumerate(heading_sizes)}
 
     blocks: list[ParsedBlock] = []
@@ -535,7 +539,10 @@ def _merge_tables_into_blocks(
             kept.append(block)
             continue
         overlaps = table_bboxes_by_page.get(block.page_number, [])
-        if any(_overlap_fraction(block.bbox, table_bbox) >= overlap_threshold for table_bbox in overlaps):
+        if any(
+            _overlap_fraction(block.bbox, table_bbox) >= overlap_threshold
+            for table_bbox in overlaps
+        ):
             continue
         kept.append(block)
 
@@ -550,11 +557,15 @@ def _merge_tables_into_blocks(
     ]
 
     merged = kept + table_blocks
-    merged.sort(key=lambda block: (block.page_number, block.bbox[1] if block.bbox else float("inf")))
+    merged.sort(
+        key=lambda block: (block.page_number, block.bbox[1] if block.bbox else float("inf"))
+    )
     return merged
 
 
-def _vertical_gap(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
+def _vertical_gap(
+    a: tuple[float, float, float, float], b: tuple[float, float, float, float]
+) -> float:
     """Vertical distance between two bboxes (0 when they overlap vertically)."""
     if a[3] < b[1]:
         return b[1] - a[3]

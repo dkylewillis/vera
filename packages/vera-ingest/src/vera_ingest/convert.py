@@ -11,7 +11,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from vera import (
+from vera_doc import (
     AttachmentRecord,
     AttachmentRef,
     ChunkRecord,
@@ -19,7 +19,7 @@ from vera import (
     VeraDocument,
     get_embedder,
 )
-from vera.core.validation import validate_document
+from vera_doc.validation import validate_document
 
 from .cancellation import clear_user_skip, is_user_skip_error, raise_if_cancelled
 from .pipeline import (
@@ -178,7 +178,7 @@ def convert(
     """Convert a PDF into a validated ``.vera`` archive.
 
     Parses the PDF, chunks extracted text, embeds chunks, and writes the
-    result through :class:`~vera.document.VeraDocument`. The archive is
+    result through :class:`~vera_doc.document.VeraDocument`. The archive is
     validated before the temporary file is published atomically.
 
     New callers should pass ``parser``, ``pipeline_options``, and embedder
@@ -283,8 +283,7 @@ def convert(
     chunks = ingest_result.chunks
     if not chunks:
         raise ValueError(
-            "No searchable text or chunks were extracted; "
-            "the PDF may be scanned and requires OCR."
+            "No searchable text or chunks were extracted; the PDF may be scanned and requires OCR."
         )
     raise_if_cancelled(settings.cancel)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -298,10 +297,7 @@ def convert(
     temporary.unlink()
     document: VeraDocument | None = None
     try:
-        page_dimensions = {
-            page.page_number: (page.width, page.height)
-            for page in pages
-        }
+        page_dimensions = {page.page_number: (page.width, page.height) for page in pages}
         page_payload = [
             {
                 "page_number": page.page_number,
@@ -388,9 +384,7 @@ def convert(
             "source_attachment_id": source_attachment_id,
         }
         contextualized_indices = [
-            index
-            for index, chunk in enumerate(chunks)
-            if chunk.embedding_text is not None
+            index for index, chunk in enumerate(chunks) if chunk.embedding_text is not None
         ]
         contextualized_vectors: dict[int, Any] = {}
         if contextualized_indices:
@@ -434,13 +428,9 @@ def convert(
                         )
                 image_attachment_id = image_attachment_by_block.get(block_id)
                 if image_attachment_id:
-                    references.append(
-                        AttachmentRef(image_attachment_id, role="figure")
-                    )
+                    references.append(AttachmentRef(image_attachment_id, role="figure"))
             if source_attachment_id:
-                references.append(
-                    AttachmentRef(source_attachment_id, role="source")
-                )
+                references.append(AttachmentRef(source_attachment_id, role="source"))
             records.append(
                 ChunkRecord(
                     id=chunk.chunk_id,
@@ -523,9 +513,7 @@ def _resolve_batch_pdfs(
         for current, directories, filenames in os.walk(root, followlinks=False):
             raise_if_cancelled(cancel)
             directories[:] = sorted(
-                name
-                for name in directories
-                if not (Path(current) / name).is_symlink()
+                name for name in directories if not (Path(current) / name).is_symlink()
             )
             pdfs.extend(
                 Path(current) / name
@@ -535,9 +523,7 @@ def _resolve_batch_pdfs(
     else:
         raise_if_cancelled(cancel)
         pdfs = sorted(
-            path
-            for path in root.iterdir()
-            if path.is_file() and path.suffix.lower() == ".pdf"
+            path for path in root.iterdir() if path.is_file() and path.suffix.lower() == ".pdf"
         )
     return root, pdfs
 

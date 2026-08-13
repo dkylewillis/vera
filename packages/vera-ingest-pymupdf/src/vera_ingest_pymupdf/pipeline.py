@@ -58,10 +58,7 @@ def pymupdf_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
         cancel=request.cancel,
     )
     block_records = _drop_repeated_images(
-        [
-            (f"block_{index:06d}", block)
-            for index, block in enumerate(parsed_blocks, start=1)
-        ]
+        [(f"block_{index:06d}", block) for index, block in enumerate(parsed_blocks, start=1)]
     )
     chunks = build_chunks_from_blocks(
         block_records,
@@ -97,8 +94,6 @@ def pymupdf_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
         ],
         parser_name="pymupdf",
         parser_version=_pymupdf_version(),
-        chunking_strategy=(
-            f"heading_block_sliding_window:{config.chunk_size}:{config.overlap}"
-        ),
+        chunking_strategy=(f"heading_block_sliding_window:{config.chunk_size}:{config.overlap}"),
         diagnostics=diagnostics,
     )
