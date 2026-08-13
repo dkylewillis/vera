@@ -1,7 +1,46 @@
 import type { AppSettings, Session, StreamEvent } from '../src/shared/contracts.js';
-import { IPC_CHANNELS } from '../src/shared/protocol.js';
+import type { IPC_CHANNELS as IpcChannels } from '../src/shared/protocol.js';
 
 const { contextBridge, ipcRenderer } = require('electron');
+
+/**
+ * Duplicated from protocol.ts's IPC_CHANNELS (kept in sync by
+ * protocol-contract.test.ts) rather than imported. Electron's sandboxed
+ * preload uses its own restricted `require`, which cannot load protocol.ts's
+ * compiled ES module output, or resolve a sibling JSON/CommonJS file by
+ * relative path; only this preload script's own bundle is available.
+ */
+const IPC_CHANNELS: typeof IpcChannels = {
+  showMenu: 'vera:showMenu',
+  request: 'vera:request',
+  cancelAnswer: 'vera:cancelAnswer',
+  cancelRequest: 'vera:cancelRequest',
+  skipConversion: 'vera:skipConversion',
+  getSettings: 'vera:getSettings',
+  saveSettings: 'vera:saveSettings',
+  saveApiKey: 'vera:saveApiKey',
+  clearApiKey: 'vera:clearApiKey',
+  saveHfToken: 'vera:saveHfToken',
+  clearHfToken: 'vera:clearHfToken',
+  getSessions: 'vera:getSessions',
+  saveSession: 'vera:saveSession',
+  deleteSession: 'vera:deleteSession',
+  listModes: 'vera:listModes',
+  openModesFolder: 'vera:openModesFolder',
+  pickArchive: 'vera:pickArchive',
+  pickFolder: 'vera:pickFolder',
+  listFolder: 'vera:listFolder',
+  pathExists: 'vera:pathExists',
+  showInFolder: 'vera:showInFolder',
+  trashWorkspaceFile: 'vera:trashWorkspaceFile',
+  setWatchedFolders: 'vera:setWatchedFolders',
+  pickPdf: 'vera:pickPdf',
+  saveAny: 'vera:saveAny',
+  openTarget: 'vera:openTarget',
+  openSettings: 'vera:openSettings',
+  folderChanged: 'vera:folderChanged',
+  answerEvent: 'vera:answerEvent',
+};
 
 contextBridge.exposeInMainWorld('vera', {
   platform: process.platform,

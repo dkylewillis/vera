@@ -92,7 +92,16 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   test that TypeScript `StreamEvent` names match sidecar emissions.
 - Split the renderer shell into `AppShell`, `ExplorerSidebar`, `ChatsSidebar`,
   `CenterChatView`, and `CenterSearchView`.
-- `npm run app:dev` uses `npm` instead of Windows-only `npm.cmd`.
+- `npm run app:dev` runs through `scripts/app-dev.js`, which picks `npm.cmd`
+  on Windows and `npm` elsewhere before handing off to `uv run`, since `uv`
+  does not resolve Windows shims on its own
+  ([astral-sh/uv#8770](https://github.com/astral-sh/uv/issues/8770)).
+- Fixed a blank-window crash on every launch: the sandboxed preload script's
+  restricted `require` cannot load `protocol.ts`'s compiled ES module output
+  (or a sibling JSON/CommonJS file by relative path), so `IPC_CHANNELS` threw
+  before `contextBridge.exposeInMainWorld` ran and the unhandled renderer
+  error left `window.vera` undefined. `preload.cts` now duplicates the
+  channel map inline, guarded by a contract test against drift.
 
 ### Senior-review fixes
 
