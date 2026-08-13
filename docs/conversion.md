@@ -197,7 +197,7 @@ The plugin's embedder must record the full spec (for example,
 load the matching provider. See
 [Creating an embedding provider plugin](creating-an-embedding-provider.md)
 for the Options + descriptor authoring model and the
-[OpenAI plugin example](../packages/vera-doc/README.md#openai-embedding-plugin-example)
+[OpenAI plugin example](https://github.com/dkylewillis/vera/blob/main/packages/vera-doc/README.md#openai-embedding-plugin-example)
 for a complete entry-point sketch.
 
 Claude is an LLM rather than an embedding provider: Anthropic's Claude API has

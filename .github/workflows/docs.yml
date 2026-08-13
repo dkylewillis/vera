@@ -2,9 +2,8 @@ name: Docs
 
 on:
   push:
-    branches: [main]
+    branches: [main, v0.3]
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -13,7 +12,9 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  # Keyed by ref so a build on another branch cannot cancel a Pages deploy from
+  # main; deploys still serialize because only main reaches the deploy job.
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
