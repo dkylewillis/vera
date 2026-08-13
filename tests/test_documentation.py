@@ -31,6 +31,28 @@ def test_local_documentation_links_resolve():
             assert path.exists(), f"{document.relative_to(ROOT)} links to missing {raw_target}"
 
 
+def test_site_pages_only_link_relatively_within_the_docs_tree():
+    """MkDocs resolves relative links against the pages it builds, not the repo.
+
+    A link such as ``../CHANGELOG.md`` exists on disk, so
+    ``test_local_documentation_links_resolve`` accepts it, but
+    ``mkdocs build --strict`` fails it. Repo files outside ``docs/`` have to be
+    linked by URL.
+    """
+    link_pattern = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
+    for document in DOCS.rglob("*.md"):
+        text = document.read_text(encoding="utf-8")
+        for raw_target in link_pattern.findall(text):
+            target = raw_target.split("#", 1)[0].strip()
+            if not target or "://" in target or target.startswith("mailto:"):
+                continue
+            path = (document.parent / unquote(target)).resolve()
+            assert path.is_relative_to(DOCS), (
+                f"{document.relative_to(ROOT)} links to {raw_target}, which is outside "
+                "docs/; mkdocs --strict cannot resolve it, so use a full URL"
+            )
+
+
 def test_documentation_index_lists_user_guides():
     index = (DOCS / "user-documentation.md").read_text(encoding="utf-8")
     guides = {
