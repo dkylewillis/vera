@@ -7,6 +7,7 @@ import os
 import sqlite3
 import tempfile
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,7 @@ from vera import (
 )
 from vera.core.validation import validate_document
 
+from .cancellation import raise_if_cancelled
 from .pipeline import (
     get_ingest_pipeline,
     invoke_ingest_pipeline,
@@ -60,14 +62,59 @@ def _stored_source_file_hash(path: Path) -> str | None:
     return digest or None
 
 
-def _raise_if_cancelled(cancel: Any | None) -> None:
-    if cancel is None:
-        return
-    interrupted = getattr(cancel, "raise_if_interrupted", None)
-    if callable(interrupted):
-        interrupted()
-        return
-    cancel.raise_if_cancelled()
+@dataclass(frozen=True)
+class _ConvertSettings:
+    """Internal convert/batch_convert settings; not part of the public API."""
+
+    model: str = "hashing"
+    embedding_function: EmbeddingFunction | None = None
+    parser: str = "pymupdf"
+    chunk_size: int = 500
+    overlap: int = 75
+    store_original: bool = True
+    ocr_mode: str = "auto"
+    ocr_language: str = "eng"
+    ocr_dpi: int = 300
+    ocr_download: bool = False
+    pipeline_options: dict[str, Any] | None = None
+    embedder_options: dict[str, Any] | None = None
+    cancel: Any | None = None
+
+    def resolve_embedder(self) -> EmbeddingFunction:
+        if self.embedding_function is not None:
+            return self.embedding_function
+        return get_embedder(self.model, embedder_options=self.embedder_options)
+
+    def resolve_pipeline_options(self) -> dict[str, Any]:
+        return prepare_pipeline_options(
+            spec=self.parser,
+            pipeline_options=self.pipeline_options,
+            legacy_options={
+                "chunk_size": self.chunk_size,
+                "overlap": self.overlap,
+                "ocr_mode": self.ocr_mode,
+                "ocr_language": self.ocr_language,
+                "ocr_dpi": self.ocr_dpi,
+                "ocr_download": self.ocr_download,
+            },
+        )
+
+    def as_convert_kwargs(self) -> dict[str, Any]:
+        return {
+            "model": self.model,
+            "embedding_function": self.embedding_function,
+            "parser": self.parser,
+            "chunk_size": self.chunk_size,
+            "overlap": self.overlap,
+            "store_original": self.store_original,
+            "ocr_mode": self.ocr_mode,
+            "ocr_language": self.ocr_language,
+            "ocr_dpi": self.ocr_dpi,
+            "ocr_download": self.ocr_download,
+            "pipeline_options": self.pipeline_options,
+            "embedder_options": self.embedder_options,
+            "cancel": self.cancel,
+        }
 
 
 def _consume_user_skip(cancel: Any | None, exc: BaseException) -> bool:
@@ -183,27 +230,27 @@ def convert(
     if not source.exists():
         raise FileNotFoundError(input_path)
 
-    _, pipeline_variant = parse_ingest_pipeline_spec(parser)
-    pipeline = get_ingest_pipeline(parser)
-    embedder = (
-        embedding_function
-        if embedding_function is not None
-        else get_embedder(model, embedder_options=embedder_options)
-    )
-    resolved_options = prepare_pipeline_options(
-        spec=parser,
+    settings = _ConvertSettings(
+        model=model,
+        embedding_function=embedding_function,
+        parser=parser,
+        chunk_size=chunk_size,
+        overlap=overlap,
+        store_original=store_original,
+        ocr_mode=ocr_mode,
+        ocr_language=ocr_language,
+        ocr_dpi=ocr_dpi,
+        ocr_download=ocr_download,
         pipeline_options=pipeline_options,
-        legacy_options={
-            "chunk_size": chunk_size,
-            "overlap": overlap,
-            "ocr_mode": ocr_mode,
-            "ocr_language": ocr_language,
-            "ocr_dpi": ocr_dpi,
-            "ocr_download": ocr_download,
-        },
+        embedder_options=embedder_options,
+        cancel=cancel,
     )
+    _, pipeline_variant = parse_ingest_pipeline_spec(settings.parser)
+    pipeline = get_ingest_pipeline(settings.parser)
+    embedder = settings.resolve_embedder()
+    resolved_options = settings.resolve_pipeline_options()
 
-    _raise_if_cancelled(cancel)
+    raise_if_cancelled(settings.cancel)
     source_data = source.read_bytes()
     source_hash = _sha256_bytes(source_data)
     mime_type = mimetypes.guess_type(source.name)[0] or "application/pdf"
@@ -212,11 +259,11 @@ def convert(
         str(source),
         IngestRequest(
             variant=pipeline_variant,
-            cancel=cancel,
+            cancel=settings.cancel,
             pipeline_options=resolved_options,
         ),
     )
-    _raise_if_cancelled(cancel)
+    raise_if_cancelled(settings.cancel)
     _validate_ingest_result(ingest_result)
     pages = ingest_result.pages
     block_records: list[tuple[str, IngestBlock]] = [
@@ -228,7 +275,7 @@ def convert(
             "No searchable text or chunks were extracted; "
             "the PDF may be scanned and requires OCR."
         )
-    _raise_if_cancelled(cancel)
+    raise_if_cancelled(settings.cancel)
     target.parent.mkdir(parents=True, exist_ok=True)
     file_descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{target.name}.",
@@ -303,7 +350,7 @@ def convert(
                 )
             )
         source_attachment_id: str | None = None
-        if store_original:
+        if settings.store_original:
             source_attachment_id = "source_original"
             attachments.append(
                 AttachmentRecord(
@@ -340,7 +387,7 @@ def convert(
                 [chunks[index].embedding_text or "" for index in contextualized_indices]
             )
             contextualized_vectors = dict(zip(contextualized_indices, vectors))
-            _raise_if_cancelled(cancel)
+            raise_if_cancelled(settings.cancel)
         records: list[ChunkRecord] = []
         for index, chunk in enumerate(chunks):
             regions = []
@@ -412,7 +459,7 @@ def convert(
             document.add(records)
         document.close()
         document = None
-        _raise_if_cancelled(cancel)
+        raise_if_cancelled(settings.cancel)
 
         validation = _validate_output(temporary)
         if not validation["ok"]:
@@ -440,7 +487,7 @@ def _resolve_batch_pdfs(
             raise ValueError("paths must not be empty when provided")
         pdfs: list[Path] = []
         for raw in paths:
-            _raise_if_cancelled(cancel)
+            raise_if_cancelled(cancel)
             path = Path(raw).expanduser().resolve()
             if not path.is_file():
                 raise FileNotFoundError(f"PDF not found: {path}")
@@ -463,7 +510,7 @@ def _resolve_batch_pdfs(
     pdfs = []
     if recursive:
         for current, directories, filenames in os.walk(root, followlinks=False):
-            _raise_if_cancelled(cancel)
+            raise_if_cancelled(cancel)
             directories[:] = sorted(
                 name
                 for name in directories
@@ -475,7 +522,7 @@ def _resolve_batch_pdfs(
                 if Path(name).suffix.lower() == ".pdf"
             )
     else:
-        _raise_if_cancelled(cancel)
+        raise_if_cancelled(cancel)
         pdfs = sorted(
             path
             for path in root.iterdir()
@@ -546,19 +593,31 @@ def batch_convert(
         ValueError: When neither ``directory`` nor ``paths`` is usable.
         UnknownEmbeddingModelError: When ``model`` cannot be resolved.
     """
-    # Resolve once up front so bad providers fail before discovery or PDF work.
-    get_ingest_pipeline(parser)
-    embedder = (
-        embedding_function
-        if embedding_function is not None
-        else get_embedder(model, embedder_options=embedder_options)
+    settings = _ConvertSettings(
+        model=model,
+        embedding_function=embedding_function,
+        parser=parser,
+        chunk_size=chunk_size,
+        overlap=overlap,
+        store_original=store_original,
+        ocr_mode=ocr_mode,
+        ocr_language=ocr_language,
+        ocr_dpi=ocr_dpi,
+        ocr_download=ocr_download,
+        pipeline_options=pipeline_options,
+        embedder_options=embedder_options,
+        cancel=cancel,
     )
+    # Resolve once up front so bad providers fail before discovery or PDF work.
+    get_ingest_pipeline(settings.parser)
+    embedder = settings.resolve_embedder()
+    file_settings = replace(settings, embedding_function=embedder)
 
     root, pdfs = _resolve_batch_pdfs(
         directory,
         paths=paths,
         recursive=recursive,
-        cancel=cancel,
+        cancel=settings.cancel,
     )
 
     outputs: list[str] = []
@@ -571,7 +630,7 @@ def batch_convert(
         progress(0, 0, "")
     for index, pdf in enumerate(pdfs):
         try:
-            _raise_if_cancelled(cancel)
+            raise_if_cancelled(settings.cancel)
             if progress:
                 # completed = files finished so far; input = file about to convert
                 progress(index, total, str(pdf))
@@ -596,23 +655,13 @@ def batch_convert(
                 convert(
                     str(pdf),
                     str(output),
-                    embedding_function=embedder,
-                    parser=parser,
-                    chunk_size=chunk_size,
-                    overlap=overlap,
-                    store_original=store_original,
-                    ocr_mode=ocr_mode,
-                    ocr_language=ocr_language,
-                    ocr_dpi=ocr_dpi,
-                    ocr_download=ocr_download,
-                    pipeline_options=pipeline_options,
-                    cancel=cancel,
+                    **file_settings.as_convert_kwargs(),
                 )
             )
         except Exception as exc:
-            if cancel is not None and getattr(cancel, "cancelled", False):
+            if settings.cancel is not None and getattr(settings.cancel, "cancelled", False):
                 raise
-            if _consume_user_skip(cancel, exc):
+            if _consume_user_skip(settings.cancel, exc):
                 skipped_by_user.append(str(pdf))
                 continue
             errors.append({"input": str(pdf), "error": str(exc)})

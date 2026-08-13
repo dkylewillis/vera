@@ -5,6 +5,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
+from vera_ingest.cancellation import raise_if_cancelled
 from vera_ingest.pipeline import UnknownIngestPipelineError
 from vera_ingest.types import IngestRequest, IngestResult, ensure_ingest_request
 
@@ -12,7 +13,7 @@ from . import converter as _converter
 from .converter import _build_converter, _split_ocr_languages
 from .mapping import WhitespaceTokenizer, map_docling_document
 from .options import DoclingOptions
-from .recovery import _raise_if_cancelled, _resolve_conversion
+from .recovery import _resolve_conversion
 
 # Compatibility re-exports: tests import these from this module.
 __all__ = [
@@ -82,7 +83,7 @@ class DoclingHybridPipeline:
                 f"Unknown Docling pipeline variant {request.variant!r}; use 'docling' or 'docling:hybrid'."
             )
         config = DoclingOptions.from_mapping(request.pipeline_options)
-        _raise_if_cancelled(request.cancel)
+        raise_if_cancelled(request.cancel)
 
         recovered_pages: list[int] = []
         recovered_pages_backend: dict[int, str] = {}
@@ -95,13 +96,13 @@ class DoclingHybridPipeline:
         primary_raised = False
         try:
             converter = _converter._build_converter(config, backend=primary_backend)
-            _raise_if_cancelled(request.cancel)
+            raise_if_cancelled(request.cancel)
             conversion = converter.convert(source=source_path)
         except Exception:  # noqa: BLE001 - Docling may raise on hard native crashes
             primary_raised = True
             conversion = None
 
-        _raise_if_cancelled(request.cancel)
+        raise_if_cancelled(request.cancel)
         mapped = _resolve_conversion(
             source_path=source_path,
             config=config,

@@ -19,7 +19,7 @@ import {
   visibleExplorerEntries,
   type ExplorerFileFilter,
 } from '../lib/explorer';
-import { showInFolderLabel, type ExplorerSelection } from '../lib/formatting';
+import { fileName, showInFolderLabel, type ExplorerSelection } from '../lib/formatting';
 import type {
   FolderEntry,
   LibraryIndexBuildReport,
@@ -29,10 +29,6 @@ import type {
 
 type FolderContextMenu = { path: string; x: number; y: number };
 type EntryContextMenu = { entry: FolderEntry; folderPath: string; x: number; y: number };
-
-function fileName(filePath: string): string {
-  return filePath.split(/[\\/]/).pop() || filePath;
-}
 
 export type ExplorerFileSelection = {
   selectedFiles: string[];

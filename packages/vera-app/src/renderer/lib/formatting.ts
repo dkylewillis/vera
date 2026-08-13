@@ -1,5 +1,28 @@
 import type { SourceDocumentResult } from '../types';
 
+export function fileName(filePath: string): string {
+  return filePath.split(/[\\/]/).pop() || filePath;
+}
+
+export function formatBytes(value?: number | null): string {
+  if (value === undefined || value === null) return '-';
+  if (value < 1024) return `${value} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let amount = value / 1024;
+  let unit = units[0];
+  for (let index = 1; index < units.length && amount >= 1024; index += 1) {
+    amount /= 1024;
+    unit = units[index];
+  }
+  return `${amount >= 10 ? amount.toFixed(1) : amount.toFixed(2)} ${unit}`;
+}
+
+export function formatTimestamp(value?: string | null): string {
+  if (!value) return '-';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+}
+
 export function formatPages(start: number | null, end: number | null): string {
   if (start === null && end === null) return '-';
   if (start === end || end === null) return String(start);

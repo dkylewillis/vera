@@ -40,12 +40,16 @@ import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { ModelManager, ProviderManager } from './components/ProviderManagers';
 import { mergePipelineFieldValues } from './components/PipelineConfigForm';
 import { VeraIcon } from './components/VeraIcon';
+import { useAppBootstrap } from './hooks/useAppBootstrap';
+import { useSidecarCall } from './hooks/useSidecarCall';
+import { useWorkspaceFolders } from './hooks/useWorkspaceFolders';
 import { firstCitationInAnswer } from './lib/citations';
 import { backgroundTasksReducer, type BackgroundTask } from './lib/backgroundTasks';
 import { EMPTY_FIGURES, EMPTY_REGIONS } from './lib/constants';
 import { awaitConversionRequest } from './lib/conversion';
 import {
   convertDefaultsFromSelection,
+  fileName,
   formatBox,
   formatPages,
   isPathInsideFolder,
@@ -54,6 +58,7 @@ import {
   siblingPdfPath,
   type ExplorerSelection,
 } from './lib/formatting';
+import { INDEX_STATUSES_STORAGE_KEY } from './lib/workspaceFolders';
 import { figureCacheKey, mergeFigureData, sameSearchResult } from './lib/figures';
 import {
   routeOpenTarget,
@@ -70,15 +75,13 @@ import {
   resolveReconvertPdf,
 } from './lib/reconvert';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from './lib/providers';
-import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
+import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
 import './styles.css';
 
 type SideView = 'explorer' | 'chats' | 'convert';
 type CenterView = 'chat' | 'search';
 type ViewerMode = 'selection' | 'document' | 'info';
-type ActionCallOptions = { scope?: string; timeoutMs?: number };
 
-const DEFAULT_ACTION_TIMEOUT_MS = 5 * 60 * 1000;
 const SOURCE_LOAD_TIMEOUT_MS = 2 * 60 * 1000;
 
 // In-memory store for LLM traces. Traces are large (full prompt/response dumps),
@@ -91,10 +94,6 @@ function traceKey(sessionId: string, timestamp: number): string {
   return `${sessionId}:${timestamp}`;
 }
 
-function fileName(filePath: string): string {
-  return filePath.split(/[\\/]/).pop() || filePath;
-}
-
 function stripTrace(turn: SessionTurn): SessionTurn {
   if (!turn.trace) return turn;
   const { trace: _trace, ...rest } = turn;
@@ -105,11 +104,9 @@ function App() {
   const customTitlebar = Boolean(window.vera.platform && window.vera.platform !== 'darwin');
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [backgroundTasks, dispatchBackgroundTask] = useReducer(backgroundTasksReducer, []);
-  const actionScopesRef = useRef(new Map<string, string>());
   const [sideView, setSideView] = useState<SideView>('explorer');
   const [centerView, setCenterView] = useState<CenterView>('chat');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [folders, setFolders] = useState<WorkspaceFolderResult[]>([]);
   const [viewerMode, setViewerMode] = useState<ViewerMode>('document');
   const [path, setPath] = useState('');
   const [activeLibraryPath, setActiveLibraryPath] = useState('');
@@ -176,7 +173,11 @@ function App() {
   const [storeOriginal, setStoreOriginal] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [providerErrorDetail, setProviderErrorDetail] = useState<string | null>(null);
-  const [busyFolderPath, setBusyFolderPath] = useState('');
+  const { call, cancelActionScope } = useSidecarCall({
+    dispatchBackgroundTask,
+    setErrorMessage,
+    setProviderErrorDetail,
+  });
   const [inspect, setInspect] = useState<InspectResult | null>(null);
   const libraryInspectCache = useRef(new Map<string, InspectResult>());
   const [validation, setValidation] = useState<ValidateResult | null>(null);
@@ -237,6 +238,54 @@ function App() {
     return stored >= 200 && stored <= 600 ? stored : 260;
   });
   const [isResizingSide, setIsResizingSide] = useState(false);
+  const openLibraryRef = useRef<(folderPath: string) => Promise<void> | void>(() => undefined);
+  const refreshIndexStatusRef = useRef<(
+    folderPath: string,
+    verifyHashes?: boolean,
+  ) => Promise<LibraryIndexStatus | null>>(async () => null);
+  const {
+    folders,
+    busyFolderPath,
+    addFolderFromPath,
+    addFolder,
+    removeFolder,
+    refreshFolder,
+    loadFolders,
+  } = useWorkspaceFolders({
+    onOpenLibrary: (folderPath) => openLibraryRef.current(folderPath),
+    onFolderRemoved: (folderPath) => {
+      libraryInspectCache.current.delete(folderPath);
+      setSelectedPdfs((prev) => prev.filter((entry) => !isPathInsideFolder(entry, folderPath)));
+      if (activeLibraryPath === folderPath) {
+        setActiveLibraryPath('');
+        try { localStorage.removeItem('vera.activeLibraryPath'); } catch { /* ignore persistence errors */ }
+        setSelectedFiles([]);
+      }
+      setIndexStatuses((prev) => {
+        const next = { ...prev };
+        delete next[folderPath];
+        try {
+          localStorage.setItem(INDEX_STATUSES_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+          // Index-state caching only improves startup feedback.
+        }
+        return next;
+      });
+    },
+    refreshIndexStatus: (folderPath, verifyHashes) => refreshIndexStatusRef.current(folderPath, verifyHashes),
+    onIndexStatusesHydrated: setIndexStatuses,
+    onWatchedFolderChanged: (folderPath) => {
+      dismissedIndexStates.current.delete(folderPath);
+    },
+    onFolderWillRefresh: (folderPath) => {
+      libraryInspectCache.current.delete(folderPath);
+    },
+    onFolderRefreshed: (folderPath) => {
+      if (activeLibraryPath === folderPath && path === folderPath) {
+        setInspect(null);
+      }
+    },
+  });
   const indexingFolders = useMemo(
     () => Object.fromEntries(
       backgroundTasks
@@ -674,66 +723,6 @@ function App() {
     }
   }
 
-  async function addFolderFromPath(dir: string) {
-    const folder = await window.vera.listFolder(dir);
-    if (!folder) return;
-    setFolders((prev) => {
-      const next = [...prev.filter((entry) => entry.path !== folder.path), folder];
-      localStorage.setItem('vera.folders', JSON.stringify(next.map((entry) => entry.path)));
-      return next;
-    });
-    await openTargetPath(folder.path, { asLibrary: true });
-  }
-
-  async function addFolder() {
-    const dir = await window.vera.pickFolder();
-    if (!dir) return;
-    await addFolderFromPath(dir);
-  }
-
-  function removeFolder(folderPath: string) {
-    libraryInspectCache.current.delete(folderPath);
-    setFolders((prev) => {
-      const next = prev.filter((entry) => entry.path !== folderPath);
-      localStorage.setItem('vera.folders', JSON.stringify(next.map((entry) => entry.path)));
-      return next;
-    });
-    setSelectedPdfs((prev) => prev.filter((entry) => !isPathInsideFolder(entry, folderPath)));
-    if (activeLibraryPath === folderPath) {
-      setActiveLibraryPath('');
-      try { localStorage.removeItem('vera.activeLibraryPath'); } catch { /* ignore persistence errors */ }
-      setSelectedFiles([]);
-    }
-    setIndexStatuses((prev) => {
-      const next = { ...prev };
-      delete next[folderPath];
-      try {
-        localStorage.setItem('vera.indexStatuses', JSON.stringify(next));
-      } catch {
-        // Index-state caching only improves startup feedback.
-      }
-      return next;
-    });
-  }
-
-  async function refreshFolder(folderPath: string, options: { showBusy?: boolean } = {}) {
-    const showBusy = options.showBusy ?? true;
-    libraryInspectCache.current.delete(folderPath);
-    if (showBusy) setBusyFolderPath(folderPath);
-    try {
-      const folder = await window.vera.listFolder(folderPath);
-      if (folder) setFolders((prev) => prev.map((entry) => (entry.path === folderPath ? folder : entry)));
-      await refreshIndexStatus(folderPath);
-      if (activeLibraryPath === folderPath && path === folderPath) {
-        setInspect(null);
-      }
-    } finally {
-      if (showBusy) {
-        setBusyFolderPath((current) => (current === folderPath ? '' : current));
-      }
-    }
-  }
-
   function parentFolderForPath(filePath: string): string | undefined {
     return folders.find((folder) => folder.entries.some((entry) => entry.path === filePath))?.path;
   }
@@ -855,77 +844,6 @@ function App() {
     setSourcePaneWidth(clampSourcePaneWidth((widthFromRight / bounds.width) * 100));
   }
 
-  function cancelActionScope(scope: string) {
-    const requestId = actionScopesRef.current.get(scope);
-    if (!requestId) return;
-    actionScopesRef.current.delete(scope);
-    dispatchBackgroundTask({ type: 'finish', id: requestId });
-    void window.vera.cancelRequest(requestId);
-  }
-
-  async function call<T>(
-    payload: Record<string, unknown>,
-    label: string,
-    requestId?: string,
-    options: ActionCallOptions = {},
-  ): Promise<T | null> {
-    const activityId = requestId || crypto.randomUUID();
-    const scope = options.scope || String(payload.action || label);
-    const timeoutMs = options.timeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS;
-    const previousRequestId = actionScopesRef.current.get(scope);
-    if (previousRequestId && previousRequestId !== activityId) {
-      dispatchBackgroundTask({ type: 'finish', id: previousRequestId });
-      void window.vera.cancelRequest(previousRequestId);
-    }
-    actionScopesRef.current.set(scope, activityId);
-    dispatchBackgroundTask({
-      type: 'start',
-      task: {
-        id: activityId,
-        kind: 'operation',
-        label,
-      },
-    });
-    setErrorMessage(null);
-    setProviderErrorDetail(null);
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-    try {
-      const request = window.vera.request<T>(payload, activityId);
-      const response = timeoutMs > 0
-        ? await new Promise<Awaited<typeof request>>((resolve, reject) => {
-            timeout = setTimeout(() => {
-              void window.vera.cancelRequest(activityId);
-              reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)} seconds`));
-            }, timeoutMs);
-            request.then(resolve, reject);
-          })
-        : await request;
-      if (!response.ok) {
-        if (response.cancelled || response.error?.toLowerCase().includes('cancelled')) {
-          return null;
-        }
-        setErrorMessage(response.error || 'Request failed');
-        setProviderErrorDetail(response.provider_error_detail || null);
-        return null;
-      }
-      return (response.result || null) as T | null;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Request failed';
-      if (message.toLowerCase().includes('cancelled')) {
-        return null;
-      }
-      setErrorMessage(message);
-      setProviderErrorDetail(null);
-      return null;
-    } finally {
-      if (timeout) clearTimeout(timeout);
-      if (actionScopesRef.current.get(scope) === activityId) {
-        actionScopesRef.current.delete(scope);
-      }
-      dispatchBackgroundTask({ type: 'finish', id: activityId });
-    }
-  }
-
   async function openTargetPath(
     value: string,
     options: { asLibrary?: boolean; preserveLibrary?: boolean } = {},
@@ -969,6 +887,9 @@ function App() {
       setValidation(null);
     }
   }
+
+  openLibraryRef.current = (folderPath) => openTargetPath(folderPath, { asLibrary: true });
+  refreshIndexStatusRef.current = refreshIndexStatus;
 
   function updateTargetPath(value: string) {
     // Changing Search/Ask scope must not clear the document viewer. Preview and
@@ -1058,13 +979,6 @@ function App() {
     } finally {
       offProgress();
       dispatchBackgroundTask({ type: 'finish', id: inspectionRequestId });
-    }
-  }
-
-  async function validateTarget(targetPath = path) {
-    const result = await call<ValidateResult>({ action: 'validate', path: targetPath }, 'Validating');
-    if (result) {
-      setValidation(result);
     }
   }
 
@@ -1987,13 +1901,6 @@ function App() {
     }
   }
 
-  async function exportSource(targetPath = path) {
-    const output = await window.vera.saveAny();
-    if (!output) return;
-    const result = await call<ExportResult>({ action: 'export', path: targetPath, output }, 'Exporting source');
-    if (result) setExportResult(result);
-  }
-
   async function loadSourceDocument(
     targetPath = path,
     activateViewer = true,
@@ -2125,13 +2032,6 @@ function App() {
     [],
   );
 
-  async function loadPage(targetPath = path) {
-    const result = await call<PageResult>({ action: 'page', path: targetPath, page_number: pageNumber }, 'Loading page');
-    if (result) {
-      setPageResult(result);
-    }
-  }
-
   const handleOpenTargetRef = useRef<(targetPath: string) => void>(() => {});
   handleOpenTargetRef.current = (targetPath: string) => {
     routeOpenTarget(targetPath, {
@@ -2150,11 +2050,6 @@ function App() {
 
   const folderPathsKey = folders.map((folder) => folder.path).join('\n');
 
-  useEffect(() => {
-    const folderPaths = folderPathsKey ? folderPathsKey.split('\n') : [];
-    void window.vera.setWatchedFolders(folderPaths);
-  }, [folderPathsKey]);
-
   // Keep folder headers scannable: expand the active library, collapse the rest.
   // Selecting a .vera clears the active library for Search/Ask scope but must
   // not collapse the folder the user just clicked. Manual caret toggles still
@@ -2164,20 +2059,8 @@ function App() {
     setCollapsedFolders((prev) => syncCollapsedFolders(folderPaths, activeLibraryPath, prev));
   }, [folderPathsKey, activeLibraryPath]);
 
-  useEffect(() => window.vera.onFolderChanged((folderPath) => {
-    dismissedIndexStates.current.delete(folderPath);
-    void window.vera.listFolder(folderPath).then((folder) => {
-      if (!folder) return;
-      setFolders((prev) => prev.map((entry) => (entry.path === folder.path ? folder : entry)));
-    });
-    void refreshIndexStatus(folderPath);
-  }), []);
-
-  useEffect(() => {
-    let canceled = false;
-    async function loadSettings() {
-      const saved = await window.vera.getSettings();
-      if (canceled) return;
+  useAppBootstrap({
+    applySettings: (saved) => {
       setProviders(saved.providers);
       setActiveProviderId(saved.active_provider_id);
       setActiveModel(saved.active_model || '');
@@ -2186,100 +2069,12 @@ function App() {
       setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
       setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
       setHasHfToken(Boolean(saved.has_hf_token));
-    }
-    async function loadEmbeddingProviders() {
-      const response = await window.vera.request<{ providers: string[] }>({
-        action: 'list_embedding_providers',
-      });
-      if (!canceled && response.ok) {
-        setEmbeddingProviders(response.result?.providers ?? []);
-      }
-    }
-    async function loadIngestPipelines() {
-      const response = await window.vera.request<{ pipelines: PipelineDescriptor[] }>({
-        action: 'describe_ingest_pipelines',
-      });
-      if (canceled) return;
-      if (response.ok && response.result?.pipelines?.length) {
-        setIngestPipelineDescriptors(response.result.pipelines);
-        return;
-      }
-      const fallback = await window.vera.request<{ pipelines: string[] }>({
-        action: 'list_ingest_pipelines',
-      });
-      if (!canceled && fallback.ok) {
-        const pipelines = fallback.result?.pipelines?.length
-          ? fallback.result.pipelines
-          : ['pymupdf'];
-        setIngestPipelineDescriptors(pipelines.map((spec) => ({
-          provider: spec,
-          variant: '',
-          spec,
-          label: spec,
-          description: '',
-          installed: true,
-          capabilities: {},
-          fields: [],
-          notes: [],
-        })));
-      }
-    }
-    async function loadSessions() {
-      const saved = await window.vera.getSessions();
-      if (canceled) return;
-      setSessions(saved);
-    }
-    async function loadFolders() {
-      let saved: string[] = [];
-      try {
-        saved = JSON.parse(localStorage.getItem('vera.folders') || '[]') as string[];
-      } catch {
-        saved = [];
-      }
-      if (!Array.isArray(saved) || saved.length === 0) return;
-      const loaded = await Promise.all(saved.map((dir) => window.vera.listFolder(dir)));
-      if (canceled) return;
-      const available = loaded.filter((entry): entry is WorkspaceFolderResult => entry !== null);
-      try {
-        const cached = JSON.parse(localStorage.getItem('vera.indexStatuses') || '{}') as Record<string, LibraryIndexStatus>;
-        if (cached && typeof cached === 'object') {
-          const availablePaths = new Set(available.map((entry) => entry.path));
-          setIndexStatuses(
-            Object.fromEntries(
-              Object.entries(cached).filter(([folderPath, status]) => (
-                availablePaths.has(folderPath)
-                && status
-                && typeof status === 'object'
-                && typeof status.exists === 'boolean'
-                && typeof status.fresh === 'boolean'
-                && Array.isArray(status.reasons)
-              )),
-            ),
-          );
-        }
-      } catch {
-        // A missing or outdated cache is safe to ignore.
-      }
-      setFolders(available);
-      const savedActive = localStorage.getItem('vera.activeLibraryPath') || '';
-      await Promise.all(
-        available
-          .filter((entry) => entry.path !== savedActive)
-          .map((entry) => refreshIndexStatus(entry.path)),
-      );
-      if (!canceled && available.some((entry) => entry.path === savedActive)) {
-        await openTargetPath(savedActive, { asLibrary: true });
-      }
-    }
-    void loadSettings();
-    void loadEmbeddingProviders();
-    void loadIngestPipelines();
-    void loadSessions();
-    void loadFolders();
-    return () => {
-      canceled = true;
-    };
-  }, []);
+    },
+    setEmbeddingProviders,
+    setIngestPipelineDescriptors,
+    setSessions,
+    loadFolders,
+  });
 
   useEffect(() => {
     if (!ingestPipelineDescriptors.length) return;
@@ -3193,11 +2988,12 @@ function App() {
                 sourceDocument={sourceDocument}
                 pageNumber={pageNumber}
                 pageResult={pageResult}
+                call={call}
                 onInspect={(target) => { void inspectTarget(target); }}
-                onValidate={(target) => { void validateTarget(target); }}
-                onExport={(target) => { void exportSource(target); }}
+                onValidation={setValidation}
+                onExportResult={setExportResult}
                 onPageNumberChange={setPageNumber}
-                onLoadPage={(target) => { void loadPage(target); }}
+                onPageResult={setPageResult}
               />
             ) : selected && viewerMode === 'selection' ? (
               <article className="sourceDetails sourceViewerOnly">

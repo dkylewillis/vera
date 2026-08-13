@@ -5,6 +5,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
+from vera_ingest.cancellation import raise_if_cancelled
 from vera_ingest.types import ParsedBlock, ParsedPage
 
 from .tessdata_manager import ensure_language_data, is_known
@@ -147,18 +148,6 @@ def _span_is_bold(span: dict) -> bool:
     return bool(span.get("flags", 0) & 16)
 
 
-def _raise_if_cancelled(cancel: Any | None) -> None:
-    if cancel is None:
-        return
-    interrupted = getattr(cancel, "raise_if_interrupted", None)
-    if callable(interrupted):
-        interrupted()
-        return
-    raise_if_cancelled = getattr(cancel, "raise_if_cancelled", None)
-    if callable(raise_if_cancelled):
-        raise_if_cancelled()
-
-
 def _collect_raw_blocks(
     doc,
     *,
@@ -173,7 +162,7 @@ def _collect_raw_blocks(
     size_weights: Counter = Counter()
     ocr_pages: list[int] = []
     for idx, page in enumerate(doc, start=1):
-        _raise_if_cancelled(cancel)
+        raise_if_cancelled(cancel)
         page_raw: list[_RawBlock] = []
         try:
             rect = page.rect
@@ -194,14 +183,14 @@ def _collect_raw_blocks(
                 )
                 # Tesseract runs inside PyMuPDF and cannot be interrupted in the
                 # middle of this call. Honor stop/skip as soon as it returns.
-                _raise_if_cancelled(cancel)
+                raise_if_cancelled(cancel)
                 ocr_pages.append(idx)
             else:
                 page_text = native_text
                 text_layout = native_layout
         except Exception:
             # Closing the document from another thread (stop/skip) surfaces here.
-            _raise_if_cancelled(cancel)
+            raise_if_cancelled(cancel)
             raise
         pages.append(ParsedPage(idx, width, height, page_text.strip()))
 
@@ -319,7 +308,7 @@ def parse_pdf_structured(
             cancel=cancel,
         )
     except Exception:
-        _raise_if_cancelled(cancel)
+        raise_if_cancelled(cancel)
         raise
     finally:
         if callable(unregister):

@@ -1,4 +1,7 @@
 import { CheckCircle2, Download, Info, ShieldCheck } from 'lucide-react';
+import type { SidecarCall } from '../lib/sidecarCall';
+import { formatChunkingStrategy, formatOcrSummary } from '../lib/documentInfo';
+import { formatBytes, formatTimestamp } from '../lib/formatting';
 import type {
   ExportResult,
   InspectResult,
@@ -7,46 +10,6 @@ import type {
   SourceDocumentResult,
   ValidateResult,
 } from '../types';
-
-function formatBytes(value?: number): string {
-  if (value === undefined || value === null) return '-';
-  if (value < 1024) return `${value} B`;
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let amount = value / 1024;
-  let unit = units[0];
-  for (let index = 1; index < units.length && amount >= 1024; index += 1) {
-    amount /= 1024;
-    unit = units[index];
-  }
-  return `${amount >= 10 ? amount.toFixed(1) : amount.toFixed(2)} ${unit}`;
-}
-
-function formatTimestamp(value?: string | null): string {
-  if (!value) return '-';
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
-}
-
-function formatChunkingStrategy(value?: string): string {
-  if (!value) return '-';
-  const match = /^heading_block_sliding_window:(\d+):(\d+)$/.exec(value);
-  if (!match) return value;
-  return `Heading-aware sliding window · ${match[1]} words · ${match[2]} overlap`;
-}
-
-function formatOcrSummary(ocr?: InspectResult['ocr']): string {
-  if (!ocr) return 'Not recorded';
-  const pages = ocr.ocr_pages ?? [];
-  const mode = ocr.ocr_mode ? `${ocr.ocr_mode[0].toUpperCase()}${ocr.ocr_mode.slice(1)}` : 'Unknown mode';
-  const details = [
-    ocr.ocr_engine,
-    mode,
-    ocr.ocr_language,
-    ocr.ocr_dpi ? `${ocr.ocr_dpi} DPI` : null,
-    `${pages.length} page${pages.length === 1 ? '' : 's'} OCR’d`,
-  ].filter(Boolean);
-  return details.join(' · ');
-}
 
 export function DocumentInfoPanel({
   viewerInfoPath,
@@ -62,11 +25,12 @@ export function DocumentInfoPanel({
   sourceDocument,
   pageNumber,
   pageResult,
+  call,
   onInspect,
-  onValidate,
-  onExport,
+  onValidation,
+  onExportResult,
   onPageNumberChange,
-  onLoadPage,
+  onPageResult,
 }: {
   viewerInfoPath: string;
   viewerInfoIsCorpus: boolean;
@@ -81,12 +45,33 @@ export function DocumentInfoPanel({
   sourceDocument: SourceDocumentResult | null;
   pageNumber: number;
   pageResult: PageResult | null;
+  call: SidecarCall;
   onInspect: (path: string) => void;
-  onValidate: (path: string) => void;
-  onExport: (path: string) => void;
+  onValidation: (result: ValidateResult) => void;
+  onExportResult: (result: ExportResult) => void;
   onPageNumberChange: (value: number) => void;
-  onLoadPage: (path: string) => void;
+  onPageResult: (result: PageResult) => void;
 }) {
+  async function handleValidate() {
+    const result = await call<ValidateResult>({ action: 'validate', path: viewerInfoPath }, 'Validating');
+    if (result) onValidation(result);
+  }
+
+  async function handleExport() {
+    const output = await window.vera.saveAny();
+    if (!output) return;
+    const result = await call<ExportResult>({ action: 'export', path: viewerInfoPath, output }, 'Exporting source');
+    if (result) onExportResult(result);
+  }
+
+  async function handleLoadPage() {
+    const result = await call<PageResult>(
+      { action: 'page', path: viewerInfoPath, page_number: pageNumber },
+      'Loading page',
+    );
+    if (result) onPageResult(result);
+  }
+
   return (
     <article className="viewerInfoView infoView">
       {viewerInfoPath ? (
@@ -96,8 +81,8 @@ export function DocumentInfoPanel({
               <button className="secondaryAction" onClick={() => void onInspect(viewerInfoPath)} disabled={!viewerInfoInspectable || activeLibraryIsEmpty || busy}><ShieldCheck size={15} />Inspect</button>
             ) : (
               <>
-                <button className="secondaryAction" onClick={() => void onValidate(viewerInfoPath)} disabled={!viewerInfoInspectable || busy}><CheckCircle2 size={15} />Validate</button>
-                <button className="secondaryAction" onClick={() => void onExport(viewerInfoPath)} disabled={!viewerInfoInspectable || busy}><Download size={15} />Export</button>
+                <button className="secondaryAction" onClick={() => { void handleValidate(); }} disabled={!viewerInfoInspectable || busy}><CheckCircle2 size={15} />Validate</button>
+                <button className="secondaryAction" onClick={() => { void handleExport(); }} disabled={!viewerInfoInspectable || busy}><Download size={15} />Export</button>
               </>
             )}
           </div>
@@ -203,7 +188,7 @@ export function DocumentInfoPanel({
             <h3>Page Text</h3>
             <div className="pageControls">
               <input className="numberInput" type="number" min={1} max={viewerInspect?.pages || undefined} value={pageNumber} onChange={(event) => onPageNumberChange(Number(event.target.value))} />
-              <button className="secondaryAction" onClick={() => void onLoadPage(viewerInfoPath)} disabled={!viewerInfoInspectable || viewerInfoIsCorpus || busy}>Load Page</button>
+              <button className="secondaryAction" onClick={() => { void handleLoadPage(); }} disabled={!viewerInfoInspectable || viewerInfoIsCorpus || busy}>Load Page</button>
             </div>
             {pageResult ? (
               <article className="pageText">

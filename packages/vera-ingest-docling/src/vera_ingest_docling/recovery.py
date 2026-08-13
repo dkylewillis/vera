@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Any
 
+from vera_ingest.cancellation import raise_if_cancelled
 from vera_ingest.types import IngestBlock, IngestChunk, ParsedPage
 
 from . import converter as _converter
@@ -25,18 +26,6 @@ class _MappedConversion:
     chunks: list[IngestChunk]
     backend: str
     whole_fallback: str | None = None
-
-
-def _raise_if_cancelled(cancel: Any | None) -> None:
-    if cancel is None:
-        return
-    interrupted = getattr(cancel, "raise_if_interrupted", None)
-    if callable(interrupted):
-        interrupted()
-        return
-    cancelled = getattr(cancel, "raise_if_cancelled", None)
-    if callable(cancelled):
-        cancelled()
 
 
 def _is_memory_error_blob(blob: str) -> bool:
@@ -267,7 +256,7 @@ def _whole_document_pypdfium2_fallback(
     cancel: Any | None,
     prior: Any | None,
 ) -> _MappedConversion:
-    _raise_if_cancelled(cancel)
+    raise_if_cancelled(cancel)
     if config.pdf_backend == _converter._PDF_BACKEND_PYPDFIUM2:
         # Already on pypdfium2; nothing left to try.
         if prior is not None:
@@ -378,7 +367,7 @@ def _resolve_conversion(
 
     unrecoverable: list[int] = []
     for page_no in failed_pages:
-        _raise_if_cancelled(cancel)
+        raise_if_cancelled(cancel)
         recovered = _convert_single_page(
             source_path,
             page_no,
