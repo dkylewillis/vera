@@ -11,10 +11,13 @@ const entry = path.join("src", "vera_app", "sidecar.py");
 // support. Exclude packages that are often present in a local
 // `uv sync --extra ml --extra dev` venv but are not needed for text embeddings;
 // otherwise PyInstaller follows those imports and inflates the installer.
+//
+// `torchgen` must NOT be excluded despite the codegen-sounding name:
+// `torch/utils/_python_dispatch.py` imports it unconditionally, so dropping it
+// makes `import torch` fail at runtime and breaks every neural embedding model.
 const excludedModules = [
   "torchvision",
   "torchaudio",
-  "torchgen",
   "functorch",
   "tensorflow",
   "tensorboard",
