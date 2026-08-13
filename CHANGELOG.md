@@ -78,6 +78,23 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   selection.
 - Removed unused `saveVera` / `defaultVeraPath` helpers.
 
+### Senior-review fixes
+
+- Index and directory fan-out share one RRF ranking path.
+- Search hydrates only the top-k hit chunks, not the full chunk table.
+- Sidecar search runs in the background so cancel can land; one cancel primitive.
+- Explorer reports when the folder-walk depth cap is hit.
+- Auto OCR no longer skips scans whose only native text is headers/boilerplate.
+- OCR language codes are sanitized before they become tessdata paths.
+- Docling maps real ErrorItem page numbers and recovers when the error has no page list.
+- Dotted `KEY=VALUE` tokens stay strings (no float coercion).
+- Export writes to the stored basename only.
+- MCP search default `top_k` is 10, matching the CLI.
+- Ignore sidecar results after a newer call for the same scope.
+- `convert()` omitted aliases (`None`) mean pipeline defaults.
+- Clamp chunk overlap below `chunk_size` so carry never overruns.
+- Consume the skip flag; do not leak it into pipeline options.
+
 Hosted embedding providers, Convert UI embedder preflight/forms, and a
 packaged-app plugin runtime are follow-ups after this tag (0.3.1 or later).
 See [ROADMAP.md](ROADMAP.md).
