@@ -272,7 +272,10 @@ def test_hardening_json_contracts_are_documented():
     assert "Inspection runs on a sidecar worker" in desktop
     assert "independently of simultaneous indexing or conversion" in desktop
     assert "Selecting another citation supersedes" in desktop
-    assert "within two minutes" in desktop
+    assert "within five minutes" in desktop
+    assert "matching" in desktop and "sibling" in desktop
+    assert "`write_attachment()`" in python_api
+    assert "`size`" in python_api
     assert "Answer prose appears incrementally" in desktop
     assert "withholds inline tool-call markup" in desktop
     assert "initially returns only figure metadata" in desktop

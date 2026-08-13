@@ -12,6 +12,7 @@ from vera_doc import (
     ChunkRecord,
     DuplicateRecordError,
     ReadOnlyError,
+    RecordNotFoundError,
     VeraDocument,
 )
 
@@ -103,10 +104,19 @@ def test_database_attachments_and_references(tmp_path: Path) -> None:
                 "media_type": "application/pdf",
                 "filename": "source.pdf",
                 "checksum": attachment.checksum,
+                "size": len(attachment.data),
                 "metadata": attachment.metadata,
             }
         ]
         assert "data" not in descriptors[0]
+        exported = tmp_path / "exported-source.pdf"
+        written = database.write_attachment("source", exported)
+        assert written == len(attachment.data)
+        assert exported.read_bytes() == attachment.data
+        with pytest.raises(ValueError, match="chunk_size"):
+            database.write_attachment("source", exported, chunk_size=0)
+        with pytest.raises(RecordNotFoundError):
+            database.write_attachment("missing", exported)
         assert database.get(["chunk"])[0].attachments == (AttachmentRef("source", role="source"),)
         with pytest.raises(ValueError, match="referenced"):
             database.delete_attachment("source")

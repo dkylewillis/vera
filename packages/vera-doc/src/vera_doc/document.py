@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import tempfile
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -50,6 +50,7 @@ _MAX_TOP_K = 10_000
 # 32766 on current ones. Batch id lists well below the lower bound so a large
 # archive cannot outgrow whichever SQLite the caller happens to link.
 _SQL_VARIABLE_BATCH = 500
+_ATTACHMENT_WRITE_CHUNK = 8 * 1024 * 1024
 _FTS_RUNTIME_MARKERS = (
     "database is locked",
     "database disk image is malformed",
@@ -826,6 +827,109 @@ class VeraDocument:
             raise RecordNotFoundError(attachment_id)
         return self._row_to_attachment(row)
 
+    def write_attachment(
+        self,
+        attachment_id: str,
+        dest: str | os.PathLike[str],
+        *,
+        chunk_size: int = _ATTACHMENT_WRITE_CHUNK,
+        on_chunk: Callable[[int], None] | None = None,
+    ) -> int:
+        """Copy attachment bytes to ``dest`` without building an in-memory record.
+
+        Prefers SQLite incremental blob I/O when the interpreter provides
+        ``Connection.blobopen`` so a large PDF is not materialized as a Python
+        ``bytes`` object. Older Pythons fall back to a single ``SELECT``.
+
+        Args:
+            attachment_id: Attachment identifier.
+            dest: Destination file path. Parent directories are created.
+            chunk_size: Write size in bytes.
+            on_chunk: Optional callback invoked with bytes written so far before
+                each chunk, including a final call after the last write. Useful
+                for cooperative cancellation.
+
+        Returns:
+            Number of bytes written.
+
+        Raises:
+            RecordNotFoundError: When no attachment exists with that ID.
+            ValueError: When ``chunk_size`` is less than 1.
+        """
+        if chunk_size < 1:
+            raise ValueError("chunk_size must be at least 1")
+        self._ensure_open()
+        row = self._conn.execute(
+            "SELECT rowid FROM attachments WHERE attachment_id = ?",
+            (attachment_id,),
+        ).fetchone()
+        if row is None:
+            raise RecordNotFoundError(attachment_id)
+        target = Path(dest)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        blobopen = getattr(self._conn, "blobopen", None)
+        if blobopen is not None:
+            try:
+                return self._write_attachment_blob(
+                    blobopen,
+                    int(row["rowid"]),
+                    target,
+                    chunk_size,
+                    on_chunk,
+                )
+            except (AttributeError, sqlite3.Error):
+                pass
+        payload = self._conn.execute(
+            "SELECT data FROM attachments WHERE attachment_id = ?",
+            (attachment_id,),
+        ).fetchone()
+        if payload is None:
+            raise RecordNotFoundError(attachment_id)
+        return self._write_attachment_bytes(payload["data"], target, chunk_size, on_chunk)
+
+    @staticmethod
+    def _write_attachment_blob(
+        blobopen: Callable[..., Any],
+        rowid: int,
+        target: Path,
+        chunk_size: int,
+        on_chunk: Callable[[int], None] | None,
+    ) -> int:
+        written = 0
+        with blobopen("attachments", "data", rowid, readonly=True) as blob:
+            with target.open("wb") as handle:
+                while True:
+                    if on_chunk is not None:
+                        on_chunk(written)
+                    chunk = blob.read(chunk_size)
+                    if not chunk:
+                        break
+                    handle.write(chunk)
+                    written += len(chunk)
+        if on_chunk is not None:
+            on_chunk(written)
+        return written
+
+    @staticmethod
+    def _write_attachment_bytes(
+        payload: Any,
+        target: Path,
+        chunk_size: int,
+        on_chunk: Callable[[int], None] | None,
+    ) -> int:
+        view = payload if isinstance(payload, memoryview) else memoryview(payload)
+        written = 0
+        with target.open("wb") as handle:
+            while written < len(view):
+                if on_chunk is not None:
+                    on_chunk(written)
+                chunk = view[written : written + chunk_size]
+                handle.write(chunk)
+                written += len(chunk)
+        if on_chunk is not None:
+            on_chunk(written)
+        return written
+
     def attachment_metadata(
         self,
         ids: Iterable[str] | None = None,
@@ -840,14 +944,16 @@ class VeraDocument:
 
         Returns:
             Matching descriptors in storage order, or requested ID order when
-            ``ids`` is provided.
+            ``ids`` is provided. Each descriptor includes ``size`` (payload
+            length in bytes) and omits ``data``.
         """
         self._ensure_open()
         requested = tuple(ids) if ids is not None else None
         if requested is not None and not requested:
             return []
         sql = """
-            SELECT attachment_id, mime_type, filename, hash, metadata_json
+            SELECT attachment_id, mime_type, filename, hash, length(data) AS size,
+                   metadata_json
             FROM attachments
         """
         params: list[Any] = []
@@ -862,6 +968,7 @@ class VeraDocument:
                 "media_type": str(row["mime_type"]),
                 "filename": row["filename"],
                 "checksum": row["hash"],
+                "size": int(row["size"]),
                 "metadata": metadata_from_json(row["metadata_json"]),
             }
             for row in self._conn.execute(sql, params)

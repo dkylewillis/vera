@@ -204,6 +204,15 @@ LLM Providers → Hugging Face** in the desktop app.
 Regions are block-granular, not word-precise. A chunk that starts or ends
 inside a layout block maps to the whole block. This is expected behavior.
 
+## Loading source timed out
+
+The desktop viewer copies the original PDF into a local cache before PDF.js
+can render it. Large stormwater manuals can take a while on first open. VERA
+now prefers a sibling `manual.pdf` next to `manual.vera` and reuses a cache
+file on later opens instead of extracting and re-hashing the embedded
+original. If the load still exceeds five minutes, cancel it from the viewer
+close control and keep the matching PDF beside the archive.
+
 ## JSON parsing fails on a nonzero exit
 
 Check the command:

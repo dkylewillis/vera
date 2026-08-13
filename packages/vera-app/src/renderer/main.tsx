@@ -69,8 +69,6 @@ import './styles.css';
 
 type ViewerMode = 'selection' | 'document' | 'info';
 
-const SOURCE_LOAD_TIMEOUT_MS = 2 * 60 * 1000;
-
 // In-memory store for LLM traces. Traces are large (full prompt/response dumps),
 // so we keep them only for the lifetime of this app window instead of writing them
 // to the on-disk session store. They survive switching between sessions but are
@@ -1945,7 +1943,7 @@ function App() {
         { action: SIDECAR_ACTIONS.source, path: targetPath },
         'Loading source',
         undefined,
-        { scope: 'source', timeoutMs: SOURCE_LOAD_TIMEOUT_MS },
+        { scope: 'source' },
       );
       if (result && requestId === sourceDocumentLoadRef.current) {
         setLibraryInfoPath('');

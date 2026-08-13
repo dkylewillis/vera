@@ -192,9 +192,9 @@ Interactive renderer actions also use an action scope. Starting a newer source
 load, search, page load, validation, or similar action abandons any older
 request in the same scope, removes its pending IPC entry, and cooperatively
 cancels sidecar work when that handler supports cancellation. Newer tasks are
-shown first in the footer. Interactive requests have a five-minute watchdog;
-source loads use a two-minute limit, while answers retain their explicit Stop
-control instead of an automatic deadline. Sidecar exit, cancellation, timeout,
+shown first in the footer. Interactive requests, including source loads, have
+a five-minute watchdog; answers retain their explicit Stop control instead of
+an automatic deadline. Sidecar exit, cancellation, timeout,
 success, and failure all converge on the same task cleanup path.
 
 Provider answer text is forwarded through request-scoped `answer_delta` events

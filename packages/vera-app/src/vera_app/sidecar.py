@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any
 
 from vera_doc import (
-    AttachmentRecord,
     VeraDocument,
     build_library_index,
     library_index_status,
@@ -1327,25 +1326,61 @@ def _source_cache_dir(request: Request) -> Path:
     return Path(tempfile.gettempdir()) / "vera-source-cache"
 
 
-def _materialize_source_cache(
-    source: AttachmentRecord,
-    cache_dir: Path,
+_SOURCE_COPY_CHUNK = 8 * 1024 * 1024
+
+
+def _source_cache_path(cache_dir: Path, digest: str, filename: str | None) -> Path:
+    suffix = Path(filename or "source.bin").suffix or ".bin"
+    safe_digest = re.sub(r"[^A-Za-z0-9._-]", "_", digest)
+    return cache_dir / f"{safe_digest}{suffix}"
+
+
+def _source_cache_hit(cache_path: Path, expected_size: int) -> bool:
+    return cache_path.is_file() and cache_path.stat().st_size == expected_size
+
+
+def _source_result(
+    filename: str | None,
+    mime_type: str,
+    digest: str,
+    size: int,
+    cache_path: Path,
+) -> dict[str, Any]:
+    return {
+        "filename": filename,
+        "mime_type": mime_type,
+        "hash": digest,
+        "size": size,
+        "cache_path": str(cache_path),
+    }
+
+
+def _copy_file_to_cache(
+    source_path: Path,
+    cache_path: Path,
+    expected_size: int,
     cancel: CancellationToken | None = None,
 ) -> Path:
-    """Write source bytes to a hash-keyed cache file; reuse when unchanged."""
+    """Copy a filesystem file into the source cache, reusing an unchanged copy."""
     if cancel:
         cancel.raise_if_cancelled()
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    digest = str(source.checksum or hashlib.sha256(source.data).hexdigest())
-    suffix = Path(source.filename or "source.bin").suffix or ".bin"
-    # Keep the digest filesystem-safe (checksums are typically hex already).
-    safe_digest = re.sub(r"[^A-Za-z0-9._-]", "_", digest)
-    cache_path = cache_dir / f"{safe_digest}{suffix}"
-    if cache_path.is_file() and cache_path.stat().st_size == len(source.data):
+    if _source_cache_hit(cache_path, expected_size):
         return cache_path
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = cache_path.with_name(f"{cache_path.name}.{threading.get_ident()}.tmp")
     try:
-        tmp_path.write_bytes(source.data)
+        with source_path.open("rb") as reader, tmp_path.open("wb") as writer:
+            copied = 0
+            while True:
+                if cancel:
+                    cancel.raise_if_cancelled()
+                chunk = reader.read(_SOURCE_COPY_CHUNK)
+                if not chunk:
+                    break
+                writer.write(chunk)
+                copied += len(chunk)
+        if copied != expected_size:
+            raise ValueError(f"Copied source size mismatch: {source_path}")
         if cancel:
             cancel.raise_if_cancelled()
         tmp_path.replace(cache_path)
@@ -1355,61 +1390,113 @@ def _materialize_source_cache(
     return cache_path
 
 
+def _sibling_pdf(path: Path) -> Path | None:
+    sibling = path.with_suffix(".pdf")
+    if sibling.is_file() and sibling.resolve() != path.resolve():
+        return sibling
+    return None
+
+
 def _source_from_pdf(
     path: Path,
     cache_dir: Path,
     cancel: CancellationToken | None = None,
 ) -> dict[str, Any]:
-    """Materialize a filesystem PDF into the source cache for the document viewer."""
+    """Copy a filesystem PDF into the source cache without hashing its bytes."""
     if cancel:
         cancel.raise_if_cancelled()
     if not path.is_file():
         raise FileNotFoundError(f"PDF not found: {path}")
-    data = path.read_bytes()
+    with path.open("rb") as handle:
+        header = handle.read(5)
+    if not header.startswith(b"%PDF"):
+        raise ValueError(f"Not a PDF file: {path}")
+    stat = path.stat()
+    digest = hashlib.sha256(
+        f"{path.resolve()}|{stat.st_size}|{stat.st_mtime_ns}".encode()
+    ).hexdigest()
+    cache_path = _source_cache_path(cache_dir, digest, path.name)
+    copied = _copy_file_to_cache(path, cache_path, stat.st_size, cancel)
+    return _source_result(path.name, "application/pdf", digest, stat.st_size, copied)
+
+
+def _extract_attachment_to_cache(
+    doc: VeraDocument,
+    attachment_id: str,
+    cache_path: Path,
+    expected_size: int,
+    cancel: CancellationToken | None = None,
+) -> Path:
     if cancel:
         cancel.raise_if_cancelled()
-    if not data.startswith(b"%PDF"):
-        raise ValueError(f"Not a PDF file: {path}")
-    source = AttachmentRecord(
-        id="source_pdf",
-        data=data,
-        media_type="application/pdf",
-        filename=path.name,
-    )
-    cache_path = _materialize_source_cache(source, cache_dir, cancel)
-    return {
-        "filename": source.filename,
-        "mime_type": source.media_type,
-        "hash": source.checksum,
-        "size": len(source.data),
-        "cache_path": str(cache_path),
-    }
+    if _source_cache_hit(cache_path, expected_size):
+        return cache_path
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = cache_path.with_name(f"{cache_path.name}.{threading.get_ident()}.tmp")
+
+    def on_chunk(_written: int) -> None:
+        if cancel:
+            cancel.raise_if_cancelled()
+
+    try:
+        written = doc.write_attachment(attachment_id, tmp_path, on_chunk=on_chunk)
+        if written != expected_size:
+            raise ValueError("Extracted source size mismatch")
+        if cancel:
+            cancel.raise_if_cancelled()
+        tmp_path.replace(cache_path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+    return cache_path
 
 
 def _source(
     request: Request,
     cancel: CancellationToken | None = None,
 ) -> dict[str, Any]:
+    """Materialize a source PDF for the document viewer.
+
+    Large manuals used to exceed the renderer watchdog because this path loaded
+    the embedded original into Python, re-hashed it, and only then checked the
+    on-disk cache. Cache hits and sibling PDFs now skip that work.
+    """
     if cancel:
         cancel.raise_if_cancelled()
     path = Path(str(request["path"]))
     cache_dir = _source_cache_dir(request)
     if path.suffix.lower() == ".pdf":
         return _source_from_pdf(path, cache_dir, cancel)
+    sibling = _sibling_pdf(path)
     doc = _open_document(str(path))
     try:
-        source = get_source_document(doc)
-        if cancel:
-            cancel.raise_if_cancelled()
-        mime_type = source.media_type or "application/octet-stream"
-        cache_path = _materialize_source_cache(source, cache_dir, cancel)
-        return {
-            "filename": source.filename,
-            "mime_type": mime_type,
-            "hash": source.checksum,
-            "size": len(source.data),
-            "cache_path": str(cache_path),
-        }
+        attachment_id = doc.metadata.get("source_attachment_id")
+        if attachment_id:
+            infos = doc.attachment_metadata([str(attachment_id)])
+            if not infos:
+                raise ValueError("Original source document is not stored in this archive")
+            info = infos[0]
+            filename = str(info.get("filename") or "source.pdf")
+            mime_type = str(info.get("media_type") or "application/octet-stream")
+            digest = str(info.get("checksum") or "")
+            size = int(info["size"])
+            cache_path = _source_cache_path(cache_dir, digest, filename)
+            if _source_cache_hit(cache_path, size):
+                return _source_result(filename, mime_type, digest, size, cache_path)
+            if sibling is not None and sibling.stat().st_size == size:
+                copied = _copy_file_to_cache(sibling, cache_path, size, cancel)
+                return _source_result(filename, mime_type, digest, size, copied)
+            extracted = _extract_attachment_to_cache(
+                doc,
+                str(attachment_id),
+                cache_path,
+                size,
+                cancel,
+            )
+            return _source_result(filename, mime_type, digest, size, extracted)
+        if sibling is not None:
+            return _source_from_pdf(sibling, cache_dir, cancel)
+        raise ValueError("Original source document is not stored in this archive")
     finally:
         doc.close()
 

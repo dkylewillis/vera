@@ -82,8 +82,10 @@ and keyword modes from its composer options. Its ranked passage cards open and
 highlight the matching source in the document viewer without adding the query
 to chat history. Source loading remains independent of library inspection,
 conversion, and indexing. Selecting another citation supersedes the earlier
-source request, and a source load that does not settle within two minutes is
-cancelled with an error instead of leaving a permanent footer status.
+source request. Large manuals copy into a local viewer cache; if a matching
+PDF sits next to the `.vera` file, that sibling is used instead of extracting
+the embedded original. A source load that does not settle within five minutes
+is cancelled with an error instead of leaving a permanent footer status.
 
 When **Figures** is enabled, Search initially returns only figure metadata and
 captions. Selecting a result loads image previews for that result's referenced

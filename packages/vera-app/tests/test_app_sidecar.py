@@ -952,6 +952,105 @@ def test_source_action_loads_filesystem_pdf(tmp_path):
     assert again["result"]["cache_path"] == result["cache_path"]
 
 
+def test_source_action_reuses_cache_without_extracting_blob(tmp_path, monkeypatch):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    cache_dir = tmp_path / "source-cache"
+    make_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", store_original=True)
+    first = handle(
+        {
+            "id": "1",
+            "action": "source",
+            "path": str(out),
+            "cache_dir": str(cache_dir),
+        }
+    )
+    assert first["ok"] is True
+
+    sidecar = importlib.import_module("vera_app.sidecar")
+
+    def fail_extract(*args, **kwargs):
+        raise AssertionError("cache hit should not extract the embedded PDF")
+
+    monkeypatch.setattr(sidecar.VeraDocument, "write_attachment", fail_extract)
+    again = handle(
+        {
+            "id": "2",
+            "action": "source",
+            "path": str(out),
+            "cache_dir": str(cache_dir),
+        }
+    )
+    assert again["ok"] is True
+    assert again["result"]["cache_path"] == first["result"]["cache_path"]
+
+
+def test_source_action_copies_sibling_pdf_instead_of_embedded_blob(tmp_path, monkeypatch):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    cache_dir = tmp_path / "source-cache"
+    make_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", store_original=True)
+    sidecar = importlib.import_module("vera_app.sidecar")
+
+    def fail_extract(*args, **kwargs):
+        raise AssertionError("matching sibling PDF should be copied instead of extracted")
+
+    monkeypatch.setattr(sidecar.VeraDocument, "write_attachment", fail_extract)
+    response = handle(
+        {
+            "id": "1",
+            "action": "source",
+            "path": str(out),
+            "cache_dir": str(cache_dir),
+        }
+    )
+    assert response["ok"] is True
+    cache_path = Path(response["result"]["cache_path"])
+    assert cache_path.read_bytes() == pdf.read_bytes()
+
+
+def test_source_action_uses_sibling_when_original_is_not_stored(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    cache_dir = tmp_path / "source-cache"
+    make_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", store_original=False)
+
+    response = handle(
+        {
+            "id": "1",
+            "action": "source",
+            "path": str(out),
+            "cache_dir": str(cache_dir),
+        }
+    )
+    assert response["ok"] is True
+    assert Path(response["result"]["cache_path"]).read_bytes() == pdf.read_bytes()
+
+
+def test_source_action_extracts_embedded_pdf_when_sibling_is_missing(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    cache_dir = tmp_path / "source-cache"
+    make_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing", store_original=True)
+    expected = pdf.read_bytes()
+    pdf.unlink()
+
+    response = handle(
+        {
+            "id": "1",
+            "action": "source",
+            "path": str(out),
+            "cache_dir": str(cache_dir),
+        }
+    )
+    assert response["ok"] is True
+    assert Path(response["result"]["cache_path"]).read_bytes() == expected
+
+
 def test_answer_action_requires_llm(tmp_path):
     pdf = tmp_path / "manual.pdf"
     out = tmp_path / "manual.vera"

@@ -155,7 +155,7 @@ Referenced attachments cannot be deleted until their links are removed.
 Checksums are computed and validated automatically.
 
 Use `attachment_metadata()` when attachment IDs, MIME types, filenames,
-checksums, and metadata are needed without reading binary payloads:
+checksums, byte sizes, and metadata are needed without reading binary payloads:
 
 ```python
 with VeraDocument.open("manual.vera") as document:
@@ -165,8 +165,7 @@ with VeraDocument.open("manual.vera") as document:
     )
 ```
 
-The returned descriptors do not contain a `data` field. Call
-`get_attachment()` only for the IDs whose bytes are actually needed.
+The returned descriptors include `size` (payload length in bytes) and do not contain a `data` field. Call `get_attachment()` only for the IDs whose bytes are actually needed, or `write_attachment()` to copy those bytes to a file.
 
 ## Search modes and filters
 
