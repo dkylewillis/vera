@@ -38,6 +38,7 @@ conversion to `.vera` archives. PDF parsing/OCR live in plugins such as
         - get_blocks
         - get_chunk_regions
         - regions_for
+        - result_payload
         - get_source_document
         - export_source_document
       heading_level: 2

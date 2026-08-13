@@ -3,7 +3,7 @@
 This is an automatically generated API reference for searching a folder of
 `.vera` files as one collection.
 
-::: vera.corpus
+::: vera_doc.corpus
     handler: python
     options:
       members:

@@ -11,11 +11,17 @@ from pathlib import Path
 
 import pytest
 
-from vera import VeraCorpus, VeraDocument, build_library_index, library_index_status, update_library_index
+from helpers.pdfs import make_topic_pdf
+from vera_doc import (
+    VeraCorpus,
+    VeraDocument,
+    build_library_index,
+    library_index_status,
+    update_library_index,
+)
+from vera_doc.collection import discover_vera_files
 from vera_ingest import convert
 from vera_ingest.viewer import regions_for
-from vera.collection import discover_vera_files
-from test_corpus import make_topic_pdf
 
 
 def _convert_topic(
@@ -77,7 +83,9 @@ class TestDiscovery:
         assert all("archive" not in path.parts for path in recursive)
 
     def test_corpus_can_search_nested_files_without_an_index(self, nested_library):
-        with VeraCorpus.open(str(nested_library), recursive=True, excludes=["archive"], use_index=False) as corpus:
+        with VeraCorpus.open(
+            str(nested_library), recursive=True, excludes=["archive"], use_index=False
+        ) as corpus:
             results = corpus.search("water treatment pumping", top_k=2)
             assert results
             assert results[0].file.endswith("water.vera")
@@ -97,7 +105,9 @@ class TestDiscovery:
             assert next(iter(corpus._docs)) == corpus.paths[1]
 
     def test_rejects_negative_search_limits(self, nested_library):
-        with VeraCorpus.open(str(nested_library), recursive=True, excludes=["archive"], use_index=False) as corpus:
+        with VeraCorpus.open(
+            str(nested_library), recursive=True, excludes=["archive"], use_index=False
+        ) as corpus:
             with pytest.raises(ValueError, match="top_k"):
                 corpus.search("roadway", top_k=-1)
             with pytest.raises(ValueError, match="context_chunks"):
@@ -210,7 +220,7 @@ class TestBuildAndSearch:
         assert len(summary["files"]) == 2
 
     def test_mixed_embedding_models_are_rank_fused(self, tmp_path):
-        from vera.core.embeddings import HashingEmbedder, register_embedder, unregister_embedder
+        from vera_doc.embeddings import HashingEmbedder, register_embedder, unregister_embedder
 
         def alternate_factory(model_id: str, **config):
             return HashingEmbedder(model_name=f"alternate:{model_id or 'default'}")
@@ -218,7 +228,13 @@ class TestBuildAndSearch:
         register_embedder("alternate", alternate_factory, replace=True)
         try:
             root = tmp_path / "mixed"
-            _convert_topic(root, "one.vera", "Road Design", "Roadway design project experience.", model="hashing")
+            _convert_topic(
+                root,
+                "one.vera",
+                "Road Design",
+                "Roadway design project experience.",
+                model="hashing",
+            )
             _convert_topic(
                 root,
                 "two.vera",
@@ -245,8 +261,10 @@ class TestBuildAndSearch:
         finally:
             unregister_embedder("alternate")
 
-    def test_unavailable_semantic_model_does_not_break_keyword_search(self, nested_library, monkeypatch):
-        import vera.collection as collection
+    def test_unavailable_semantic_model_does_not_break_keyword_search(
+        self, nested_library, monkeypatch
+    ):
+        import vera_doc.collection as collection
 
         build_library_index(str(nested_library), recursive=True, excludes=["archive"])
 
@@ -264,12 +282,14 @@ class TestBuildAndSearch:
                 }
             ]
             assert corpus.search("water treatment", mode="hybrid")[0].file.endswith("water.vera")
-            assert corpus.skipped_semantic_model_groups[0]["error"] == "ImportError: vera-hashing-384"
+            assert (
+                corpus.skipped_semantic_model_groups[0]["error"] == "ImportError: vera-hashing-384"
+            )
             assert corpus.search("water treatment", mode="keyword")[0].file.endswith("water.vera")
             assert corpus.skipped_semantic_model_groups == []
 
     def test_unknown_registered_model_is_skipped_at_query_time(self, tmp_path):
-        from vera.core.embeddings import HashingEmbedder, register_embedder, unregister_embedder
+        from vera_doc.embeddings import HashingEmbedder, register_embedder, unregister_embedder
 
         def factory(model_id: str, **config):
             return HashingEmbedder(model_name=f"ephemeral:{model_id or 'default'}")
@@ -298,7 +318,7 @@ class TestBuildAndSearch:
             assert corpus.search("water treatment", mode="keyword")[0].file.endswith("doc.vera")
 
     def test_incompatible_runtime_model_dimension_is_reported(self, nested_library, monkeypatch):
-        import vera.collection as collection
+        import vera_doc.collection as collection
 
         build_library_index(str(nested_library), recursive=True, excludes=["archive"])
 
@@ -372,7 +392,7 @@ class TestBuildAndSearch:
         assert indexed_keys == fanout_keys
 
     def test_rebuild_garbage_collects_old_generations(self, nested_library):
-        from vera.collection import INDEX_DIRECTORY, INDEX_GENERATIONS
+        from vera_doc.collection import INDEX_DIRECTORY, INDEX_GENERATIONS
 
         first = build_library_index(str(nested_library), recursive=True, excludes=["archive"])
         second = build_library_index(str(nested_library), recursive=True, excludes=["archive"])
@@ -449,7 +469,7 @@ class TestUpdatesAndFallback:
         assert any("content changed" in reason for reason in status["reasons"])
 
     def test_failed_rebuild_preserves_previous_index(self, nested_library, monkeypatch):
-        import vera.collection as collection
+        import vera_doc.collection as collection
 
         build_library_index(str(nested_library), recursive=True, excludes=["archive"])
 
@@ -540,7 +560,11 @@ async def test_mcp_recursive_corpus_search(nested_library):
         },
     )
     content, structured = result
-    payload = structured.get("result", structured) if structured is not None else json.loads(content[0].text)
+    payload = (
+        structured.get("result", structured)
+        if structured is not None
+        else json.loads(content[0].text)
+    )
     assert payload["results"][0]["file"].endswith("roadway.vera")
     assert "figures" in payload["results"][0]
     assert payload["index"]["used"] is False
@@ -548,7 +572,7 @@ async def test_mcp_recursive_corpus_search(nested_library):
 
 @pytest.mark.anyio
 async def test_mcp_reports_skipped_semantic_model_groups(nested_library, monkeypatch):
-    import vera.collection as collection
+    import vera_doc.collection as collection
     from vera_mcp import build_server
 
     build_library_index(str(nested_library), recursive=True, excludes=["archive"])
@@ -567,7 +591,11 @@ async def test_mcp_reports_skipped_semantic_model_groups(nested_library, monkeyp
         },
     )
     content, structured = result
-    payload = structured.get("result", structured) if structured is not None else json.loads(content[0].text)
+    payload = (
+        structured.get("result", structured)
+        if structured is not None
+        else json.loads(content[0].text)
+    )
     assert payload["results"][0]["file"].endswith("water.vera")
     assert payload["skipped_semantic_model_groups"] == [
         {

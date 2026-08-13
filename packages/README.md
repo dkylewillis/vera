@@ -10,7 +10,7 @@ Published on PyPI:
 
 | Package | Import / command | Role |
 |---------|------------------|------|
-| [`vera-doc`](https://pypi.org/project/vera-doc/) | `import vera` | Storage and search |
+| [`vera-doc`](https://pypi.org/project/vera-doc/) | `import vera_doc` | Storage and search |
 | [`vera-ingest`](https://pypi.org/project/vera-ingest/) | `import vera_ingest` | Conversion registry and shared ingest types |
 | [`vera-ingest-pymupdf`](https://pypi.org/project/vera-ingest-pymupdf/) | `import vera_ingest_pymupdf` | Default PyMuPDF PDF ingest pipeline |
 | [`vera-ingest-docling`](https://pypi.org/project/vera-ingest-docling/) | `import vera_ingest_docling` | Optional Docling ingest pipeline |

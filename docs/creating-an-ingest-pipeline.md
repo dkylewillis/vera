@@ -200,7 +200,7 @@ within those four shapes and inherit `PipelineOptions` as-is, with no
 `from_mapping` of their own. If a future field ever needs something those four shapes can't express
 — type conversion beyond bool/int/str, a cross-field check, or normalizing a
 value rather than just validating it — override `from_mapping` on your own
-subclass and write it with the `vera_ingest.option_parsing` helpers directly,
+subclass and write it with the `vera_doc.option_parsing` helpers directly,
 the same way both plugins' `Options` classes worked before `PipelineOptions`
 existed. Two class attributes cover the common customizations without an
 override: `options_label` (the name used in error messages) and

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from vera import QueryResult, VeraDocument
+from vera_doc import QueryResult, VeraDocument
 
 MODES = ("semantic", "keyword", "hybrid")
 
@@ -28,16 +28,16 @@ class QueryCase:
         if not self.query or not str(self.query).strip():
             raise ValueError("Query case is missing 'query' text")
         if not self.expected_pages and not self.expected_terms:
-            raise ValueError(f"Query case {self.query!r} needs expected_pages and/or expected_terms")
+            raise ValueError(
+                f"Query case {self.query!r} needs expected_pages and/or expected_terms"
+            )
 
     def matches(self, result: QueryResult) -> bool:
-        metadata = result.record.metadata
         if self.expected_pages:
-            page_start = metadata.get("page_start")
-            page_end = metadata.get("page_end")
-            pages = {p for p in (page_start, page_end) if isinstance(p, int)}
-            if isinstance(page_start, int) and isinstance(page_end, int):
-                pages.update(range(page_start, page_end + 1))
+            citation = result.citation
+            pages = {p for p in (citation.page_start, citation.page_end) if isinstance(p, int)}
+            if isinstance(citation.page_start, int) and isinstance(citation.page_end, int):
+                pages.update(range(citation.page_start, citation.page_end + 1))
             if not pages.intersection(self.expected_pages):
                 return False
         if self.expected_terms:
@@ -107,11 +107,7 @@ def evaluate_document(
                 "hit": hit,
                 "rank": rank,
                 "top_score": results[0].score if results else None,
-                "top_page": (
-                    results[0].record.metadata.get("page_start")
-                    if results
-                    else None
-                ),
+                "top_page": (results[0].citation.page_start if results else None),
             }
         )
     total = len(cases)

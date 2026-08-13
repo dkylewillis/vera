@@ -5,8 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-from vera.core.option_parsing import fields_from_dataclass as _fields_from_dataclass
-
+from vera_doc.option_parsing import fields_from_dataclass as _fields_from_dataclass
 
 FieldType = Literal["string", "enum", "integer", "number", "boolean"]
 
@@ -92,9 +91,7 @@ def fields_from_dataclass(cls: type) -> tuple[PipelineField, ...]:
     at the type level). ``metadata["choices"]`` is a sequence of
     ``(value, label)`` pairs.
     """
-    return _fields_from_dataclass(
-        cls, field_cls=PipelineField, choice_cls=PipelineFieldChoice
-    )
+    return _fields_from_dataclass(cls, field_cls=PipelineField, choice_cls=PipelineFieldChoice)
 
 
 def generic_pipeline_descriptor(provider: str, variant: str = "") -> PipelineDescriptor:

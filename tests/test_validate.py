@@ -4,9 +4,9 @@ import sys
 
 import numpy as np
 
-from vera import VeraDocument
+from helpers.pdfs import make_pdf
+from vera_doc import VeraDocument
 from vera_ingest import convert
-from test_convert_search import make_pdf
 
 
 def test_validate_passes_for_converted_vera(tmp_path):
@@ -41,7 +41,9 @@ def test_validate_reports_missing_required_metadata(tmp_path):
     doc.close()
 
     assert report["ok"] is False
-    assert any("Missing required metadata key: format_version" in issue for issue in report["issues"])
+    assert any(
+        "Missing required metadata key: format_version" in issue for issue in report["issues"]
+    )
 
 
 def test_validate_reports_bad_embedding_dimension(tmp_path):
@@ -103,9 +105,7 @@ def test_validate_treats_missing_normalization_metadata_as_unknown(tmp_path):
     with VeraDocument.create(out):
         pass
     conn = sqlite3.connect(out)
-    conn.execute(
-        "DELETE FROM vera_metadata WHERE key='default_embedding_normalization'"
-    )
+    conn.execute("DELETE FROM vera_metadata WHERE key='default_embedding_normalization'")
     conn.commit()
     conn.close()
 
@@ -132,10 +132,7 @@ def test_validate_rejects_noncanonical_normalization_value(tmp_path):
         report = doc.validate()
 
     assert report["ok"] is False
-    assert any(
-        "Invalid default_embedding_normalization" in issue
-        for issue in report["issues"]
-    )
+    assert any("Invalid default_embedding_normalization" in issue for issue in report["issues"])
 
 
 def test_validate_warns_when_original_was_intentionally_omitted(tmp_path):

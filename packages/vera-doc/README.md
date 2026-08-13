@@ -24,7 +24,7 @@ download or API key.
 ## Quick start
 
 ```python
-from vera import ChunkRecord, VeraDocument
+from vera_doc import ChunkRecord, VeraDocument
 
 records = [
     ChunkRecord(
@@ -187,8 +187,7 @@ class EmbeddingFunction:
     model_name: str
     dimension: int
 
-    def embed(self, texts: list[str]) -> numpy.ndarray:
-        ...
+    def embed(self, texts: list[str]) -> numpy.ndarray: ...
 ```
 
 The same model and dimension must be used for stored records and text queries.
@@ -355,7 +354,7 @@ Context managers call `close()` automatically.
 ## Optional attachments example
 
 ```python
-from vera import (
+from vera_doc import (
     AttachmentRecord,
     AttachmentRef,
     ChunkRecord,
@@ -390,7 +389,7 @@ Pass any object that satisfies the `EmbeddingFunction` protocol:
 ```python
 import numpy as np
 
-from vera import ChunkRecord, VeraDocument
+from vera_doc import ChunkRecord, VeraDocument
 
 
 class MyEmbedder:
@@ -436,7 +435,7 @@ hashing).
 Register additional providers in-process:
 
 ```python
-from vera import get_embedder, register_embedder
+from vera_doc import get_embedder, register_embedder
 
 
 @register_embedder("example")
@@ -497,13 +496,13 @@ from dataclasses import dataclass, field
 import numpy as np
 from openai import OpenAI
 
-from vera import (
+from vera_doc import (
     EmbedderCapabilities,
     EmbedderDescriptor,
     EmbedderOptions,
     EmbeddingModelInfo,
 )
-from vera.core.embedder_descriptors import fields_from_dataclass
+from vera_doc.embedder_descriptors import fields_from_dataclass
 
 
 @dataclass(frozen=True)
@@ -588,7 +587,7 @@ vera convert "manual.pdf" --model openai:text-embedding-3-small \
 Or pass provider-specific settings from Python:
 
 ```python
-from vera import get_embedder, preflight_embedder
+from vera_doc import get_embedder, preflight_embedder
 from vera_ingest import convert
 
 assert preflight_embedder("openai:text-embedding-3-large").ok
@@ -613,7 +612,7 @@ can resolve the same provider later.
 `VeraCorpus` searches a directory of `.vera` files as one corpus:
 
 ```python
-from vera import VeraCorpus
+from vera_doc import VeraCorpus
 
 with VeraCorpus.open("./library", recursive=True) as corpus:
     results = corpus.search("detention requirements", top_k=5)
@@ -622,7 +621,7 @@ with VeraCorpus.open("./library", recursive=True) as corpus:
 For larger libraries, create a persistent derived index:
 
 ```python
-from vera import (
+from vera_doc import (
     build_library_index,
     library_index_status,
     update_library_index,
@@ -639,7 +638,7 @@ the source of truth.
 ## Package source structure
 
 ```text
-src/vera/
+src/vera_doc/
 ├── __init__.py          Public exports
 ├── models.py            Chunk, attachment, and query value objects
 ├── document.py          Storage, CRUD, search, and viewer helpers

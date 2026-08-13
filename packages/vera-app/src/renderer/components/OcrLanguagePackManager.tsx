@@ -1,3 +1,4 @@
+import { SIDECAR_ACTIONS } from '../../shared/protocol';
 import { useEffect, useRef, useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import type { OcrLanguageStatus, OcrLanguagesDownloadResult, OcrLanguagesListResult } from '../types';
@@ -41,7 +42,7 @@ export function OcrLanguagePackManager({
     }
     let cancelled = false;
     void window.vera
-      .request<OcrLanguagesListResult>({ action: 'ocr_languages_list', language: normalized })
+      .request<OcrLanguagesListResult>({ action: SIDECAR_ACTIONS.ocrLanguagesList, language: normalized })
       .then((response) => {
         if (cancelled) return;
         if (response.ok && response.result) {
@@ -71,14 +72,14 @@ export function OcrLanguagePackManager({
     });
     try {
       const response = await window.vera.request<OcrLanguagesDownloadResult>(
-        { action: 'ocr_languages_download', language: code },
+        { action: SIDECAR_ACTIONS.ocrLanguagesDownload, language: code },
         requestId,
       );
       if (!response.ok) {
         throw new Error(response.error || `Unable to download OCR language data for ${code}`);
       }
       const refreshed = await window.vera.request<OcrLanguagesListResult>({
-        action: 'ocr_languages_list',
+        action: SIDECAR_ACTIONS.ocrLanguagesList,
         language: normalized,
       });
       if (refreshed.ok && refreshed.result) setStatuses(refreshed.result.languages);

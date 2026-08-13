@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import copy
 import hashlib
 import json
@@ -13,7 +12,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from vera import (
+from vera_doc import (
     AttachmentRecord,
     VeraDocument,
     build_library_index,
@@ -24,7 +23,7 @@ from vera import (
     preflight_embedder,
     update_library_index,
 )
-from vera.corpus import VeraCorpus
+from vera_doc.corpus import VeraCorpus
 from vera_ingest import (
     batch_convert,
     convert,
@@ -33,17 +32,17 @@ from vera_ingest import (
 )
 from vera_ingest.viewer import (
     export_source_document,
+    figure_data_url,
     figures,
-    figures_for,
     get_page,
     get_source_document,
-    regions_for,
+    result_payload,
 )
 from vera_ingest_pymupdf import (
-    OCRLanguageDownloadError,
-    UnknownOCRLanguageError,
     describe_ocr_languages,
     download_ocr_language_data,
+)
+from vera_ingest_pymupdf import (
     ensure_registered as ensure_pymupdf_pipeline_registered,
 )
 
@@ -63,6 +62,7 @@ from vera_app.llm import (
     list_models,
 )
 from vera_app.modes import Mode, load_modes, resolve_mode
+from vera_app.protocol import SIDECAR_ACTIONS
 
 Request = dict[str, Any]
 Response = dict[str, Any]
@@ -113,7 +113,11 @@ def _resolve_target(request: Request):
         if len(files) > 1:
             return VeraCorpus.from_paths(files)
         if len(files) == 1:
-            return _open_corpus(files[0], request) if Path(files[0]).is_dir() else _open_document(files[0])
+            return (
+                _open_corpus(files[0], request)
+                if Path(files[0]).is_dir()
+                else _open_document(files[0])
+            )
     path = str(request["path"])
     return _open_corpus(path, request) if Path(path).is_dir() else _open_document(path)
 
@@ -137,28 +141,6 @@ def _scoped_single_file(request: Request) -> str | None:
     if path and not Path(path).is_dir():
         return path
     return None
-
-
-
-def _figure_payload(figure: dict[str, Any]) -> dict[str, Any]:
-    data = figure.pop("data", None)
-    if data is not None:
-        mime_type = figure.get("mime_type") or "application/octet-stream"
-        figure["data_url"] = f"data:{mime_type};base64,{base64.b64encode(data).decode('ascii')}"
-    return figure
-
-
-def _result_payload(result: Any) -> dict[str, Any]:
-    data = result.as_dict()
-    metadata = data.pop("metadata", {})
-    payload = {**metadata, **data}
-    for key in ("before_chunks", "after_chunks"):
-        if key in payload:
-            payload[key] = [
-                {**item.pop("metadata", {}), **item}
-                for item in payload[key]
-            ]
-    return payload
 
 
 class _AnswerStream:
@@ -328,25 +310,16 @@ def _search(request: Request, cancel: CancellationToken | None = None) -> list[d
         for result in results:
             if cancel:
                 cancel.raise_if_cancelled()
-            entry = _result_payload(result)
+            document = target.document(result.file) if isinstance(target, VeraCorpus) else target
+            entry = result_payload(
+                result,
+                document=document,
+                include_figures=include_figures,
+                include_regions=include_regions,
+                figure_data_urls=include_figure_data,
+            )
             if scoped_file and not entry.get("file"):
                 entry["file"] = scoped_file
-            document = (
-                target.document(result.file)
-                if isinstance(target, VeraCorpus)
-                else target
-            )
-            if include_regions:
-                entry["regions"] = regions_for(document, result)
-            if include_figures:
-                entry["figures"] = [
-                    _figure_payload(figure)
-                    for figure in figures_for(
-                        document,
-                        result,
-                        include_data=include_figure_data,
-                    )
-                ]
             payload.append(entry)
         return payload
     finally:
@@ -366,7 +339,7 @@ def _figure_data(request: Request) -> list[dict[str, Any]]:
     doc = _open_document(str(request["path"]))
     try:
         return [
-            _figure_payload(figure)
+            figure_data_url(figure)
             for figure in figures(
                 doc,
                 include_data=True,
@@ -420,7 +393,9 @@ def _count_image_parts(messages: list[dict[str, Any]]) -> int:
         content = message.get("content")
         if not isinstance(content, list):
             continue
-        total += sum(1 for part in content if isinstance(part, dict) and part.get("type") == "image_url")
+        total += sum(
+            1 for part in content if isinstance(part, dict) and part.get("type") == "image_url"
+        )
     return total
 
 
@@ -502,7 +477,11 @@ def _resolve_mode(request: Request) -> Mode:
 
 
 def _list_modes(request: Request) -> dict[str, Any]:
-    return {"modes": [mode.to_dict() for mode in load_modes(str(request.get("modes_dir") or "") or None)]}
+    return {
+        "modes": [
+            mode.to_dict() for mode in load_modes(str(request.get("modes_dir") or "") or None)
+        ]
+    }
 
 
 def _prior_citation_labels(request: Request) -> tuple[dict[str, str], int]:
@@ -538,7 +517,15 @@ class _SearchTool:
     # threshold is unreliable; a per-search relative cutoff is mode-agnostic.
     _QUALITY_RATIOS = {"strict": 0.85, "balanced": 0.55, "permissive": 0.0}
 
-    def __init__(self, request: Request, mode: Mode, write_event=None, label_registry: dict[str, str] | None = None, label_start: int = 0, cancel: CancellationToken | None = None) -> None:
+    def __init__(
+        self,
+        request: Request,
+        mode: Mode,
+        write_event=None,
+        label_registry: dict[str, str] | None = None,
+        label_start: int = 0,
+        cancel: CancellationToken | None = None,
+    ) -> None:
         self._request = request
         self._mode = mode
         self._by_chunk: dict[str, dict[str, Any]] = {}
@@ -605,19 +592,24 @@ class _SearchTool:
         if quality not in self._QUALITY_RATIOS:
             quality = "balanced"
         if self._write_event:
-            self._write_event({"event": "search_start", "query": query, "mode": search_mode, "top_k": top_k})
-        results = _search({
-            **self._request,
-            "query": query,
-            "mode": search_mode,
-            "top_k": top_k,
-            "context_chunks": max(0, min(3, int(context_chunks or 0))),
-            "include_regions": True,
-            "include_figures": include_figures,
-            # Fetch actual image bytes (not just captions) so citations carry a
-            # `data_url` the UI can render and so we can offer images to the LLM.
-            "include_figure_data": include_figures,
-        }, cancel=self._cancel)
+            self._write_event(
+                {"event": "search_start", "query": query, "mode": search_mode, "top_k": top_k}
+            )
+        results = _search(
+            {
+                **self._request,
+                "query": query,
+                "mode": search_mode,
+                "top_k": top_k,
+                "context_chunks": max(0, min(3, int(context_chunks or 0))),
+                "include_regions": True,
+                "include_figures": include_figures,
+                # Fetch actual image bytes (not just captions) so citations carry a
+                # `data_url` the UI can render and so we can offer images to the LLM.
+                "include_figure_data": include_figures,
+            },
+            cancel=self._cancel,
+        )
         # Relative quality filter: drop hits far weaker than the best one.
         if results:
             top_score = max(float(r.get("score") or 0.0) for r in results)
@@ -668,16 +660,23 @@ class _SearchTool:
                     page = fig.get("page_number") or result.get("page_start") or "-"
                     caption = fig.get("caption") or "no caption"
                     self._pending_image_parts.append(
-                        {"type": "text", "text": f"Figure for [{citation_id}] (p. {page}): {caption}"}
+                        {
+                            "type": "text",
+                            "text": f"Figure for [{citation_id}] (p. {page}): {caption}",
+                        }
                     )
                     self._pending_image_parts.append(
                         {"type": "image_url", "image_url": {"url": data_url}}
                     )
                     self._image_budget -= 1
             passages.append(passage)
-        self.searches.append({"query": query, "mode": search_mode, "top_k": top_k, "hits": len(passages)})
+        self.searches.append(
+            {"query": query, "mode": search_mode, "top_k": top_k, "hits": len(passages)}
+        )
         if self._write_event:
-            self._write_event({"event": "search_done", "query": query, "mode": search_mode, "hits": len(passages)})
+            self._write_event(
+                {"event": "search_done", "query": query, "mode": search_mode, "hits": len(passages)}
+            )
         if not passages:
             if skipped_cited:
                 note = (
@@ -689,25 +688,32 @@ class _SearchTool:
             return {"query": query, "passages": [], "note": note}
         response: dict[str, Any] = {"query": query, "passages": passages}
         if skipped_cited:
-            response["note"] = f"{skipped_cited} already-retrieved passage(s) omitted as duplicates."
+            response["note"] = (
+                f"{skipped_cited} already-retrieved passage(s) omitted as duplicates."
+            )
         return response
 
 
-def _retrieval_payload(request: Request, mode: Mode, instructions: str, cancel: CancellationToken | None = None) -> dict[str, Any]:
+def _retrieval_payload(
+    request: Request, mode: Mode, instructions: str, cancel: CancellationToken | None = None
+) -> dict[str, Any]:
     """Non-agentic fallback: one search, then synthesize (or list passages)."""
     prompt = str(request.get("prompt", "")).strip()
-    results = _search({
-        **request,
-        "query": prompt,
-        "mode": mode.search_mode,
-        "top_k": mode.top_k,
-        "context_chunks": mode.context_chunks,
-        "include_regions": True,
-        "include_figures": mode.include_figures,
-        # Fetch actual image bytes too (not just captions), same as the agentic
-        # path, so this fallback can also offer figure images to the model.
-        "include_figure_data": mode.include_figures,
-    }, cancel=cancel)
+    results = _search(
+        {
+            **request,
+            "query": prompt,
+            "mode": mode.search_mode,
+            "top_k": mode.top_k,
+            "context_chunks": mode.context_chunks,
+            "include_regions": True,
+            "include_figures": mode.include_figures,
+            # Fetch actual image bytes too (not just captions), same as the agentic
+            # path, so this fallback can also offer figure images to the model.
+            "include_figure_data": mode.include_figures,
+        },
+        cancel=cancel,
+    )
     citations = []
     label_registry, label_index = _prior_citation_labels(request)
     # Mirrors _SearchTool.run()'s image-part queueing, bounded by the same
@@ -723,11 +729,13 @@ def _retrieval_payload(request: Request, mode: Mode, instructions: str, cancel: 
             if chunk_id:
                 label_registry[chunk_id] = citation_id
         page = result.get("page_start") or result.get("page_end") or "-"
-        citations.append({
-            "id": citation_id,
-            "label": f"[{citation_id}] p. {page}",
-            "result": result,
-        })
+        citations.append(
+            {
+                "id": citation_id,
+                "label": f"[{citation_id}] p. {page}",
+                "result": result,
+            }
+        )
         if mode.include_figures:
             for fig in result.get("figures") or []:
                 data_url = fig.pop("data_url", None)
@@ -737,7 +745,10 @@ def _retrieval_payload(request: Request, mode: Mode, instructions: str, cancel: 
                 fig_page = fig.get("page_number") or page
                 caption = fig.get("caption") or "no caption"
                 image_parts.append(
-                    {"type": "text", "text": f"Figure for [{citation_id}] (p. {fig_page}): {caption}"}
+                    {
+                        "type": "text",
+                        "text": f"Figure for [{citation_id}] (p. {fig_page}): {caption}",
+                    }
                 )
                 image_parts.append({"type": "image_url", "image_url": {"url": data_url}})
                 image_budget -= 1
@@ -745,8 +756,7 @@ def _retrieval_payload(request: Request, mode: Mode, instructions: str, cancel: 
         f"[{citation['id']}] {citation['result'].get('text', '')}" for citation in citations
     )
     llm_prompt = (
-        f"Instructions:\n{instructions}\n\n"
-        f"User question:\n{prompt}\n\nEvidence:\n{evidence}"
+        f"Instructions:\n{instructions}\n\nUser question:\n{prompt}\n\nEvidence:\n{evidence}"
     )
     return {
         "prompt": prompt,
@@ -785,9 +795,13 @@ def _strip_image_parts(messages: list[dict[str, Any]]) -> None:
         if not isinstance(content, list):
             continue
         text = "\n".join(
-            str(part.get("text", "")) for part in content if isinstance(part, dict) and part.get("type") == "text"
+            str(part.get("text", ""))
+            for part in content
+            if isinstance(part, dict) and part.get("type") == "text"
         ).strip()
-        had_images = any(isinstance(part, dict) and part.get("type") == "image_url" for part in content)
+        had_images = any(
+            isinstance(part, dict) and part.get("type") == "image_url" for part in content
+        )
         if had_images:
             note = "[Images omitted: this model does not support image input.]"
             text = f"{text}\n{note}" if text else note
@@ -836,7 +850,14 @@ def _answer(
     # Seed the citation labeller with ids already assigned in earlier turns so the
     # same chunk keeps its `[C#]` id across the whole session.
     label_registry, label_start = _prior_citation_labels(request)
-    tool = _SearchTool(request, mode, write_event=record, label_registry=label_registry, label_start=label_start, cancel=cancel)
+    tool = _SearchTool(
+        request,
+        mode,
+        write_event=record,
+        label_registry=label_registry,
+        label_start=label_start,
+        cancel=cancel,
+    )
     # Images the user attached to this message (via the composer's attach button
     # or drag-and-drop) ride along in the initial user message, alongside any
     # figure images the agent surfaces later while searching.
@@ -864,13 +885,15 @@ def _answer(
             force_answer = turn >= mode.max_searches or tool.chunk_count >= mode.max_chunks
             offered_tools = None if force_answer else [SEARCH_TOOL]
             answer_stream = _AnswerStream(write_event)
-            record({
-                "event": "llm_request",
-                "turn": turn,
-                "model": config.model,
-                "tools": [t["function"]["name"] for t in (offered_tools or [])],
-                "messages": _redact_messages_for_trace(messages),
-            })
+            record(
+                {
+                    "event": "llm_request",
+                    "turn": turn,
+                    "model": config.model,
+                    "tools": [t["function"]["name"] for t in (offered_tools or [])],
+                    "messages": _redact_messages_for_trace(messages),
+                }
+            )
             try:
                 response = chat(
                     messages,
@@ -901,17 +924,19 @@ def _answer(
                 cancel.raise_if_cancelled()
             answer_stream.finish(response)
             last_response = response
-            record({
-                "event": "llm_response",
-                "turn": turn,
-                "model": response.model,
-                "content": response.content,
-                "tool_calls": [
-                    {"id": call.id, "name": call.name, "arguments": call.arguments}
-                    for call in response.tool_calls
-                ],
-                "usage": response.usage,
-            })
+            record(
+                {
+                    "event": "llm_response",
+                    "turn": turn,
+                    "model": response.model,
+                    "content": response.content,
+                    "tool_calls": [
+                        {"id": call.id, "name": call.name, "arguments": call.arguments}
+                        for call in response.tool_calls
+                    ],
+                    "usage": response.usage,
+                }
+            )
             print(
                 f"[vera-answer] turn={turn} force_answer={force_answer} "
                 f"tool_calls={len(response.tool_calls)} content_len={len(response.content)} "
@@ -929,32 +954,45 @@ def _answer(
             for call in response.tool_calls:
                 if cancel:
                     cancel.raise_if_cancelled()
-                output = tool.run(call.arguments) if call.name == "search" else {"error": f"Unknown tool: {call.name}"}
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": call.id,
-                    "content": json.dumps(output),
-                })
-                record({
-                    "event": "tool_call",
-                    "turn": turn,
-                    "name": call.name,
-                    "arguments": call.arguments,
-                    "output": output,
-                })
+                output = (
+                    tool.run(call.arguments)
+                    if call.name == "search"
+                    else {"error": f"Unknown tool: {call.name}"}
+                )
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": json.dumps(output),
+                    }
+                )
+                record(
+                    {
+                        "event": "tool_call",
+                        "turn": turn,
+                        "name": call.name,
+                        "arguments": call.arguments,
+                        "output": output,
+                    }
+                )
             # If any of this turn's searches surfaced figures within the image
             # budget, offer them to the model as a follow-up multimodal message so
             # it can actually see the images (not just their captions).
             if vision_available:
                 image_parts = tool.take_pending_image_parts()
                 if image_parts:
-                    messages.append({
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": "Reference images for the figures cited above:"},
-                            *image_parts,
-                        ],
-                    })
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Reference images for the figures cited above:",
+                                },
+                                *image_parts,
+                            ],
+                        }
+                    )
             print(
                 f"[vera-answer]   -> appended tool results, messages now {len(messages)}, "
                 f"total citations: {tool.chunk_count}",
@@ -967,26 +1005,33 @@ def _answer(
         fallback = _retrieval_payload(request, mode, instructions, cancel=cancel)
         fallback_user_content: Any = fallback["llm_prompt"]
         if attachment_parts:
-            fallback_user_content = [{"type": "text", "text": fallback["llm_prompt"]}, *attachment_parts]
+            fallback_user_content = [
+                {"type": "text", "text": fallback["llm_prompt"]},
+                *attachment_parts,
+            ]
         fallback_messages: list[dict[str, Any]] = [
             {"role": "system", "content": instructions},
             {"role": "user", "content": fallback_user_content},
         ]
         if fallback["image_parts"]:
-            fallback_messages.append({
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Reference images for the figures cited above:"},
-                    *fallback["image_parts"],
-                ],
-            })
-        record({
-            "event": "llm_request",
-            "turn": 0,
-            "model": config.model,
-            "tools": [],
-            "messages": _redact_messages_for_trace(fallback_messages),
-        })
+            fallback_messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Reference images for the figures cited above:"},
+                        *fallback["image_parts"],
+                    ],
+                }
+            )
+        record(
+            {
+                "event": "llm_request",
+                "turn": 0,
+                "model": config.model,
+                "tools": [],
+                "messages": _redact_messages_for_trace(fallback_messages),
+            }
+        )
         fallback_stream = _AnswerStream(write_event)
         try:
             llm_result = generate(
@@ -1016,14 +1061,16 @@ def _answer(
                 usage=llm_result.usage,
             )
         )
-        record({
-            "event": "llm_response",
-            "turn": 0,
-            "model": llm_result.model,
-            "content": llm_result.answer,
-            "tool_calls": [],
-            "usage": llm_result.usage,
-        })
+        record(
+            {
+                "event": "llm_response",
+                "turn": 0,
+                "model": llm_result.model,
+                "content": llm_result.answer,
+                "tool_calls": [],
+                "usage": llm_result.usage,
+            }
+        )
         images_sent = _count_image_parts(fallback_messages)
         if images_sent == 0:
             _clear_figure_context_flags(fallback["citations"])
@@ -1039,7 +1086,11 @@ def _answer(
             "trace": trace,
             "images_sent": images_sent,
             "vision_fallback": vision_fallback,
-            "llm": {"provider": llm_result.provider, "model": llm_result.model, "usage": llm_result.usage},
+            "llm": {
+                "provider": llm_result.provider,
+                "model": llm_result.model,
+                "usage": llm_result.usage,
+            },
         }
 
     answer = last_response.content if last_response else ""
@@ -1059,13 +1110,15 @@ def _answer(
                     ),
                 },
             ]
-            record({
-                "event": "llm_request",
-                "turn": mode.max_searches + 1,
-                "model": config.model,
-                "tools": [],
-                "messages": _redact_messages_for_trace(nudge_messages),
-            })
+            record(
+                {
+                    "event": "llm_request",
+                    "turn": mode.max_searches + 1,
+                    "model": config.model,
+                    "tools": [],
+                    "messages": _redact_messages_for_trace(nudge_messages),
+                }
+            )
             nudge = chat(
                 nudge_messages,
                 config,
@@ -1075,14 +1128,16 @@ def _answer(
                 **({"cancel": cancel} if cancel else {}),
             )
             nudge_stream.finish(nudge)
-            record({
-                "event": "llm_response",
-                "turn": mode.max_searches + 1,
-                "model": nudge.model,
-                "content": nudge.content,
-                "tool_calls": [],
-                "usage": nudge.usage,
-            })
+            record(
+                {
+                    "event": "llm_response",
+                    "turn": mode.max_searches + 1,
+                    "model": nudge.model,
+                    "content": nudge.content,
+                    "tool_calls": [],
+                    "usage": nudge.usage,
+                }
+            )
             answer = nudge.content
             if nudge.model:
                 last_response = nudge
@@ -1116,7 +1171,6 @@ def _answer(
     }
 
 
-
 def _convert(
     request: Request,
     write_event=None,
@@ -1134,15 +1188,11 @@ def _convert(
         )
     raw_pipeline_options = request.get("pipeline_options")
     pipeline_options = (
-        dict(raw_pipeline_options)
-        if isinstance(raw_pipeline_options, dict)
-        else None
+        dict(raw_pipeline_options) if isinstance(raw_pipeline_options, dict) else None
     )
     raw_embedder_options = request.get("embedder_options")
     embedder_options = (
-        dict(raw_embedder_options)
-        if isinstance(raw_embedder_options, dict)
-        else None
+        dict(raw_embedder_options) if isinstance(raw_embedder_options, dict) else None
     )
     output = convert(
         input_path,
@@ -1386,9 +1436,7 @@ def _list_embedding_providers(request: Request) -> dict[str, Any]:
 def _describe_embedding_providers(request: Request) -> dict[str, Any]:
     """Return installed embedding-provider descriptors for schema-driven controls."""
     return {
-        "providers": [
-            descriptor.as_dict() for descriptor in list_embedding_provider_descriptors()
-        ],
+        "providers": [descriptor.as_dict() for descriptor in list_embedding_provider_descriptors()],
     }
 
 
@@ -1482,6 +1530,12 @@ HANDLERS: dict[str, Handler] = {
     "list_modes": _list_modes,
 }
 
+_CONTROL_ACTIONS = {"cancel", "skip"}
+if set(HANDLERS) | _CONTROL_ACTIONS != set(SIDECAR_ACTIONS):
+    missing = set(SIDECAR_ACTIONS) - (set(HANDLERS) | _CONTROL_ACTIONS)
+    extra = (set(HANDLERS) | _CONTROL_ACTIONS) - set(SIDECAR_ACTIONS)
+    raise RuntimeError(f"sidecar action mismatch missing={sorted(missing)} extra={sorted(extra)}")
+
 _stdout_lock = threading.Lock()
 _inflight_lock = threading.Lock()
 _inflight_requests: dict[str, CancellationToken] = {}
@@ -1524,22 +1578,30 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
         if action not in HANDLERS:
             raise ValueError(f"Unknown action: {action}")
         if action == "answer":
+
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
+
             result = _answer(request, write_event=_emit, cancel=cancel)
         elif action in {"convert", "batch_convert", "ocr_languages_download"}:
+
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
+
             result = HANDLERS[action](request, write_event=_emit, cancel=cancel)
         elif action == "inspect":
+
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
+
             result = _inspect(request, write_event=_emit, cancel=cancel)
         elif action == "search":
             result = _search(request, cancel=cancel)
         elif action in {"index_build", "index_update"}:
+
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
+
             result = HANDLERS[action](request, write_event=_emit)
         elif action == "source":
             result = _source(request, cancel=cancel)
@@ -1566,7 +1628,9 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
             return {
                 "id": request_id,
                 "ok": False,
-                "error": _cancelled_error_message(action, exc if isinstance(exc, CancelledError) else None),
+                "error": _cancelled_error_message(
+                    action, exc if isinstance(exc, CancelledError) else None
+                ),
                 "cancelled": True,
             }
         response: Response = {

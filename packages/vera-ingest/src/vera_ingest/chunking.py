@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 
 from .types import ParsedBlock
 
-_HEADING_RE = re.compile(r"^(chapter|section|article|part|appendix|stormwater|zoning|[0-9]+(?:\.[0-9]+)*)\b", re.I)
+_HEADING_RE = re.compile(
+    r"^(chapter|section|article|part|appendix|stormwater|zoning|[0-9]+(?:\.[0-9]+)*)\b", re.I
+)
 
 
 @dataclass
@@ -76,18 +78,30 @@ def chunk_pages(pages, chunk_size: int = 500, overlap: int = 75) -> list[Chunk]:
             if len(words) > chunk_size:
                 if buffer:
                     text = " ".join(buffer)
-                    chunks.append(Chunk(text, page.page_number, page.page_number, heading, len(tokens(text))))
+                    chunks.append(
+                        Chunk(text, page.page_number, page.page_number, heading, len(tokens(text)))
+                    )
                     buffer = []
                 step = chunk_size - overlap
                 for start in range(0, len(words), step):
                     part = words[start : start + chunk_size]
                     if part:
-                        chunks.append(Chunk(" ".join(part), page.page_number, page.page_number, heading, len(part)))
+                        chunks.append(
+                            Chunk(
+                                " ".join(part),
+                                page.page_number,
+                                page.page_number,
+                                heading,
+                                len(part),
+                            )
+                        )
                     if start + chunk_size >= len(words):
                         break
             elif len(buffer) + len(words) > chunk_size and buffer:
                 text = " ".join(buffer)
-                chunks.append(Chunk(text, page.page_number, page.page_number, heading, len(tokens(text))))
+                chunks.append(
+                    Chunk(text, page.page_number, page.page_number, heading, len(tokens(text)))
+                )
                 buffer = buffer[-overlap:] if overlap else []
                 buffer.extend(words)
                 overflow, buffer = _take_overflow_windows(buffer, chunk_size, overlap)
@@ -105,7 +119,9 @@ def chunk_pages(pages, chunk_size: int = 500, overlap: int = 75) -> list[Chunk]:
                 buffer.extend(words)
         if buffer:
             text = " ".join(buffer)
-            chunks.append(Chunk(text, page.page_number, page.page_number, heading, len(tokens(text))))
+            chunks.append(
+                Chunk(text, page.page_number, page.page_number, heading, len(tokens(text)))
+            )
     return chunks
 
 
@@ -221,9 +237,7 @@ def build_chunks_from_blocks(
         buffer_pages.append(block.page_number)
         if starting_new_buffer:
             attach_pending_images(block.page_number, buffer_blocks)
-        overflow, buffer_words = _take_overflow_windows(
-            buffer_words, chunk_size, overlap
-        )
+        overflow, buffer_words = _take_overflow_windows(buffer_words, chunk_size, overlap)
         for window in overflow:
             chunks.append(
                 Chunk(

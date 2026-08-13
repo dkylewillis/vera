@@ -1,7 +1,12 @@
-# VERA Format Specification
+# VERA Format Specification 0.1 (deprecated)
 
-**Version:** 0.1 (draft)
-**Status:** Experimental — the schema may change before 1.0
+> **Deprecated.** This document describes the experimental 0.1 archive schema
+> (document/page/block tables). Current archives and tooling use
+> **[VERA format 0.2](vera-spec-v0.2.md)**. `vera-doc` does not read 0.1 files.
+> Keep this page only as historical reference.
+
+**Version:** 0.1 (draft, superseded)
+**Status:** Deprecated — do not write new 0.1 archives
 **License:** Apache-2.0
 
 VERA (Vector-Embedded Retrieval Archive) is a portable, single-file format for semantically searchable documents. An `.vera` file carries a source document together with its parsed structure, text chunks, vector embeddings, keyword index, extracted figures, and citation metadata, so that any compatible application can search the document without re-parsing, re-chunking, or re-embedding it.

@@ -1,9 +1,9 @@
 # Document
 
 This is an automatically generated API reference of the VERA storage and
-search engine (`vera.document`).
+search engine (`vera_doc.document`).
 
-::: vera.document
+::: vera_doc.document
     handler: python
     options:
       members:

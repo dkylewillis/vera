@@ -50,8 +50,7 @@ class PyMuPDFOptions(PipelineOptions):
         metadata={
             "label": "Overlap",
             "description": (
-                "Overlap between consecutive sliding-window chunks, in "
-                "whitespace-split words."
+                "Overlap between consecutive sliding-window chunks, in whitespace-split words."
             ),
             "unit": "words",
             "minimum": 0,

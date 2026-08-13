@@ -37,8 +37,7 @@ class DoclingOptions(PipelineOptions):
         metadata={
             "label": "Chunk size",
             "description": (
-                "HybridChunker limit in whitespace-split words "
-                "(not LLM subword tokens)."
+                "HybridChunker limit in whitespace-split words (not LLM subword tokens)."
             ),
             "unit": "tokens",
             "minimum": 100,
@@ -88,9 +87,7 @@ class DoclingOptions(PipelineOptions):
     def from_mapping(cls, raw: Mapping[str, Any] | None = None) -> DoclingOptions:
         data = dict(raw) if raw else {}
         if "ocr_language" in data:
-            data["ocr_language"] = _remap_tesseract_default_ocr_language(
-                data["ocr_language"]
-            )
+            data["ocr_language"] = _remap_tesseract_default_ocr_language(data["ocr_language"])
         return super().from_mapping(data)
 
 
