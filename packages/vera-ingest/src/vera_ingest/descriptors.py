@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-from vera.core.option_parsing import fields_from_dataclass as _fields_from_dataclass
+from vera_doc.option_parsing import fields_from_dataclass as _fields_from_dataclass
 
 FieldType = Literal["string", "enum", "integer", "number", "boolean"]
 

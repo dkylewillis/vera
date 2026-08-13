@@ -11,7 +11,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from vera import (
+from vera_doc import (
     AttachmentRecord,
     AttachmentRef,
     ChunkRecord,
@@ -19,7 +19,7 @@ from vera import (
     VeraDocument,
     get_embedder,
 )
-from vera.core.validation import validate_document
+from vera_doc.validation import validate_document
 
 from .cancellation import clear_user_skip, is_user_skip_error, raise_if_cancelled
 from .pipeline import (
@@ -178,7 +178,7 @@ def convert(
     """Convert a PDF into a validated ``.vera`` archive.
 
     Parses the PDF, chunks extracted text, embeds chunks, and writes the
-    result through :class:`~vera.document.VeraDocument`. The archive is
+    result through :class:`~vera_doc.document.VeraDocument`. The archive is
     validated before the temporary file is published atomically.
 
     New callers should pass ``parser``, ``pipeline_options``, and embedder

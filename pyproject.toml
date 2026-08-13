@@ -81,7 +81,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = [
-  "vera",
+  "vera_doc",
   "vera_ingest",
   "vera_ingest_pymupdf",
   "vera_ingest_docling",

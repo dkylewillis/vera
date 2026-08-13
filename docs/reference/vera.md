@@ -1,9 +1,9 @@
-# vera package
+# vera_doc package
 
-The `vera` package (`vera-doc` on PyPI) provides storage, search, corpus
+The `vera_doc` package (`vera-doc` on PyPI) provides storage, search, corpus
 queries, and library indexes for `.vera` archives.
 
-::: vera
+::: vera_doc
     options:
       members:
         - VeraDocument

@@ -3,7 +3,7 @@
 This is an automatically generated API reference of VERA record and result
 types.
 
-::: vera.models
+::: vera_doc.models
     handler: python
     options:
       members:

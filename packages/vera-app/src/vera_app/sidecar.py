@@ -13,7 +13,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from vera import (
+from vera_doc import (
     AttachmentRecord,
     VeraDocument,
     build_library_index,
@@ -24,7 +24,7 @@ from vera import (
     preflight_embedder,
     update_library_index,
 )
-from vera.corpus import VeraCorpus
+from vera_doc.corpus import VeraCorpus
 from vera_ingest import (
     batch_convert,
     convert,

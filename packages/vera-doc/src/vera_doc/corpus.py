@@ -55,7 +55,7 @@ class VeraCorpus:
 
     Ranking: semantic results are merged by raw cosine score (comparable
     across files that share a model). Mixed-model semantic lists and hybrid
-    semantic+keyword lists use :func:`~vera.collection.reciprocal_rank_fusion`
+    semantic+keyword lists use :func:`~vera_doc.collection.reciprocal_rank_fusion`
     so a library searched with or without a local index returns the same
     chunk order for a fixed hybrid query. Keyword-only scores are only
     comparable within a file; those candidates keep their original score

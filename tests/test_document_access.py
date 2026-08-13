@@ -7,7 +7,7 @@ import sys
 import pytest
 
 from test_blocks_figures import make_structured_pdf
-from vera import AttachmentRecord, VeraDocument
+from vera_doc import AttachmentRecord, VeraDocument
 from vera_ingest import convert
 from vera_ingest.viewer import (
     export_source_document,
@@ -75,7 +75,7 @@ class TestExportSourceDocument:
         assert (outdir / pdf.name).read_bytes() == pdf.read_bytes()
 
     def test_export_rejects_parent_and_absolute_stored_names(self, vera_doc, tmp_path, monkeypatch):
-        from vera import AttachmentRecord
+        from vera_doc import AttachmentRecord
         from vera_ingest import viewer as viewer_mod
 
         doc, _, _ = vera_doc

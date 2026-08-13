@@ -18,8 +18,8 @@ from typing import Any, TypeVar
 
 import numpy as np
 
-from .core.embeddings import deserialize_vector, get_embedder
 from .document import _MAX_TOP_K, VeraDocument, execute_fts, safe_fts_query
+from .embeddings import deserialize_vector, get_embedder
 from .models import metadata_from_json, thaw_json
 
 INDEX_DIRECTORY = ".vera-index"

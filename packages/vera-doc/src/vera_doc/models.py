@@ -178,7 +178,7 @@ class AttachmentRecord:
 
 @dataclass(frozen=True)
 class QueryResult:
-    """Ranked search hit from :meth:`~vera.document.VeraDocument.search`.
+    """Ranked search hit from :meth:`~vera_doc.document.VeraDocument.search`.
 
     Attributes:
         record: Matching chunk record.

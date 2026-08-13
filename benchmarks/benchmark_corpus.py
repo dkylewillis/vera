@@ -10,10 +10,10 @@ import time
 import tracemalloc
 from pathlib import Path
 
-from vera.collection import build_library_index
-from vera.core.embeddings import HashingEmbedder, serialize_vector
-from vera.core.schema import create_schema
-from vera.corpus import VeraCorpus
+from vera_doc._schema import create_schema
+from vera_doc.collection import build_library_index
+from vera_doc.corpus import VeraCorpus
+from vera_doc.embeddings import HashingEmbedder, serialize_vector
 
 
 def _write_vera(path: Path, document_number: int, chunks_per_document: int) -> None:

@@ -2,9 +2,10 @@
 
 import pytest
 
-from vera import ChunkRecord, QueryResult, VeraDocument
-from vera.core.embedder_descriptors import EmbedderDescriptor
-from vera.core.embeddings import (
+from vera_cli import str_to_bool
+from vera_doc import ChunkRecord, QueryResult, VeraDocument
+from vera_doc.embedder_descriptors import EmbedderDescriptor
+from vera_doc.embeddings import (
     HashingEmbedder,
     HashingOptions,
     UnknownEmbeddingModelError,
@@ -24,7 +25,6 @@ from vera.core.embeddings import (
     serialize_vector,
     unregister_embedder,
 )
-from vera_cli import str_to_bool
 from vera_ingest.chunking import chunk_pages, detect_heading
 from vera_ingest.types import ParsedPage
 
@@ -304,7 +304,7 @@ class TestGetEmbedder:
         assert any(item.model_id == "all-MiniLM-L6-v2" for item in st_models)
         assert preflight_embedder("hashing").ok is True
 
-        from vera import EmbedderCapabilities, EmbedderDescriptor, register_embedder_descriptor
+        from vera_doc import EmbedderCapabilities, EmbedderDescriptor, register_embedder_descriptor
 
         @register_embedder("unit-test-creds", replace=True)
         def factory(model_id: str, **config):
@@ -388,7 +388,7 @@ class TestGetEmbedder:
 
         reset_embedding_registry(builtins=True)
         monkeypatch.setattr(
-            "vera.core.embeddings.entry_points",
+            "vera_doc.embeddings.entry_points",
             fake_entry_points,
         )
         try:
@@ -418,11 +418,11 @@ class TestGetEmbedder:
 
         reset_embedding_registry(builtins=True)
         monkeypatch.setattr(
-            "vera.core.embeddings.entry_points",
+            "vera_doc.embeddings.entry_points",
             fake_entry_points,
         )
         try:
-            with caplog.at_level(logging.WARNING, logger="vera.core.embeddings"):
+            with caplog.at_level(logging.WARNING, logger="vera_doc.embeddings"):
                 providers = list_embedding_providers()
             assert "broken-remote" not in providers
             assert "hashing" in providers

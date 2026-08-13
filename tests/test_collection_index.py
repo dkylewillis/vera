@@ -12,14 +12,14 @@ from pathlib import Path
 import pytest
 
 from test_corpus import make_topic_pdf
-from vera import (
+from vera_doc import (
     VeraCorpus,
     VeraDocument,
     build_library_index,
     library_index_status,
     update_library_index,
 )
-from vera.collection import discover_vera_files
+from vera_doc.collection import discover_vera_files
 from vera_ingest import convert
 from vera_ingest.viewer import regions_for
 
@@ -220,7 +220,7 @@ class TestBuildAndSearch:
         assert len(summary["files"]) == 2
 
     def test_mixed_embedding_models_are_rank_fused(self, tmp_path):
-        from vera.core.embeddings import HashingEmbedder, register_embedder, unregister_embedder
+        from vera_doc.embeddings import HashingEmbedder, register_embedder, unregister_embedder
 
         def alternate_factory(model_id: str, **config):
             return HashingEmbedder(model_name=f"alternate:{model_id or 'default'}")
@@ -264,7 +264,7 @@ class TestBuildAndSearch:
     def test_unavailable_semantic_model_does_not_break_keyword_search(
         self, nested_library, monkeypatch
     ):
-        import vera.collection as collection
+        import vera_doc.collection as collection
 
         build_library_index(str(nested_library), recursive=True, excludes=["archive"])
 
@@ -289,7 +289,7 @@ class TestBuildAndSearch:
             assert corpus.skipped_semantic_model_groups == []
 
     def test_unknown_registered_model_is_skipped_at_query_time(self, tmp_path):
-        from vera.core.embeddings import HashingEmbedder, register_embedder, unregister_embedder
+        from vera_doc.embeddings import HashingEmbedder, register_embedder, unregister_embedder
 
         def factory(model_id: str, **config):
             return HashingEmbedder(model_name=f"ephemeral:{model_id or 'default'}")
@@ -318,7 +318,7 @@ class TestBuildAndSearch:
             assert corpus.search("water treatment", mode="keyword")[0].file.endswith("doc.vera")
 
     def test_incompatible_runtime_model_dimension_is_reported(self, nested_library, monkeypatch):
-        import vera.collection as collection
+        import vera_doc.collection as collection
 
         build_library_index(str(nested_library), recursive=True, excludes=["archive"])
 
@@ -392,7 +392,7 @@ class TestBuildAndSearch:
         assert indexed_keys == fanout_keys
 
     def test_rebuild_garbage_collects_old_generations(self, nested_library):
-        from vera.collection import INDEX_DIRECTORY, INDEX_GENERATIONS
+        from vera_doc.collection import INDEX_DIRECTORY, INDEX_GENERATIONS
 
         first = build_library_index(str(nested_library), recursive=True, excludes=["archive"])
         second = build_library_index(str(nested_library), recursive=True, excludes=["archive"])
@@ -469,7 +469,7 @@ class TestUpdatesAndFallback:
         assert any("content changed" in reason for reason in status["reasons"])
 
     def test_failed_rebuild_preserves_previous_index(self, nested_library, monkeypatch):
-        import vera.collection as collection
+        import vera_doc.collection as collection
 
         build_library_index(str(nested_library), recursive=True, excludes=["archive"])
 
@@ -572,7 +572,7 @@ async def test_mcp_recursive_corpus_search(nested_library):
 
 @pytest.mark.anyio
 async def test_mcp_reports_skipped_semantic_model_groups(nested_library, monkeypatch):
-    import vera.collection as collection
+    import vera_doc.collection as collection
     from vera_mcp import build_server
 
     build_library_index(str(nested_library), recursive=True, excludes=["archive"])

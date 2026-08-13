@@ -359,7 +359,7 @@ vera-mcp ───────────────────────�
 
 | Package | Import / command | What it owns |
 |---------|------------------|--------------|
-| [`vera-doc`](https://pypi.org/project/vera-doc/) | `import vera` | The core: `.vera` schema and validation, transactional chunk/attachment CRUD, embedding storage, and keyword/semantic/hybrid/corpus search. Has no knowledge of PDFs. |
+| [`vera-doc`](https://pypi.org/project/vera-doc/) | `import vera_doc` | The core: `.vera` schema and validation, transactional chunk/attachment CRUD, embedding storage, and keyword/semantic/hybrid/corpus search. Has no knowledge of PDFs. |
 | [`vera-ingest`](https://pypi.org/project/vera-ingest/) | `import vera_ingest` | Provider-neutral conversion: the pipeline registry, shared block/chunk types, chunking helpers, atomic archive writing, and viewer helpers for pages, figures, and regions |
 | [`vera-ingest-pymupdf`](https://pypi.org/project/vera-ingest-pymupdf/) | plugin | Default PDF pipeline: PyMuPDF/pdfplumber parsing, table extraction, selective OCR |
 | [`vera-ingest-docling`](https://pypi.org/project/vera-ingest-docling/) | plugin | Optional Docling pipeline with layout models and hybrid chunking |
@@ -387,7 +387,7 @@ Applications that already have chunks need only `vera-doc` — no PDF or ML
 dependencies:
 
 ```python
-from vera import ChunkRecord, VeraDocument
+from vera_doc import ChunkRecord, VeraDocument
 
 with VeraDocument.create("knowledge.vera") as document:
     document.add([

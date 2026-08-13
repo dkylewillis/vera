@@ -7,7 +7,7 @@ generated from source docstrings using [mkdocstrings](https://mkdocstrings.githu
 
 | Package | Import | Purpose |
 |---------|--------|---------|
-| [vera-doc](vera.md) | `import vera` | Storage, CRUD, search, corpus, library indexes |
+| [vera-doc](vera.md) | `import vera_doc` | Storage, CRUD, search, corpus, library indexes |
 | [vera-ingest](vera-ingest.md) | `import vera_ingest` | Conversion registry, shared types, archive writing |
 | [vera-ingest-pymupdf](../packages/vera-ingest-pymupdf.md) | `import vera_ingest_pymupdf` | Default PyMuPDF PDF parsing and OCR |
 | [vera-cli](vera-cli.md) | `import vera_cli` | Command-line interface |

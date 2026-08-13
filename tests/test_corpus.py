@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from vera import CorpusSearchResult, VeraCorpus
+from vera_doc import CorpusSearchResult, VeraCorpus
 from vera_ingest import convert
 from vera_ingest.viewer import regions_for
 
@@ -159,7 +159,7 @@ class TestInspect:
         def reject_archive_open(path):
             raise AssertionError(f"summary reopened archive: {path}")
 
-        monkeypatch.setattr("vera.corpus.VeraDocument.open", reject_archive_open)
+        monkeypatch.setattr("vera_doc.corpus.VeraDocument.open", reject_archive_open)
         with VeraCorpus.open(str(corpus_dir), use_index=False) as corpus:
             info = corpus.inspect_summary()
 

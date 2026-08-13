@@ -520,7 +520,7 @@ def test_cli_export_missing_source_matches_skill_error(tmp_path):
 
 
 def test_export_rejects_unsafe_stored_filenames(tmp_path, monkeypatch):
-    from vera import AttachmentRecord
+    from vera_doc import AttachmentRecord
     from vera_ingest import viewer as viewer_mod
 
     source = AttachmentRecord(

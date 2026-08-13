@@ -121,13 +121,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from vera import (
+from vera_doc import (
     EmbedderCapabilities,
     EmbedderDescriptor,
     EmbedderOptions,
     EmbeddingModelInfo,
 )
-from vera.core.embedder_descriptors import fields_from_dataclass
+from vera_doc.embedder_descriptors import fields_from_dataclass
 
 
 @dataclass(frozen=True)
@@ -221,7 +221,7 @@ vera convert manual.pdf --model openai:text-embedding-3-small \
 ```
 
 ```python
-from vera import (
+from vera_doc import (
     describe_embedder,
     get_embedder,
     list_embedding_models,
@@ -264,13 +264,12 @@ when those are set; otherwise non-negative), a `str` restricted to
 (`allow_empty` permits blanks).
 Override `from_mapping` when you need type conversion beyond those shapes,
 cross-field checks, or normalizing values. Use
-`vera.core.option_parsing` helpers directly in that override (`vera-ingest`
-re-exports the same helpers).
+`vera_doc.option_parsing` helpers directly in that override.
 
 ## Reference implementations
 
 - Built-in hashing and Sentence Transformers providers in
-  `packages/vera-doc/src/vera/core/embeddings.py` — Options + descriptors +
+  `packages/vera-doc/src/vera_doc/embeddings.py` — Options + descriptors +
   model lists live beside the factories.
 - This guide's OpenAI sketch — hosted API with env credentials and
   convert-time `batch_size`.

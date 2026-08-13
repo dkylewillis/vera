@@ -14,14 +14,13 @@ from typing import Any, Literal, cast
 
 import numpy as np
 
-from .core.embeddings import (
+from ._schema import FORMAT_VERSION, create_schema
+from .embeddings import (
     EmbeddingFunction,
     deserialize_vector,
     get_embedder,
     serialize_vector,
 )
-from .core.schema import FORMAT_VERSION, create_schema
-from .core.validation import validate_document
 from .models import (
     AttachmentRecord,
     AttachmentRef,
@@ -32,6 +31,7 @@ from .models import (
     metadata_to_json,
     thaw_json,
 )
+from .validation import validate_document
 
 OpenMode = Literal["read", "write"]
 SearchMode = Literal["semantic", "keyword", "hybrid"]
@@ -138,13 +138,13 @@ class VeraDocument:
     """An embedded storage and search engine backed by one portable ``.vera`` file.
 
     Use :meth:`create` to initialize a new archive and :meth:`open` to access
-    an existing one. Archives support CRUD on :class:`~vera.models.ChunkRecord`
+    an existing one. Archives support CRUD on :class:`~vera_doc.models.ChunkRecord`
     objects, optional binary attachments, and semantic, keyword, or hybrid
     search.
 
     Example:
         ```python
-        from vera import ChunkRecord, VeraDocument
+        from vera_doc import ChunkRecord, VeraDocument
 
         with VeraDocument.create("example.vera") as document:
             document.add([ChunkRecord(id="1", text="Hello world.")])
@@ -557,7 +557,7 @@ class VeraDocument:
             limit: Maximum number of records to return.
 
         Returns:
-            Matching :class:`~vera.models.ChunkRecord` objects in storage order.
+            Matching :class:`~vera_doc.models.ChunkRecord` objects in storage order.
         """
         self._ensure_open()
         if limit is not None and limit < 0:
@@ -646,7 +646,7 @@ class VeraDocument:
             context_chunks: Number of adjacent stored chunks to include.
 
         Returns:
-            Ranked :class:`~vera.models.QueryResult` objects.
+            Ranked :class:`~vera_doc.models.QueryResult` objects.
         """
         self._ensure_open()
         if mode not in {"semantic", "keyword", "hybrid"}:
@@ -802,7 +802,7 @@ class VeraDocument:
             attachment_id: Attachment identifier.
 
         Returns:
-            The matching :class:`~vera.models.AttachmentRecord`.
+            The matching :class:`~vera_doc.models.AttachmentRecord`.
 
         Raises:
             RecordNotFoundError: When no attachment exists with that ID.

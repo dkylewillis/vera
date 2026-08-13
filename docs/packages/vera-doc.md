@@ -1,6 +1,6 @@
 # vera-doc
 
-`vera-doc` publishes the `vera` Python package. It owns the portable SQLite
+`vera-doc` publishes the `vera_doc` Python package. It owns the portable SQLite
 format implementation, typed records, transactional CRUD, embeddings, search,
 corpus queries, and rebuildable library indexes.
 
@@ -32,7 +32,7 @@ unknown model specs raise `UnknownEmbeddingModelError`. See
 ## Start here
 
 ```python
-from vera import ChunkRecord, VeraDocument
+from vera_doc import ChunkRecord, VeraDocument
 
 with VeraDocument.create("knowledge.vera") as document:
     document.add([

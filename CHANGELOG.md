@@ -59,6 +59,7 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Breaking
 
+- The `vera-doc` distribution now imports as `vera_doc` (`from vera_doc import VeraDocument`). The previous `import vera` name collided with an unrelated PyPI package. There is no compatibility shim.
 - Unknown embedding model / provider names raise an error
   (`UnknownEmbeddingModelError`) instead of silently creating mislabeled
   hashing vectors. The archive records the model that must embed queries at

@@ -20,8 +20,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from vera.corpus import VeraCorpus
-from vera.document import VeraDocument
+from vera_doc.corpus import VeraCorpus
+from vera_doc.document import VeraDocument
 from vera_ingest.viewer import (
     figures,
     figures_for,

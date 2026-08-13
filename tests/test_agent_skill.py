@@ -3,8 +3,8 @@ import json
 import re
 from pathlib import Path
 
-from vera import ChunkRecord, VeraDocument
 from vera_cli.main import build_parser
+from vera_doc import ChunkRecord, VeraDocument
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_DIR = ROOT / "skills" / "vera"

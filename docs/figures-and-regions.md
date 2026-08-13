@@ -122,7 +122,7 @@ opaquely.
 Retrieve figures for a result:
 
 ```python
-from vera import VeraDocument
+from vera_doc import VeraDocument
 from vera_ingest.viewer import figures_for, regions_for
 
 doc = VeraDocument.open("manual.vera")

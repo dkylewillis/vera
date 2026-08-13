@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from vera import (
+from vera_doc import (
     AttachmentRecord,
     AttachmentRef,
     ChunkRecord,

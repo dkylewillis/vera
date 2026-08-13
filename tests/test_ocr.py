@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from vera import VeraDocument
+from vera_doc import VeraDocument
 from vera_ingest import batch_convert, convert
 from vera_ingest.viewer import regions_for
 from vera_ingest_pymupdf import parser as pdf_parser

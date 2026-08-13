@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from .schema import FORMAT_VERSION, REQUIRED_METADATA_KEYS
+from ._schema import FORMAT_VERSION, REQUIRED_METADATA_KEYS
 
 _EMBEDDING_NORMALIZATIONS = {"l2", "none", "unknown"}
 _L2_NORMALIZATION_RTOL = 1e-4

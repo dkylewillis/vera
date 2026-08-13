@@ -62,7 +62,7 @@ vera-app ────────────┤
 vera-mcp ────────────┘
 ```
 
-- Storage/search: `packages/vera-doc/src/vera`
+- Storage/search: `packages/vera-doc/src/vera_doc`
 - Ingest core: `packages/vera-ingest/src/vera_ingest`
 - Default PDF pipeline: `packages/vera-ingest-pymupdf/src/vera_ingest_pymupdf`
 - MCP: `packages/vera-mcp/src/vera_mcp`

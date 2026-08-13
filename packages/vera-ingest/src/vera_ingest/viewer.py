@@ -17,8 +17,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from vera import AttachmentRecord, QueryResult, VeraDocument
-from vera.models import thaw_json
+from vera_doc import AttachmentRecord, QueryResult, VeraDocument
+from vera_doc.models import thaw_json
 
 
 def get_source_document(document: VeraDocument) -> AttachmentRecord:

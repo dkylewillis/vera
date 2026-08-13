@@ -139,7 +139,7 @@ The command exits 1 if any expected answer is missed. See
 ## Search from Python
 
 ```python
-from vera import VeraDocument
+from vera_doc import VeraDocument
 
 doc = VeraDocument.open("ordinance.vera")
 try:
@@ -153,7 +153,7 @@ finally:
 ## Search a library from Python
 
 ```python
-from vera import VeraCorpus
+from vera_doc import VeraCorpus
 
 with VeraCorpus.open("./proposals", recursive=True) as corpus:
     for result in corpus.search("termination clause", top_k=10):

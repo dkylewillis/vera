@@ -3,7 +3,7 @@ import sqlite3
 
 import pytest
 
-from vera import VeraDocument
+from vera_doc import VeraDocument
 from vera_ingest import batch_convert, convert
 
 
@@ -121,7 +121,7 @@ def test_convert_accepts_custom_embedding_function(tmp_path):
 
 
 def test_convert_rejects_unknown_model_before_parsing(tmp_path, monkeypatch):
-    from vera import UnknownEmbeddingModelError
+    from vera_doc import UnknownEmbeddingModelError
 
     pdf = tmp_path / "bad-model.pdf"
     out = tmp_path / "bad-model.vera"
@@ -138,7 +138,7 @@ def test_convert_rejects_unknown_model_before_parsing(tmp_path, monkeypatch):
 
 
 def test_batch_convert_rejects_unknown_model_up_front(tmp_path):
-    from vera import UnknownEmbeddingModelError
+    from vera_doc import UnknownEmbeddingModelError
 
     pdf = tmp_path / "batch.pdf"
     make_pdf(pdf)

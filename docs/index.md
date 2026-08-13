@@ -65,7 +65,7 @@ vera search manual.vera "stormwater detention requirements" --top-k 5 --json
 Or create and search a database from Python:
 
 ```python
-from vera import ChunkRecord, VeraDocument
+from vera_doc import ChunkRecord, VeraDocument
 
 with VeraDocument.create("knowledge.vera") as document:
     document.add([

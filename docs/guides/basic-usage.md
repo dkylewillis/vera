@@ -34,7 +34,7 @@ metadata, or `--regions` for page bounding boxes.
 ## Step 4 — Search from Python
 
 ```python
-from vera import VeraDocument
+from vera_doc import VeraDocument
 
 with VeraDocument.open("manual.vera") as document:
     for result in document.search(
@@ -65,7 +65,7 @@ vera search "./library" "detention requirements" --top-k 5 --json
 ```
 
 ```python
-from vera import VeraCorpus, build_library_index
+from vera_doc import VeraCorpus, build_library_index
 
 build_library_index("./library", recursive=True)
 

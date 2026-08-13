@@ -6,7 +6,15 @@ from .collection import (
     library_index_status,
     update_library_index,
 )
-from .core.embedder_descriptors import (
+from .corpus import CorpusSearchResult, VeraCorpus
+from .document import (
+    DuplicateRecordError,
+    EmbeddingNormalization,
+    ReadOnlyError,
+    RecordNotFoundError,
+    VeraDocument,
+)
+from .embedder_descriptors import (
     EmbedderCapabilities,
     EmbedderDescriptor,
     EmbedderField,
@@ -14,8 +22,8 @@ from .core.embedder_descriptors import (
     EmbedderPreflightResult,
     EmbeddingModelInfo,
 )
-from .core.embedder_options import EmbedderOptions
-from .core.embeddings import (
+from .embedder_options import EmbedderOptions
+from .embeddings import (
     EmbeddingFunction,
     UnknownEmbeddingModelError,
     clear_embedder_cache,
@@ -29,15 +37,12 @@ from .core.embeddings import (
     register_embedder_descriptor,
     register_embedder_models,
 )
-from .corpus import CorpusSearchResult, VeraCorpus
-from .document import (
-    DuplicateRecordError,
-    EmbeddingNormalization,
-    ReadOnlyError,
-    RecordNotFoundError,
-    VeraDocument,
-)
 from .models import AttachmentRecord, AttachmentRef, ChunkRecord, QueryResult
+from .option_parsing import (
+    OptionsBase,
+    fields_from_dataclass,
+)
+from .validation import validate_document
 
 __all__ = [
     "VeraDocument",
@@ -74,4 +79,7 @@ __all__ = [
     "DuplicateRecordError",
     "RecordNotFoundError",
     "ReadOnlyError",
+    "OptionsBase",
+    "fields_from_dataclass",
+    "validate_document",
 ]

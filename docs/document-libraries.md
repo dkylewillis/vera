@@ -192,7 +192,7 @@ and indexed-corpus searches.
 Search a library directly:
 
 ```python
-from vera import VeraCorpus
+from vera_doc import VeraCorpus
 
 with VeraCorpus.open("./library", recursive=True) as corpus:
     results = corpus.search("termination clause", mode="hybrid", top_k=10)

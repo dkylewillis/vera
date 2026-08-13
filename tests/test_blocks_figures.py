@@ -2,7 +2,7 @@
 
 import pytest
 
-from vera import VeraDocument
+from vera_doc import VeraDocument
 from vera_ingest import convert
 from vera_ingest.chunking import build_chunks_from_blocks
 from vera_ingest.types import ParsedBlock

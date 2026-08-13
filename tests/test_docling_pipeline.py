@@ -21,7 +21,7 @@ from docling_core.types.doc import (
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from PIL import Image
 
-from vera import VeraDocument
+from vera_doc import VeraDocument
 from vera_ingest import (
     UnknownIngestPipelineError,
     convert,

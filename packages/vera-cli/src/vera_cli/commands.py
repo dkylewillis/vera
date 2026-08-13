@@ -4,10 +4,10 @@ import json
 import sys
 from pathlib import Path
 
-from vera import UnknownEmbeddingModelError
-from vera.collection import build_library_index, library_index_status, update_library_index
-from vera.corpus import VeraCorpus
-from vera.document import VeraDocument
+from vera_doc import UnknownEmbeddingModelError
+from vera_doc.collection import build_library_index, library_index_status, update_library_index
+from vera_doc.corpus import VeraCorpus
+from vera_doc.document import VeraDocument
 from vera_ingest import (
     UnknownIngestPipelineError,
     batch_convert,
