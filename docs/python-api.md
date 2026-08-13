@@ -47,7 +47,7 @@ with VeraDocument.open("manual.vera") as document:
         top_k=5,
     )
     for result in results:
-        print(result.score, result.record.text)
+        print(result.score, result.citation.page_start, result.record.text)
 ```
 
 `create()` refuses to overwrite an existing path unless `overwrite=True`.

@@ -15,9 +15,7 @@ from vera_ingest import (
 )
 from vera_ingest.viewer import (
     export_source_document,
-    figures_for,
     get_source_document,
-    regions_for,
     result_payload,
 )
 from vera_ingest_pymupdf import (
@@ -200,12 +198,12 @@ def cmd_search(args) -> int:
         if args.json:
             payload = []
             for result in results:
-                entry = result_payload(result)
-                document = _document_for(target, result)
-                if args.figures:
-                    entry["figures"] = figures_for(document, result)
-                if args.regions:
-                    entry["regions"] = regions_for(document, result)
+                entry = result_payload(
+                    result,
+                    document=_document_for(target, result),
+                    include_figures=args.figures,
+                    include_regions=args.regions,
+                )
                 payload.append(entry)
             response = {"query": args.query, "mode": args.mode, "results": payload}
             if isinstance(target, VeraCorpus):
@@ -227,17 +225,19 @@ def cmd_search(args) -> int:
                     f"{group['error']}"
                 )
         for result in results:
-            metadata = result.record.metadata
             print(f"Score: {result.score:.4f}")
             file = getattr(result, "file", None)
             if file:
                 print(f"File: {file}")
-            print(f"Source: {metadata.get('source_filename')}")
-            page_start = metadata.get("page_start")
-            page_end = metadata.get("page_end")
-            page = page_start if page_start == page_end else f"{page_start}-{page_end}"
+            citation = result.citation
+            print(f"Source: {citation.source_filename}")
+            page = (
+                citation.page_start
+                if citation.page_start == citation.page_end
+                else f"{citation.page_start}-{citation.page_end}"
+            )
             print(f"Page: {page}")
-            print(f"Heading: {metadata.get('heading_path') or ''}")
+            print(f"Heading: {citation.heading_path or ''}")
             print()
             print(result.record.text)
             print("-" * 72)

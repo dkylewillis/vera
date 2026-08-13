@@ -9,7 +9,7 @@ import os
 import shutil
 import sqlite3
 import uuid
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -20,7 +20,16 @@ import numpy as np
 
 from .document import _MAX_TOP_K, VeraDocument, execute_fts, safe_fts_query
 from .embeddings import deserialize_vector, get_embedder
-from .models import metadata_from_json, thaw_json
+from .models import (
+    METADATA_DOCUMENT_ID,
+    METADATA_HEADING_PATH,
+    METADATA_PAGE_END,
+    METADATA_PAGE_START,
+    METADATA_SOURCE_FILENAME,
+    metadata_from_json,
+    thaw_json,
+)
+from .ranking import reciprocal_rank_fusion
 
 INDEX_DIRECTORY = ".vera-index"
 INDEX_DATABASE = "index.sqlite3"
@@ -28,21 +37,7 @@ INDEX_POINTER = "current.json"
 INDEX_GENERATIONS = "generations"
 INDEX_VERSION = 1
 INDEX_LOCK = "build.lock"
-_RRF_K = 60.0
 T = TypeVar("T")
-
-
-def reciprocal_rank_fusion(
-    ranked_lists: Sequence[Sequence[T]],
-    *,
-    k: float = _RRF_K,
-) -> list[tuple[T, float]]:
-    """Fuse ranked lists with reciprocal rank fusion and a stable id tie-break."""
-    fused: dict[T, float] = {}
-    for ranked in ranked_lists:
-        for rank, item in enumerate(ranked, start=1):
-            fused[item] = fused.get(item, 0.0) + 1.0 / (k + rank)
-    return sorted(fused.items(), key=lambda item: (-item[1], item[0]))
 
 
 @dataclass(frozen=True)
@@ -448,7 +443,7 @@ def build_library_index(
                         record_skipped(path, relative_path, "invalid", reason)
                         conn.execute("RELEASE SAVEPOINT index_file")
                         continue
-                    stored_metadata = doc._metadata_values()
+                    stored_metadata = doc.format_metadata()
                     archive_metadata = doc.metadata
                     file_metadata = {**stored_metadata, **archive_metadata}
                     file_metadata["_vera_page_count"] = int(archive_metadata.get("page_count", 0))
@@ -457,33 +452,23 @@ def build_library_index(
                         "title": archive_metadata.get("title"),
                         "created_at": stored_metadata.get("created_at"),
                     }
-                    modern_rows = doc._conn.execute(
-                        """
-                        SELECT c.chunk_id, c.text, c.metadata_json,
-                               e.model_name, e.model_dimension, e.vector
-                        FROM chunks c
-                        JOIN embeddings e ON e.chunk_id = c.chunk_id
-                        ORDER BY c.rowid
-                        """
-                    ).fetchall()
-                    file_source_chunks = int(
-                        doc._conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
-                    )
+                    modern_rows = list(doc.iter_raw_chunks())
+                    file_source_chunks = len(modern_rows)
                     rows = []
                     for modern_row in modern_rows:
                         chunk_metadata = thaw_json(metadata_from_json(modern_row["metadata_json"]))
                         rows.append(
                             {
-                                **dict(modern_row),
+                                **modern_row,
                                 "document_id": chunk_metadata.get(
-                                    "document_id",
+                                    METADATA_DOCUMENT_ID,
                                     "document_0001",
                                 ),
-                                "page_start": chunk_metadata.get("page_start"),
-                                "page_end": chunk_metadata.get("page_end"),
-                                "heading_path": chunk_metadata.get("heading_path"),
+                                "page_start": chunk_metadata.get(METADATA_PAGE_START),
+                                "page_end": chunk_metadata.get(METADATA_PAGE_END),
+                                "heading_path": chunk_metadata.get(METADATA_HEADING_PATH),
                                 "source_filename": chunk_metadata.get(
-                                    "source_filename",
+                                    METADATA_SOURCE_FILENAME,
                                     archive_metadata.get("source_file_name"),
                                 ),
                             }

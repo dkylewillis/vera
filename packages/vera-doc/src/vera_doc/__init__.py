@@ -37,7 +37,7 @@ from .embeddings import (
     register_embedder_descriptor,
     register_embedder_models,
 )
-from .models import AttachmentRecord, AttachmentRef, ChunkRecord, QueryResult
+from .models import AttachmentRecord, AttachmentRef, ChunkRecord, Citation, QueryResult
 from .option_parsing import (
     OptionsBase,
     fields_from_dataclass,
@@ -73,6 +73,7 @@ __all__ = [
     "preflight_embedder",
     "clear_embedder_cache",
     "ChunkRecord",
+    "Citation",
     "AttachmentRecord",
     "AttachmentRef",
     "QueryResult",

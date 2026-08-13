@@ -12,6 +12,7 @@ queries, and library indexes for `.vera` archives.
         - ChunkRecord
         - AttachmentRecord
         - AttachmentRef
+        - Citation
         - QueryResult
         - CorpusSearchResult
         - EmbeddingFunction

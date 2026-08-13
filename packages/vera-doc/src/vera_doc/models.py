@@ -10,6 +10,12 @@ from typing import Any
 
 JsonObject = Mapping[str, Any]
 
+METADATA_PAGE_START = "page_start"
+METADATA_PAGE_END = "page_end"
+METADATA_HEADING_PATH = "heading_path"
+METADATA_SOURCE_FILENAME = "source_filename"
+METADATA_DOCUMENT_ID = "document_id"
+
 
 def _freeze_json(value: Any, *, path: str = "metadata") -> Any:
     if value is None or isinstance(value, (str, bool, int)):
@@ -177,6 +183,33 @@ class AttachmentRecord:
 
 
 @dataclass(frozen=True)
+class Citation:
+    """Typed citation fields extracted from chunk metadata."""
+
+    page_start: int | None = None
+    page_end: int | None = None
+    heading_path: str | None = None
+    source_filename: str | None = None
+    document_id: str | None = None
+
+    @classmethod
+    def from_metadata(cls, metadata: Mapping[str, Any]) -> Citation:
+        """Build a citation from a chunk metadata mapping."""
+        page_start = metadata.get(METADATA_PAGE_START)
+        page_end = metadata.get(METADATA_PAGE_END)
+        heading_path = metadata.get(METADATA_HEADING_PATH)
+        source_filename = metadata.get(METADATA_SOURCE_FILENAME)
+        document_id = metadata.get(METADATA_DOCUMENT_ID)
+        return cls(
+            page_start=page_start if isinstance(page_start, int) else None,
+            page_end=page_end if isinstance(page_end, int) else None,
+            heading_path=heading_path if isinstance(heading_path, str) else None,
+            source_filename=source_filename if isinstance(source_filename, str) else None,
+            document_id=document_id if isinstance(document_id, str) else None,
+        )
+
+
+@dataclass(frozen=True)
 class QueryResult:
     """Ranked search hit from :meth:`~vera_doc.document.VeraDocument.search`.
 
@@ -203,29 +236,28 @@ class QueryResult:
         return self.record.text
 
     @property
+    def citation(self) -> Citation:
+        return Citation.from_metadata(self.record.metadata)
+
+    @property
     def page_start(self) -> int | None:
-        value = self.record.metadata.get("page_start")
-        return value if isinstance(value, int) else None
+        return self.citation.page_start
 
     @property
     def page_end(self) -> int | None:
-        value = self.record.metadata.get("page_end")
-        return value if isinstance(value, int) else None
+        return self.citation.page_end
 
     @property
     def heading_path(self) -> str | None:
-        value = self.record.metadata.get("heading_path")
-        return value if isinstance(value, str) else None
+        return self.citation.heading_path
 
     @property
     def source_filename(self) -> str | None:
-        value = self.record.metadata.get("source_filename")
-        return value if isinstance(value, str) else None
+        return self.citation.source_filename
 
     @property
     def document_id(self) -> str | None:
-        value = self.record.metadata.get("document_id")
-        return value if isinstance(value, str) else None
+        return self.citation.document_id
 
     @property
     def before_chunks(self) -> list[dict[str, Any]]:

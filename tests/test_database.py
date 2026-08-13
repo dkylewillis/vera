@@ -46,6 +46,20 @@ def test_database_chunk_crud_and_search(tmp_path: Path) -> None:
             ]
         )
         assert database.get(["one"])[0].metadata["page"] == 13
+        assert (
+            database.search(text="Updated detention storage", mode="keyword", top_k=1)[0].record.id
+            == "one"
+        )
+        chunk_rowid = database._conn.execute(
+            "SELECT rowid FROM chunks WHERE chunk_id = ?",
+            ("one",),
+        ).fetchone()["rowid"]
+        fts_row = database._conn.execute(
+            "SELECT rowid, text FROM chunks_fts WHERE rowid = ?",
+            (chunk_rowid,),
+        ).fetchone()
+        assert fts_row is not None
+        assert "Updated detention storage" in fts_row["text"]
         assert database.delete(["two"]) == 1
         assert database.validate()["ok"] is True
 

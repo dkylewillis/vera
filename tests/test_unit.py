@@ -499,6 +499,65 @@ class TestQueryResult:
         d["score"] = 0.0
         assert r.score == pytest.approx(0.85)
 
+    def test_citation_from_metadata(self):
+        r = self._make(
+            record=ChunkRecord(
+                id="c001",
+                text="Sample text",
+                metadata={
+                    "page_start": 12,
+                    "page_end": 13,
+                    "heading_path": "Chapter 4 > Detention",
+                    "source_filename": "manual.pdf",
+                    "document_id": "document_0001",
+                },
+            )
+        )
+        citation = r.citation
+        assert citation.page_start == 12
+        assert citation.page_end == 13
+        assert citation.heading_path == "Chapter 4 > Detention"
+        assert citation.source_filename == "manual.pdf"
+        assert citation.document_id == "document_0001"
+        assert r.page_start == 12
+        assert r.heading_path == "Chapter 4 > Detention"
+
+
+# ---------------------------------------------------------------------------
+# ranking
+# ---------------------------------------------------------------------------
+
+
+class TestRanking:
+    def test_normalize_scores_unit_interval(self):
+        from vera_doc.ranking import normalize_scores
+
+        assert normalize_scores({"a": 2.0, "b": 4.0, "c": 6.0}) == {
+            "a": 0.0,
+            "b": 0.5,
+            "c": 1.0,
+        }
+
+    def test_combine_hybrid_scores_respects_weights(self):
+        from vera_doc.ranking import combine_hybrid_scores
+
+        semantic = {"a": 1.0, "b": 0.0}
+        keyword = {"a": 0.0, "b": 1.0}
+        balanced = combine_hybrid_scores(semantic, keyword)
+        assert balanced["a"] == pytest.approx(0.5)
+        assert balanced["b"] == pytest.approx(0.5)
+        semantic_heavy = combine_hybrid_scores(
+            semantic, keyword, semantic_weight=1.0, keyword_weight=0.0
+        )
+        assert semantic_heavy["a"] == pytest.approx(1.0)
+        assert semantic_heavy["b"] == pytest.approx(0.0)
+
+    def test_reciprocal_rank_fusion_prefers_shared_ranks(self):
+        from vera_doc.ranking import reciprocal_rank_fusion
+
+        fused = reciprocal_rank_fusion([["a", "b"], ["b", "c"]])
+        assert [item for item, _ in fused][0] == "b"
+
 
 # ---------------------------------------------------------------------------
 # VeraDocument.search — invalid mode

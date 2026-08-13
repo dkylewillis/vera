@@ -31,6 +31,11 @@ from .models import (
     metadata_to_json,
     thaw_json,
 )
+from .ranking import (
+    DEFAULT_HYBRID_KEYWORD_WEIGHT,
+    DEFAULT_HYBRID_SEMANTIC_WEIGHT,
+    combine_hybrid_scores,
+)
 from .validation import validate_document
 
 OpenMode = Literal["read", "write"]
@@ -110,16 +115,6 @@ class ReadOnlyError(PermissionError):
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def _normalize_scores(scores: Mapping[str, float]) -> dict[str, float]:
-    if not scores:
-        return {}
-    values = list(scores.values())
-    low, high = min(values), max(values)
-    if high == low:
-        return {key: 1.0 for key in scores}
-    return {key: (value - low) / (high - low) for key, value in scores.items()}
 
 
 def _embedding_normalization(
@@ -476,14 +471,10 @@ class VeraDocument:
                         now,
                     ),
                 )
-                self._conn.execute(
-                    "DELETE FROM chunks_fts WHERE chunk_id = ?",
-                    (record.id,),
-                )
-                self._conn.execute(
-                    "INSERT INTO chunks_fts(chunk_id, text) VALUES (?, ?)",
-                    (record.id, record.text),
-                )
+                if existing is not None:
+                    self._replace_fts_row(record.id, record.text)
+                else:
+                    self._insert_fts_row(record.id, record.text)
                 self._conn.execute(
                     "DELETE FROM chunk_attachments WHERE chunk_id = ?",
                     (record.id,),
@@ -577,7 +568,8 @@ class VeraDocument:
             params.extend(requested)
         sql += " ORDER BY c.rowid"
         rows = self._conn.execute(sql, params).fetchall()
-        records = [self._row_to_record(row) for row in rows]
+        refs = self._attachment_refs([str(row["chunk_id"]) for row in rows])
+        records = [self._row_to_record(row, refs.get(str(row["chunk_id"]), ())) for row in rows]
         records = [record for record in records if self._metadata_matches(record, where)]
         if requested is not None:
             by_id = {record.id: record for record in records}
@@ -614,10 +606,7 @@ class VeraDocument:
             return 0
         with self._write_scope():
             for record in records:
-                self._conn.execute(
-                    "DELETE FROM chunks_fts WHERE chunk_id = ?",
-                    (record.id,),
-                )
+                self._delete_fts_row(record.id)
                 self._conn.execute(
                     "DELETE FROM chunks WHERE chunk_id = ?",
                     (record.id,),
@@ -633,6 +622,8 @@ class VeraDocument:
         where: Mapping[str, Any] | None = None,
         top_k: int = 10,
         context_chunks: int = 0,
+        semantic_weight: float = DEFAULT_HYBRID_SEMANTIC_WEIGHT,
+        keyword_weight: float = DEFAULT_HYBRID_KEYWORD_WEIGHT,
     ) -> list[QueryResult]:
         """Search chunk records.
 
@@ -644,6 +635,8 @@ class VeraDocument:
             where: Exact equality filter on top-level metadata keys.
             top_k: Maximum number of results to return.
             context_chunks: Number of adjacent stored chunks to include.
+            semantic_weight: Hybrid blend weight for semantic scores.
+            keyword_weight: Hybrid blend weight for keyword scores.
 
         Returns:
             Ranked :class:`~vera_doc.models.QueryResult` objects.
@@ -673,13 +666,12 @@ class VeraDocument:
         elif mode == "keyword":
             combined = keyword
         else:
-            semantic_norm = _normalize_scores(semantic)
-            keyword_norm = _normalize_scores(keyword)
-            combined = {
-                record_id: 0.5 * semantic_norm.get(record_id, 0.0)
-                + 0.5 * keyword_norm.get(record_id, 0.0)
-                for record_id in semantic.keys() | keyword.keys()
-            }
+            combined = combine_hybrid_scores(
+                semantic,
+                keyword,
+                semantic_weight=semantic_weight,
+                keyword_weight=keyword_weight,
+            )
         matching_ids = self._chunk_ids(where)
         ranked = sorted(
             (
@@ -1021,26 +1013,112 @@ class VeraDocument:
         else:
             self._conn.commit()
 
-    def _row_to_record(self, row: sqlite3.Row) -> ChunkRecord:
-        refs = tuple(
-            AttachmentRef(
-                attachment_id=ref["attachment_id"],
-                role=ref["role"] or None,
-            )
-            for ref in self._conn.execute(
-                """
-                SELECT attachment_id, role FROM chunk_attachments
-                WHERE chunk_id = ? ORDER BY attachment_id, role
-                """,
-                (row["chunk_id"],),
-            )
+    def format_metadata(self) -> dict[str, str]:
+        """Return the archive format header as a key/value mapping."""
+        self._ensure_open()
+        return self._metadata_values()
+
+    def iter_raw_chunks(self) -> Iterator[dict[str, Any]]:
+        """Yield chunk text, metadata, model name, dimension, and raw vector bytes.
+
+        This is the bulk-read path used by the library index builder. It avoids
+        constructing :class:`ChunkRecord` objects and does not load attachments.
+        """
+        self._ensure_open()
+        rows = self._conn.execute(
+            """
+            SELECT c.chunk_id, c.text, c.metadata_json,
+                   e.model_name, e.model_dimension, e.vector
+            FROM chunks c
+            JOIN embeddings e ON e.chunk_id = c.chunk_id
+            ORDER BY c.rowid
+            """
         )
+        for row in rows:
+            yield {
+                "chunk_id": str(row["chunk_id"]),
+                "text": str(row["text"]),
+                "metadata_json": str(row["metadata_json"]),
+                "model_name": str(row["model_name"]),
+                "model_dimension": int(row["model_dimension"]),
+                "vector": bytes(row["vector"]),
+            }
+
+    def _row_to_record(
+        self,
+        row: sqlite3.Row,
+        attachments: tuple[AttachmentRef, ...] = (),
+    ) -> ChunkRecord:
         return ChunkRecord(
             id=row["chunk_id"],
             text=row["text"],
             metadata=metadata_from_json(row["metadata_json"]),
             vector=tuple(float(value) for value in deserialize_vector(row["vector"])),
-            attachments=refs,
+            attachments=attachments,
+        )
+
+    def _attachment_refs(self, chunk_ids: Sequence[str]) -> dict[str, tuple[AttachmentRef, ...]]:
+        refs: dict[str, list[AttachmentRef]] = {chunk_id: [] for chunk_id in chunk_ids}
+        if not chunk_ids:
+            return {}
+        placeholders = ",".join("?" for _ in chunk_ids)
+        for row in self._conn.execute(
+            f"""
+            SELECT chunk_id, attachment_id, role
+            FROM chunk_attachments
+            WHERE chunk_id IN ({placeholders})
+            ORDER BY chunk_id, attachment_id, role
+            """,
+            tuple(chunk_ids),
+        ):
+            refs[str(row["chunk_id"])].append(
+                AttachmentRef(
+                    attachment_id=row["attachment_id"],
+                    role=row["role"] or None,
+                )
+            )
+        return {chunk_id: tuple(values) for chunk_id, values in refs.items()}
+
+    def _chunk_rowid(self, chunk_id: str) -> int | None:
+        row = self._conn.execute(
+            "SELECT rowid FROM chunks WHERE chunk_id = ?",
+            (chunk_id,),
+        ).fetchone()
+        return int(row["rowid"]) if row is not None else None
+
+    def _insert_fts_row(self, chunk_id: str, text: str) -> None:
+        chunk_rowid = self._chunk_rowid(chunk_id)
+        if chunk_rowid is None:
+            self._conn.execute(
+                "INSERT INTO chunks_fts(chunk_id, text) VALUES (?, ?)",
+                (chunk_id, text),
+            )
+            return
+        self._conn.execute(
+            "INSERT INTO chunks_fts(rowid, chunk_id, text) VALUES (?, ?, ?)",
+            (chunk_rowid, chunk_id, text),
+        )
+
+    def _replace_fts_row(self, chunk_id: str, text: str) -> None:
+        self._delete_fts_row(chunk_id)
+        self._insert_fts_row(chunk_id, text)
+
+    def _delete_fts_row(self, chunk_id: str) -> None:
+        chunk_rowid = self._chunk_rowid(chunk_id)
+        if chunk_rowid is not None:
+            existing = self._conn.execute(
+                "SELECT chunk_id FROM chunks_fts WHERE rowid = ?",
+                (chunk_rowid,),
+            ).fetchone()
+            if existing is not None and str(existing["chunk_id"]) == chunk_id:
+                self._conn.execute(
+                    "DELETE FROM chunks_fts WHERE rowid = ?",
+                    (chunk_rowid,),
+                )
+                return
+        self._conn.execute(
+            "DELETE FROM chunks_fts WHERE chunk_id = ?",
+            (chunk_id,),
         )
 
     @staticmethod
@@ -1082,14 +1160,20 @@ class VeraDocument:
         query_norm = float(np.linalg.norm(query))
         if query_norm == 0:
             return {}
-        scores: dict[str, float] = {}
-        for row in self._conn.execute("SELECT chunk_id, vector, model_dimension FROM embeddings"):
-            vector = deserialize_vector(row["vector"])
-            denominator = float(np.linalg.norm(vector)) * query_norm
-            scores[row["chunk_id"]] = (
-                float(np.dot(vector, query) / denominator) if denominator else 0.0
-            )
-        return scores
+        rows = self._conn.execute("SELECT chunk_id, vector FROM embeddings").fetchall()
+        if not rows:
+            return {}
+        ids = [str(row["chunk_id"]) for row in rows]
+        matrix = np.vstack([deserialize_vector(row["vector"]) for row in rows])
+        doc_norms = np.linalg.norm(matrix, axis=1)
+        dots = matrix @ query
+        scores = np.divide(
+            dots,
+            doc_norms * query_norm,
+            out=np.zeros(dots.shape, dtype=np.float64),
+            where=doc_norms != 0,
+        )
+        return {chunk_id: float(score) for chunk_id, score in zip(ids, scores, strict=True)}
 
     def _keyword_scores(self, text: str) -> dict[str, float]:
         sql = """

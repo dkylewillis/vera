@@ -14,12 +14,10 @@ from .collection import (
     VeraCollectionIndex,
     discover_vera_files,
     library_index_status,
-    reciprocal_rank_fusion,
 )
 from .document import _MAX_TOP_K, VeraDocument
 from .models import QueryResult
-
-_RRF_K = 60.0
+from .ranking import RRF_K, reciprocal_rank_fusion
 
 
 @dataclass(frozen=True)
@@ -55,7 +53,7 @@ class VeraCorpus:
 
     Ranking: semantic results are merged by raw cosine score (comparable
     across files that share a model). Mixed-model semantic lists and hybrid
-    semantic+keyword lists use :func:`~vera_doc.collection.reciprocal_rank_fusion`
+    semantic+keyword lists use :func:`~vera_doc.ranking.reciprocal_rank_fusion`
     so a library searched with or without a local index returns the same
     chunk order for a fixed hybrid query. Keyword-only scores are only
     comparable within a file; those candidates keep their original score
@@ -624,6 +622,6 @@ class VeraCorpus:
         fused: list[tuple[float, float, str, QueryResult]] = []
         for path, results in per_file.items():
             for rank, result in enumerate(results, start=1):
-                fused.append((result.score, 1.0 / (_RRF_K + rank), path, result))
+                fused.append((result.score, 1.0 / (RRF_K + rank), path, result))
         fused.sort(key=lambda item: (item[0], item[1]), reverse=True)
         return [_with_file(result, path) for _, _, path, result in fused[:top_k]]

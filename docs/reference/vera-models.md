@@ -10,6 +10,7 @@ types.
         - ChunkRecord
         - AttachmentRecord
         - AttachmentRef
+        - Citation
         - QueryResult
       show_if_no_docstring: true
       show_submodules: true

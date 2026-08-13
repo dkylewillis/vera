@@ -40,6 +40,16 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Desktop Convert view: persist the selected embedding model separately from
   Chat; show installed provider suggestions; hashing and MiniLM presets.
 
+- Typed `Citation` on search hits (`result.citation`) plus configurable hybrid
+  `semantic_weight` / `keyword_weight` on `VeraDocument.search()`.
+- Shared `vera_ingest.viewer.result_payload()` serializer for CLI, MCP, and
+  desktop search JSON.
+- Vectorized semantic scoring, batched attachment loads, and FTS writes that
+  align `chunks_fts.rowid` with `chunks.rowid` (format 0.2 compatible; legacy
+  archives fall back to deleting by `chunk_id`).
+- `VeraDocument.iter_raw_chunks()` / `format_metadata()` for library indexing
+  without private `VeraDocument` access.
+
 ### Changed
 
 - `EmbedderOptions` and `PipelineOptions` `from_mapping` reject integers

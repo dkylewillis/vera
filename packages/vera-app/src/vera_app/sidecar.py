@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import copy
 import hashlib
 import json
@@ -33,11 +32,11 @@ from vera_ingest import (
 )
 from vera_ingest.viewer import (
     export_source_document,
+    figure_data_url,
     figures,
-    figures_for,
     get_page,
     get_source_document,
-    regions_for,
+    result_payload,
 )
 from vera_ingest_pymupdf import (
     describe_ocr_languages,
@@ -141,24 +140,6 @@ def _scoped_single_file(request: Request) -> str | None:
     if path and not Path(path).is_dir():
         return path
     return None
-
-
-def _figure_payload(figure: dict[str, Any]) -> dict[str, Any]:
-    data = figure.pop("data", None)
-    if data is not None:
-        mime_type = figure.get("mime_type") or "application/octet-stream"
-        figure["data_url"] = f"data:{mime_type};base64,{base64.b64encode(data).decode('ascii')}"
-    return figure
-
-
-def _result_payload(result: Any) -> dict[str, Any]:
-    data = result.as_dict()
-    metadata = data.pop("metadata", {})
-    payload = {**metadata, **data}
-    for key in ("before_chunks", "after_chunks"):
-        if key in payload:
-            payload[key] = [{**item.pop("metadata", {}), **item} for item in payload[key]]
-    return payload
 
 
 class _AnswerStream:
@@ -328,21 +309,16 @@ def _search(request: Request, cancel: CancellationToken | None = None) -> list[d
         for result in results:
             if cancel:
                 cancel.raise_if_cancelled()
-            entry = _result_payload(result)
+            document = target.document(result.file) if isinstance(target, VeraCorpus) else target
+            entry = result_payload(
+                result,
+                document=document,
+                include_figures=include_figures,
+                include_regions=include_regions,
+                figure_data_urls=include_figure_data,
+            )
             if scoped_file and not entry.get("file"):
                 entry["file"] = scoped_file
-            document = target.document(result.file) if isinstance(target, VeraCorpus) else target
-            if include_regions:
-                entry["regions"] = regions_for(document, result)
-            if include_figures:
-                entry["figures"] = [
-                    _figure_payload(figure)
-                    for figure in figures_for(
-                        document,
-                        result,
-                        include_data=include_figure_data,
-                    )
-                ]
             payload.append(entry)
         return payload
     finally:
@@ -362,7 +338,7 @@ def _figure_data(request: Request) -> list[dict[str, Any]]:
     doc = _open_document(str(request["path"]))
     try:
         return [
-            _figure_payload(figure)
+            figure_data_url(figure)
             for figure in figures(
                 doc,
                 include_data=True,

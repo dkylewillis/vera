@@ -11,6 +11,7 @@ attachment and metadata conventions written by :mod:`vera_ingest.convert`:
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 from collections.abc import Iterable
@@ -29,15 +30,49 @@ def get_source_document(document: VeraDocument) -> AttachmentRecord:
     return document.get_attachment(str(attachment_id))
 
 
-def result_payload(result: QueryResult) -> dict[str, Any]:
-    """Flatten a search hit for CLI/MCP JSON (metadata keys at the top level)."""
+def result_payload(
+    result: QueryResult,
+    *,
+    document: VeraDocument | None = None,
+    include_figures: bool = False,
+    include_regions: bool = False,
+    include_figure_data: bool = False,
+    figure_data_urls: bool = False,
+) -> dict[str, Any]:
+    """Flatten a search hit for CLI/MCP/app JSON (metadata keys at the top level).
+
+    Optional figure and region enrichment uses ingest viewer helpers. Sidecar
+    callers can set ``figure_data_urls`` to replace raw figure bytes with a
+    ``data_url`` instead of forking the serializer.
+    """
     data = result.as_dict()
     metadata = data.pop("metadata", {})
     payload = {**metadata, **data}
     for key in ("before_chunks", "after_chunks"):
         if key in payload:
             payload[key] = [{**item.pop("metadata", {}), **item} for item in payload[key]]
+    if document is not None:
+        if include_regions:
+            payload["regions"] = regions_for(document, result)
+        if include_figures:
+            figures_list = figures_for(
+                document,
+                result,
+                include_data=include_figure_data or figure_data_urls,
+            )
+            if figure_data_urls:
+                figures_list = [figure_data_url(figure) for figure in figures_list]
+            payload["figures"] = figures_list
     return payload
+
+
+def figure_data_url(figure: dict[str, Any]) -> dict[str, Any]:
+    """Replace raw figure bytes with a ``data_url`` field when present."""
+    data = figure.pop("data", None)
+    if data is not None:
+        mime_type = figure.get("mime_type") or "application/octet-stream"
+        figure["data_url"] = f"data:{mime_type};base64,{base64.b64encode(data).decode('ascii')}"
+    return figure
 
 
 def _safe_stored_filename(stored: str | None) -> str:
