@@ -158,22 +158,16 @@ Requires the integration package: `pip install "vera-cli[mcp]"` or `pip install 
 
 ## Working on this repository
 
-- Python 3.10+, dependencies managed with [uv](https://docs.astral.sh/uv/):
-  `uv sync --extra dev --extra ml --extra app --extra mcp`
-- Run tests with `pytest` (all tests must pass before committing).
-- Storage/search code lives in [packages/vera-doc/src/vera](packages/vera-doc/src/vera), ingest core lives in [packages/vera-ingest/src/vera_ingest](packages/vera-ingest/src/vera_ingest), the default PyMuPDF pipeline lives in [packages/vera-ingest-pymupdf/src/vera_ingest_pymupdf](packages/vera-ingest-pymupdf/src/vera_ingest_pymupdf), MCP lives in [packages/vera-mcp/src/vera_mcp](packages/vera-mcp/src/vera_mcp), and CLI code lives in [packages/vera-cli/src/vera_cli](packages/vera-cli/src/vera_cli); the current format spec is
- [docs/vera-spec-v0.2.md](docs/vera-spec-v0.2.md) — keep code and spec in sync.
-- Keep human and agent documentation current. Any user-visible feature change
-  must update the relevant [README](README.md), human guide under
-  [docs](https://dkylewillis.github.io/vera/), examples, portable
-  [agent skill](skills/vera/SKILL.md), and documentation-contract tests in the
-  same change. Changes to CLI commands or flags, JSON output, exit codes, MCP
-  tools, installation requirements, or retrieval behavior must also update the
-  relevant files under
-  [skills/vera/references](skills/vera/references). Do not merge a feature whose
-  public behavior is only documented in implementation code or tests.
-- Retrieval quality is tracked with `vera eval` against the query sets in
-  [examples](examples); don't regress the baselines in the README.
+Contributor setup, checks, and package layout live in
+[CONTRIBUTING.md](CONTRIBUTING.md). Keep human and agent documentation current.
+Any user-visible feature change must update the relevant [README](README.md),
+human guide under [docs](https://dkylewillis.github.io/vera/), examples,
+portable [agent skill](skills/vera/SKILL.md), and documentation-contract tests
+in the same change. Changes to CLI commands or flags, JSON output, exit codes,
+MCP tools, installation requirements, or retrieval behavior must also update
+the relevant files under [skills/vera/references](skills/vera/references). Do
+not merge a feature whose public behavior is only documented in implementation
+code or tests.
 
 ## Cursor Cloud specific instructions
 

@@ -5,7 +5,6 @@ from urllib.parse import unquote
 
 from vera_cli.main import build_parser
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 CLI_REFERENCE = DOCS / "cli-reference.md"

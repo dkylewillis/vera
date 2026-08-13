@@ -5,10 +5,10 @@ import logging
 import os
 import re
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import entry_points
-from typing import Any, Callable, Iterable, Protocol
+from typing import Any, Protocol
 
 import numpy as np
 
@@ -560,7 +560,7 @@ def _load_entry_point_group(group: str) -> list[Any]:
     try:
         selected = entry_points(group=group)
     except TypeError:  # pragma: no cover - Python <3.10 compatibility path
-        selected = entry_points().get(group, [])  # type: ignore[index]
+        selected = entry_points().get(group, [])  # type: ignore[arg-type]
     return list(selected)
 
 

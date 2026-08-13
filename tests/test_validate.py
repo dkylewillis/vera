@@ -4,9 +4,9 @@ import sys
 
 import numpy as np
 
+from test_convert_search import make_pdf
 from vera import VeraDocument
 from vera_ingest import convert
-from test_convert_search import make_pdf
 
 
 def test_validate_passes_for_converted_vera(tmp_path):

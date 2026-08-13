@@ -4,10 +4,10 @@ import json
 import sys
 from pathlib import Path
 
+from vera import UnknownEmbeddingModelError
 from vera.collection import build_library_index, library_index_status, update_library_index
 from vera.corpus import VeraCorpus
 from vera.document import VeraDocument
-from vera import UnknownEmbeddingModelError
 from vera_ingest import (
     UnknownIngestPipelineError,
     batch_convert,
@@ -26,7 +26,6 @@ from vera_ingest_pymupdf import (
     describe_ocr_languages,
     download_ocr_language_data,
 )
-
 
 _TRUE_TOKENS = {"1", "true", "yes", "y", "on"}
 _FALSE_TOKENS = {"0", "false", "no", "n", "off", ""}

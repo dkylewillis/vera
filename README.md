@@ -371,7 +371,7 @@ The central boundary rule: `vera-doc` never imports extraction, UI, MCP, or
 evaluation code. It is a general embedded vector database — attachments are
 opaque bytes and metadata is caller-owned JSON — and every other package
 composes around it. Details in
-[Contributing and architecture](docs/architecture.md) and the
+[CONTRIBUTING.md](CONTRIBUTING.md), [architecture](docs/architecture.md), and the
 [package overview](packages/README.md).
 
 **Who installs what**
@@ -454,7 +454,7 @@ browse the [published docs](https://dkylewillis.github.io/vera/).
 - [Python API](docs/python-api.md) · [MCP integration](docs/mcp.md) · [Agent skills](docs/agent-skills.md) · [Agent quick reference](AGENTS.md)
 - [Creating an ingest pipeline](docs/creating-an-ingest-pipeline.md) · [Creating an embedding provider](docs/creating-an-embedding-provider.md)
 - [Format spec 0.2 (current)](docs/vera-spec-v0.2.md) · [Format spec 0.1 (legacy)](docs/vera-spec-v0.1.md)
-- [Architecture and contributing](docs/architecture.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) · [Troubleshooting](docs/troubleshooting.md)
+- [Architecture](docs/architecture.md) · [Contributing](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) · [Troubleshooting](docs/troubleshooting.md)
 
 ## Status and support
 

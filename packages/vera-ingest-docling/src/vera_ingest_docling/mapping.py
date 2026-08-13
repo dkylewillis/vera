@@ -7,6 +7,7 @@ from collections import defaultdict
 from typing import Any
 
 from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
+
 from vera_ingest.types import IngestBlock, IngestChunk, ParsedPage
 
 from .options import DoclingOptions

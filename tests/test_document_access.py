@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from test_blocks_figures import make_structured_pdf
 from vera import AttachmentRecord, VeraDocument
 from vera_ingest import convert
 from vera_ingest.viewer import (
@@ -17,7 +18,6 @@ from vera_ingest.viewer import (
     get_source_document,
     regions_for,
 )
-from test_blocks_figures import make_structured_pdf
 
 
 @pytest.fixture

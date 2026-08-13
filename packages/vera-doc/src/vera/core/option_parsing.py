@@ -7,7 +7,7 @@ wrappers. Public plugin imports stay on those wrappers.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import MISSING, fields
 from typing import Any, ClassVar, TypeVar
 
@@ -34,7 +34,7 @@ def reject_unknown_keys(
     raw: Mapping[str, Any],
     *,
     allowed: set[str],
-    ignored: set[str] | None = None,
+    ignored: Collection[str] | None = None,
     label: str,
 ) -> dict[str, Any]:
     """Return only allowed keys; reject unknown non-ignored keys."""
@@ -198,13 +198,13 @@ class OptionsBase:
             label=label,
         )
         values: dict[str, Any] = {}
-        for item in fields(cls):
+        for item in fields(cls):  # type: ignore[arg-type]
             name = item.name
             if name in data:
                 value = data[name]
             elif item.default is not MISSING:
                 value = item.default
-            elif item.default_factory is not MISSING:  # type: ignore[misc]
+            elif item.default_factory is not MISSING:
                 value = item.default_factory()
             else:
                 raise ValueError(f"{name} is required")

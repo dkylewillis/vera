@@ -9,17 +9,17 @@ import os
 import shutil
 import sqlite3
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator, TypeVar
+from typing import Any, TypeVar
 
 import numpy as np
 
 from .core.embeddings import deserialize_vector, get_embedder
-from .document import VeraDocument, execute_fts, safe_fts_query, _MAX_TOP_K
+from .document import _MAX_TOP_K, VeraDocument, execute_fts, safe_fts_query
 from .models import metadata_from_json, thaw_json
 
 INDEX_DIRECTORY = ".vera-index"
@@ -104,7 +104,7 @@ def _exclusive_lock(handle: Any) -> None:
             handle.seek(0)
             handle.write(b"\0")
             handle.flush()
-            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)  # type: ignore[attr-defined]
         else:
             import fcntl
 
@@ -119,7 +119,7 @@ def _exclusive_unlock(handle: Any) -> None:
             import msvcrt
 
             handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)  # type: ignore[attr-defined]
         else:
             import fcntl
 
@@ -287,7 +287,7 @@ def _create_index_schema(conn: sqlite3.Connection) -> None:
 
 
 def _group_filename(model_name: str, dimension: int) -> str:
-    digest = hashlib.sha256(f"{model_name}\0{dimension}".encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha256(f"{model_name}\0{dimension}".encode()).hexdigest()[:16]
     return f"vectors-{digest}-{dimension}.npy"
 
 
@@ -488,7 +488,7 @@ def build_library_index(
                                 ),
                             }
                         )
-                    prepared: list[tuple[sqlite3.Row, np.ndarray, tuple[str, int]]] = []
+                    prepared: list[tuple[Any, np.ndarray, tuple[str, int]]] = []
                     file_problem = None
                     for row in rows:
                         dimension = int(row["model_dimension"])
@@ -528,7 +528,7 @@ def build_library_index(
                             json.dumps(file_metadata, sort_keys=True),
                         ),
                     )
-                    file_id = int(cursor.lastrowid)
+                    file_id = int(cursor.lastrowid or 0)
                     for row, vector, group in prepared:
                         vector_row = len(vectors.setdefault(group, []))
                         norm = float(np.linalg.norm(vector))
@@ -563,7 +563,7 @@ def build_library_index(
                         conn.execute(
                             "INSERT INTO chunks_fts(row_id, text, heading_path, source_filename) VALUES (?, ?, ?, ?)",
                             (
-                                int(chunk_cursor.lastrowid),
+                                int(chunk_cursor.lastrowid or 0),
                                 row["text"],
                                 row["heading_path"],
                                 row["source_filename"],
@@ -844,7 +844,7 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
         for group in groups
         if (generation / str(group["filename"])).is_file()
     )
-    indexed_chunks = sum(int(group["chunks"]) for group in model_groups)
+    indexed_chunks = sum(int(str(group["chunks"])) for group in model_groups)
     source_chunks = int(index_metadata.get("source_chunks", indexed_chunks))
     checked_at = _utc_now()
     return {
@@ -891,7 +891,7 @@ class VeraCollectionIndex:
         self.skipped_semantic_model_groups: list[dict[str, Any]] = []
 
     @classmethod
-    def open(cls, directory: str, *, check_status: bool = True) -> "VeraCollectionIndex":
+    def open(cls, directory: str, *, check_status: bool = True) -> VeraCollectionIndex:
         root = Path(directory).resolve()
         if check_status:
             status = library_index_status(str(root), verify_hashes=False)
@@ -967,7 +967,7 @@ class VeraCollectionIndex:
             "files": files,
         }
 
-    def __enter__(self) -> "VeraCollectionIndex":
+    def __enter__(self) -> VeraCollectionIndex:
         return self
 
     def __exit__(self, *exc: object) -> None:

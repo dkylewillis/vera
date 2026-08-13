@@ -2,7 +2,8 @@
 
 import pytest
 
-from vera_ingest.chunking import chunk_pages, detect_heading
+from vera import ChunkRecord, QueryResult, VeraDocument
+from vera.core.embedder_descriptors import EmbedderDescriptor
 from vera.core.embeddings import (
     HashingEmbedder,
     HashingOptions,
@@ -23,11 +24,9 @@ from vera.core.embeddings import (
     serialize_vector,
     unregister_embedder,
 )
-from vera.core.embedder_descriptors import EmbedderDescriptor
-from vera import ChunkRecord, QueryResult, VeraDocument
 from vera_cli import str_to_bool
+from vera_ingest.chunking import chunk_pages, detect_heading
 from vera_ingest.types import ParsedPage
-
 
 # ---------------------------------------------------------------------------
 # Helpers

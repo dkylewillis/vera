@@ -7,7 +7,6 @@ from typing import Any, Literal
 
 from vera.core.option_parsing import fields_from_dataclass as _fields_from_dataclass
 
-
 FieldType = Literal["string", "enum", "integer", "number", "boolean"]
 
 

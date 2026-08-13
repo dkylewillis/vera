@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import os
 from collections import OrderedDict
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from .collection import (
     VeraCollectionIndex,
@@ -15,7 +16,7 @@ from .collection import (
     library_index_status,
     reciprocal_rank_fusion,
 )
-from .document import VeraDocument, _MAX_TOP_K
+from .document import _MAX_TOP_K, VeraDocument
 from .models import QueryResult
 
 _RRF_K = 60.0
@@ -99,7 +100,7 @@ class VeraCorpus:
         use_index: bool = True,
         default_recursive: bool = False,
         allow_empty: bool = False,
-    ) -> "VeraCorpus":
+    ) -> VeraCorpus:
         """Open a directory of ``.vera`` files for corpus search.
 
         Args:
@@ -178,7 +179,7 @@ class VeraCorpus:
         )
 
     @classmethod
-    def from_paths(cls, paths: list[str]) -> "VeraCorpus":
+    def from_paths(cls, paths: list[str]) -> VeraCorpus:
         """Build a corpus from an explicit list of .vera file paths."""
         resolved = [str(Path(p)) for p in paths]
         if not resolved:
@@ -213,7 +214,7 @@ class VeraCorpus:
             self._collection_index.close()
             self._collection_index = None
 
-    def __enter__(self) -> "VeraCorpus":
+    def __enter__(self) -> VeraCorpus:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -525,8 +526,8 @@ class VeraCorpus:
             model_groups.setdefault(models.get(path, ""), []).extend(
                 (path, result) for result in results
             )
-        for results in model_groups.values():
-            results.sort(key=lambda item: (-item[1].score, item[0], item[1].chunk_id))
+        for grouped in model_groups.values():
+            grouped.sort(key=lambda item: (-item[1].score, item[0], item[1].chunk_id))
         if len(model_groups) == 1:
             merged = next(iter(model_groups.values()))
             return [_with_file(result, path) for path, result in merged[:top_k]]

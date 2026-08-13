@@ -40,10 +40,10 @@ from vera_ingest.viewer import (
     regions_for,
 )
 from vera_ingest_pymupdf import (
-    OCRLanguageDownloadError,
-    UnknownOCRLanguageError,
     describe_ocr_languages,
     download_ocr_language_data,
+)
+from vera_ingest_pymupdf import (
     ensure_registered as ensure_pymupdf_pipeline_registered,
 )
 

@@ -6,7 +6,6 @@ from .collection import (
     library_index_status,
     update_library_index,
 )
-from .corpus import CorpusSearchResult, VeraCorpus
 from .core.embedder_descriptors import (
     EmbedderCapabilities,
     EmbedderDescriptor,
@@ -30,6 +29,7 @@ from .core.embeddings import (
     register_embedder_descriptor,
     register_embedder_models,
 )
+from .corpus import CorpusSearchResult, VeraCorpus
 from .document import (
     DuplicateRecordError,
     EmbeddingNormalization,

@@ -4,9 +4,9 @@ import pytest
 
 from vera import VeraDocument
 from vera_ingest import convert
-from vera_ingest.viewer import get_blocks
 from vera_ingest.chunking import build_chunks_from_blocks
 from vera_ingest.types import ParsedBlock
+from vera_ingest.viewer import get_blocks
 from vera_ingest_pymupdf.parser import (
     _extract_tables_from_pdf,
     _intersection_area,

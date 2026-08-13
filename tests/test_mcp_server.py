@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from vera_ingest import convert
 from test_convert_search import make_pdf
+from vera_ingest import convert
 
 
 @pytest.fixture(scope="module")

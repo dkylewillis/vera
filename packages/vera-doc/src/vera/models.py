@@ -3,10 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, Mapping, Sequence
-
+from typing import Any
 
 JsonObject = Mapping[str, Any]
 

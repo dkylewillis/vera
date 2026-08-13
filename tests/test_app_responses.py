@@ -19,7 +19,6 @@ from vera_app.llm import (
     chat,
 )
 
-
 TOOL = {
     "type": "function",
     "function": {

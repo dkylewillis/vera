@@ -3,13 +3,14 @@ from __future__ import annotations
 import os
 import sqlite3
 import tempfile
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
-from importlib.metadata import PackageNotFoundError, version as package_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 from pathlib import Path
-from typing import Any, Literal, Sequence, cast
+from typing import Any, Literal, cast
 
 import numpy as np
 
@@ -179,7 +180,7 @@ class VeraDocument:
         embedding_normalization: EmbeddingNormalization | None = None,
         metadata: JsonObject | None = None,
         overwrite: bool = False,
-    ) -> "VeraDocument":
+    ) -> VeraDocument:
         """Create a new empty ``.vera`` archive at ``path``.
 
         Args:
@@ -269,7 +270,7 @@ class VeraDocument:
         *,
         mode: OpenMode = "read",
         embedding_function: EmbeddingFunction | None = None,
-    ) -> "VeraDocument":
+    ) -> VeraDocument:
         """Open an existing ``.vera`` archive.
 
         Args:
@@ -982,7 +983,7 @@ class VeraDocument:
         return validate_document(self._conn)
 
     @contextmanager
-    def transaction(self) -> Iterator["VeraDocument"]:
+    def transaction(self) -> Iterator[VeraDocument]:
         """Run a batch of writes in a single SQLite transaction.
 
         Yields:
@@ -1038,7 +1039,7 @@ class VeraDocument:
             id=row["chunk_id"],
             text=row["text"],
             metadata=metadata_from_json(row["metadata_json"]),
-            vector=deserialize_vector(row["vector"]),
+            vector=tuple(float(value) for value in deserialize_vector(row["vector"])),
             attachments=refs,
         )
 
@@ -1142,7 +1143,7 @@ class VeraDocument:
             self._conn.close()
             self._closed = True
 
-    def __enter__(self) -> "VeraDocument":
+    def __enter__(self) -> VeraDocument:
         self._ensure_open()
         return self
 

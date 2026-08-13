@@ -20,6 +20,7 @@ from docling_core.types.doc import (
 )
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from PIL import Image
+
 from vera import VeraDocument
 from vera_ingest import (
     UnknownIngestPipelineError,
@@ -29,7 +30,6 @@ from vera_ingest import (
     reset_ingest_pipeline_registry,
 )
 from vera_ingest.types import IngestChunk, IngestOptions, IngestRequest
-
 from vera_ingest_docling import create_pipeline
 from vera_ingest_docling.mapping import _item_text
 from vera_ingest_docling.pipeline import (
@@ -38,7 +38,6 @@ from vera_ingest_docling.pipeline import (
     _split_ocr_languages,
     map_docling_document,
 )
-
 
 pytestmark = pytest.mark.docling
 

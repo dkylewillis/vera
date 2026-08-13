@@ -1,6 +1,6 @@
+import importlib
 import io
 import json
-import importlib
 import queue
 import threading
 from pathlib import Path
@@ -8,9 +8,8 @@ from pathlib import Path
 import pytest
 
 from test_blocks_figures import make_structured_pdf
-from test_corpus import make_topic_pdf
 from test_convert_search import make_pdf
-from vera_ingest import convert
+from test_corpus import make_topic_pdf
 from vera_app.cancellation import CancellationToken
 from vera_app.llm import (
     ChatResponse,
@@ -21,6 +20,7 @@ from vera_app.llm import (
     VisionUnsupportedError,
 )
 from vera_app.sidecar import handle
+from vera_ingest import convert
 
 
 def _llm_payload():

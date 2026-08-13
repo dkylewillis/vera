@@ -7,11 +7,11 @@ import re
 import threading
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 from .cancellation import CancellationToken, CancelledError
-
 
 # `content` is usually a plain string, but may be a list of OpenAI-style content
 # parts (e.g. `{"type": "text", ...}` / `{"type": "image_url", ...}`) for
@@ -59,7 +59,7 @@ class LlmConfig:
     timeout: float = 60.0
 
     @classmethod
-    def from_request(cls, raw: Any) -> "LlmConfig":
+    def from_request(cls, raw: Any) -> LlmConfig:
         if not isinstance(raw, dict):
             return cls()
         return cls(
@@ -286,7 +286,7 @@ _XML_TOOL_ARG_RE = re.compile(
 _XML_TOOL_MARKUP_RE = re.compile(r"</?(?:tool_call|arg_key|arg_value)\b[^>]*>", re.IGNORECASE)
 
 
-def _extract_text_tool_calls(content: str) -> tuple[str, list["ToolCall"]]:
+def _extract_text_tool_calls(content: str) -> tuple[str, list[ToolCall]]:
     """Pull inline `<functions.NAME>{json}</functions.NAME>` calls out of text content.
 
     Returns the cleaned content (with the markup removed) and any parsed tool calls.
@@ -309,7 +309,7 @@ def _extract_text_tool_calls(content: str) -> tuple[str, list["ToolCall"]]:
     return cleaned, calls
 
 
-def _extract_xml_tool_calls(content: str) -> tuple[str, list["ToolCall"]]:
+def _extract_xml_tool_calls(content: str) -> tuple[str, list[ToolCall]]:
     """Pull XML-ish `<tool_call>NAME<arg_key>...` calls from model text."""
     if "<tool_call" not in content.lower():
         return content, []

@@ -6,6 +6,7 @@ from importlib.metadata import version
 
 import numpy as np
 import pytest
+
 from vera import VeraDocument
 from vera_ingest import (
     IngestBlock,

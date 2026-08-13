@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from test_corpus import make_topic_pdf
 from vera import (
     VeraCorpus,
     VeraDocument,
@@ -18,10 +19,9 @@ from vera import (
     library_index_status,
     update_library_index,
 )
+from vera.collection import discover_vera_files
 from vera_ingest import convert
 from vera_ingest.viewer import regions_for
-from vera.collection import discover_vera_files
-from test_corpus import make_topic_pdf
 
 
 def _convert_topic(
