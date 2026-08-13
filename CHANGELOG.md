@@ -46,7 +46,8 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   desktop search JSON.
 - Vectorized semantic scoring, batched attachment loads, and FTS writes that
   align `chunks_fts.rowid` with `chunks.rowid` (format 0.2 compatible; legacy
-  archives fall back to deleting by `chunk_id`).
+  archives fall back to deleting by `chunk_id` and to appending when another
+  chunk already occupies the matching FTS rowid).
 - `VeraDocument.iter_raw_chunks()` / `format_metadata()` for library indexing
   without private `VeraDocument` access.
 
