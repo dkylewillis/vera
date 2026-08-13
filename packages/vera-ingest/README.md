@@ -23,8 +23,8 @@ and OCR engine control which aliases are forwarded (Tesseract-shaped
 explicit `pipeline_options` win. Omitted `convert()` aliases mean the
 pipeline's own default (they are not replaced by 500/`eng`/…).
 
-It emits ready-made `vera.ChunkRecord` values and optional opaque attachments,
-then stores them through `vera.VeraDocument`. It also provides
+It emits ready-made `vera_doc.ChunkRecord` values and optional opaque attachments,
+then stores them through `vera_doc.VeraDocument`. It also provides
 `vera_ingest.viewer` helpers that interpret ingest-produced page, figure,
 region, and source-document conventions.
 
@@ -57,10 +57,10 @@ See the [conversion guide](https://github.com/dkylewillis/vera/blob/main/docs/co
 `convert()` and `batch_convert()` accept either:
 
 - `model="hashing"` / `model="sentence-transformers:all-MiniLM-L6-v2"` — resolved
-  through `vera.get_embedder` before PDF parsing begins, or
+  through `vera_doc.get_embedder` before PDF parsing begins, or
 - `embedding_function=<object>` — any object with `model_name`, `dimension`, and
   `embed(texts)`.
 
-Unknown model specs raise `vera.UnknownEmbeddingModelError`. To add a named
+Unknown model specs raise `vera_doc.UnknownEmbeddingModelError`. To add a named
 provider without forking VERA, register a factory with
-`vera.register_embedder` or ship a `vera.embedders` entry-point plugin.
+`vera_doc.register_embedder` or ship a `vera.embedders` entry-point plugin.

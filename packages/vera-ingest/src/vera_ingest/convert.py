@@ -199,8 +199,8 @@ def convert(
             ``embedding_function`` is provided. Accepts ``provider:model-id``
             or built-in legacy aliases.
         embedding_function: Optional custom embedder satisfying
-            :class:`~vera.EmbeddingFunction`. When omitted, ``model`` is
-            resolved via :func:`~vera.get_embedder` before parsing begins.
+            :class:`~vera_doc.EmbeddingFunction`. When omitted, ``model`` is
+            resolved via :func:`~vera_doc.get_embedder` before parsing begins.
         parser: Ingest pipeline spec in ``provider[:variant]`` form
             (default ``"pymupdf"``).
         chunk_size: Compatibility alias forwarded only when explicitly
@@ -224,7 +224,7 @@ def convert(
         pipeline_options: Explicit provider-owned options. These override
             compatibility aliases for the same keys.
         embedder_options: Explicit provider-owned embedding options forwarded
-            to :func:`~vera.get_embedder` when ``embedding_function`` is omitted.
+            to :func:`~vera_doc.get_embedder` when ``embedding_function`` is omitted.
         cancel: Optional cancellation token with ``raise_if_cancelled()``.
 
     Returns:

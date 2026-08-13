@@ -2,11 +2,13 @@ import re
 from pathlib import Path
 from urllib.parse import unquote
 
+import vera_doc
 from helpers.cli import leaf_commands as _leaf_commands
 from vera_cli.main import build_parser
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
+PACKAGES = ROOT / "packages"
 CLI_REFERENCE = DOCS / "cli-reference.md"
 
 
@@ -16,6 +18,22 @@ def _documentation_files() -> list[Path]:
         ROOT / "AGENTS.md",
         *DOCS.rglob("*.md"),
         *(ROOT / "skills" / "vera").rglob("*.md"),
+    ]
+
+
+def _prose_files() -> list[Path]:
+    """Documentation plus the prose that ships inside the packages.
+
+    Package READMEs become PyPI long descriptions and docstrings become the
+    published API reference, so both carry the same accuracy obligation as
+    ``docs/``.
+    """
+    return [
+        *_documentation_files(),
+        ROOT / "CONTRIBUTING.md",
+        PACKAGES / "README.md",
+        *PACKAGES.glob("*/README.md"),
+        *PACKAGES.glob("*/src/**/*.py"),
     ]
 
 
@@ -51,6 +69,26 @@ def test_site_pages_only_link_relatively_within_the_docs_tree():
                 f"{document.relative_to(ROOT)} links to {raw_target}, which is outside "
                 "docs/; mkdocs --strict cannot resolve it, so use a full URL"
             )
+
+
+def test_prose_refers_to_the_storage_package_as_vera_doc():
+    """0.3 renamed the storage import from ``vera`` to ``vera_doc``.
+
+    Only names the package actually exports are matched, so the ``vera``
+    console script, the ``.vera`` extension, the ``vera.embedders`` and
+    ``vera.ingest_pipelines`` entry-point groups, and the
+    ``application/vnd.vera.*`` media types are all left alone.
+    """
+    exports = "|".join(sorted(vera_doc.__all__))
+    stale = re.compile(rf"\bvera\.({exports})\b")
+    violations = []
+    for document in _prose_files():
+        for number, line in enumerate(document.read_text(encoding="utf-8").splitlines(), 1):
+            violations.extend(
+                f"{document.relative_to(ROOT)}:{number} refers to {match.group(0)}"
+                for match in stale.finditer(line)
+            )
+    assert violations == [], "use vera_doc.<name>: " + "; ".join(violations)
 
 
 def test_documentation_index_lists_user_guides():

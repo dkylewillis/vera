@@ -22,7 +22,7 @@ Tauri remains a possible future optimization if app size becomes the dominant co
 
 ```text
 packages/
-  vera-doc/   # Python document engine and importable `vera` package
+  vera-doc/   # Python document engine and importable `vera_doc` package
   vera-cli/   # terminal interface over vera-doc
   vera-app/   # Electron desktop app plus Python sidecar
 ```
