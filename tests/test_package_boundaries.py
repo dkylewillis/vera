@@ -46,13 +46,6 @@ def test_vera_doc_has_no_extraction_modules_or_dependencies() -> None:
 
 
 def test_conversion_and_mcp_live_in_sibling_packages() -> None:
-    assert (
-        ROOT / "packages" / "vera-ingest" / "src" / "vera_ingest" / "convert.py"
-    ).is_file()
-    assert (
-        ROOT / "packages" / "vera-ingest" / "src" / "vera_ingest" / "viewer.py"
-    ).is_file()
-    assert (
-        ROOT / "packages" / "vera-mcp" / "src" / "vera_mcp" / "server.py"
-    ).is_file()
-
+    assert (ROOT / "packages" / "vera-ingest" / "src" / "vera_ingest" / "convert.py").is_file()
+    assert (ROOT / "packages" / "vera-ingest" / "src" / "vera_ingest" / "viewer.py").is_file()
+    assert (ROOT / "packages" / "vera-mcp" / "src" / "vera_mcp" / "server.py").is_file()

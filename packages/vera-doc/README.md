@@ -187,8 +187,7 @@ class EmbeddingFunction:
     model_name: str
     dimension: int
 
-    def embed(self, texts: list[str]) -> numpy.ndarray:
-        ...
+    def embed(self, texts: list[str]) -> numpy.ndarray: ...
 ```
 
 The same model and dimension must be used for stored records and text queries.

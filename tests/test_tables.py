@@ -164,10 +164,7 @@ class TestParsePdfTables:
         out = tmp_path / "out.vera"
         convert(str(table_pdf), str(out), model="hashing")
         with VeraDocument.open(str(out)) as document:
-            count = sum(
-                block["block_type"] == "table"
-                for block in get_blocks(document)
-            )
+            count = sum(block["block_type"] == "table" for block in get_blocks(document))
             assert count == 1
 
     def test_table_bbox_is_in_page_rect_when_cropbox_differs_from_mediabox(self, tmp_path):

@@ -30,14 +30,25 @@ def server():
 async def test_tools_are_registered(server):
     tools = await server.list_tools()
     names = {t.name for t in tools}
-    assert {"vera_search", "vera_inspect", "vera_validate", "vera_figures", "vera_get_page"} <= names
+    assert {
+        "vera_search",
+        "vera_inspect",
+        "vera_validate",
+        "vera_figures",
+        "vera_get_page",
+    } <= names
 
 
 @pytest.mark.anyio
 async def test_search_tool_returns_citation_ready_results(server, vera_file):
     result = await server.call_tool(
         "vera_search",
-        {"file": str(vera_file), "query": "restaurant parking", "top_k": 2, "include_figures": True},
+        {
+            "file": str(vera_file),
+            "query": "restaurant parking",
+            "top_k": 2,
+            "include_figures": True,
+        },
     )
     payload = _payload(result)
     assert payload["query"] == "restaurant parking"
@@ -77,11 +88,15 @@ async def test_inspect_and_validate_tools(server, vera_file):
 
 @pytest.mark.anyio
 async def test_get_page_tool(server, vera_file):
-    page = _payload(await server.call_tool("vera_get_page", {"file": str(vera_file), "page_number": 2}))
+    page = _payload(
+        await server.call_tool("vera_get_page", {"file": str(vera_file), "page_number": 2})
+    )
     assert page["page_number"] == 2
     assert "detention" in page["text"].lower()
 
-    missing = _payload(await server.call_tool("vera_get_page", {"file": str(vera_file), "page_number": 99}))
+    missing = _payload(
+        await server.call_tool("vera_get_page", {"file": str(vera_file), "page_number": 99})
+    )
     assert "error" in missing
 
 
@@ -89,7 +104,12 @@ async def test_get_page_tool(server, vera_file):
 async def test_search_tool_returns_regions(server, vera_file):
     result = await server.call_tool(
         "vera_search",
-        {"file": str(vera_file), "query": "restaurant parking", "top_k": 1, "include_regions": True},
+        {
+            "file": str(vera_file),
+            "query": "restaurant parking",
+            "top_k": 1,
+            "include_regions": True,
+        },
     )
     first = _payload(result)["results"][0]
     assert "regions" in first
@@ -102,10 +122,16 @@ async def test_search_tool_returns_regions(server, vera_file):
 @pytest.mark.anyio
 async def test_get_chunk_regions_tool(server, vera_file):
     search = _payload(
-        await server.call_tool("vera_search", {"file": str(vera_file), "query": "restaurant parking", "top_k": 1})
+        await server.call_tool(
+            "vera_search", {"file": str(vera_file), "query": "restaurant parking", "top_k": 1}
+        )
     )
     chunk_id = search["results"][0]["chunk_id"]
-    regions = _payload(await server.call_tool("vera_get_chunk_regions", {"file": str(vera_file), "chunk_id": chunk_id}))
+    regions = _payload(
+        await server.call_tool(
+            "vera_get_chunk_regions", {"file": str(vera_file), "chunk_id": chunk_id}
+        )
+    )
     assert regions
     assert regions[0]["page_number"] == search["results"][0]["page_start"]
 

@@ -74,7 +74,9 @@ def build_server():
         doc = _open(file)
         try:
             results = []
-            for result in doc.search(text=query, mode=mode, top_k=top_k, context_chunks=context_chunks):
+            for result in doc.search(
+                text=query, mode=mode, top_k=top_k, context_chunks=context_chunks
+            ):
                 entry = result_payload(result)
                 if include_figures:
                     entry["figures"] = figures_for(doc, result)
@@ -101,7 +103,9 @@ def build_server():
         corpus = VeraCorpus.open(directory, recursive=recursive, excludes=excludes)
         try:
             results = []
-            for result in corpus.search(text=query, mode=mode, top_k=top_k, context_chunks=context_chunks):
+            for result in corpus.search(
+                text=query, mode=mode, top_k=top_k, context_chunks=context_chunks
+            ):
                 entry = result_payload(result)
                 document = corpus.document(result.file)
                 if include_figures:

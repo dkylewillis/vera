@@ -174,14 +174,9 @@ class TestChunkRegions:
         doc, _, _ = vera_doc
         result = doc.search(text="restaurant parking", mode="keyword", top_k=1)[0]
         image_block_ids = {
-            block["block_id"]
-            for block in get_blocks(doc)
-            if block["block_type"] == "image"
+            block["block_id"] for block in get_blocks(doc) if block["block_type"] == "image"
         }
-        linked = {
-            figure["block_id"]
-            for figure in figures_for(doc, result)
-        }
+        linked = {figure["block_id"] for figure in figures_for(doc, result)}
         assert linked & image_block_ids
 
         regions = regions_for(doc, result)

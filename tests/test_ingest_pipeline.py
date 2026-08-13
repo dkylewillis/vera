@@ -195,9 +195,7 @@ def test_bare_callable_pipeline_is_supported(tmp_path):
         assert source_path == str(pdf)
         return IngestResult(
             pages=[ParsedPage(1, 1.0, 1.0, "text")],
-            blocks=[
-                IngestBlock(block_id="b1", page_number=1, block_type="paragraph", text="text")
-            ],
+            blocks=[IngestBlock(block_id="b1", page_number=1, block_type="paragraph", text="text")],
             chunks=[
                 IngestChunk(
                     chunk_id="c1",
@@ -289,9 +287,7 @@ def test_failing_entry_point_is_logged_and_not_registered(monkeypatch, caplog):
     assert "broken-docling" not in providers
     assert "example" in providers
     warning_text = " ".join(
-        record.getMessage()
-        for record in caplog.records
-        if record.levelno == logging.WARNING
+        record.getMessage() for record in caplog.records if record.levelno == logging.WARNING
     )
     assert "broken-docling" in warning_text
     assert "Docling native library missing" in warning_text
@@ -394,9 +390,11 @@ def test_custom_pipeline_keeps_readable_text_and_embeds_context(tmp_path):
         assert regions[0]["block_id"] == "stable-block"
         assert [region["page_number"] for region in regions] == [1, 2]
     with sqlite3.connect(out) as connection:
-        metadata = json.loads(connection.execute(
-            "SELECT value FROM vera_metadata WHERE key='archive_metadata'"
-        ).fetchone()[0])
+        metadata = json.loads(
+            connection.execute(
+                "SELECT value FROM vera_metadata WHERE key='archive_metadata'"
+            ).fetchone()[0]
+        )
         assert metadata["parser_version"] == "1.2.3"
 
 
@@ -494,9 +492,7 @@ def test_fields_from_dataclass_derives_descriptor_fields_from_metadata():
 
     @dataclass(frozen=True)
     class Options:
-        chunk_size: int = field(
-            default=250, metadata={"label": "Chunk size", "minimum": 10}
-        )
+        chunk_size: int = field(default=250, metadata={"label": "Chunk size", "minimum": 10})
         ocr_mode: str = field(
             default="auto", metadata={"type": "enum", "choices": (("auto", "Auto"),)}
         )
@@ -1040,4 +1036,3 @@ def test_entry_point_load_does_not_hold_registry_lock(monkeypatch):
     worker.join(timeout=5)
     assert not worker.is_alive()
     assert "slow" in list_ingest_pipelines()
-

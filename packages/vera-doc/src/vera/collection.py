@@ -161,7 +161,9 @@ def _excluded(relative_path: str, excludes: tuple[str, ...]) -> bool:
             return True
         if any(fnmatch.fnmatch(part, normalized) for part in parts):
             return True
-        if normalized.endswith("/**") and relative_path.startswith(normalized[:-3].rstrip("/") + "/"):
+        if normalized.endswith("/**") and relative_path.startswith(
+            normalized[:-3].rstrip("/") + "/"
+        ):
             return True
     return False
 
@@ -189,7 +191,9 @@ def discover_vera_files(
                     continue
                 kept_directories.append(name)
             directories[:] = kept_directories
-            candidates.extend(current_path / name for name in filenames if name.lower().endswith(".vera"))
+            candidates.extend(
+                current_path / name for name in filenames if name.lower().endswith(".vera")
+            )
     else:
         candidates = [path for path in root.iterdir() if path.suffix.lower() == ".vera"]
     discovered: list[Path] = []
@@ -447,13 +451,9 @@ def build_library_index(
                     stored_metadata = doc._metadata_values()
                     archive_metadata = doc.metadata
                     file_metadata = {**stored_metadata, **archive_metadata}
-                    file_metadata["_vera_page_count"] = int(
-                        archive_metadata.get("page_count", 0)
-                    )
+                    file_metadata["_vera_page_count"] = int(archive_metadata.get("page_count", 0))
                     document = {
-                        "source_filename": archive_metadata.get(
-                            "source_file_name"
-                        ),
+                        "source_filename": archive_metadata.get("source_file_name"),
                         "title": archive_metadata.get("title"),
                         "created_at": stored_metadata.get("created_at"),
                     }
@@ -471,9 +471,7 @@ def build_library_index(
                     )
                     rows = []
                     for modern_row in modern_rows:
-                        chunk_metadata = thaw_json(
-                            metadata_from_json(modern_row["metadata_json"])
-                        )
+                        chunk_metadata = thaw_json(metadata_from_json(modern_row["metadata_json"]))
                         rows.append(
                             {
                                 **dict(modern_row),
@@ -483,9 +481,7 @@ def build_library_index(
                                 ),
                                 "page_start": chunk_metadata.get("page_start"),
                                 "page_end": chunk_metadata.get("page_end"),
-                                "heading_path": chunk_metadata.get(
-                                    "heading_path"
-                                ),
+                                "heading_path": chunk_metadata.get("heading_path"),
                                 "source_filename": chunk_metadata.get(
                                     "source_filename",
                                     archive_metadata.get("source_file_name"),
@@ -498,7 +494,9 @@ def build_library_index(
                         dimension = int(row["model_dimension"])
                         vector = deserialize_vector(row["vector"])
                         if vector.size != dimension:
-                            file_problem = f"{row['chunk_id']} has {vector.size} values; expected {dimension}"
+                            file_problem = (
+                                f"{row['chunk_id']} has {vector.size} values; expected {dimension}"
+                            )
                             break
                         group = (str(row["model_name"]), dimension)
                         prepared.append((row, vector, group))
@@ -522,7 +520,9 @@ def build_library_index(
                             stat.st_mtime_ns,
                             _sha256_file(path),
                             file_metadata.get("source_file_hash"),
-                            document["source_filename"] if document else file_metadata.get("source_file_name"),
+                            document["source_filename"]
+                            if document
+                            else file_metadata.get("source_file_name"),
                             document["title"] if document else None,
                             document["created_at"] if document else file_metadata.get("created_at"),
                             json.dumps(file_metadata, sort_keys=True),
@@ -532,7 +532,11 @@ def build_library_index(
                     for row, vector, group in prepared:
                         vector_row = len(vectors.setdefault(group, []))
                         norm = float(np.linalg.norm(vector))
-                        normalized = (vector / norm).astype(np.float32) if norm else vector.astype(np.float32)
+                        normalized = (
+                            (vector / norm).astype(np.float32)
+                            if norm
+                            else vector.astype(np.float32)
+                        )
                         vectors[group].append(normalized)
                         chunk_cursor = conn.execute(
                             """
@@ -558,7 +562,12 @@ def build_library_index(
                         )
                         conn.execute(
                             "INSERT INTO chunks_fts(row_id, text, heading_path, source_filename) VALUES (?, ?, ?, ?)",
-                            (int(chunk_cursor.lastrowid), row["text"], row["heading_path"], row["source_filename"]),
+                            (
+                                int(chunk_cursor.lastrowid),
+                                row["text"],
+                                row["heading_path"],
+                                row["source_filename"],
+                            ),
                         )
                 finally:
                     doc.close()
@@ -700,7 +709,9 @@ def update_library_index(
     root = Path(directory).resolve()
     config = _load_config(root)
     if config is None:
-        raise FileNotFoundError(f"No library index found in {directory}; run 'vera index build' first")
+        raise FileNotFoundError(
+            f"No library index found in {directory}; run 'vera index build' first"
+        )
     return build_library_index(
         str(root),
         recursive=bool(config.get("recursive", False)),
@@ -748,8 +759,7 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
             if version_value is None or int(version_value) != INDEX_VERSION:
                 reasons.append("index version is unsupported")
             indexed = {
-                row["relative_path"]: dict(row)
-                for row in conn.execute("SELECT * FROM files")
+                row["relative_path"]: dict(row) for row in conn.execute("SELECT * FROM files")
             }
             skipped = {
                 row["relative_path"]: dict(row)
@@ -827,9 +837,7 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
     generation = _generation_path(root)
     for group in model_groups:
         vector_file = generation / str(group["vector_file"])
-        group["vector_size_bytes"] = (
-            vector_file.stat().st_size if vector_file.is_file() else 0
-        )
+        group["vector_size_bytes"] = vector_file.stat().st_size if vector_file.is_file() else 0
     database_size = database.stat().st_size if database.is_file() else 0
     vector_size = sum(
         (generation / str(group["filename"])).stat().st_size
@@ -976,7 +984,9 @@ class VeraCollectionIndex:
 
     def _semantic_hits(self, query: str, limit: int) -> list[tuple[int, float]]:
         per_group: list[list[tuple[int, float]]] = []
-        for group in self.conn.execute("SELECT * FROM vector_groups ORDER BY model_name, dimension"):
+        for group in self.conn.execute(
+            "SELECT * FROM vector_groups ORDER BY model_name, dimension"
+        ):
             try:
                 embedder = get_embedder(group["model_name"])
                 if embedder.dimension != group["dimension"]:
@@ -1028,7 +1038,11 @@ class VeraCollectionIndex:
             ).fetchall()
             row_ids = {int(row["vector_row"]): int(row["row_id"]) for row in rows}
             per_group.append(
-                [(row_ids[position], float(scores[position])) for position in vector_rows if position in row_ids]
+                [
+                    (row_ids[position], float(scores[position]))
+                    for position in vector_rows
+                    if position in row_ids
+                ]
             )
         if not per_group:
             return []
@@ -1104,9 +1118,9 @@ class VeraCollectionIndex:
 
             return [
                 IndexHit(relative_path=key[0], chunk_id=key[1], score=score)
-                for key, score in reciprocal_rank_fusion(
-                    [hit_keys(semantic), hit_keys(keyword)]
-                )[:top_k]
+                for key, score in reciprocal_rank_fusion([hit_keys(semantic), hit_keys(keyword)])[
+                    :top_k
+                ]
             ]
         if mode == "semantic":
             ranked = self._semantic_hits(query, top_k)
@@ -1124,4 +1138,3 @@ class VeraCollectionIndex:
             for row_id, score in ranked
             if row_id in references
         ]
-

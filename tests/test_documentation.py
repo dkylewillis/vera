@@ -179,7 +179,10 @@ def test_hardening_json_contracts_are_documented():
     assert "Tesseract `--ocr-language`" in conversion
     assert "--embedder-option" in conversion
     assert "embedder_options" in conversion
-    assert "describe_embedding_providers" in conversion or "creating-an-embedding-provider.md" in conversion
+    assert (
+        "describe_embedding_providers" in conversion
+        or "creating-an-embedding-provider.md" in conversion
+    )
     assert "`--pipeline-option KEY=VALUE`" in cli_reference
     assert "`--embedder-option KEY=VALUE`" in cli_reference
     assert "compatibility alias" in cli_reference.lower() or "Compatibility alias" in cli_reference
@@ -199,7 +202,9 @@ def test_hardening_json_contracts_are_documented():
     assert "vera.embedder_descriptors" in guide
     assert "credential_env" in guide
     assert "Do not put API keys in Options" in guide or "do not put secrets" in guide.lower()
-    assert "scope\": \"convert\"" in guide or "scope: convert" in guide or '"scope": "convert"' in guide
+    assert (
+        'scope": "convert"' in guide or "scope: convert" in guide or '"scope": "convert"' in guide
+    )
     assert "vera.embedder_models" in guide
     assert 'metadata["minimum"]' in guide
     assert 'metadata["maximum"]' in guide
@@ -249,9 +254,9 @@ def test_hardening_json_contracts_are_documented():
     assert "## Reconvert with a different parser or embedding" in conversion
     assert "**Reconvert…**" in conversion
     assert "registers the default" in desktop_architecture and "pymupdf" in desktop_architecture
-    assert "copy-metadata" in (ROOT / "packages" / "vera-app" / "scripts" / "build-sidecar.cjs").read_text(
-        encoding="utf-8"
-    )
+    assert "copy-metadata" in (
+        ROOT / "packages" / "vera-app" / "scripts" / "build-sidecar.cjs"
+    ).read_text(encoding="utf-8")
     assert "ensure_registered" in (
         ROOT / "packages" / "vera-ingest-pymupdf" / "src" / "vera_ingest_pymupdf" / "__init__.py"
     ).read_text(encoding="utf-8")
@@ -262,7 +267,9 @@ def test_hardening_json_contracts_are_documented():
     assert "Hugging Face" in desktop
     assert "HF_TOKEN" in desktop
     assert "Hugging Face" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
-    assert "Advanced pipeline options" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
+    assert "Advanced pipeline options" in (DOCS / "packages" / "vera-app.md").read_text(
+        encoding="utf-8"
+    )
     assert "`attachment_metadata()`" in python_api
     assert "do not contain a `data` field" in python_api
     assert "pipeline_options" in python_api

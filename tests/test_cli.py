@@ -15,7 +15,16 @@ def test_cli_convert_inspect_search(tmp_path):
     out = tmp_path / "manual.vera"
     make_pdf(pdf)
 
-    convert_cmd = [sys.executable, "-m", "vera_cli", "convert", str(pdf), str(out), "--model", "hashing"]
+    convert_cmd = [
+        sys.executable,
+        "-m",
+        "vera_cli",
+        "convert",
+        str(pdf),
+        str(out),
+        "--model",
+        "hashing",
+    ]
     converted = subprocess.run(convert_cmd, text=True, capture_output=True, check=True)
     assert "Created" in converted.stdout
 
@@ -29,7 +38,18 @@ def test_cli_convert_inspect_search(tmp_path):
     assert "Chunks:" in inspected.stdout
 
     searched = subprocess.run(
-        [sys.executable, "-m", "vera_cli", "search", str(out), "restaurant parking", "--mode", "hybrid", "--top-k", "1"],
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "search",
+            str(out),
+            "restaurant parking",
+            "--mode",
+            "hybrid",
+            "--top-k",
+            "1",
+        ],
         text=True,
         capture_output=True,
         check=True,
@@ -73,7 +93,17 @@ def test_cli_json_output_for_agents(tmp_path):
     assert "documents" not in report["counts"]
     assert "assets" not in report["counts"]
 
-    payload = run("search", str(out), "restaurant parking", "--mode", "hybrid", "--top-k", "2", "--json", "--figures")
+    payload = run(
+        "search",
+        str(out),
+        "restaurant parking",
+        "--mode",
+        "hybrid",
+        "--top-k",
+        "2",
+        "--json",
+        "--figures",
+    )
     assert payload["query"] == "restaurant parking"
     assert payload["results"]
     first = payload["results"][0]
@@ -100,7 +130,16 @@ def test_cli_json_output_for_agents(tmp_path):
     assert isinstance(context_result["after_chunks"], list)
 
     invalid = subprocess.run(
-        [sys.executable, "-m", "vera_cli", "search", str(out), "restaurant parking", "--context-chunks", "-1"],
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "search",
+            str(out),
+            "restaurant parking",
+            "--context-chunks",
+            "-1",
+        ],
         text=True,
         capture_output=True,
     )
@@ -320,7 +359,12 @@ def test_cli_ocr_languages_download_forwards_to_helper(monkeypatch, capsys):
     assert args.func(args) == 0
     assert calls == ["fra"]
     payload = json.loads(capsys.readouterr().out)
-    assert payload == {"ok": True, "language": "fra", "downloaded": ["fra"], "cache_dir": "/cache/dir"}
+    assert payload == {
+        "ok": True,
+        "language": "fra",
+        "downloaded": ["fra"],
+        "cache_dir": "/cache/dir",
+    }
 
 
 def test_cli_default_ocr_language_is_not_forwarded_to_docling():

@@ -27,8 +27,7 @@ def _freeze_json(value: Any, *, path: str = "metadata") -> Any:
         return MappingProxyType(frozen)
     if isinstance(value, (list, tuple)):
         return tuple(
-            _freeze_json(item, path=f"{path}[{index}]")
-            for index, item in enumerate(value)
+            _freeze_json(item, path=f"{path}[{index}]") for index, item in enumerate(value)
         )
     raise TypeError(f"{path} contains a non-JSON value: {type(value).__name__}")
 
@@ -260,4 +259,3 @@ def _record_dict(record: ChunkRecord) -> dict[str, Any]:
         "text": record.text,
         "metadata": thaw_json(record.metadata),
     }
-

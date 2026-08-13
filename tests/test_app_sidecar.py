@@ -12,7 +12,14 @@ from test_corpus import make_topic_pdf
 from test_convert_search import make_pdf
 from vera_ingest import convert
 from vera_app.cancellation import CancellationToken
-from vera_app.llm import ChatResponse, LlmConfig, ProviderHttpError, ToolCall, ToolsUnsupportedError, VisionUnsupportedError
+from vera_app.llm import (
+    ChatResponse,
+    LlmConfig,
+    ProviderHttpError,
+    ToolCall,
+    ToolsUnsupportedError,
+    VisionUnsupportedError,
+)
 from vera_app.sidecar import handle
 
 
@@ -69,51 +76,61 @@ def nested_app_library(tmp_path):
 
 
 def test_index_actions_and_recursive_folder_search(nested_app_library):
-    missing = handle({
-        "id": "status-missing",
-        "action": "index_status",
-        "path": str(nested_app_library),
-        "verify_hashes": False,
-    })
+    missing = handle(
+        {
+            "id": "status-missing",
+            "action": "index_status",
+            "path": str(nested_app_library),
+            "verify_hashes": False,
+        }
+    )
     assert missing["ok"] is True
     assert missing["result"]["exists"] is False
 
-    inspected = handle({
-        "id": "inspect-recursive",
-        "action": "inspect",
-        "path": str(nested_app_library),
-        "recursive": True,
-    })
+    inspected = handle(
+        {
+            "id": "inspect-recursive",
+            "action": "inspect",
+            "path": str(nested_app_library),
+            "recursive": True,
+        }
+    )
     assert inspected["ok"] is True
     assert inspected["result"]["file_count"] == 2
 
-    fallback = handle({
-        "id": "search-recursive",
-        "action": "search",
-        "path": str(nested_app_library),
-        "paths": [str(nested_app_library)],
-        "recursive": True,
-        "query": "water treatment pumping",
-        "top_k": 1,
-    })
+    fallback = handle(
+        {
+            "id": "search-recursive",
+            "action": "search",
+            "path": str(nested_app_library),
+            "paths": [str(nested_app_library)],
+            "recursive": True,
+            "query": "water treatment pumping",
+            "top_k": 1,
+        }
+    )
     assert fallback["ok"] is True
     assert fallback["result"][0]["file"].endswith("water.vera")
 
-    built = handle({
-        "id": "index-build",
-        "action": "index_build",
-        "path": str(nested_app_library),
-        "recursive": True,
-        "excludes": ["archive"],
-    })
+    built = handle(
+        {
+            "id": "index-build",
+            "action": "index_build",
+            "path": str(nested_app_library),
+            "recursive": True,
+            "excludes": ["archive"],
+        }
+    )
     assert built["ok"] is True
     assert built["result"]["indexed"] == 2
 
-    fresh = handle({
-        "id": "status-fresh",
-        "action": "index_status",
-        "path": str(nested_app_library),
-    })
+    fresh = handle(
+        {
+            "id": "status-fresh",
+            "action": "index_status",
+            "path": str(nested_app_library),
+        }
+    )
     assert fresh["ok"] is True
     assert fresh["result"]["fresh"] is True
     assert fresh["result"]["recursive"] is True
@@ -122,37 +139,43 @@ def test_index_actions_and_recursive_folder_search(nested_app_library):
     assert fresh["result"]["model_groups"][0]["documents"] == 2
     assert fresh["result"]["index_size_bytes"] > 0
 
-    summary = handle({
-        "id": "inspect-summary",
-        "action": "inspect",
-        "path": str(nested_app_library),
-        "summary_only": True,
-        "default_recursive": True,
-    })
+    summary = handle(
+        {
+            "id": "inspect-summary",
+            "action": "inspect",
+            "path": str(nested_app_library),
+            "summary_only": True,
+            "default_recursive": True,
+        }
+    )
     assert summary["ok"] is True
     assert summary["result"]["summary_source"] == "index"
     assert summary["result"]["summary_complete"] is True
     assert summary["result"]["file_count"] == 2
 
-    indexed = handle({
-        "id": "search-indexed",
-        "action": "search",
-        "path": str(nested_app_library),
-        "query": "roadway corridor",
-        "top_k": 1,
-    })
+    indexed = handle(
+        {
+            "id": "search-indexed",
+            "action": "search",
+            "path": str(nested_app_library),
+            "query": "roadway corridor",
+            "top_k": 1,
+        }
+    )
     assert indexed["ok"] is True
     assert indexed["result"][0]["file"].endswith("roadway.vera")
 
     water_path = nested_app_library / "utilities" / "water.vera"
-    narrowed = handle({
-        "id": "search-narrowed",
-        "action": "search",
-        "path": str(nested_app_library),
-        "paths": [str(water_path)],
-        "query": "roadway corridor",
-        "top_k": 1,
-    })
+    narrowed = handle(
+        {
+            "id": "search-narrowed",
+            "action": "search",
+            "path": str(nested_app_library),
+            "paths": [str(water_path)],
+            "query": "roadway corridor",
+            "top_k": 1,
+        }
+    )
     assert narrowed["ok"] is True
     assert narrowed["result"][0]["file"] == str(water_path)
 
@@ -166,21 +189,25 @@ def test_index_actions_and_recursive_folder_search(nested_app_library):
     )
     convert(str(bridge_pdf), str(bridge), model="hashing")
 
-    stale = handle({
-        "id": "status-stale",
-        "action": "index_status",
-        "path": str(nested_app_library),
-        "verify_hashes": False,
-    })
+    stale = handle(
+        {
+            "id": "status-stale",
+            "action": "index_status",
+            "path": str(nested_app_library),
+            "verify_hashes": False,
+        }
+    )
     assert stale["ok"] is True
     assert stale["result"]["exists"] is True
     assert stale["result"]["fresh"] is False
 
-    updated = handle({
-        "id": "index-update",
-        "action": "index_update",
-        "path": str(nested_app_library),
-    })
+    updated = handle(
+        {
+            "id": "index-update",
+            "action": "index_update",
+            "path": str(nested_app_library),
+        }
+    )
     assert updated["ok"] is True
     assert updated["result"]["operation"] == "update"
     assert updated["result"]["indexed"] == 3
@@ -191,12 +218,14 @@ def test_index_build_streams_request_scoped_progress(monkeypatch, nested_app_lib
     emitted = []
     monkeypatch.setattr(sidecar, "_write_response", emitted.append)
 
-    response = sidecar.handle({
-        "id": "index-progress",
-        "action": "index_build",
-        "path": str(nested_app_library),
-        "recursive": True,
-    })
+    response = sidecar.handle(
+        {
+            "id": "index-progress",
+            "action": "index_build",
+            "path": str(nested_app_library),
+            "recursive": True,
+        }
+    )
 
     assert response["ok"] is True
     progress = [event for event in emitted if event.get("event") == "index_progress"]
@@ -214,33 +243,35 @@ def test_search_defers_figure_bytes_until_requested(tmp_path):
     make_structured_pdf(pdf)
     convert(str(pdf), str(out), model="hashing", store_original=True)
 
-    searched = handle({
-        "id": "search",
-        "action": "search",
-        "path": str(out),
-        "query": "restaurant parking",
-        "mode": "keyword",
-        "top_k": 1,
-        "include_figures": True,
-        "include_figure_data": False,
-    })
+    searched = handle(
+        {
+            "id": "search",
+            "action": "search",
+            "path": str(out),
+            "query": "restaurant parking",
+            "mode": "keyword",
+            "top_k": 1,
+            "include_figures": True,
+            "include_figure_data": False,
+        }
+    )
 
     assert searched["ok"] is True
     figures = searched["result"][0]["figures"]
     assert figures
     assert "data_url" not in figures[0]
 
-    loaded = handle({
-        "id": "figure-data",
-        "action": "figure_data",
-        "path": str(out),
-        "asset_ids": [figures[0]["asset_id"]],
-    })
+    loaded = handle(
+        {
+            "id": "figure-data",
+            "action": "figure_data",
+            "path": str(out),
+            "asset_ids": [figures[0]["asset_id"]],
+        }
+    )
 
     assert loaded["ok"] is True
-    assert [figure["asset_id"] for figure in loaded["result"]] == [
-        figures[0]["asset_id"]
-    ]
+    assert [figure["asset_id"] for figure in loaded["result"]] == [figures[0]["asset_id"]]
     assert loaded["result"][0]["data_url"].startswith("data:image/")
 
 
@@ -249,12 +280,14 @@ def test_library_inspect_streams_request_scoped_progress(monkeypatch, nested_app
     emitted = []
     monkeypatch.setattr(sidecar, "_write_response", emitted.append)
 
-    response = sidecar.handle({
-        "id": "inspection-progress",
-        "action": "inspect",
-        "path": str(nested_app_library),
-        "recursive": True,
-    })
+    response = sidecar.handle(
+        {
+            "id": "inspection-progress",
+            "action": "inspect",
+            "path": str(nested_app_library),
+            "recursive": True,
+        }
+    )
 
     assert response["ok"] is True
     progress = [event for event in emitted if event.get("event") == "inspection_progress"]
@@ -276,11 +309,14 @@ def test_inspection_and_source_honor_cancellation(action, expected_error):
     cancel = CancellationToken()
     cancel.cancel()
 
-    response = handle({
-        "id": f"cancel-{action}",
-        "action": action,
-        "path": "unused",
-    }, cancel=cancel)
+    response = handle(
+        {
+            "id": f"cancel-{action}",
+            "action": action,
+            "path": "unused",
+        },
+        cancel=cancel,
+    )
 
     assert response["ok"] is False
     assert response["cancelled"] is True
@@ -388,7 +424,10 @@ def test_search_action_can_be_cancelled_while_in_flight(monkeypatch):
 @pytest.mark.parametrize(
     ("action", "request_line"),
     [
-        ("convert", '{"id":"convert","action":"convert","input":"manual.pdf","output":"manual.vera"}'),
+        (
+            "convert",
+            '{"id":"convert","action":"convert","input":"manual.pdf","output":"manual.vera"}',
+        ),
         ("batch_convert", '{"id":"batch","action":"batch_convert","directory":"library"}'),
     ],
 )
@@ -423,7 +462,7 @@ def test_conversion_actions_do_not_block_other_sidecar_requests(monkeypatch, act
     monkeypatch.setattr(
         sidecar.sys,
         "stdin",
-        io.StringIO(f"{request_line}\n" '{"id":"ping","action":"ping"}\n'),
+        io.StringIO(f'{request_line}\n{{"id":"ping","action":"ping"}}\n'),
     )
 
     assert sidecar.main() == 0
@@ -436,14 +475,16 @@ def test_conversion_actions_do_not_block_other_sidecar_requests(monkeypatch, act
 
 
 def test_empty_library_can_open_for_summary(tmp_path):
-    response = handle({
-        "id": "inspect-empty-library",
-        "action": "inspect",
-        "path": str(tmp_path),
-        "summary_only": True,
-        "default_recursive": True,
-        "allow_empty": True,
-    })
+    response = handle(
+        {
+            "id": "inspect-empty-library",
+            "action": "inspect",
+            "path": str(tmp_path),
+            "summary_only": True,
+            "default_recursive": True,
+            "allow_empty": True,
+        }
+    )
 
     assert response["ok"] is True
     assert response["result"]["directory"] == str(tmp_path.resolve())
@@ -458,14 +499,16 @@ def test_single_file_scope_still_stamps_source_path(tmp_path):
     make_pdf(pdf)
     convert(str(pdf), str(out), model="hashing")
 
-    response = handle({
-        "id": "single-search",
-        "action": "search",
-        "path": str(out),
-        "paths": [str(out)],
-        "query": "restaurant parking",
-        "top_k": 1,
-    })
+    response = handle(
+        {
+            "id": "single-search",
+            "action": "search",
+            "path": str(out),
+            "paths": [str(out)],
+            "query": "restaurant parking",
+            "top_k": 1,
+        }
+    )
 
     assert response["ok"] is True
     assert response["result"][0]["file"] == str(out)
@@ -480,13 +523,15 @@ def test_batch_convert_supports_recursive_discovery_and_default_names(tmp_path):
     make_pdf(top_pdf)
     make_pdf(nested_pdf)
 
-    top_only = handle({
-        "id": "batch-top",
-        "action": "batch_convert",
-        "directory": str(root),
-        "recursive": False,
-        "model": "hashing",
-    })
+    top_only = handle(
+        {
+            "id": "batch-top",
+            "action": "batch_convert",
+            "directory": str(root),
+            "recursive": False,
+            "model": "hashing",
+        }
+    )
 
     assert top_only["ok"] is True
     assert top_only["result"]["discovered"] == 1
@@ -494,13 +539,15 @@ def test_batch_convert_supports_recursive_discovery_and_default_names(tmp_path):
     assert (root / "top-level.vera").is_file()
     assert not (nested_pdf.parent / "nested-proposal.vera").exists()
 
-    recursive = handle({
-        "id": "batch-recursive",
-        "action": "batch_convert",
-        "directory": str(root),
-        "recursive": True,
-        "model": "hashing",
-    })
+    recursive = handle(
+        {
+            "id": "batch-recursive",
+            "action": "batch_convert",
+            "directory": str(root),
+            "recursive": True,
+            "model": "hashing",
+        }
+    )
 
     assert recursive["ok"] is True
     assert recursive["result"]["discovered"] == 2
@@ -522,12 +569,14 @@ def test_batch_convert_paths_converts_only_selected_pdfs(tmp_path):
     make_pdf(second)
     make_pdf(ignored)
 
-    response = handle({
-        "id": "batch-paths",
-        "action": "batch_convert",
-        "paths": [str(first), str(second)],
-        "model": "hashing",
-    })
+    response = handle(
+        {
+            "id": "batch-paths",
+            "action": "batch_convert",
+            "paths": [str(first), str(second)],
+            "model": "hashing",
+        }
+    )
 
     assert response["ok"] is True
     assert response["result"]["discovered"] == 2
@@ -833,12 +882,14 @@ def test_source_action_materializes_cache_file(tmp_path):
     make_pdf(pdf)
     convert(str(pdf), str(out), model="hashing", store_original=True)
 
-    response = handle({
-        "id": "1",
-        "action": "source",
-        "path": str(out),
-        "cache_dir": str(cache_dir),
-    })
+    response = handle(
+        {
+            "id": "1",
+            "action": "source",
+            "path": str(out),
+            "cache_dir": str(cache_dir),
+        }
+    )
 
     assert response["ok"] is True
     result = response["result"]
@@ -854,12 +905,14 @@ def test_source_action_materializes_cache_file(tmp_path):
     assert cache_path.read_bytes().startswith(b"%PDF")
 
     # Second load reuses the same hash-keyed cache file.
-    again = handle({
-        "id": "2",
-        "action": "source",
-        "path": str(out),
-        "cache_dir": str(cache_dir),
-    })
+    again = handle(
+        {
+            "id": "2",
+            "action": "source",
+            "path": str(out),
+            "cache_dir": str(cache_dir),
+        }
+    )
     assert again["ok"] is True
     assert again["result"]["cache_path"] == result["cache_path"]
 
@@ -869,12 +922,14 @@ def test_source_action_loads_filesystem_pdf(tmp_path):
     cache_dir = tmp_path / "source-cache"
     make_pdf(pdf)
 
-    response = handle({
-        "id": "1",
-        "action": "source",
-        "path": str(pdf),
-        "cache_dir": str(cache_dir),
-    })
+    response = handle(
+        {
+            "id": "1",
+            "action": "source",
+            "path": str(pdf),
+            "cache_dir": str(cache_dir),
+        }
+    )
 
     assert response["ok"] is True
     result = response["result"]
@@ -887,12 +942,14 @@ def test_source_action_loads_filesystem_pdf(tmp_path):
     assert cache_path.resolve().parent == cache_dir.resolve()
     assert cache_path.read_bytes() == pdf.read_bytes()
 
-    again = handle({
-        "id": "2",
-        "action": "source",
-        "path": str(pdf),
-        "cache_dir": str(cache_dir),
-    })
+    again = handle(
+        {
+            "id": "2",
+            "action": "source",
+            "path": str(pdf),
+            "cache_dir": str(cache_dir),
+        }
+    )
     assert again["ok"] is True
     assert again["result"]["cache_path"] == result["cache_path"]
 
@@ -903,7 +960,9 @@ def test_answer_action_requires_llm(tmp_path):
     make_pdf(pdf)
     convert(str(pdf), str(out), model="hashing", store_original=True)
 
-    response = handle({"id": "1", "action": "answer", "path": str(out), "prompt": "restaurant parking"})
+    response = handle(
+        {"id": "1", "action": "answer", "path": str(out), "prompt": "restaurant parking"}
+    )
 
     assert response["ok"] is False
     assert "model must be selected" in response["error"].lower()
@@ -945,7 +1004,13 @@ def test_answer_action_returns_structured_cancellation(tmp_path, monkeypatch):
     monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
 
     response = handle(
-        {"id": "cancelled", "action": "answer", "path": str(out), "prompt": "restaurant parking", "llm": _llm_payload()},
+        {
+            "id": "cancelled",
+            "action": "answer",
+            "path": str(out),
+            "prompt": "restaurant parking",
+            "llm": _llm_payload(),
+        },
         cancel=cancel,
     )
 
@@ -1121,8 +1186,23 @@ def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):
             on_delta('call>{"query":"restaurant parking"}</tool_call>')
             return ChatResponse(
                 content='<tool_call>{"query":"restaurant parking"}</tool_call>',
-                tool_calls=[ToolCall(id="call_1", name="search", arguments={"query": "restaurant parking", "mode": "keyword", "top_k": 1})],
-                message={"role": "assistant", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "search", "arguments": "{}"}}]},
+                tool_calls=[
+                    ToolCall(
+                        id="call_1",
+                        name="search",
+                        arguments={"query": "restaurant parking", "mode": "keyword", "top_k": 1},
+                    )
+                ],
+                message={
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": "{}"},
+                        }
+                    ],
+                },
                 model="test-model",
                 usage=None,
             )
@@ -1142,7 +1222,15 @@ def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):
     monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
     monkeypatch.setattr("vera_app.sidecar._write_response", emitted.append)
 
-    response = handle({"id": "1", "action": "answer", "path": str(out), "prompt": "restaurant parking", "llm": _llm_payload()})
+    response = handle(
+        {
+            "id": "1",
+            "action": "answer",
+            "path": str(out),
+            "prompt": "restaurant parking",
+            "llm": _llm_payload(),
+        }
+    )
 
     assert response["ok"] is True
     result = response["result"]
@@ -1191,14 +1279,16 @@ def test_answer_action_merges_custom_instructions(tmp_path, monkeypatch):
 
     monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
 
-    response = handle({
-        "id": "1",
-        "action": "answer",
-        "path": str(out),
-        "prompt": "restaurant parking",
-        "instructions": "Respond as a compliance checklist.",
-        "llm": _llm_payload(),
-    })
+    response = handle(
+        {
+            "id": "1",
+            "action": "answer",
+            "path": str(out),
+            "prompt": "restaurant parking",
+            "instructions": "Respond as a compliance checklist.",
+            "llm": _llm_payload(),
+        }
+    )
 
     assert response["ok"] is True
     result = response["result"]
@@ -1237,16 +1327,25 @@ def test_answer_action_falls_back_when_tools_unsupported(tmp_path, monkeypatch):
     monkeypatch.setattr("vera_app.sidecar.generate", fake_generate)
     monkeypatch.setattr("vera_app.sidecar._write_response", emitted.append)
 
-    response = handle({"id": "1", "action": "answer", "path": str(out), "prompt": "restaurant parking", "llm": _llm_payload()})
+    response = handle(
+        {
+            "id": "1",
+            "action": "answer",
+            "path": str(out),
+            "prompt": "restaurant parking",
+            "llm": _llm_payload(),
+        }
+    )
 
     assert response["ok"] is True
     result = response["result"]
     assert result["answer_mode"] == "retrieval"
     assert result["answer"].endswith("[C1]")
     assert result["citations"][0]["id"] == "C1"
-    assert [
-        event["text"] for event in emitted if event.get("event") == "answer_delta"
-    ] == ["Parking is covered ", "in the cited passage. [C1]"]
+    assert [event["text"] for event in emitted if event.get("event") == "answer_delta"] == [
+        "Parking is covered ",
+        "in the cited passage. [C1]",
+    ]
 
 
 def _figures_mode_dir(tmp_path, max_figure_images=4):
@@ -1278,19 +1377,38 @@ def test_answer_action_sends_figure_images_to_llm(tmp_path, monkeypatch):
         if calls["n"] == 1:
             return ChatResponse(
                 content="",
-                tool_calls=[ToolCall(id="call_1", name="search", arguments={"query": "restaurant parking", "mode": "keyword", "top_k": 1})],
-                message={"role": "assistant", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "search", "arguments": "{}"}}]},
+                tool_calls=[
+                    ToolCall(
+                        id="call_1",
+                        name="search",
+                        arguments={"query": "restaurant parking", "mode": "keyword", "top_k": 1},
+                    )
+                ],
+                message={
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": "{}"},
+                        }
+                    ],
+                },
                 model="test-model",
                 usage=None,
             )
         # Second turn: the figure image should have been offered as a follow-up
         # multimodal user message after the tool result.
         image_messages = [
-            m for m in messages
-            if isinstance(m.get("content"), list) and any(part.get("type") == "image_url" for part in m["content"])
+            m
+            for m in messages
+            if isinstance(m.get("content"), list)
+            and any(part.get("type") == "image_url" for part in m["content"])
         ]
         assert image_messages, "expected a message carrying an image_url content part"
-        image_parts = [part for part in image_messages[0]["content"] if part.get("type") == "image_url"]
+        image_parts = [
+            part for part in image_messages[0]["content"] if part.get("type") == "image_url"
+        ]
         assert image_parts[0]["image_url"]["url"].startswith("data:image/")
         return ChatResponse(
             content="Restaurant parking requirements are in the cited passage. [C1]",
@@ -1302,15 +1420,17 @@ def test_answer_action_sends_figure_images_to_llm(tmp_path, monkeypatch):
 
     monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
 
-    response = handle({
-        "id": "1",
-        "action": "answer",
-        "path": str(out),
-        "prompt": "restaurant parking",
-        "modes_dir": _figures_mode_dir(tmp_path),
-        "mode_id": "figures-test",
-        "llm": _llm_payload(),
-    })
+    response = handle(
+        {
+            "id": "1",
+            "action": "answer",
+            "path": str(out),
+            "prompt": "restaurant parking",
+            "modes_dir": _figures_mode_dir(tmp_path),
+            "mode_id": "figures-test",
+            "llm": _llm_payload(),
+        }
+    )
 
     assert response["ok"] is True
     assert calls["n"] == 2
@@ -1322,7 +1442,9 @@ def test_answer_action_sends_figure_images_to_llm(tmp_path, monkeypatch):
     assert result["citations"][0]["result"]["figures"]
     assert "data_url" not in result["citations"][0]["result"]["figures"][0]
     # Trace must redact image bytes rather than embedding the raw data URL.
-    request_trace = next(e for e in result["trace"] if e["event"] == "llm_request" and e["turn"] == 1)
+    request_trace = next(
+        e for e in result["trace"] if e["event"] == "llm_request" and e["turn"] == 1
+    )
     traced_image_parts = [
         part
         for message in request_trace["messages"]
@@ -1347,21 +1469,38 @@ def test_answer_action_falls_back_to_text_when_vision_unsupported(tmp_path, monk
         if calls["n"] == 1:
             return ChatResponse(
                 content="",
-                tool_calls=[ToolCall(id="call_1", name="search", arguments={"query": "restaurant parking", "mode": "keyword", "top_k": 1})],
-                message={"role": "assistant", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "search", "arguments": "{}"}}]},
+                tool_calls=[
+                    ToolCall(
+                        id="call_1",
+                        name="search",
+                        arguments={"query": "restaurant parking", "mode": "keyword", "top_k": 1},
+                    )
+                ],
+                message={
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "search", "arguments": "{}"},
+                        }
+                    ],
+                },
                 model="test-model",
                 usage=None,
             )
         if calls["n"] == 2:
             has_image = any(
-                isinstance(m.get("content"), list) and any(part.get("type") == "image_url" for part in m["content"])
+                isinstance(m.get("content"), list)
+                and any(part.get("type") == "image_url" for part in m["content"])
                 for m in messages
             )
             assert has_image, "first retry attempt should still offer the image"
             raise VisionUnsupportedError("model does not accept image content")
         # Third call: the retry after stripping the image message.
         assert not any(
-            isinstance(m.get("content"), list) and any(part.get("type") == "image_url" for part in m["content"])
+            isinstance(m.get("content"), list)
+            and any(part.get("type") == "image_url" for part in m["content"])
             for m in messages
         ), "image content should be stripped after VisionUnsupportedError"
         joined = json.dumps(messages)
@@ -1376,15 +1515,17 @@ def test_answer_action_falls_back_to_text_when_vision_unsupported(tmp_path, monk
 
     monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
 
-    response = handle({
-        "id": "1",
-        "action": "answer",
-        "path": str(out),
-        "prompt": "restaurant parking",
-        "modes_dir": _figures_mode_dir(tmp_path),
-        "mode_id": "figures-test",
-        "llm": _llm_payload(),
-    })
+    response = handle(
+        {
+            "id": "1",
+            "action": "answer",
+            "path": str(out),
+            "prompt": "restaurant parking",
+            "modes_dir": _figures_mode_dir(tmp_path),
+            "mode_id": "figures-test",
+            "llm": _llm_payload(),
+        }
+    )
 
     assert response["ok"] is True
     assert calls["n"] == 3
@@ -1392,7 +1533,6 @@ def test_answer_action_falls_back_to_text_when_vision_unsupported(tmp_path, monk
     # Images were stripped after the rejection, so none actually reached the model.
     assert response["result"]["images_sent"] == 0
     assert response["result"]["vision_fallback"] is True
-
 
 
 def test_list_modes_action_returns_builtin_modes():
@@ -1404,13 +1544,15 @@ def test_list_modes_action_returns_builtin_modes():
 
 
 def test_llm_config_accepts_injected_api_key():
-    config = LlmConfig.from_request({
-        "provider": "openai_compatible",
-        "model": "gpt-4o-mini",
-        "base_url": "https://api.openai.com/v1",
-        "auth_type": "api_key",
-        "api_key": "secret-key",
-    })
+    config = LlmConfig.from_request(
+        {
+            "provider": "openai_compatible",
+            "model": "gpt-4o-mini",
+            "base_url": "https://api.openai.com/v1",
+            "auth_type": "api_key",
+            "api_key": "secret-key",
+        }
+    )
 
     assert config.enabled is True
     assert config.auth_type == "api_key"
@@ -1427,16 +1569,18 @@ def test_list_models_action_returns_sorted_ids(monkeypatch):
 
     monkeypatch.setattr("vera_app.sidecar.list_models", fake_list_models)
 
-    response = handle({
-        "id": "1",
-        "action": "list_models",
-        "llm": {
-            "provider": "openai_compatible",
-            "base_url": "https://api.openai.com/v1",
-            "auth_type": "api_key",
-            "api_key": "secret-key",
-        },
-    })
+    response = handle(
+        {
+            "id": "1",
+            "action": "list_models",
+            "llm": {
+                "provider": "openai_compatible",
+                "base_url": "https://api.openai.com/v1",
+                "auth_type": "api_key",
+                "api_key": "secret-key",
+            },
+        }
+    )
 
     assert response["ok"] is True
     assert response["result"]["models"] == ["gpt-4o", "gpt-4o-mini"]
@@ -1460,18 +1604,24 @@ def test_list_models_parses_openai_and_ollama_shapes(monkeypatch):
         def __exit__(self, *exc):
             return False
 
-    payloads = iter([
-        {"data": [{"id": "b-model"}, {"id": "a-model"}, {"id": "a-model"}]},
-        {"models": [{"name": "llama3.1"}, {"name": "qwen2"}]},
-    ])
+    payloads = iter(
+        [
+            {"data": [{"id": "b-model"}, {"id": "a-model"}, {"id": "a-model"}]},
+            {"models": [{"name": "llama3.1"}, {"name": "qwen2"}]},
+        ]
+    )
 
     def fake_urlopen(request, timeout=None):
         return FakeResponse(next(payloads))
 
     monkeypatch.setattr(llm_module.urllib.request, "urlopen", fake_urlopen)
 
-    openai_config = LlmConfig.from_request({"base_url": "https://api.openai.com/v1", "auth_type": "none"})
+    openai_config = LlmConfig.from_request(
+        {"base_url": "https://api.openai.com/v1", "auth_type": "none"}
+    )
     assert llm_module.list_models(openai_config) == ["a-model", "b-model"]
 
-    ollama_config = LlmConfig.from_request({"base_url": "http://localhost:11434/v1", "auth_type": "none"})
+    ollama_config = LlmConfig.from_request(
+        {"base_url": "http://localhost:11434/v1", "auth_type": "none"}
+    )
     assert llm_module.list_models(ollama_config) == ["llama3.1", "qwen2"]

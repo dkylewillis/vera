@@ -50,7 +50,9 @@ def isolated_registry():
     reset_ingest_pipeline_registry()
 
 
-def _prov(page_no: int, l: float, b: float, r: float, t: float, height: float = 792.0) -> ProvenanceItem:
+def _prov(
+    page_no: int, l: float, b: float, r: float, t: float, height: float = 792.0
+) -> ProvenanceItem:
     return ProvenanceItem(
         page_no=page_no,
         bbox=BoundingBox(l=l, t=t, r=r, b=b, coord_origin=CoordOrigin.BOTTOMLEFT),
@@ -156,7 +158,11 @@ def test_map_docling_document_converts_coords_and_types():
     assert paragraphs
     assert captions
     assert headings[0].heading_level == 1
-    assert headings[0].block_id.startswith("texts_") or "heading" in headings[0].block_id or headings[0].block_id
+    assert (
+        headings[0].block_id.startswith("texts_")
+        or "heading" in headings[0].block_id
+        or headings[0].block_id
+    )
     # Bottom-left (72,700)-(300,720) on 792-tall page -> top-left y = 72 and 92.
     assert headings[0].bbox is not None
     left, top, right, bottom = headings[0].bbox
@@ -219,7 +225,7 @@ def test_docling_options_ignore_pymupdf_only_keys_and_reject_unknown():
 
     options = DoclingOptions.from_mapping(
         {
-                "chunk_size": 400,
+            "chunk_size": 400,
             "ocr_mode": "force",
             "ocr_language": "fr",
             "overlap": 75,
@@ -631,9 +637,7 @@ def test_page_recovery_falls_back_to_pypdfium2_per_page(monkeypatch, tmp_path):
     assert any(
         call["backend"] == "docling_parse" and call["page_range"] == (2, 2) for call in calls
     )
-    assert any(
-        call["backend"] == "pypdfium2" and call["page_range"] == (2, 2) for call in calls
-    )
+    assert any(call["backend"] == "pypdfium2" and call["page_range"] == (2, 2) for call in calls)
     assert all(call["raises_on_error"] is False for call in calls)
 
 
@@ -970,7 +974,9 @@ def test_forced_pypdfium2_skips_docling_parse_page_retry(monkeypatch, tmp_path):
     )
     assert result.diagnostics["recovered_pages"] == [2]
     assert result.diagnostics["recovered_pages_backend"] == {"2": "pypdfium2"}
-    assert not any(call["backend"] == "docling_parse" and call["page_range"] is not None for call in calls)
+    assert not any(
+        call["backend"] == "docling_parse" and call["page_range"] is not None for call in calls
+    )
     assert any(call["backend"] == "pypdfium2" and call["page_range"] == (2, 2) for call in calls)
 
 

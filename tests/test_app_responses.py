@@ -56,9 +56,9 @@ def test_strips_malformed_nested_xml_tool_call_before_answer():
     content = (
         '<tool_call>search】query: "Table 2-2c" mode: keyword'
         '<tool_call>search】query: "Table 2-2d"</arg_value>'
-        '<arg_key>mode</arg_key><arg_value>keyword</arg_value>'
-        '<arg_key>top_k</arg_key><arg_value>10</arg_value></tool_call>'
-        'Below is the grounded answer. [C9]'
+        "<arg_key>mode</arg_key><arg_value>keyword</arg_value>"
+        "<arg_key>top_k</arg_key><arg_value>10</arg_value></tool_call>"
+        "Below is the grounded answer. [C9]"
     )
 
     cleaned, calls = _extract_xml_tool_calls(content)
@@ -161,7 +161,9 @@ def test_json_payload_replaces_unpaired_utf16_surrogates():
     encoded = _encode_json_payload(payload)
 
     assert b"\xed\xa0\x80" not in encoded
-    assert json.loads(encoded)["input"][0]["content"][0]["text"] == "Extracted text \ufffd continues"
+    assert (
+        json.loads(encoded)["input"][0]["content"][0]["text"] == "Extracted text \ufffd continues"
+    )
 
 
 def test_provider_http_error_uses_bounded_message(monkeypatch):
@@ -227,13 +229,15 @@ def test_openrouter_404_without_image_endpoint_is_vision_unsupported(monkeypatch
 
     with pytest.raises(VisionUnsupportedError):
         chat(
-            [{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Describe this image"},
-                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}},
-                ],
-            }],
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Describe this image"},
+                        {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}},
+                    ],
+                }
+            ],
             config(
                 provider_key="openrouter",
                 model="z-ai/glm-5.2",

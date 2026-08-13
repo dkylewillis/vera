@@ -21,7 +21,9 @@ def _fake_response(data: bytes, *, content_length: int | None = None):
             return False
 
     response = _FakeResponse(data)
-    response.headers = {"Content-Length": str(content_length if content_length is not None else len(data))}
+    response.headers = {
+        "Content-Length": str(content_length if content_length is not None else len(data))
+    }
     return response
 
 
@@ -112,7 +114,9 @@ def test_ensure_language_data_unknown_code_with_download_raises(tmp_path):
 def test_ensure_language_data_downloads_and_verifies_checksum(tmp_path, monkeypatch):
     payload = b"fake-traineddata-bytes"
     digest = hashlib.sha256(payload).hexdigest()
-    monkeypatch.setitem(tdm.KNOWN_LANGUAGES, "tst", tdm.LanguagePackInfo("Test", digest, len(payload)))
+    monkeypatch.setitem(
+        tdm.KNOWN_LANGUAGES, "tst", tdm.LanguagePackInfo("Test", digest, len(payload))
+    )
     monkeypatch.setattr(tdm.urllib.request, "urlopen", lambda *a, **k: _fake_response(payload))
 
     progress_calls = []
@@ -144,7 +148,9 @@ def test_ensure_language_data_rejects_checksum_mismatch(tmp_path, monkeypatch):
 def test_ensure_language_data_reuses_valid_cache_without_downloading(tmp_path, monkeypatch):
     payload = b"cached-traineddata-bytes"
     digest = hashlib.sha256(payload).hexdigest()
-    monkeypatch.setitem(tdm.KNOWN_LANGUAGES, "tst", tdm.LanguagePackInfo("Test", digest, len(payload)))
+    monkeypatch.setitem(
+        tdm.KNOWN_LANGUAGES, "tst", tdm.LanguagePackInfo("Test", digest, len(payload))
+    )
     (tmp_path / "tst.traineddata").write_bytes(payload)
 
     def _boom(*_args, **_kwargs):
@@ -158,7 +164,9 @@ def test_ensure_language_data_reuses_valid_cache_without_downloading(tmp_path, m
 def test_ensure_language_data_does_not_trust_size_only_cache(tmp_path, monkeypatch):
     payload = b"cached-traineddata-bytes"
     digest = hashlib.sha256(payload).hexdigest()
-    monkeypatch.setitem(tdm.KNOWN_LANGUAGES, "tst", tdm.LanguagePackInfo("Test", digest, len(payload)))
+    monkeypatch.setitem(
+        tdm.KNOWN_LANGUAGES, "tst", tdm.LanguagePackInfo("Test", digest, len(payload))
+    )
     (tmp_path / "tst.traineddata").write_bytes(b"0" * len(payload))
     downloaded = []
 
@@ -178,7 +186,9 @@ def test_ensure_language_data_mixed_bundled_and_downloadable_copies_bundled_into
 ):
     payload = b"fake-french-traineddata"
     digest = hashlib.sha256(payload).hexdigest()
-    monkeypatch.setitem(tdm.KNOWN_LANGUAGES, "fra", tdm.LanguagePackInfo("French", digest, len(payload)))
+    monkeypatch.setitem(
+        tdm.KNOWN_LANGUAGES, "fra", tdm.LanguagePackInfo("French", digest, len(payload))
+    )
     monkeypatch.setattr(tdm.urllib.request, "urlopen", lambda *a, **k: _fake_response(payload))
 
     resolved = tdm.ensure_language_data("eng+fra", allow_download=True, cache_dir=tmp_path)
@@ -191,7 +201,9 @@ def test_ensure_language_data_mixed_bundled_and_downloadable_copies_bundled_into
 def test_ensure_language_data_mixed_bundled_without_download_assembles_cache(tmp_path, monkeypatch):
     payload = b"cached-spanish-traineddata"
     digest = hashlib.sha256(payload).hexdigest()
-    monkeypatch.setitem(tdm.KNOWN_LANGUAGES, "spa", tdm.LanguagePackInfo("Spanish", digest, len(payload)))
+    monkeypatch.setitem(
+        tdm.KNOWN_LANGUAGES, "spa", tdm.LanguagePackInfo("Spanish", digest, len(payload))
+    )
     (tmp_path / "spa.traineddata").write_bytes(payload)
 
     resolved = tdm.ensure_language_data("eng+spa", allow_download=False, cache_dir=tmp_path)
@@ -214,7 +226,9 @@ def test_download_aborts_when_stream_exceeds_pinned_size(tmp_path, monkeypatch):
 def test_download_ocr_language_data_public_helper(tmp_path, monkeypatch):
     payload = b"fake-bytes"
     digest = hashlib.sha256(payload).hexdigest()
-    monkeypatch.setitem(tdm.KNOWN_LANGUAGES, "tst", tdm.LanguagePackInfo("Test", digest, len(payload)))
+    monkeypatch.setitem(
+        tdm.KNOWN_LANGUAGES, "tst", tdm.LanguagePackInfo("Test", digest, len(payload))
+    )
     monkeypatch.setattr(tdm.urllib.request, "urlopen", lambda *a, **k: _fake_response(payload))
 
     resolved = tdm.download_ocr_language_data("tst", cache_dir=tmp_path)

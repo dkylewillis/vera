@@ -58,7 +58,9 @@ def _build_converter(options: DoclingOptions, *, backend: str | None = None) -> 
     # Keep Docling's default raster scale. Mapping VERA's Tesseract OCR DPI
     # (default 300) to images_scale (~4.17x) OOMs large manuals.
     pipeline_options.images_scale = 1.0
-    layout_engine = getattr(getattr(pipeline_options, "layout_options", None), "engine_options", None)
+    layout_engine = getattr(
+        getattr(pipeline_options, "layout_options", None), "engine_options", None
+    )
     if layout_engine is not None and hasattr(layout_engine, "compile_model"):
         layout_engine.compile_model = False
 
@@ -89,10 +91,7 @@ def _build_converter(options: DoclingOptions, *, backend: str | None = None) -> 
 
 def _is_cancellation(exc: BaseException) -> bool:
     """True for sidecar cancel/skip errors (RuntimeError subclasses)."""
-    return any(
-        cls.__name__ in {"CancelledError", "SkipCurrentError"}
-        for cls in type(exc).mro()
-    )
+    return any(cls.__name__ in {"CancelledError", "SkipCurrentError"} for cls in type(exc).mro())
 
 
 def _try_convert(

@@ -103,7 +103,7 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
         if not sep:
             continue
         meta[key.strip().lower()] = value.strip().strip('"').strip("'")
-    body = "\n".join(lines[closing + 1:]).strip()
+    body = "\n".join(lines[closing + 1 :]).strip()
     return meta, body
 
 

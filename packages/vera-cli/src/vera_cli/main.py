@@ -49,12 +49,16 @@ embedder_option = pipeline_option
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the ``vera`` command-line argument parser."""
-    parser = argparse.ArgumentParser(prog="vera", description="Vector-Embedded Retrieval Archive CLI")
+    parser = argparse.ArgumentParser(
+        prog="vera", description="Vector-Embedded Retrieval Archive CLI"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     convert_p = sub.add_parser("convert", help="Convert a PDF or a directory of PDFs to VERA files")
     convert_p.add_argument("input", help="PDF file or directory containing PDFs")
-    convert_p.add_argument("output", nargs="?", default=None, help="Output .vera path for a single PDF")
+    convert_p.add_argument(
+        "output", nargs="?", default=None, help="Output .vera path for a single PDF"
+    )
     convert_p.add_argument(
         "--model",
         default="hashing",
@@ -108,7 +112,12 @@ def build_parser() -> argparse.ArgumentParser:
             "forwarded to Docling/RapidOCR)"
         ),
     )
-    convert_p.add_argument("--ocr-dpi", type=positive_int, default=300, help="OCR render resolution (compatibility alias)")
+    convert_p.add_argument(
+        "--ocr-dpi",
+        type=positive_int,
+        default=300,
+        help="OCR render resolution (compatibility alias)",
+    )
     convert_p.add_argument(
         "--ocr-allow-download",
         action="store_true",
@@ -143,8 +152,16 @@ def build_parser() -> argparse.ArgumentParser:
             "batch_size=64 or --embedder-option dimension=256)."
         ),
     )
-    convert_p.add_argument("--recursive", action="store_true", help="Discover PDFs recursively when input is a directory")
-    convert_p.add_argument("--overwrite", action="store_true", help="Overwrite existing .vera files during directory conversion")
+    convert_p.add_argument(
+        "--recursive",
+        action="store_true",
+        help="Discover PDFs recursively when input is a directory",
+    )
+    convert_p.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing .vera files during directory conversion",
+    )
     convert_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     convert_p.set_defaults(func=cmd_convert)
 
@@ -153,7 +170,9 @@ def build_parser() -> argparse.ArgumentParser:
     inspect_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     inspect_p.set_defaults(func=cmd_inspect)
 
-    search_p = sub.add_parser("search", help="Search a VERA file, or a directory of VERA files as one corpus")
+    search_p = sub.add_parser(
+        "search", help="Search a VERA file, or a directory of VERA files as one corpus"
+    )
     search_p.add_argument("file", help="Path to a .vera file or a directory containing .vera files")
     search_p.add_argument("query")
     search_p.add_argument("--mode", choices=["semantic", "keyword", "hybrid"], default="hybrid")
@@ -165,7 +184,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include N chunks before and after each search result in JSON output",
     )
     search_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
-    search_p.add_argument("--figures", action="store_true", help="Include figure metadata/captions in --json output")
+    search_p.add_argument(
+        "--figures", action="store_true", help="Include figure metadata/captions in --json output"
+    )
     search_p.add_argument(
         "--recursive",
         action="store_true",
@@ -189,7 +210,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     index_build_p = index_sub.add_parser("build", help="Build a library index")
     index_build_p.add_argument("directory", help="Root directory containing .vera files")
-    index_build_p.add_argument("--recursive", action="store_true", help="Discover .vera files recursively")
+    index_build_p.add_argument(
+        "--recursive", action="store_true", help="Discover .vera files recursively"
+    )
     index_build_p.add_argument(
         "--exclude",
         action="append",
@@ -216,11 +239,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     export_p = sub.add_parser("export", help="Export the original source document from a VERA file")
     export_p.add_argument("file")
-    export_p.add_argument("output", nargs="?", default=None, help="Output path or directory (default: stored filename)")
+    export_p.add_argument(
+        "output",
+        nargs="?",
+        default=None,
+        help="Output path or directory (default: stored filename)",
+    )
     export_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     export_p.set_defaults(func=cmd_export)
 
-    mcp_p = sub.add_parser("mcp", help="Run the MCP server (stdio) exposing VERA tools to AI agents")
+    mcp_p = sub.add_parser(
+        "mcp", help="Run the MCP server (stdio) exposing VERA tools to AI agents"
+    )
     mcp_p.set_defaults(func=cmd_mcp)
 
     ocr_languages_p = sub.add_parser(
@@ -238,7 +268,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Limit to specific '+'-joined codes (e.g. eng+fra); defaults to every known code",
     )
-    ocr_languages_list_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    ocr_languages_list_p.add_argument(
+        "--json", action="store_true", help="Emit machine-readable JSON"
+    )
     ocr_languages_list_p.set_defaults(func=cmd_ocr_languages_list)
 
     ocr_languages_download_p = ocr_languages_sub.add_parser(
@@ -247,7 +279,9 @@ def build_parser() -> argparse.ArgumentParser:
     ocr_languages_download_p.add_argument(
         "language", help="'+'-joined Tesseract language code(s) to fetch, e.g. fra or fra+deu"
     )
-    ocr_languages_download_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    ocr_languages_download_p.add_argument(
+        "--json", action="store_true", help="Emit machine-readable JSON"
+    )
     ocr_languages_download_p.set_defaults(func=cmd_ocr_languages_download)
 
     eval_p = sub.add_parser("eval", help="Evaluate retrieval quality against a query file")

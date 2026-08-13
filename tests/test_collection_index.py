@@ -11,7 +11,13 @@ from pathlib import Path
 
 import pytest
 
-from vera import VeraCorpus, VeraDocument, build_library_index, library_index_status, update_library_index
+from vera import (
+    VeraCorpus,
+    VeraDocument,
+    build_library_index,
+    library_index_status,
+    update_library_index,
+)
 from vera_ingest import convert
 from vera_ingest.viewer import regions_for
 from vera.collection import discover_vera_files
@@ -77,7 +83,9 @@ class TestDiscovery:
         assert all("archive" not in path.parts for path in recursive)
 
     def test_corpus_can_search_nested_files_without_an_index(self, nested_library):
-        with VeraCorpus.open(str(nested_library), recursive=True, excludes=["archive"], use_index=False) as corpus:
+        with VeraCorpus.open(
+            str(nested_library), recursive=True, excludes=["archive"], use_index=False
+        ) as corpus:
             results = corpus.search("water treatment pumping", top_k=2)
             assert results
             assert results[0].file.endswith("water.vera")
@@ -97,7 +105,9 @@ class TestDiscovery:
             assert next(iter(corpus._docs)) == corpus.paths[1]
 
     def test_rejects_negative_search_limits(self, nested_library):
-        with VeraCorpus.open(str(nested_library), recursive=True, excludes=["archive"], use_index=False) as corpus:
+        with VeraCorpus.open(
+            str(nested_library), recursive=True, excludes=["archive"], use_index=False
+        ) as corpus:
             with pytest.raises(ValueError, match="top_k"):
                 corpus.search("roadway", top_k=-1)
             with pytest.raises(ValueError, match="context_chunks"):
@@ -218,7 +228,13 @@ class TestBuildAndSearch:
         register_embedder("alternate", alternate_factory, replace=True)
         try:
             root = tmp_path / "mixed"
-            _convert_topic(root, "one.vera", "Road Design", "Roadway design project experience.", model="hashing")
+            _convert_topic(
+                root,
+                "one.vera",
+                "Road Design",
+                "Roadway design project experience.",
+                model="hashing",
+            )
             _convert_topic(
                 root,
                 "two.vera",
@@ -245,7 +261,9 @@ class TestBuildAndSearch:
         finally:
             unregister_embedder("alternate")
 
-    def test_unavailable_semantic_model_does_not_break_keyword_search(self, nested_library, monkeypatch):
+    def test_unavailable_semantic_model_does_not_break_keyword_search(
+        self, nested_library, monkeypatch
+    ):
         import vera.collection as collection
 
         build_library_index(str(nested_library), recursive=True, excludes=["archive"])
@@ -264,7 +282,9 @@ class TestBuildAndSearch:
                 }
             ]
             assert corpus.search("water treatment", mode="hybrid")[0].file.endswith("water.vera")
-            assert corpus.skipped_semantic_model_groups[0]["error"] == "ImportError: vera-hashing-384"
+            assert (
+                corpus.skipped_semantic_model_groups[0]["error"] == "ImportError: vera-hashing-384"
+            )
             assert corpus.search("water treatment", mode="keyword")[0].file.endswith("water.vera")
             assert corpus.skipped_semantic_model_groups == []
 
@@ -540,7 +560,11 @@ async def test_mcp_recursive_corpus_search(nested_library):
         },
     )
     content, structured = result
-    payload = structured.get("result", structured) if structured is not None else json.loads(content[0].text)
+    payload = (
+        structured.get("result", structured)
+        if structured is not None
+        else json.loads(content[0].text)
+    )
     assert payload["results"][0]["file"].endswith("roadway.vera")
     assert "figures" in payload["results"][0]
     assert payload["index"]["used"] is False
@@ -567,7 +591,11 @@ async def test_mcp_reports_skipped_semantic_model_groups(nested_library, monkeyp
         },
     )
     content, structured = result
-    payload = structured.get("result", structured) if structured is not None else json.loads(content[0].text)
+    payload = (
+        structured.get("result", structured)
+        if structured is not None
+        else json.loads(content[0].text)
+    )
     assert payload["results"][0]["file"].endswith("water.vera")
     assert payload["skipped_semantic_model_groups"] == [
         {

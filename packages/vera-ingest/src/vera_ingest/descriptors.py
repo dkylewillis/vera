@@ -92,9 +92,7 @@ def fields_from_dataclass(cls: type) -> tuple[PipelineField, ...]:
     at the type level). ``metadata["choices"]`` is a sequence of
     ``(value, label)`` pairs.
     """
-    return _fields_from_dataclass(
-        cls, field_cls=PipelineField, choice_cls=PipelineFieldChoice
-    )
+    return _fields_from_dataclass(cls, field_cls=PipelineField, choice_cls=PipelineFieldChoice)
 
 
 def generic_pipeline_descriptor(provider: str, variant: str = "") -> PipelineDescriptor:

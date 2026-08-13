@@ -112,6 +112,7 @@ def register_ingest_pipeline(
             return MyPipeline()
     """
     if factory is None:
+
         def decorator(
             actual_factory: Callable[[str], IngestPipeline],
         ) -> Callable[[str], IngestPipeline]:
@@ -148,6 +149,7 @@ def register_ingest_pipeline_descriptor(
     :func:`register_ingest_pipeline`.
     """
     if factory is None:
+
         def decorator(
             actual_factory: Callable[[str], PipelineDescriptor],
         ) -> Callable[[str], PipelineDescriptor]:
@@ -161,9 +163,7 @@ def register_ingest_pipeline_descriptor(
         raise TypeError("ingest pipeline descriptor factory must be callable")
     with _REGISTRY_LOCK:
         if key in _DESCRIPTOR_FACTORIES and not replace:
-            raise ValueError(
-                f"ingest pipeline descriptor for {provider!r} is already registered"
-            )
+            raise ValueError(f"ingest pipeline descriptor for {provider!r} is already registered")
         _DESCRIPTOR_FACTORIES[key] = factory
         for cache_key in tuple(_DESCRIPTOR_CACHE):
             if cache_key[0] == key:
@@ -214,9 +214,7 @@ def _ensure_entry_points_loaded() -> None:
     with _REGISTRY_LOCK:
         if _ENTRY_POINTS_LOADED:
             return
-    pipeline_factories = _collect_entry_point_factories(
-        _ENTRY_POINT_GROUP, kind="ingest pipeline"
-    )
+    pipeline_factories = _collect_entry_point_factories(_ENTRY_POINT_GROUP, kind="ingest pipeline")
     descriptor_factories = _collect_entry_point_factories(
         _DESCRIPTOR_ENTRY_POINT_GROUP, kind="ingest pipeline descriptor"
     )

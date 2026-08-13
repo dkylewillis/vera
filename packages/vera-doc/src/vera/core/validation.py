@@ -32,8 +32,7 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
     metadata = {}
     if "vera_metadata" in existing_tables:
         metadata = {
-            row["key"]: row["value"]
-            for row in conn.execute("SELECT key, value FROM vera_metadata")
+            row["key"]: row["value"] for row in conn.execute("SELECT key, value FROM vera_metadata")
         }
     format_version = metadata.get("format_version")
     required_tables = {
@@ -46,8 +45,7 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
     }
     if format_version != FORMAT_VERSION:
         issues.append(
-            f"Unsupported format version: {format_version or 'missing'} "
-            f"(expected {FORMAT_VERSION})"
+            f"Unsupported format version: {format_version or 'missing'} (expected {FORMAT_VERSION})"
         )
     for table in sorted(required_tables - existing_tables):
         issues.append(f"Missing required table: {table}")
@@ -63,21 +61,20 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
         for key in REQUIRED_METADATA_KEYS:
             if key not in metadata:
                 issues.append(f"Missing required metadata key: {key}")
-        embedding_normalization = metadata.get(
-            "default_embedding_normalization", "unknown"
-        )
+        embedding_normalization = metadata.get("default_embedding_normalization", "unknown")
         if embedding_normalization not in _EMBEDDING_NORMALIZATIONS:
-            issues.append(
-                "Invalid default_embedding_normalization: "
-                f"{embedding_normalization!r}"
-            )
+            issues.append(f"Invalid default_embedding_normalization: {embedding_normalization!r}")
     else:
         embedding_normalization = "unknown"
 
     if counts["embeddings"] != counts["chunks"]:
-        issues.append(f"Embedding count ({counts['embeddings']}) does not match chunk count ({counts['chunks']})")
+        issues.append(
+            f"Embedding count ({counts['embeddings']}) does not match chunk count ({counts['chunks']})"
+        )
     if counts["fts_rows"] != counts["chunks"]:
-        issues.append(f"FTS row count ({counts['fts_rows']}) does not match chunk count ({counts['chunks']})")
+        issues.append(
+            f"FTS row count ({counts['fts_rows']}) does not match chunk count ({counts['chunks']})"
+        )
 
     original_document_present = False
     if "attachments" in existing_tables:
@@ -92,24 +89,17 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
         )
         archive_metadata: dict[str, Any] = {}
         try:
-            parsed_archive_metadata = json.loads(
-                metadata.get("archive_metadata", "{}")
-            )
+            parsed_archive_metadata = json.loads(metadata.get("archive_metadata", "{}"))
             if isinstance(parsed_archive_metadata, dict):
                 archive_metadata = parsed_archive_metadata
         except json.JSONDecodeError:
             pass
-        if (
-            not original_document_present
-            and archive_metadata.get("source_file_name")
-        ):
+        if not original_document_present and archive_metadata.get("source_file_name"):
             warnings.append("Original document asset is missing")
     if "embeddings" in existing_tables:
         dimensions: set[int] = set()
         try:
-            declared_dimension = int(
-                metadata.get("default_embedding_dimension") or 0
-            )
+            declared_dimension = int(metadata.get("default_embedding_dimension") or 0)
         except (TypeError, ValueError):
             declared_dimension = 0
         for row in conn.execute(
@@ -133,9 +123,7 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
                 continue
             vector = np.frombuffer(row["vector"], dtype="<f4")
             if not np.isfinite(vector).all():
-                issues.append(
-                    f"Embedding vector for {row['chunk_id']} contains non-finite values"
-                )
+                issues.append(f"Embedding vector for {row['chunk_id']} contains non-finite values")
                 continue
             norm = float(np.linalg.norm(vector))
             if (
@@ -149,18 +137,11 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
                 )
             ):
                 issues.append(
-                    f"Embedding vector for {row['chunk_id']} is not L2-normalized "
-                    f"(norm {norm:.8g})"
+                    f"Embedding vector for {row['chunk_id']} is not L2-normalized (norm {norm:.8g})"
                 )
         if len(dimensions) > 1:
-            issues.append(
-                f"Mixed embedding dimensions in one archive: {sorted(dimensions)}"
-            )
-        elif (
-            declared_dimension
-            and dimensions
-            and dimensions != {declared_dimension}
-        ):
+            issues.append(f"Mixed embedding dimensions in one archive: {sorted(dimensions)}")
+        elif declared_dimension and dimensions and dimensions != {declared_dimension}:
             issues.append(
                 "Embedding dimensions "
                 f"{sorted(dimensions)} do not match default_embedding_dimension "
@@ -169,13 +150,9 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
 
     foreign_key_issues = conn.execute("PRAGMA foreign_key_check").fetchall()
     if foreign_key_issues:
-        issues.append(
-            f"Foreign key violations found: {len(foreign_key_issues)}"
-        )
+        issues.append(f"Foreign key violations found: {len(foreign_key_issues)}")
     if "chunks" in existing_tables:
-        for row in conn.execute(
-            "SELECT chunk_id, text, metadata_json FROM chunks"
-        ):
+        for row in conn.execute("SELECT chunk_id, text, metadata_json FROM chunks"):
             if not str(row["text"] or "").strip():
                 issues.append(f"Chunk {row['chunk_id']} has empty text")
             _validate_json_object(
@@ -184,14 +161,10 @@ def validate_document(conn: sqlite3.Connection) -> dict[str, Any]:
                 issues,
             )
     if "attachments" in existing_tables:
-        for row in conn.execute(
-            "SELECT attachment_id, data, hash, metadata_json FROM attachments"
-        ):
+        for row in conn.execute("SELECT attachment_id, data, hash, metadata_json FROM attachments"):
             digest = hashlib.sha256(bytes(row["data"] or b"")).hexdigest()
             if row["hash"] != digest:
-                issues.append(
-                    f"Attachment {row['attachment_id']} checksum mismatch"
-                )
+                issues.append(f"Attachment {row['attachment_id']} checksum mismatch")
             _validate_json_object(
                 row["metadata_json"],
                 f"attachment {row['attachment_id']} metadata",

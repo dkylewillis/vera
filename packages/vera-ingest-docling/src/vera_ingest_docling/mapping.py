@@ -273,9 +273,7 @@ def map_docling_document(document: Any) -> tuple[list[ParsedPage], list[IngestBl
         )
 
     pages: list[ParsedPage] = []
-    page_numbers = sorted(
-        set(getattr(document, "pages", {}).keys()) | set(page_texts.keys())
-    )
+    page_numbers = sorted(set(getattr(document, "pages", {}).keys()) | set(page_texts.keys()))
     if not page_numbers:
         page_numbers = [1]
     for page_no in page_numbers:

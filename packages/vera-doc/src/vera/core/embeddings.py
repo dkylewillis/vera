@@ -172,7 +172,10 @@ class SentenceTransformerEmbedder:
         else:
             self._model = SentenceTransformer(model_name)
         self._encode_kwargs = {"batch_size": int(batch_size)}
-        get_dim = getattr(self._model, "get_embedding_dimension", None) or self._model.get_sentence_embedding_dimension
+        get_dim = (
+            getattr(self._model, "get_embedding_dimension", None)
+            or self._model.get_sentence_embedding_dimension
+        )
         dim = get_dim()
         self.dimension = int(dim or len(self.embed(["dimension probe"])[0]))
 
@@ -240,8 +243,7 @@ def _sentence_transformers_descriptor() -> EmbedderDescriptor:
         provider="sentence-transformers",
         label="sentence-transformers — local neural embeddings",
         description=(
-            "Sentence Transformers models via the optional ml extra "
-            "(for example all-MiniLM-L6-v2)."
+            "Sentence Transformers models via the optional ml extra (for example all-MiniLM-L6-v2)."
         ),
         default_model_id="all-MiniLM-L6-v2",
         example_specs=(
@@ -312,6 +314,7 @@ def register_embedder(
             return MyEmbedder(model_id, **config)
     """
     if factory is None:
+
         def decorator(
             actual_factory: Callable[..., EmbeddingFunction],
         ) -> Callable[..., EmbeddingFunction]:
@@ -347,6 +350,7 @@ def register_embedder_descriptor(
     :func:`register_embedder`.
     """
     if factory is None:
+
         def decorator(
             actual_factory: Callable[[], EmbedderDescriptor],
         ) -> Callable[[], EmbedderDescriptor]:
@@ -389,6 +393,7 @@ def register_embedder_models(
     :func:`register_embedder`.
     """
     if factory is None:
+
         def decorator(
             actual_factory: Callable[[], Sequence[EmbeddingModelInfo]],
         ) -> Callable[[], Sequence[EmbeddingModelInfo]]:
@@ -546,9 +551,7 @@ def _register_builtins() -> None:
         _PROVIDERS.setdefault("hashing", _hashing_factory)
         _PROVIDERS.setdefault("sentence-transformers", _sentence_transformers_factory)
         _DESCRIPTOR_FACTORIES.setdefault("hashing", _hashing_descriptor)
-        _DESCRIPTOR_FACTORIES.setdefault(
-            "sentence-transformers", _sentence_transformers_descriptor
-        )
+        _DESCRIPTOR_FACTORIES.setdefault("sentence-transformers", _sentence_transformers_descriptor)
         _MODEL_LISTERS.setdefault("hashing", _hashing_models)
         _MODEL_LISTERS.setdefault("sentence-transformers", _sentence_transformers_models)
 
@@ -594,18 +597,14 @@ def _ensure_entry_points_loaded() -> None:
             name = entry.name.strip().lower()
             if not name or name in _DESCRIPTOR_FACTORIES:
                 continue
-            factory = _safe_load_entry_point(
-                entry, name, kind="embedding provider descriptor"
-            )
+            factory = _safe_load_entry_point(entry, name, kind="embedding provider descriptor")
             if callable(factory):
                 _DESCRIPTOR_FACTORIES[name] = factory
         for entry in _load_entry_point_group(_MODELS_ENTRY_POINT_GROUP):
             name = entry.name.strip().lower()
             if not name or name in _MODEL_LISTERS:
                 continue
-            factory = _safe_load_entry_point(
-                entry, name, kind="embedding model lister"
-            )
+            factory = _safe_load_entry_point(entry, name, kind="embedding model lister")
             if callable(factory):
                 _MODEL_LISTERS[name] = factory
         _ENTRY_POINTS_LOADED = True
@@ -694,10 +693,7 @@ def _merge_embedder_config(
 def _unknown_provider_message(provider: str, *, model: str | None = None) -> str:
     available = ", ".join(sorted(_PROVIDERS)) or "(none)"
     if model is None:
-        message = (
-            f"Unknown embedding provider {provider!r}. "
-            f"Registered providers: {available}."
-        )
+        message = f"Unknown embedding provider {provider!r}. Registered providers: {available}."
     else:
         message = (
             f"Unknown embedding provider {provider!r} for model {model!r}. "
@@ -745,9 +741,7 @@ def get_embedder(
             return cached
         factory = _PROVIDERS.get(provider)
         if factory is None:
-            raise UnknownEmbeddingModelError(
-                _unknown_provider_message(provider, model=model)
-            )
+            raise UnknownEmbeddingModelError(_unknown_provider_message(provider, model=model))
     embedder = factory(model_id, **resolved)
     with _REGISTRY_LOCK:
         cached = _INSTANCE_CACHE.get(key)

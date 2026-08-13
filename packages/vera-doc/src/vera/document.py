@@ -203,9 +203,7 @@ class VeraDocument:
         if target.exists() and not overwrite:
             raise FileExistsError(str(target))
         embedder = embedding_function or get_embedder(model)
-        embedder_normalization = _embedding_normalization(
-            getattr(embedder, "normalization", None)
-        )
+        embedder_normalization = _embedding_normalization(getattr(embedder, "normalization", None))
         normalization = _embedding_normalization(
             embedding_normalization,
             default=embedder_normalization,
@@ -304,26 +302,19 @@ class VeraDocument:
         conn.execute("PRAGMA foreign_keys = ON")
         try:
             try:
-                metadata_rows = conn.execute(
-                    "SELECT key, value FROM vera_metadata"
-                ).fetchall()
+                metadata_rows = conn.execute("SELECT key, value FROM vera_metadata").fetchall()
             except sqlite3.OperationalError as exc:
                 if "no such table" in str(exc).lower():
-                    raise ValueError(
-                        "Missing required table: vera_metadata"
-                    ) from exc
+                    raise ValueError("Missing required table: vera_metadata") from exc
                 raise
             stored = {row["key"]: row["value"] for row in metadata_rows}
             stored_version = stored.get("format_version")
             if stored_version is not None and stored_version != FORMAT_VERSION:
                 raise ValueError(
-                    "VeraDocument requires format "
-                    f"{FORMAT_VERSION}; found {stored_version}"
+                    f"VeraDocument requires format {FORMAT_VERSION}; found {stored_version}"
                 )
             if embedding_function is None and mode == "write":
-                embedding_function = get_embedder(
-                    stored.get("default_embedding_model", "hashing")
-                )
+                embedding_function = get_embedder(stored.get("default_embedding_model", "hashing"))
             if embedding_function is not None:
                 expected = int(stored["default_embedding_dimension"])
                 if embedding_function.dimension != expected:
@@ -501,27 +492,18 @@ class VeraDocument:
                     INSERT INTO chunk_attachments(chunk_id, attachment_id, role)
                     VALUES (?, ?, ?)
                     """,
-                    [
-                        (record.id, ref.attachment_id, ref.role or "")
-                        for ref in record.attachments
-                    ],
+                    [(record.id, ref.attachment_id, ref.role or "") for ref in record.attachments],
                 )
 
     def _vectors_for(self, records: Sequence[ChunkRecord]) -> list[np.ndarray]:
         metadata = self._metadata_values()
         expected = int(metadata["default_embedding_dimension"])
-        normalization = _embedding_normalization(
-            metadata.get("default_embedding_normalization")
-        )
-        generated_indices = [
-            index for index, record in enumerate(records) if record.vector is None
-        ]
+        normalization = _embedding_normalization(metadata.get("default_embedding_normalization"))
+        generated_indices = [index for index, record in enumerate(records) if record.vector is None]
         generated: dict[int, np.ndarray] = {}
         if generated_indices:
             if self._embedding_function is None:
-                raise ValueError(
-                    "records without vectors require an embedding_function"
-                )
+                raise ValueError("records without vectors require an embedding_function")
             matrix = self._embedding_function.embed(
                 [records[index].text for index in generated_indices]
             )
@@ -553,8 +535,7 @@ class VeraDocument:
                 )
             ):
                 raise ValueError(
-                    f"record {record.id!r} vector is not L2-normalized "
-                    f"(norm {norm:.8g})"
+                    f"record {record.id!r} vector is not L2-normalized (norm {norm:.8g})"
                 )
             vectors.append(vector)
         return vectors
@@ -596,9 +577,7 @@ class VeraDocument:
         sql += " ORDER BY c.rowid"
         rows = self._conn.execute(sql, params).fetchall()
         records = [self._row_to_record(row) for row in rows]
-        records = [
-            record for record in records if self._metadata_matches(record, where)
-        ]
+        records = [record for record in records if self._metadata_matches(record, where)]
         if requested is not None:
             by_id = {record.id: record for record in records}
             records = [by_id[item] for item in requested if item in by_id]
@@ -719,12 +698,8 @@ class VeraDocument:
                 position = positions.get(record_id)
                 if position is None:
                     continue
-                extra.extend(
-                    ordered_ids[max(0, position - context_chunks):position]
-                )
-                extra.extend(
-                    ordered_ids[position + 1:position + context_chunks + 1]
-                )
+                extra.extend(ordered_ids[max(0, position - context_chunks) : position])
+                extra.extend(ordered_ids[position + 1 : position + context_chunks + 1])
             needed = list(dict.fromkeys([*needed, *extra]))
         records = {record.id: record for record in self.get(needed)}
         results = [
@@ -746,16 +721,18 @@ class VeraDocument:
                     before=tuple(
                         by_id[chunk_id]
                         for chunk_id in ordered_ids[
-                            max(0, positions[result.record.id] - context_chunks):
-                            positions[result.record.id]
+                            max(0, positions[result.record.id] - context_chunks) : positions[
+                                result.record.id
+                            ]
                         ]
                         if chunk_id in by_id
                     ),
                     after=tuple(
                         by_id[chunk_id]
                         for chunk_id in ordered_ids[
-                            positions[result.record.id] + 1:
-                            positions[result.record.id] + context_chunks + 1
+                            positions[result.record.id] + 1 : positions[result.record.id]
+                            + context_chunks
+                            + 1
                         ]
                         if chunk_id in by_id
                     ),
@@ -922,10 +899,7 @@ class VeraDocument:
         return [
             item
             for item in items
-            if all(
-                thaw_json(item.metadata).get(key) == expected
-                for key, expected in where.items()
-            )
+            if all(thaw_json(item.metadata).get(key) == expected for key, expected in where.items())
         ]
 
     @staticmethod
@@ -958,9 +932,7 @@ class VeraDocument:
                     (attachment_id,),
                 )
             except sqlite3.IntegrityError as exc:
-                raise ValueError(
-                    f"attachment {attachment_id!r} is referenced by a chunk"
-                ) from exc
+                raise ValueError(f"attachment {attachment_id!r} is referenced by a chunk") from exc
             if cursor.rowcount == 0:
                 raise RecordNotFoundError(attachment_id)
 
@@ -987,24 +959,14 @@ class VeraDocument:
             "created_at": metadata.get("created_at"),
             "embedding_model": metadata.get("default_embedding_model"),
             "default_embedding_model": metadata.get("default_embedding_model"),
-            "embedding_dimension": int(
-                metadata.get("default_embedding_dimension", 0)
-            ),
-            "default_embedding_dimension": int(
-                metadata.get("default_embedding_dimension", 0)
-            ),
-            "embedding_normalization": metadata.get(
-                "default_embedding_normalization", "unknown"
-            ),
+            "embedding_dimension": int(metadata.get("default_embedding_dimension", 0)),
+            "default_embedding_dimension": int(metadata.get("default_embedding_dimension", 0)),
+            "embedding_normalization": metadata.get("default_embedding_normalization", "unknown"),
             "default_embedding_normalization": metadata.get(
                 "default_embedding_normalization", "unknown"
             ),
-            "chunks": self._conn.execute(
-                "SELECT COUNT(*) FROM chunks"
-            ).fetchone()[0],
-            "attachments": self._conn.execute(
-                "SELECT COUNT(*) FROM attachments"
-            ).fetchone()[0],
+            "chunks": self._conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0],
+            "attachments": self._conn.execute("SELECT COUNT(*) FROM attachments").fetchone()[0],
             "pages": archive_metadata.get("page_count", 0),
             "source": archive_metadata.get("source_file_name"),
             "metadata": archive_metadata,
@@ -1120,15 +1082,11 @@ class VeraDocument:
         if query_norm == 0:
             return {}
         scores: dict[str, float] = {}
-        for row in self._conn.execute(
-            "SELECT chunk_id, vector, model_dimension FROM embeddings"
-        ):
+        for row in self._conn.execute("SELECT chunk_id, vector, model_dimension FROM embeddings"):
             vector = deserialize_vector(row["vector"])
             denominator = float(np.linalg.norm(vector)) * query_norm
             scores[row["chunk_id"]] = (
-                float(np.dot(vector, query) / denominator)
-                if denominator
-                else 0.0
+                float(np.dot(vector, query) / denominator) if denominator else 0.0
             )
         return scores
 
@@ -1143,17 +1101,11 @@ class VeraDocument:
             fallback = safe_fts_query(text)
             if fallback:
                 rows = execute_fts(self._conn, sql, fallback)
-        return {
-            row["chunk_id"]: -float(row["rank"])
-            for row in rows
-        }
+        return {row["chunk_id"]: -float(row["rank"]) for row in rows}
 
     def _chunk_ids(self, where: Mapping[str, Any] | None) -> set[str]:
         if not where:
-            return {
-                str(row[0])
-                for row in self._conn.execute("SELECT chunk_id FROM chunks")
-            }
+            return {str(row[0]) for row in self._conn.execute("SELECT chunk_id FROM chunks")}
         matching: set[str] = set()
         for row in self._conn.execute("SELECT chunk_id, metadata_json FROM chunks"):
             metadata = thaw_json(metadata_from_json(row["metadata_json"]))
@@ -1163,18 +1115,13 @@ class VeraDocument:
 
     def _chunk_ids_in_order(self) -> list[str]:
         return [
-            str(row[0])
-            for row in self._conn.execute(
-                "SELECT chunk_id FROM chunks ORDER BY rowid"
-            )
+            str(row[0]) for row in self._conn.execute("SELECT chunk_id FROM chunks ORDER BY rowid")
         ]
 
     def _metadata_values(self) -> dict[str, str]:
         return {
             row["key"]: row["value"]
-            for row in self._conn.execute(
-                "SELECT key, value FROM vera_metadata"
-            )
+            for row in self._conn.execute("SELECT key, value FROM vera_metadata")
         }
 
     def _ensure_open(self) -> None:
@@ -1201,4 +1148,3 @@ class VeraDocument:
 
     def __exit__(self, *exc: object) -> None:
         self.close()
-

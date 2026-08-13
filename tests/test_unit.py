@@ -33,15 +33,19 @@ from vera_ingest.types import ParsedPage
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _pages(*texts: str) -> list[ParsedPage]:
     """Build a list of ParsedPage objects from plain strings."""
-    return [ParsedPage(page_number=i + 1, width=612.0, height=792.0, text=t)
-            for i, t in enumerate(texts)]
+    return [
+        ParsedPage(page_number=i + 1, width=612.0, height=792.0, text=t)
+        for i, t in enumerate(texts)
+    ]
 
 
 # ---------------------------------------------------------------------------
 # chunk_pages
 # ---------------------------------------------------------------------------
+
 
 class TestChunkPages:
     def test_empty_pages_returns_no_chunks(self):
@@ -109,6 +113,7 @@ class TestChunkPages:
 # detect_heading
 # ---------------------------------------------------------------------------
 
+
 class TestDetectHeading:
     def test_chapter_line_detected(self):
         result = detect_heading("Chapter 1 Introduction\nText here.", "")
@@ -128,26 +133,31 @@ class TestDetectHeading:
 # cosine_similarity
 # ---------------------------------------------------------------------------
 
+
 class TestCosineSimilarity:
     def test_identical_vectors_return_one(self):
         import numpy as np
+
         v = np.array([1.0, 0.0, 0.0], dtype=np.float32)
         assert pytest.approx(cosine_similarity(v, v), abs=1e-6) == 1.0
 
     def test_orthogonal_vectors_return_zero(self):
         import numpy as np
+
         a = np.array([1.0, 0.0], dtype=np.float32)
         b = np.array([0.0, 1.0], dtype=np.float32)
         assert pytest.approx(cosine_similarity(a, b), abs=1e-6) == 0.0
 
     def test_zero_vector_returns_zero(self):
         import numpy as np
+
         z = np.zeros(4, dtype=np.float32)
         v = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
         assert cosine_similarity(z, v) == 0.0
 
     def test_both_zero_vectors_return_zero(self):
         import numpy as np
+
         z = np.zeros(4, dtype=np.float32)
         assert cosine_similarity(z, z) == 0.0
 
@@ -155,6 +165,7 @@ class TestCosineSimilarity:
 # ---------------------------------------------------------------------------
 # HashingEmbedder
 # ---------------------------------------------------------------------------
+
 
 class TestHashingEmbedder:
     def test_dimension_matches_output(self):
@@ -168,6 +179,7 @@ class TestHashingEmbedder:
 
     def test_vectors_are_normalised(self):
         import numpy as np
+
         emb = HashingEmbedder()
         v = emb.embed(["some text here"])[0]
         assert pytest.approx(float(np.linalg.norm(v)), abs=1e-5) == 1.0
@@ -188,6 +200,7 @@ class TestHashingEmbedder:
 # ---------------------------------------------------------------------------
 # get_embedder / registry
 # ---------------------------------------------------------------------------
+
 
 class TestGetEmbedder:
     def test_hashing_keyword_returns_hashing_embedder(self):
@@ -438,6 +451,7 @@ class TestGetEmbedder:
 # serialize / deserialize vector round-trip
 # ---------------------------------------------------------------------------
 
+
 class TestVectorSerialization:
     def test_round_trip_preserves_values(self):
         original = [1.5, -0.25, 3.0, 0.0]
@@ -457,6 +471,7 @@ class TestVectorSerialization:
 # ---------------------------------------------------------------------------
 # QueryResult
 # ---------------------------------------------------------------------------
+
 
 class TestQueryResult:
     def _make(self, **kwargs):
@@ -490,6 +505,7 @@ class TestQueryResult:
 # VeraDocument.search — invalid mode
 # ---------------------------------------------------------------------------
 
+
 class TestVeraDocumentSearchValidation:
     def test_invalid_mode_raises_value_error(self, tmp_path):
         from test_convert_search import make_pdf
@@ -512,6 +528,7 @@ class TestVeraDocumentSearchValidation:
 # convert() — error paths
 # ---------------------------------------------------------------------------
 
+
 class TestConvertErrors:
     def test_missing_input_raises_file_not_found(self, tmp_path):
         from vera_ingest.convert import convert as vera_convert
@@ -532,6 +549,7 @@ class TestConvertErrors:
 # ---------------------------------------------------------------------------
 # str_to_bool (CLI helper)
 # ---------------------------------------------------------------------------
+
 
 class TestStrToBool:
     @pytest.mark.parametrize("value", ["true", "True", "TRUE", "1", "yes", "YES", "y", "on"])
@@ -623,9 +641,7 @@ class TestVeraDocumentShouldFix:
             document.add([ChunkRecord(id="one", text="hello world")])
         conn = sqlite3.connect(path)
         conn.row_factory = sqlite3.Row
-        conn.execute(
-            "UPDATE embeddings SET vector_format = 'float64_le' WHERE chunk_id = 'one'"
-        )
+        conn.execute("UPDATE embeddings SET vector_format = 'float64_le' WHERE chunk_id = 'one'")
         conn.execute(
             """
             INSERT INTO chunks(chunk_id, text, metadata_json, created_at, updated_at)

@@ -173,7 +173,18 @@ class TestInspect:
 class TestCli:
     def test_search_directory_json(self, corpus_dir):
         proc = subprocess.run(
-            [sys.executable, "-m", "vera_cli", "search", str(corpus_dir), "detention ponds", "--top-k", "2", "--json", "--regions"],
+            [
+                sys.executable,
+                "-m",
+                "vera_cli",
+                "search",
+                str(corpus_dir),
+                "detention ponds",
+                "--top-k",
+                "2",
+                "--json",
+                "--regions",
+            ],
             capture_output=True,
             text=True,
         )
@@ -191,10 +202,19 @@ async def test_mcp_corpus_search_tool(corpus_dir):
     server = build_server()
     result = await server.call_tool(
         "vera_corpus_search",
-        {"directory": str(corpus_dir), "query": "restaurant parking space", "top_k": 2, "include_regions": True},
+        {
+            "directory": str(corpus_dir),
+            "query": "restaurant parking space",
+            "top_k": 2,
+            "include_regions": True,
+        },
     )
     content, structured = result
-    payload = structured.get("result", structured) if structured is not None else json.loads(content[0].text)
+    payload = (
+        structured.get("result", structured)
+        if structured is not None
+        else json.loads(content[0].text)
+    )
     first = payload["results"][0]
     assert first["file"].endswith("zoning.vera")
     assert first["regions"]

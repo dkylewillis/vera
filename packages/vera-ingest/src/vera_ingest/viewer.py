@@ -36,10 +36,7 @@ def result_payload(result: QueryResult) -> dict[str, Any]:
     payload = {**metadata, **data}
     for key in ("before_chunks", "after_chunks"):
         if key in payload:
-            payload[key] = [
-                {**item.pop("metadata", {}), **item}
-                for item in payload[key]
-            ]
+            payload[key] = [{**item.pop("metadata", {}), **item} for item in payload[key]]
     return payload
 
 
@@ -107,11 +104,7 @@ def get_blocks(
     blocks = _viewer_payload(document, "viewer_blocks_attachment_id")
     if page_number is None:
         return blocks
-    return [
-        block
-        for block in blocks
-        if block.get("page_number") == page_number
-    ]
+    return [block for block in blocks if block.get("page_number") == page_number]
 
 
 def get_chunk_regions(document: VeraDocument, chunk_id: str) -> list[dict[str, Any]]:
@@ -154,17 +147,9 @@ def figures(
     for attachment in attachments:
         metadata = thaw_json(attachment["metadata"])
         page_number = metadata.get("page_number")
-        if (
-            page_start is not None
-            and page_number is not None
-            and page_number < page_start
-        ):
+        if page_start is not None and page_number is not None and page_number < page_start:
             continue
-        if (
-            page_end is not None
-            and page_number is not None
-            and page_number > page_end
-        ):
+        if page_end is not None and page_number is not None and page_number > page_end:
             continue
         page = pages.get(page_number, {})
         bbox = metadata.get("bbox")
@@ -192,9 +177,7 @@ def figures_for(
 ) -> list[dict[str, Any]]:
     """Return figure attachments linked to a query result."""
     attachment_ids = {
-        ref.attachment_id
-        for ref in result.record.attachments
-        if ref.role == "figure"
+        ref.attachment_id for ref in result.record.attachments if ref.role == "figure"
     }
     return figures(
         document,
@@ -209,9 +192,7 @@ def _caption_for_figure(
     bbox: Any,
 ) -> str | None:
     """Pick the caption on the same page nearest below the figure bbox."""
-    candidates = [
-        block for block in caption_blocks if block.get("page_number") == page_number
-    ]
+    candidates = [block for block in caption_blocks if block.get("page_number") == page_number]
     if not candidates:
         return None
     if len(candidates) == 1 or not isinstance(bbox, (list, tuple)) or len(bbox) < 4:

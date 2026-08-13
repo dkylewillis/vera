@@ -269,13 +269,13 @@ def fields_from_dataclass(
         # defining module uses ``from __future__ import annotations``
         # (postponed evaluation), otherwise the real type object.
         annotation = item.type
-        type_name = annotation if isinstance(annotation, str) else getattr(
-            annotation, "__name__", str(annotation)
+        type_name = (
+            annotation
+            if isinstance(annotation, str)
+            else getattr(annotation, "__name__", str(annotation))
         )
         field_type = meta.get("type") or _FIELD_TYPE_BY_ANNOTATION.get(type_name, "string")
-        choices = tuple(
-            choice_cls(value, label) for value, label in meta.get("choices", ())
-        )
+        choices = tuple(choice_cls(value, label) for value, label in meta.get("choices", ()))
         kwargs: dict[str, Any] = {
             "key": item.name,
             "label": meta.get("label", item.name),

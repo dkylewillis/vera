@@ -27,7 +27,6 @@ class CorpusSearchResult(QueryResult):
 
     file: str = ""
 
-
     def as_dict(self) -> dict[str, Any]:
         return {"file": self.file, **super().as_dict()}
 
@@ -81,7 +80,11 @@ class VeraCorpus:
         self.max_open_documents = max(1, max_open_documents)
         self._docs: OrderedDict[str, VeraDocument] = OrderedDict()
         self._collection_index = collection_index
-        self.index_status = index_status or {"exists": False, "fresh": False, "reasons": ["index is missing"]}
+        self.index_status = index_status or {
+            "exists": False,
+            "fresh": False,
+            "reasons": ["index is missing"],
+        }
         self.invalid_files = invalid_files or []
         self.skipped_semantic_model_groups: list[dict[str, Any]] = []
 
@@ -123,19 +126,16 @@ class VeraCorpus:
             raise NotADirectoryError(directory)
         status = library_index_status(str(root), verify_hashes=False)
         effective_recursive = (
-            bool(status.get("recursive", default_recursive))
-            if recursive is None
-            else recursive
+            bool(status.get("recursive", default_recursive)) if recursive is None else recursive
         )
         effective_excludes = (
             tuple(status.get("excludes", ()))
             if excludes is None and status.get("exists")
             else tuple(excludes or ())
         )
-        config_matches = (
-            effective_recursive == bool(status.get("recursive", False))
-            and effective_excludes == tuple(status.get("excludes", ()))
-        )
+        config_matches = effective_recursive == bool(
+            status.get("recursive", False)
+        ) and effective_excludes == tuple(status.get("excludes", ()))
         collection_index = None
         if use_index and status.get("fresh") and config_matches:
             collection_index = VeraCollectionIndex.open(str(root), check_status=False)
@@ -391,9 +391,7 @@ class VeraCorpus:
             )
         elif mode == "hybrid":
             candidate_limit = max(top_k * 5, 50)
-            semantic_files, keyword_files, models = self._search_files_hybrid(
-                text, candidate_limit
-            )
+            semantic_files, keyword_files, models = self._search_files_hybrid(text, candidate_limit)
             final = self._fuse_hybrid(semantic_files, keyword_files, models, top_k)
         else:
             per_file, models = self._search_files(text, mode, top_k)
@@ -405,19 +403,13 @@ class VeraCorpus:
             for result_index, result in enumerate(final):
                 doc = self.document(result.file)
                 records = doc.get()
-                positions = {
-                    record.id: index for index, record in enumerate(records)
-                }
+                positions = {record.id: index for index, record in enumerate(records)}
                 position = positions.get(result.record.id)
                 if position is not None:
                     replacement = replace(
                         result,
-                        before=tuple(
-                            records[max(0, position - context_chunks):position]
-                        ),
-                        after=tuple(
-                            records[position + 1:position + context_chunks + 1]
-                        ),
+                        before=tuple(records[max(0, position - context_chunks) : position]),
+                        after=tuple(records[position + 1 : position + context_chunks + 1]),
                     )
                     final[result_index] = replacement
         return final
@@ -458,7 +450,9 @@ class VeraCorpus:
             if len(paths) == 1:
                 return [search_path(paths[0])]
             workers = min(8, len(paths))
-            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="vera-corpus") as executor:
+            with ThreadPoolExecutor(
+                max_workers=workers, thread_name_prefix="vera-corpus"
+            ) as executor:
                 return list(
                     executor.map(
                         search_path,
@@ -507,7 +501,9 @@ class VeraCorpus:
             searched = [search_path(paths[0])]
         else:
             workers = min(8, len(paths))
-            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="vera-corpus") as executor:
+            with ThreadPoolExecutor(
+                max_workers=workers, thread_name_prefix="vera-corpus"
+            ) as executor:
                 searched = list(executor.map(search_path, paths))
         for path, _, _, _, error in searched:
             if error:
@@ -526,11 +522,11 @@ class VeraCorpus:
     ) -> list[CorpusSearchResult]:
         model_groups: dict[str, list[tuple[str, QueryResult]]] = {}
         for path, results in per_file.items():
-            model_groups.setdefault(models.get(path, ""), []).extend((path, result) for result in results)
-        for results in model_groups.values():
-            results.sort(
-                key=lambda item: (-item[1].score, item[0], item[1].chunk_id)
+            model_groups.setdefault(models.get(path, ""), []).extend(
+                (path, result) for result in results
             )
+        for results in model_groups.values():
+            results.sort(key=lambda item: (-item[1].score, item[0], item[1].chunk_id))
         if len(model_groups) == 1:
             merged = next(iter(model_groups.values()))
             return [_with_file(result, path) for path, result in merged[:top_k]]
@@ -546,9 +542,7 @@ class VeraCorpus:
             ]
         )
         return [
-            _with_file(lookup[key][1], lookup[key][0])
-            for key, _ in fused[:top_k]
-            if key in lookup
+            _with_file(lookup[key][1], lookup[key][0]) for key, _ in fused[:top_k] if key in lookup
         ]
 
     def _relative_corpus_path(self, path: str) -> str:
@@ -595,14 +589,10 @@ class VeraCorpus:
                     record=lookup[key][1].record,
                     score=score,
                     semantic_score=(
-                        semantic_lookup[key].semantic_score
-                        if key in semantic_lookup
-                        else None
+                        semantic_lookup[key].semantic_score if key in semantic_lookup else None
                     ),
                     keyword_score=(
-                        keyword_lookup[key].keyword_score
-                        if key in keyword_lookup
-                        else None
+                        keyword_lookup[key].keyword_score if key in keyword_lookup else None
                     ),
                 ),
                 lookup[key][0],

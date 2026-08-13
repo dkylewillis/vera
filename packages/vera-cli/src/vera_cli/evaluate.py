@@ -28,7 +28,9 @@ class QueryCase:
         if not self.query or not str(self.query).strip():
             raise ValueError("Query case is missing 'query' text")
         if not self.expected_pages and not self.expected_terms:
-            raise ValueError(f"Query case {self.query!r} needs expected_pages and/or expected_terms")
+            raise ValueError(
+                f"Query case {self.query!r} needs expected_pages and/or expected_terms"
+            )
 
     def matches(self, result: QueryResult) -> bool:
         metadata = result.record.metadata
@@ -107,11 +109,7 @@ def evaluate_document(
                 "hit": hit,
                 "rank": rank,
                 "top_score": results[0].score if results else None,
-                "top_page": (
-                    results[0].record.metadata.get("page_start")
-                    if results
-                    else None
-                ),
+                "top_page": (results[0].record.metadata.get("page_start") if results else None),
             }
         )
     total = len(cases)

@@ -55,7 +55,11 @@ def test_evaluate_hits_and_mrr(tmp_path, vera_file):
         tmp_path,
         [
             {"query": "restaurant parking", "expected_page": 1, "expected_terms": ["parking"]},
-            {"query": "detention impervious area", "expected_page": 2, "expected_terms": ["detention"]},
+            {
+                "query": "detention impervious area",
+                "expected_page": 2,
+                "expected_terms": ["detention"],
+            },
         ],
     )
     summary = evaluate(str(vera_file), str(queries), mode="hybrid", top_k=3)
@@ -95,7 +99,18 @@ def test_cli_eval(tmp_path, vera_file):
 
     queries = write_queries(tmp_path, [{"query": "restaurant parking", "expected_page": 1}])
     proc = subprocess.run(
-        [sys.executable, "-m", "vera_cli", "eval", str(vera_file), str(queries), "--mode", "hybrid", "--top-k", "3"],
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "eval",
+            str(vera_file),
+            str(queries),
+            "--mode",
+            "hybrid",
+            "--top-k",
+            "3",
+        ],
         text=True,
         capture_output=True,
     )
@@ -110,7 +125,16 @@ def test_cli_eval_exit_code_on_miss(tmp_path, vera_file):
 
     queries = write_queries(tmp_path, [{"query": "restaurant parking", "expected_page": 99}])
     proc = subprocess.run(
-        [sys.executable, "-m", "vera_cli", "eval", str(vera_file), str(queries), "--mode", "keyword"],
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "eval",
+            str(vera_file),
+            str(queries),
+            "--mode",
+            "keyword",
+        ],
         text=True,
         capture_output=True,
     )
