@@ -7,20 +7,10 @@ import sys
 
 import pytest
 
+from helpers.pdfs import make_topic_pdf
 from vera_doc import CorpusSearchResult, VeraCorpus
 from vera_ingest import convert
 from vera_ingest.viewer import regions_for
-
-
-def make_topic_pdf(path, heading, body):
-    import fitz
-
-    doc = fitz.open()
-    page = doc.new_page()
-    page.insert_text((72, 72), heading, fontsize=20)
-    page.insert_text((72, 110), body, fontsize=11)
-    doc.save(path)
-    doc.close()
 
 
 @pytest.fixture(scope="module")

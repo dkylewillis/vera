@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from test_convert_search import make_pdf
+from helpers.pdfs import make_pdf
 from vera_cli.evaluate import QueryCase, evaluate, load_queries
 from vera_ingest import convert
 

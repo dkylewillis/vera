@@ -31,7 +31,8 @@ figures, and citation metadata in one portable `.vera` file.
   exhaustive JSON and exit-code contract.
 - [API reference](reference/index.md) — generated Python API docs.
 - [Current VERA 0.2 format specification](vera-spec-v0.2.md)
-- [Legacy VERA 0.1 format specification](vera-spec-v0.1.md)
+- [Legacy VERA 0.1 format specification](vera-spec-v0.1.md) (deprecated)
+- [Desktop app product overview](desktop-app-overview.md)
 - [Collection index design and behavior](collection-index.md)
 - [Library index structure diagrams](library-index-structure.md)
 - [Portable Agent Skill](https://github.com/dkylewillis/vera/blob/main/skills/vera/SKILL.md)

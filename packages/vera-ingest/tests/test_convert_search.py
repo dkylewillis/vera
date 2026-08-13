@@ -3,24 +3,9 @@ import sqlite3
 
 import pytest
 
+from helpers.pdfs import make_pdf
 from vera_doc import VeraDocument
 from vera_ingest import batch_convert, convert
-
-
-def make_pdf(path):
-    import fitz
-
-    doc = fitz.open()
-    page = doc.new_page()
-    page.insert_text(
-        (72, 72), "Chapter 110 Zoning\nRestaurants require one parking space per 100 square feet."
-    )
-    page2 = doc.new_page()
-    page2.insert_text(
-        (72, 72), "Stormwater Manual\nDetention is required when impervious area increases."
-    )
-    doc.save(path)
-    doc.close()
 
 
 def make_context_pdf(path):

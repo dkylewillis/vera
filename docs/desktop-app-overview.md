@@ -1,4 +1,9 @@
-# VERA App Overview
+# Desktop app product overview
+
+This page is the product-level description of the VERA desktop app (moved from
+the repository root). For install and first-run steps see
+[Getting started](desktop-app-getting-started.md); for internals see
+[Architecture](desktop-app-architecture.md).
 
 ## What This App Is
 

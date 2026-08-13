@@ -81,6 +81,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = [
+  "helpers",
   "vera_doc",
   "vera_ingest",
   "vera_ingest_pymupdf",
@@ -111,8 +112,18 @@ pythonpath = [
   "packages/vera-mcp/src",
   "packages/vera-cli/src",
   "packages/vera-app/src",
+  "tests",
 ]
-testpaths = ["tests"]
+testpaths = [
+  "tests",
+  "packages/vera-doc/tests",
+  "packages/vera-ingest/tests",
+  "packages/vera-ingest-pymupdf/tests",
+  "packages/vera-ingest-docling/tests",
+  "packages/vera-cli/tests",
+  "packages/vera-mcp/tests",
+  "packages/vera-app/tests",
+]
 addopts = "-q"
 markers = [
   "docling: offline Docling ingest pipeline tests (requires vera-ingest-docling)",

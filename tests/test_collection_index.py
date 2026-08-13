@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from test_corpus import make_topic_pdf
+from helpers.pdfs import make_topic_pdf
 from vera_doc import (
     VeraCorpus,
     VeraDocument,

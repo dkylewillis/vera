@@ -37,8 +37,8 @@ jobs:
       - name: Lint and typecheck
         run: |
           uv sync --extra dev
-          uv run ruff check packages tests benchmarks
-          uv run ruff format --check packages tests benchmarks
+          uv run ruff check packages tests benchmarks conftest.py
+          uv run ruff format --check packages tests benchmarks conftest.py
           uv run mypy packages/vera-doc/src
 
   app:

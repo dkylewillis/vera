@@ -7,9 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from test_blocks_figures import make_structured_pdf
-from test_convert_search import make_pdf
-from test_corpus import make_topic_pdf
+from helpers.pdfs import make_pdf, make_structured_pdf, make_topic_pdf
 from vera_app.cancellation import CancellationToken
 from vera_app.llm import (
     ChatResponse,

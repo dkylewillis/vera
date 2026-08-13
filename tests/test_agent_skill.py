@@ -1,8 +1,8 @@
-import argparse
 import json
 import re
 from pathlib import Path
 
+from helpers.cli import leaf_commands as _leaf_commands
 from vera_cli.main import build_parser
 from vera_doc import ChunkRecord, VeraDocument
 
@@ -23,22 +23,6 @@ def _frontmatter_value(frontmatter: str, key: str) -> str:
     match = re.search(rf"^{re.escape(key)}:\s*(.+)$", frontmatter, re.MULTILINE)
     assert match, f"missing {key!r} frontmatter field"
     return match.group(1).strip()
-
-
-def _leaf_commands(
-    parser: argparse.ArgumentParser,
-    prefix: tuple[str, ...] = (),
-) -> list[tuple[tuple[str, ...], argparse.ArgumentParser]]:
-    commands: list[tuple[tuple[str, ...], argparse.ArgumentParser]] = []
-    subparsers = next(
-        (action for action in parser._actions if isinstance(action, argparse._SubParsersAction)),
-        None,
-    )
-    if subparsers is None:
-        return [(prefix, parser)]
-    for name, child in subparsers.choices.items():
-        commands.extend(_leaf_commands(child, (*prefix, name)))
-    return commands
 
 
 def test_portable_skill_frontmatter_and_layout():

@@ -176,8 +176,8 @@ not dependency mechanisms.
 New archives and conversions write VERA 0.2 only. The chunk-oriented current
 format is documented in [vera-spec-v0.2.md](vera-spec-v0.2.md). The older
 0.1 document/page/block schema remains in
-[vera-spec-v0.1.md](vera-spec-v0.1.md) for historical reference and is no
-longer read by `vera-doc`.
+[vera-spec-v0.1.md](vera-spec-v0.1.md) for historical reference. That schema is
+deprecated and is no longer read by `vera-doc`.
 
 ## Repository strategy
 

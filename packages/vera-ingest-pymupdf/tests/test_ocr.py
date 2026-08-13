@@ -166,7 +166,7 @@ def test_ocr_off_skips_scanned_page(tmp_path, monkeypatch):
 
 
 def test_force_ocr_processes_native_text_page(tmp_path, monkeypatch):
-    from test_convert_search import make_pdf
+    from helpers.pdfs import make_pdf
 
     pdf = tmp_path / "native.pdf"
     make_pdf(pdf)

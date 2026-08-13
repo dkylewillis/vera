@@ -22,8 +22,8 @@ npm --prefix packages/vera-app install
 Run these before opening a pull request:
 
 ```bash
-uv run ruff check packages tests benchmarks
-uv run ruff format --check packages tests benchmarks
+uv run ruff check packages tests benchmarks conftest.py
+uv run ruff format --check packages tests benchmarks conftest.py
 uv run mypy packages/vera-doc/src
 uv run --extra dev pytest -q
 npm run app:typecheck
@@ -73,7 +73,9 @@ keep code and spec in sync. Details in
 [docs/architecture.md](docs/architecture.md).
 
 `vera-doc` must not import extraction, UI, MCP, or a source-file format.
-`tests/test_package_boundaries.py` enforces that boundary.
+`tests/test_package_boundaries.py` enforces that boundary. Package-specific
+tests live in `packages/*/tests/`; shared PDF factories and CLI helpers live in
+`tests/helpers/`. Cross-package contract tests stay in `tests/`.
 
 ## Documentation
 

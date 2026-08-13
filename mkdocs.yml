@@ -160,6 +160,7 @@ nav:
       - Overview and user guide: packages/vera-app.md
       - Guides:
           - Getting started: desktop-app-getting-started.md
+          - Product overview: desktop-app-overview.md
       - Developer:
           - Architecture: desktop-app-architecture.md
   - Specifications:

@@ -4,7 +4,7 @@ import sys
 
 import numpy as np
 
-from test_convert_search import make_pdf
+from helpers.pdfs import make_pdf
 from vera_doc import VeraDocument
 from vera_ingest import convert
 

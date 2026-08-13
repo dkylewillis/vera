@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 import vera_cli.commands as cli_commands
-from test_convert_search import make_pdf
+from helpers.pdfs import make_pdf
 from vera_cli import str_to_bool
 from vera_cli.main import build_parser
 

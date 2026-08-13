@@ -566,7 +566,7 @@ class TestRanking:
 
 class TestVeraDocumentSearchValidation:
     def test_invalid_mode_raises_value_error(self, tmp_path):
-        from test_convert_search import make_pdf
+        from helpers.pdfs import make_pdf
         from vera_ingest import convert
 
         pdf = tmp_path / "test.pdf"
@@ -595,7 +595,7 @@ class TestConvertErrors:
             vera_convert(str(tmp_path / "missing.pdf"), str(tmp_path / "out.vera"))
 
     def test_unsupported_parser_raises_value_error(self, tmp_path):
-        from test_convert_search import make_pdf
+        from helpers.pdfs import make_pdf
         from vera_ingest.convert import convert as vera_convert
 
         pdf = tmp_path / "test.pdf"

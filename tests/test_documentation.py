@@ -1,29 +1,13 @@
-import argparse
 import re
 from pathlib import Path
 from urllib.parse import unquote
 
+from helpers.cli import leaf_commands as _leaf_commands
 from vera_cli.main import build_parser
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 CLI_REFERENCE = DOCS / "cli-reference.md"
-
-
-def _leaf_commands(
-    parser: argparse.ArgumentParser,
-    prefix: tuple[str, ...] = (),
-) -> list[tuple[tuple[str, ...], argparse.ArgumentParser]]:
-    subparsers = next(
-        (action for action in parser._actions if isinstance(action, argparse._SubParsersAction)),
-        None,
-    )
-    if subparsers is None:
-        return [(prefix, parser)]
-    leaves: list[tuple[tuple[str, ...], argparse.ArgumentParser]] = []
-    for name, child in subparsers.choices.items():
-        leaves.extend(_leaf_commands(child, (*prefix, name)))
-    return leaves
 
 
 def _documentation_files() -> list[Path]:

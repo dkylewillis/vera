@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from test_blocks_figures import make_structured_pdf
+from helpers.pdfs import make_structured_pdf
 from vera_doc import AttachmentRecord, VeraDocument
 from vera_ingest import convert
 from vera_ingest.viewer import (
