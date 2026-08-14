@@ -274,10 +274,12 @@ time. See [document libraries](docs/document-libraries.md) and the
 
 This release ships with built-in components:
 
-- **Parsing** — the `pymupdf` parser (PyMuPDF + pdfplumber): text extraction,
-  table detection, heading detection, and selective Tesseract OCR with
-  bundled English data. It lives inside `vera-ingest` and is selected with
-  `vera convert --parser pymupdf` (the default).
+- **Parsing** — the bundled `pymupdf` parser (PyMuPDF + pdfplumber): text
+  extraction, table detection, heading detection, and selective Tesseract OCR
+  with bundled English data. Additional parsers can register under the
+  `vera.ingest_pipelines` entry-point group and are selected with
+  `vera convert --parser <provider>`. The desktop app can also run those
+  plugins from a user-selected Python environment.
 - **Embedding** — two built-in models selected with `--model`: `hashing`
   (deterministic lexical hashing; no extra dependencies or network access)
   and Sentence Transformers models such as `all-MiniLM-L6-v2` or any
@@ -291,19 +293,24 @@ vera convert manual.pdf --model all-MiniLM-L6-v2      # local neural model
 The archive records which embedding model produced its vectors, and search
 resolves the same model to embed queries.
 
-### Plugin system (planned for v0.3)
+### Ingest pipeline plugins
 
-The format itself does not depend on one parser or one embedding provider,
-and the next release makes both pluggable through standard Python entry
-points. In development on the
+`vera-ingest` 0.2.x discovers extra parsers from the `vera.ingest_pipelines`
+entry-point group. The bundled parser remains `pymupdf`. Install a plugin into
+the same environment as `vera-ingest` with `python -m pip install <package>` or
+`python -m pip install -e <clone>`, then pass `--parser <provider>`. Unknown
+names fail before parsing. The desktop app can run those plugins from a trusted
+external Python environment without freezing them into the sidecar. See
+[Creating an ingest pipeline plugin](docs/creating-an-ingest-pipeline.md).
+
+A broader plugin split (moving PDF parsing into `vera-ingest-pymupdf` /
+`vera-ingest-docling`, plus embedding provider plugins) remains planned for
+v0.3. In development on the
 [`v0.3` branch](https://github.com/dkylewillis/vera/tree/v0.3):
 
 - **Ingest pipeline plugins** (`vera.ingest_pipelines` entry-point group) —
   pipelines selected by `provider[:variant]` spec and configured with
-  repeatable `--pipeline-option KEY=VALUE` flags. PDF parsing moves into a
-  `vera-ingest-pymupdf` plugin package, and an optional
-  `vera-ingest-docling` plugin adds Docling layout models with hybrid
-  chunking.
+  repeatable `--pipeline-option KEY=VALUE` flags.
 - **Embedding provider plugins** (`vera.embedders` entry-point group) —
   models resolved from `provider:model-id` specs with provider-owned
   `--embedder-option KEY=VALUE` flags, descriptor metadata for schema-driven
@@ -400,7 +407,9 @@ filters, corpus search, and embedding configuration.
 VERA also includes a desktop application for Windows: PDF conversion from the
 Explorer context menu, library search with highlighted citations, and an
 optional LLM provider connection for grounded question answering over
-documents. It is built on the same packages described above. Download it from
+documents. Packaged conversions use the bundled PyMuPDF pipeline; extra ingest
+plugins can run from a trusted external Python environment. It is built on the
+same packages described above. Download it from
 [GitHub Releases](https://github.com/dkylewillis/vera/releases/latest) and see
 the [desktop app guide](docs/desktop-app-getting-started.md).
 
@@ -427,9 +436,9 @@ browse the [published docs](https://dkylewillis.github.io/vera/).
 
 VERA is an experimental pre-1.0 project. The `.vera` schema and format may
 change before a stable release. `main` is the maintenance line for VERA 0.2;
-feature work, including the plugin system, is integrated on the
-[`v0.3` branch](https://github.com/dkylewillis/vera/tree/v0.3). The desktop
-installer currently targets Windows and is available from
+ingest pipeline discovery is available here, while the broader plugin split is
+integrated on the [`v0.3` branch](https://github.com/dkylewillis/vera/tree/v0.3).
+The desktop installer currently targets Windows and is available from
 [GitHub Releases](https://github.com/dkylewillis/vera/releases).
 
 VERA is licensed under [Apache-2.0](LICENSE).

@@ -51,14 +51,20 @@ to stop both processes.
 
 Open a PDF from the app's Convert view to create a `.vera` archive, or use the
 native File menu to open an existing archive or document library.
-Desktop conversions use the supported PyMuPDF parser and deterministic
-local hashing embeddings. Use the CLI when you need a Sentence Transformers
-model or explicit OCR controls. Some Hub downloads warn about unauthenticated
-requests; save an optional Hugging Face token under **File > LLM Providers →
-Hugging Face** (or set `HF_TOKEN` / copy `.env.example` to `.env`) to raise
-rate limits. Conversion progress and the current filename appear in the footer
-status bar, so progress remains visible when you switch away from the Convert
-view.
+Desktop conversions default to the bundled PyMuPDF parser and deterministic
+local hashing embeddings. Convert can also use ingest plugins installed in a
+user-selected Python environment: enable **External Python plugins** under
+**File > LLM Providers**, choose an absolute `python.exe` path, then Validate.
+Install plugins with `python -m pip install <package>` or
+`python -m pip install -e <clone>` so VERA can discover their
+`vera.ingest_pipelines` entry points. Packaged releases do not bundle optional
+parsers. Use the CLI when you need a Sentence Transformers model or explicit
+OCR controls. Some Hub downloads warn about unauthenticated requests; save an
+optional Hugging Face token under **File > LLM Providers → Hugging Face** (or
+set `HF_TOKEN` / copy `.env.example` to `.env`) to raise rate limits. The token
+is also forwarded to the external plugin host. Conversion progress and the
+current filename appear in the footer status bar, so progress remains visible
+when you switch away from the Convert view.
 
 Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,
@@ -138,6 +144,40 @@ npm run app:release
 This removes the existing `packages/vera-app/release` directory, rebuilds the
 app and Python sidecar, and writes an NSIS installer into that directory.
 
+## External ingest plugins
+
+Packaged conversions keep the bundled PyMuPDF pipeline inside the frozen
+sidecar. Optional parsers run in a second process launched with a Python
+interpreter you select. Treat that interpreter as trusted code: installed
+plugins run with your user permissions.
+
+1. Create a virtual environment. Windows example:
+
+   ```bat
+   python -m venv %USERPROFILE%\vera-plugins
+   %USERPROFILE%\vera-plugins\Scripts\python.exe -m pip install "vera-ingest>=0.2.5"
+   ```
+
+2. Install a published plugin, or an editable clone so entry points are visible:
+
+   ```bat
+   python -m pip install vera-ingest-docling
+   python -m pip install -e C:\src\my-vera-plugin
+   ```
+
+   Adding a clone to `PYTHONPATH` without installing it is not enough.
+
+3. In VERA, open **File > LLM Providers**, enable **External Python plugins**,
+   choose that environment's `python.exe`, and click **Validate**.
+4. Convert lists extra providers as `(external)`. Bundled `pymupdf` wins when a
+   plugin repeats that name. After installing or updating plugins, click
+   **Refresh plugins**.
+
+The selected environment must provide `vera-ingest` 0.2.x (plugin API version
+1). Optional Hugging Face tokens and the **Model cache** field
+(`DOCLING_ARTIFACTS_PATH`) are forwarded to the plugin host. See
+[Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md).
+
 ## Common startup problems
 
 - **`uv` is not recognized** — install `uv`, open a new terminal, and rerun the
@@ -160,6 +200,13 @@ app and Python sidecar, and writes an NSIS installer into that directory.
 
   Set `VERA_SIDECAR_PYTHON` to use a different interpreter, or exclude the
   repository and `%TEMP%` from real-time scanning, then retry.
+- **Validate fails for the external Python environment** — choose an absolute
+  `python.exe` path that exists, install `vera-ingest` 0.2.x into that
+  environment, then Validate again.
+- **An extra parser is missing from Convert** — install it with
+  `python -m pip install` or `python -m pip install -e <clone>` in the selected
+  environment, then **Refresh plugins**. Raw `PYTHONPATH` folders are not
+  discovered.
 
 ## Provider request errors
 

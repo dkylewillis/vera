@@ -17,6 +17,7 @@ figures, and citation metadata in one portable `.vera` file.
 ## User guides
 
 - [Convert documents](conversion.md)
+- [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md)
 - [Search documents](searching.md)
 - [Search and index document libraries](document-libraries.md)
 - [Work with figures and highlight regions](figures-and-regions.md)

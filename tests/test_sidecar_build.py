@@ -66,7 +66,10 @@ def test_excluded_modules_reach_pyinstaller() -> None:
     assert '"--exclude-module"' in BUILD_SCRIPT.read_text(encoding="utf-8")
 
 
-def test_semantic_embedding_dependencies_are_not_excluded() -> None:
+def test_packaged_app_ships_plugin_host_source() -> None:
+    package_json = (ROOT / "packages" / "vera-app" / "package.json").read_text(encoding="utf-8")
+    assert "python/plugin-host/vera_plugin_host" in package_json
+    assert (ROOT / "packages" / "vera-app" / "src" / "vera_plugin_host" / "__main__.py").is_file()
     excluded = set(_excluded_modules())
     assert excluded.isdisjoint(SEMANTIC_REQUIREMENTS), (
         "build-sidecar.cjs excludes modules the semantic embedder needs: "

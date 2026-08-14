@@ -23,7 +23,9 @@ Convert one PDF or a directory of PDFs.
 Options:
 
 - `--model MODEL` defaults to `hashing`.
-- `--parser PARSER` defaults to `pymupdf`.
+- `--parser PARSER` defaults to `pymupdf`. Additional `provider` or
+  `provider:variant` names resolve through installed
+  `vera.ingest_pipelines` entry points. Unknown names fail before parsing.
 - `--chunk-size N` defaults to `500`.
 - `--overlap N` defaults to `75`.
 - `--store-original VALUE` defaults to `true`. Values `1`, `true`, `yes`, `y`,

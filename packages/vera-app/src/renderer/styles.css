@@ -3912,7 +3912,42 @@ input.viewerPageInput:focus {
   color: var(--accent);
 }
 
-/* ── Provider modal ──────────────────────────────────── */
+.pythonEnvManager {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.pythonEnvManager h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.pythonEnvStatus {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.pythonEnvStatus.ok {
+  background: var(--bg-surface-2);
+}
+
+.pythonEnvStatus.error {
+  color: var(--danger, #b45309);
+}
+
+.pythonEnvStatus div {
+  display: grid;
+  gap: 2px;
+}
 
 .modalBackdrop {
   position: fixed;

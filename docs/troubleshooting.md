@@ -159,13 +159,31 @@ temporary output.
 
 ## Conversion fails for a parser name
 
-`vera-ingest` supports:
+`--parser` must name an installed ingest pipeline (`provider` or
+`provider:variant`). The bundled provider is `pymupdf`:
 
 ```bash
 vera convert "input.pdf" --parser pymupdf
 ```
 
-Other parser names are not currently implemented.
+Install extra parsers into the same environment as `vera-ingest`, then retry:
+
+```bash
+python -m pip install vera-ingest-docling
+vera convert "input.pdf" --parser docling
+```
+
+Cloned plugins need an editable install so entry points are visible:
+
+```bash
+python -m pip install -e ./my-vera-plugin
+```
+
+Unknown names fail before parsing and never fall back to another pipeline.
+
+In the packaged desktop app, extra parsers also need a validated external
+Python interpreter under **File > LLM Providers**. The frozen sidecar only
+bundles PyMuPDF.
 
 If Hugging Face Hub downloads warn about unauthenticated requests or hit rate
 limits, set `HF_TOKEN` (see `.env.example`) or save a token under **File >

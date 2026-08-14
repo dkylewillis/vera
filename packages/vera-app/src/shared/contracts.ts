@@ -149,12 +149,58 @@ export interface AppSettings {
   active_provider_id: string;
   active_model: string;
   active_mode_id: string;
+  ingest_pipeline?: string;
+  external_python?: ExternalPythonConfig | null;
   /**
    * Runtime-only: true when a Hugging Face token is available from secure
    * storage or the process environment (`HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`).
    * Not persisted in settings.json.
    */
   has_hf_token?: boolean;
+  /** Runtime-only probe of the configured external Python environment. */
+  external_python_status?: PythonEnvironmentProbe | null;
+}
+
+export type PipelineRuntimeSource = 'bundled' | 'external';
+
+export interface PipelineFieldDescriptor {
+  key: string;
+  label: string;
+  type?: string;
+  default?: unknown;
+  unit?: string;
+}
+
+export interface PipelineDescriptor {
+  provider: string;
+  variant?: string;
+  spec: string;
+  label?: string;
+  description?: string;
+  installed: boolean;
+  capabilities?: Record<string, unknown>;
+  fields?: PipelineFieldDescriptor[];
+  notes?: string[];
+  source?: PipelineRuntimeSource;
+}
+
+export interface ExternalPythonConfig {
+  enabled: boolean;
+  executable: string;
+  artifacts_path?: string;
+  validated_at?: number;
+}
+
+export interface PythonEnvironmentProbe {
+  ok: boolean;
+  executable?: string;
+  python_version?: string;
+  vera_ingest_version?: string;
+  protocol?: number;
+  plugin_api?: number;
+  pipelines?: PipelineDescriptor[];
+  load_errors?: string[];
+  error?: string;
 }
 
 export interface CredentialResult {
