@@ -9,7 +9,6 @@ from pathlib import Path
 
 from vera_plugin_host.worker import PROTOCOL_VERSION
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_SRC = ROOT / "tests" / "support" / "echo_ingest_plugin"
 

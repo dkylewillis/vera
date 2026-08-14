@@ -18,7 +18,6 @@ from vera_ingest.pipeline import (
 from vera_plugin_host.cancellation import CancellationToken
 from vera_plugin_host.worker import PROTOCOL_VERSION, handle, handle_convert
 
-
 ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -41,9 +40,7 @@ def test_plugin_host_ping_reports_versions():
 
 
 def test_plugin_host_describes_registered_plugin():
-    register_ingest_pipeline(
-        "echo", lambda _variant: (lambda *args, **kwargs: args[1]), replace=True
-    )
+    register_ingest_pipeline("echo", lambda _variant: lambda *args, **kwargs: args[1], replace=True)
     register_ingest_pipeline_descriptor(
         "echo",
         lambda variant: PipelineDescriptor(

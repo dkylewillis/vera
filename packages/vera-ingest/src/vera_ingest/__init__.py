@@ -21,7 +21,6 @@ from .pipeline import (
     describe_ingest_pipeline,
     get_ingest_pipeline,
     invoke_ingest_pipeline,
-    PLUGIN_API_VERSION,
     list_ingest_pipeline_descriptors,
     list_ingest_pipeline_load_errors,
     list_ingest_pipelines,

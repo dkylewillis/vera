@@ -12,9 +12,7 @@ from vera_ingest.types import IngestBlock, IngestChunk, IngestRequest, IngestRes
 def create_pipeline(variant: str = ""):
     normalized = (variant or "").strip().lower()
     if normalized not in {"", "default"}:
-        raise UnknownIngestPipelineError(
-            f"Unknown echo pipeline variant {variant!r}; use 'echo'."
-        )
+        raise UnknownIngestPipelineError(f"Unknown echo pipeline variant {variant!r}; use 'echo'.")
 
     def ingest(source_path: str, request: IngestRequest) -> IngestResult:
         del request

@@ -291,9 +291,7 @@ def test_hardening_json_contracts_are_documented():
     assert "python/plugin-host/vera_plugin_host" in (
         ROOT / "packages" / "vera-app" / "package.json"
     ).read_text(encoding="utf-8")
-    assert (
-        ROOT / "packages" / "vera-app" / "src" / "vera_plugin_host" / "__main__.py"
-    ).is_file()
+    assert (ROOT / "packages" / "vera-app" / "src" / "vera_plugin_host" / "__main__.py").is_file()
     assert "only explicit `search_start` and `search_done`" in desktop_architecture
     assert "Token-level `answer_delta`" in desktop_architecture
     assert "describe_ingest_pipelines" in desktop_architecture
