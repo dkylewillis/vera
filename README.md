@@ -319,8 +319,9 @@ def create_pipeline(variant: str = ""):
 A pipeline distributed as a package with a `vera.ingest_pipelines` entry
 point is discovered automatically by `vera convert --parser myformat`.
 Pipelines can also publish descriptors that advertise their options for
-schema-driven UIs. See
-[Creating an ingest pipeline](docs/creating-an-ingest-pipeline.md).
+schema-driven UIs. The packaged desktop app can run extra plugins from a
+trusted external Python environment without freezing them into the sidecar.
+See [Creating an ingest pipeline](docs/creating-an-ingest-pipeline.md).
 
 ### Embedding providers (`vera.embedders`)
 
@@ -432,7 +433,9 @@ filters, corpus search, and embedding configuration.
 VERA also includes a desktop application for Windows: PDF conversion from the
 Explorer context menu, library search with highlighted citations, and an
 optional LLM provider connection for grounded question answering over
-documents. It is built on the same packages described above. Download it from
+documents. Packaged conversions use the bundled PyMuPDF pipeline; extra ingest
+plugins can run from a trusted external Python environment. It is built on the
+same packages described above. Download it from
 [GitHub Releases](https://github.com/dkylewillis/vera/releases/latest) and see
 the [desktop app guide](docs/desktop-app-getting-started.md).
 

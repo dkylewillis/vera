@@ -392,6 +392,22 @@ vera-lab "manual.pdf" -o report.html --parser pymupdf
 vera-lab "manual.pdf" -o compare.html --parser pymupdf --parser docling
 ```
 
+## Packaged desktop app
+
+The Windows installer keeps bundled PyMuPDF in the frozen sidecar. Extra
+plugins run in a shipped `vera_plugin_host` worker launched with a
+user-selected Python interpreter:
+
+1. Create a venv and install `vera-ingest` 0.3.x plus your plugin
+   (`python -m pip install …` or `python -m pip install -e <clone>`).
+2. In VERA, open **File > LLM Providers**, enable **External Python plugins**,
+   choose that environment's interpreter, and **Validate**.
+3. Convert lists extra providers as `(external)`. Bundled `pymupdf` wins on
+   duplicate names. Treat the interpreter as trusted code; raw `PYTHONPATH`
+   folders are not discovered.
+
+See [Run the desktop app](desktop-app-getting-started.md#external-python-plugins-packaged-app).
+
 To judge whether a new pipeline (or a chunking change within one) actually
 retrieves better, run the same query set through `vera eval` against archives
 produced by each pipeline and compare hit rate / MRR — see

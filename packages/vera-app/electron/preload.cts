@@ -40,6 +40,9 @@ const IPC_CHANNELS: typeof IpcChannels = {
   openSettings: 'vera:openSettings',
   folderChanged: 'vera:folderChanged',
   answerEvent: 'vera:answerEvent',
+  pickPythonInterpreter: 'vera:pickPythonInterpreter',
+  validatePythonEnvironment: 'vera:validatePythonEnvironment',
+  refreshExternalPipelines: 'vera:refreshExternalPipelines',
 };
 
 contextBridge.exposeInMainWorld('vera', {
@@ -51,6 +54,11 @@ contextBridge.exposeInMainWorld('vera', {
   skipConversion: (requestId: string) => ipcRenderer.invoke(IPC_CHANNELS.skipConversion, requestId),
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getSettings),
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke(IPC_CHANNELS.saveSettings, settings),
+  pickPythonInterpreter: () => ipcRenderer.invoke(IPC_CHANNELS.pickPythonInterpreter),
+  validatePythonEnvironment: (executable: string, artifactsPath?: string) => (
+    ipcRenderer.invoke(IPC_CHANNELS.validatePythonEnvironment, executable, artifactsPath)
+  ),
+  refreshExternalPipelines: () => ipcRenderer.invoke(IPC_CHANNELS.refreshExternalPipelines),
   saveApiKey: (providerId: string, apiKey: string) => ipcRenderer.invoke(IPC_CHANNELS.saveApiKey, providerId, apiKey),
   clearApiKey: (providerId: string) => ipcRenderer.invoke(IPC_CHANNELS.clearApiKey, providerId),
   saveHfToken: (token: string) => ipcRenderer.invoke(IPC_CHANNELS.saveHfToken, token),

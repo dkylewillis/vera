@@ -64,9 +64,13 @@ for combinations such as `eng+spa`; Docling does not advertise overlap or
 DPI). These settings are independent of the Chat
 model and are persisted in app settings. `npm run app:dev` installs the `app`,
 `ml`, and `docling` extras into the workspace environment so both plugins are
-available for GUI testing. Packaged releases do not bundle optional ingest
-plugins or Sentence Transformers; an unavailable selection is disabled or fails
-with the resolver error. Docling's first conversion may download Hugging Face
+available for GUI testing. Packaged releases keep the bundled PyMuPDF
+pipeline in the frozen sidecar. Extra ingest plugins such as Docling are not
+frozen into the installer; configure a trusted external Python environment
+under **File > LLM Providers**, install plugins with
+`python -m pip install vera-ingest-docling` or
+`python -m pip install -e <clone>`, then Validate / Refresh. An unavailable
+selection is disabled or fails with the resolver error. Docling's first conversion may download Hugging Face
 models; save an optional token under **File > LLM Providers → Hugging Face**
 (or set `HF_TOKEN` in the environment / a local `.env` from `.env.example`) to
 raise Hub rate limits. Conversion progress and the current filename appear in
@@ -166,6 +170,31 @@ npm run app:release
 This removes the existing `packages/vera-app/release` directory, rebuilds the
 app and Python sidecar, and writes an NSIS installer into that directory.
 
+## External Python plugins (packaged app)
+
+The installer keeps search, Ask, indexing, and bundled PyMuPDF conversion in
+the frozen sidecar. To use extra ingest plugins:
+
+1. Create a virtual environment with Python 3.10+ and install a compatible
+   `vera-ingest` 0.3.x plus the plugin:
+   ```bash
+   python -m venv C:\venvs\vera-plugins
+   C:\venvs\vera-plugins\Scripts\python.exe -m pip install vera-ingest vera-ingest-docling
+   python -m pip install -e C:\src\my-vera-plugin
+   ```
+   Adding a clone to `PYTHONPATH` without installing it is not enough.
+2. In VERA, open **File > LLM Providers**, enable **External Python plugins**,
+   choose that environment's `python.exe`, and click **Validate**.
+3. Convert lists extra providers as `(external)`. Bundled `pymupdf` wins when a
+   plugin repeats that name. After installing or updating plugins, click
+   **Refresh plugins**.
+
+The selected environment must provide `vera-ingest` 0.3.x (plugin API version
+1). Plugins register under the `vera.ingest_pipelines` entry-point group.
+Optional Hugging Face tokens and the **Model cache** field
+(`DOCLING_ARTIFACTS_PATH`) are forwarded to the plugin host. See
+[Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md).
+
 ## Common startup problems
 
 - **`uv` is not recognized** — install `uv`, open a new terminal, and rerun the
@@ -188,6 +217,13 @@ app and Python sidecar, and writes an NSIS installer into that directory.
 
   Set `VERA_SIDECAR_PYTHON` to use a different interpreter, or exclude the
   repository and `%TEMP%` from real-time scanning, then retry.
+- **Validate fails for the external Python environment** — choose an absolute
+  interpreter path that exists, install `vera-ingest` 0.3.x into that
+  environment, then Validate again.
+- **An extra parser is missing from Convert** — install it with
+  `python -m pip install` or `python -m pip install -e <clone>` in the selected
+  environment, then **Refresh plugins**. Raw `PYTHONPATH` folders are not
+  discovered.
 
 ## Provider request errors
 

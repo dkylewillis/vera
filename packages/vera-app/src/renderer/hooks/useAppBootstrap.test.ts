@@ -14,6 +14,7 @@ describe('fallbackPipelineDescriptors', () => {
         capabilities: {},
         fields: [],
         notes: [],
+        source: 'bundled',
       },
       {
         provider: 'docling',
@@ -25,6 +26,7 @@ describe('fallbackPipelineDescriptors', () => {
         capabilities: {},
         fields: [],
         notes: [],
+        source: 'external',
       },
     ]);
   });

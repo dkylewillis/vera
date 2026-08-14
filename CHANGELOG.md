@@ -39,6 +39,9 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   Options).
 - Desktop Convert view: persist the selected embedding model separately from
   Chat; show installed provider suggestions; hashing and MiniLM presets.
+- Packaged desktop app: opt-in external Python plugin runtime
+  (`vera_plugin_host`) so extra ingest plugins installed with `pip` or
+  `pip install -e` run without being frozen into the sidecar.
 
 - Typed `Citation` on search hits (`result.citation`) plus configurable hybrid
   `semantic_weight` / `keyword_weight` on `VeraDocument.search()`.
@@ -127,6 +130,5 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Clamp chunk overlap below `chunk_size` so carry never overruns.
 - Consume the skip flag; do not leak it into pipeline options.
 
-Hosted embedding providers, Convert UI embedder preflight/forms, and a
-packaged-app plugin runtime are follow-ups after this tag (0.3.1 or later).
-See [ROADMAP.md](ROADMAP.md).
+Hosted embedding providers and Convert UI embedder preflight/forms are
+follow-ups after this tag. See [ROADMAP.md](ROADMAP.md).

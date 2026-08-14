@@ -136,23 +136,25 @@ Follow-ups after 0.3.0 (0.3.1 or later); not 0.3.0 blockers.
   `PipelineConfigForm`.
 - [x] Persist Convert-view `ingest_pipeline` settings for source-run apps.
 - [x] Show Docling in the Convert pipeline dropdown when the plugin is installed.
-- [x] Keep packaged-app plugin installation explicitly unsupported for now.
+- [x] Ship an opt-in external Python plugin runtime for packaged extra ingest
+  plugins (`vera_plugin_host`, pip / `pip install -e` discovery).
 
 ### Future packaged-app plugin runtime
 
-Follow-ups after 0.3.0 (0.3.1 or later); not 0.3.0 blockers. Source-run
-apps can already use installed pipeline plugins (including Docling);
-packaged-app plugin installation remains explicitly unsupported.
+Source-run apps can already use installed pipeline plugins (including Docling).
+Packaged extra ingest plugins now run through a trusted user-selected Python
+environment. The items below remain for an app-managed plugin store.
 
-- [ ] Create a plugin runtime separate from the frozen desktop sidecar for
-  ingest pipelines (and embedding providers).
+- [x] Create a plugin runtime separate from the frozen desktop sidecar for
+  ingest pipelines.
+- [ ] Extend that runtime to embedding providers.
 - [ ] Decide how Docling/Torch/model artifacts are distributed without
   bloating the base installer.
 - [ ] Let users install, update, enable, disable, and remove plugins from the
   application.
 - [ ] Keep plugins across application upgrades.
-- [ ] Enforce plugin API and VERA version compatibility.
-- [ ] Isolate plugin failures from storage, keyword search, and the main app.
+- [x] Enforce plugin API and VERA version compatibility.
+- [x] Isolate plugin failures from storage, keyword search, and the main app.
 - [ ] Define a security and trust policy for third-party plugin installation.
 
 The long-term goal is an app-managed experience. Released VERA installations

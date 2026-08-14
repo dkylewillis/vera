@@ -2,6 +2,8 @@ import type {
   AppSettings,
   ChatCitationResult,
   CredentialResult,
+  ExternalPythonConfig,
+  PythonEnvironmentProbe,
   Session,
   StreamEvent,
 } from '../shared/contracts';
@@ -13,6 +15,7 @@ export type {
   ContentPart,
   ContextChunkResult,
   CredentialResult,
+  ExternalPythonConfig,
   FigureResult,
   JsonValue,
   PipelineCapabilities,
@@ -22,6 +25,7 @@ export type {
   PipelineFieldType,
   PipelineOptions,
   ProviderProfile,
+  PythonEnvironmentProbe,
   RegionResult,
   SearchResult,
   Session,
@@ -50,6 +54,9 @@ export interface VeraApi {
   skipConversion(requestId: string): Promise<{ skipped: boolean }>;
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;
+  pickPythonInterpreter(): Promise<string | null>;
+  validatePythonEnvironment(executable: string, artifactsPath?: string): Promise<PythonEnvironmentProbe>;
+  refreshExternalPipelines(): Promise<PythonEnvironmentProbe>;
   saveApiKey(providerId: string, apiKey: string): Promise<CredentialResult>;
   clearApiKey(providerId: string): Promise<CredentialResult>;
   saveHfToken(token: string): Promise<CredentialResult>;

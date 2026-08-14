@@ -167,6 +167,8 @@ portable [agent skill](skills/vera/SKILL.md), and documentation-contract tests
 in the same change. Changes to CLI commands or flags, JSON output, exit codes,
 MCP tools, installation requirements, or retrieval behavior must also update
 the relevant files under [skills/vera/references](skills/vera/references).
+The desktop plugin host lives in
+[packages/vera-app/src/vera_plugin_host](packages/vera-app/src/vera_plugin_host).
 Do not merge a feature whose public behavior is only documented in
 implementation code or tests.
 
@@ -193,7 +195,9 @@ non-obvious caveats for this environment; standard commands live in the sections
   (OpenAI/OpenRouter/Ollama/LM Studio) — there is no offline/extractive answer mode, so Ask is
   blocked without a provider/API key. For fully offline testing use the left-sidebar **Search**
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
-  **Convert PDF** view; both run entirely through the sidecar with no LLM.
+  **Convert PDF** view. Convert keeps the bundled PyMuPDF pipeline in the sidecar; extra ingest
+  plugins require a validated external Python environment under **File > LLM Providers**. Ask is
+  blocked without a provider/API key.
 - MCP server (optional): `uv run --extra mcp vera mcp` (long-running stdio; no `--json`).
 - There are no PDFs in the repo; generate one with the `reportlab` dev dependency when you need
   a sample to `vera convert`.

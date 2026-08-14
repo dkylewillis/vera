@@ -92,6 +92,7 @@ known-first-party = [
   "vera_cli",
   "vera_mcp",
   "vera_app",
+  "vera_plugin_host",
   "vera_lab",
 ]
 

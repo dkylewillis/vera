@@ -11,6 +11,8 @@ from .types import IngestRequest, IngestResult
 
 logger = logging.getLogger(__name__)
 
+PLUGIN_API_VERSION = 1
+
 _ENTRY_POINT_GROUP = "vera.ingest_pipelines"
 _DESCRIPTOR_ENTRY_POINT_GROUP = "vera.ingest_pipeline_descriptors"
 _REGISTRY_LOCK = threading.RLock()
@@ -18,6 +20,7 @@ _PIPELINE_FACTORIES: dict[str, Callable[[str], IngestPipeline]] = {}
 _DESCRIPTOR_FACTORIES: dict[str, Callable[[str], PipelineDescriptor]] = {}
 _PIPELINE_CACHE: dict[tuple[str, str], IngestPipeline] = {}
 _DESCRIPTOR_CACHE: dict[tuple[str, str], PipelineDescriptor] = {}
+_LOAD_ERRORS: list[str] = []
 _ENTRY_POINTS_LOADED = False
 _DEFAULT_VARIANTS = {"docling": "hybrid"}
 
@@ -180,7 +183,11 @@ def _safe_load_entry_point(entry: Any, provider: str, *, kind: str) -> Any | Non
     try:
         return entry.load()
     except Exception as exc:  # noqa: BLE001 - one broken plugin must not hide others
-        logger.warning("Failed to load %s plugin %r: %r", kind, provider, exc)
+        message = f"Failed to load {kind} plugin {provider!r}: {exc!r}"
+        logger.warning("%s", message)
+        with _REGISTRY_LOCK:
+            if message not in _LOAD_ERRORS:
+                _LOAD_ERRORS.append(message)
         return None
 
 
@@ -302,6 +309,13 @@ def list_ingest_pipeline_descriptors() -> list[PipelineDescriptor]:
     return descriptors
 
 
+def list_ingest_pipeline_load_errors() -> list[str]:
+    """Return import/load failures collected while discovering entry points."""
+    _ensure_entry_points_loaded()
+    with _REGISTRY_LOCK:
+        return list(_LOAD_ERRORS)
+
+
 def clear_ingest_pipeline_cache() -> None:
     """Drop resolved pipeline instances and cached descriptors."""
     with _REGISTRY_LOCK:
@@ -322,6 +336,7 @@ def reset_ingest_pipeline_registry(*, builtins: bool = True) -> None:
         _DESCRIPTOR_FACTORIES.clear()
         _PIPELINE_CACHE.clear()
         _DESCRIPTOR_CACHE.clear()
+        _LOAD_ERRORS.clear()
         _ENTRY_POINTS_LOADED = False
 
 

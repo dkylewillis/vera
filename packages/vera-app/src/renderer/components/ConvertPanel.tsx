@@ -213,9 +213,10 @@ export function ConvertPanel({
         >
           {pipelineOptionsForSelect.map((option) => {
             const available = presetOptionAvailable(option, installedPipelineProviders);
+            const suffix = option.source === 'external' ? ' (external)' : '';
             return (
               <option key={option.value} value={option.value} disabled={!available}>
-                {available ? option.label : `${option.label} (not installed)`}
+                {available ? `${option.label}${suffix}` : `${option.label} (not installed)`}
               </option>
             );
           })}
@@ -230,7 +231,7 @@ export function ConvertPanel({
           ? (activePipelineDescriptor.description || 'Pipeline ready for conversion.')
           : (pipelineInstallHint(ingestPipeline, ingestPipelineDescriptors)
             || 'Choose an ingest pipeline.')}
-        {' '}Packaged releases do not bundle optional ingest plugins.
+        {' '}Packaged releases keep PyMuPDF bundled; extra parsers run in a trusted external Python environment under File → LLM Providers.
       </p>
       <label className="field">
         <span>Embedding model</span>

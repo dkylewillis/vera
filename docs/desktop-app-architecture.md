@@ -77,6 +77,24 @@ this protocol directly.
 
 This keeps the app UI independent from Python internals while preserving a simple local development loop.
 
+## External plugin host
+
+Packaged conversions keep search, indexing, Ask, and bundled PyMuPDF in the
+frozen sidecar. Extra ingest plugins run in a separate JSON-lines worker:
+
+```bash
+python -m vera_plugin_host
+```
+
+Electron ships the `vera_plugin_host` package as an extra resource and launches
+it with a user-selected interpreter (`shell: false`). `PYTHONPATH` is limited
+to that worker package so plugins come from the selected environment after
+`pip install` or `pip install -e`. Duplicate provider names keep the bundled
+sidecar implementation. The worker speaks `ping`, `list_ingest_pipelines`,
+`describe_ingest_pipelines`, `convert`, `batch_convert`, `cancel`, and `skip`.
+Treat the selected interpreter as trusted code. Hugging Face tokens and
+`DOCLING_ARTIFACTS_PATH` are forwarded to the worker.
+
 ## Active Libraries and Collection Indexes
 
 Opening a workspace folder activates it as the default Search and Ask scope
@@ -288,6 +306,8 @@ English data is passed as an absolute path so the build works from any
 directory. The build also copies `vera-ingest-pymupdf` package metadata and the
 sidecar registers the default `pymupdf` pipeline on import so Convert works in
 frozen builds where `importlib.metadata` entry points are otherwise empty.
+The plugin host source is copied as an extra resource to
+`python/plugin-host/vera_plugin_host` and is not frozen into the sidecar.
 
 From the repo root:
 

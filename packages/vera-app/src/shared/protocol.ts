@@ -29,6 +29,9 @@ export const IPC_CHANNELS = {
   openSettings: 'vera:openSettings',
   folderChanged: 'vera:folderChanged',
   answerEvent: 'vera:answerEvent',
+  pickPythonInterpreter: 'vera:pickPythonInterpreter',
+  validatePythonEnvironment: 'vera:validatePythonEnvironment',
+  refreshExternalPipelines: 'vera:refreshExternalPipelines',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -81,3 +84,10 @@ export const STREAM_EVENTS = [
 ] as const;
 
 export type StreamEventName = (typeof STREAM_EVENTS)[number];
+
+/** JSON-lines protocol spoken by the shipped `vera_plugin_host` worker. */
+export const PLUGIN_HOST_PROTOCOL = 1;
+/** `vera_ingest.pipeline.PLUGIN_API_VERSION` expected by this app. */
+export const PLUGIN_API_VERSION = 1;
+export const COMPATIBLE_INGEST_MAJOR = 0;
+export const COMPATIBLE_INGEST_MINOR = 3;

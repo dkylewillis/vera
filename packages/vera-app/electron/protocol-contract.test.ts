@@ -62,4 +62,10 @@ describe('sidecar protocol contract', () => {
   it('keeps preload.cts IPC_CHANNELS duplicate aligned with the shared contract', () => {
     expect(preloadIpcChannels(preload)).toEqual(IPC_CHANNELS);
   });
+
+  it('exposes external Python IPC channels', () => {
+    expect(IPC_CHANNELS.pickPythonInterpreter).toBe('vera:pickPythonInterpreter');
+    expect(IPC_CHANNELS.validatePythonEnvironment).toBe('vera:validatePythonEnvironment');
+    expect(IPC_CHANNELS.refreshExternalPipelines).toBe('vera:refreshExternalPipelines');
+  });
 });
