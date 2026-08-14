@@ -150,11 +150,7 @@ authorization:
   Image-based or low-text pages use selective local OCR by default. Use
   `--ocr off` only when the user explicitly requests it, or `--ocr force` when
   automatic detection misses a scan. English OCR is bundled; other languages
-  require installed Tesseract language data. `--parser PARSER` selects the
-  bundled `pymupdf` parser or an installed ingest plugin from the
-  `vera.ingest_pipelines` entry-point group. Unknown names fail before parsing.
-  Plugins require `python -m pip install` or `python -m pip install -e <clone>`;
-  raw `PYTHONPATH` folders are not discovered.
+  require installed Tesseract language data.
 - `convert --overwrite` replaces existing outputs.
 - `index build` and `index update` write `.vera-index/`.
 - `export` writes the embedded source document.

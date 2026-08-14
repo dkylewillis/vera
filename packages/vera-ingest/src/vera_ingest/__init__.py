@@ -8,18 +8,6 @@ from .chunking import (
 )
 from .convert import batch_convert, convert
 from .parsers import ParsedBlock, ParsedPage, parse_pdf, parse_pdf_structured
-from .pipeline import (
-    PLUGIN_API_VERSION,
-    PipelineDescriptor,
-    UnknownIngestPipelineError,
-    describe_ingest_pipeline,
-    get_ingest_pipeline,
-    list_ingest_pipeline_descriptors,
-    list_ingest_pipeline_load_errors,
-    list_ingest_pipelines,
-    register_ingest_pipeline,
-    register_ingest_pipeline_descriptor,
-)
 from .viewer import (
     export_source_document,
     figures,
@@ -32,18 +20,8 @@ from .viewer import (
 )
 
 __all__ = [
-    "PLUGIN_API_VERSION",
-    "PipelineDescriptor",
-    "UnknownIngestPipelineError",
     "convert",
     "batch_convert",
-    "describe_ingest_pipeline",
-    "get_ingest_pipeline",
-    "list_ingest_pipeline_descriptors",
-    "list_ingest_pipeline_load_errors",
-    "list_ingest_pipelines",
-    "register_ingest_pipeline",
-    "register_ingest_pipeline_descriptor",
     "Chunk",
     "ParsedBlock",
     "ParsedPage",

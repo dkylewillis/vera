@@ -62,35 +62,8 @@ Initial actions:
 - `index_status`
 - `index_build`
 - `index_update`
-- `list_ingest_pipelines`
-- `describe_ingest_pipelines`
 
 This keeps the app UI independent from Python internals while preserving a simple local development loop.
-
-## External ingest plugin host
-
-Packaged conversions keep the frozen sidecar for search, indexing, Ask, and
-the bundled `pymupdf` pipeline. Optional ingest plugins run in a second
-JSON-lines process:
-
-```text
-Electron main
-  ├─ Frozen core sidecar (vera-sidecar.exe)
-  └─ External plugin host (`python -m vera_plugin_host`)
-```
-
-The plugin host is shipped as source under `python/plugin-host` and is launched
-with an absolute user-selected interpreter. That environment must provide a
-compatible `vera-ingest` (same `0.2.x` series and plugin API version 1) plus
-any plugin packages. Plugins are discovered from the `vera.ingest_pipelines`
-and `vera.ingest_pipeline_descriptors` entry-point groups, so published wheels
-and editable installs (`python -m pip install -e <clone>`) work; raw
-`PYTHONPATH` source folders do not. Bundled providers win when a plugin repeats
-a name such as `pymupdf`. The feature is advanced/trusted: the selected
-interpreter executes local code with the user's permissions. Hugging Face
-tokens and optional `DOCLING_ARTIFACTS_PATH` values are forwarded to the host.
-Conversion progress, cancel, and skip are routed to the process that owns the
-request.
 
 ## Active Libraries and Collection Indexes
 
@@ -272,9 +245,6 @@ so semantic embedding encode/query works when those packages are installed in
 the build environment, and excludes unrelated ML/dev imports (for example
 `torchvision`, `torchaudio`, `pandas`, `cv2`, `pytest`) that a local
 `--extra ml` / `--extra dev` venv would otherwise pull into the installer.
-The same dist step copies `vera_plugin_host` into `python/plugin-host` so a
-packaged app can launch ingest plugins with a user-selected interpreter
-without freezing those plugins into the sidecar.
 
 From the repo root:
 

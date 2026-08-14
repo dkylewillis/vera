@@ -24,12 +24,6 @@ Homepage = "https://github.com/dkylewillis/vera"
 Repository = "https://github.com/dkylewillis/vera"
 Documentation = "https://dkylewillis.github.io/vera/packages/vera-ingest/"
 
-[project.entry-points."vera.ingest_pipelines"]
-pymupdf = "vera_ingest.pipeline:create_pymupdf_pipeline"
-
-[project.entry-points."vera.ingest_pipeline_descriptors"]
-pymupdf = "vera_ingest.pipeline:create_pymupdf_descriptor"
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

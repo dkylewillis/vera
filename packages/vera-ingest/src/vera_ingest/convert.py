@@ -20,11 +20,6 @@ from vera.core.validation import validate_document
 
 from .chunking import build_chunks_from_blocks
 from .parsers import ParsedBlock, parse_pdf_structured
-from .pipeline import (
-    get_ingest_pipeline,
-    invoke_ingest_pipeline,
-    parse_ingest_pipeline_spec,
-)
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -118,9 +113,7 @@ def convert(
         input_path: Source PDF path.
         output_path: Destination ``.vera`` path.
         model: Embedding model name (default ``"hashing"``).
-        parser: Ingest pipeline spec (``provider`` or ``provider:variant``).
-            The bundled backend is ``"pymupdf"``; additional providers are
-            discovered from the ``vera.ingest_pipelines`` entry-point group.
+        parser: PDF parser backend (currently only ``"pymupdf"``).
         chunk_size: Target chunk size in characters.
         overlap: Character overlap between consecutive chunks.
         store_original: When ``True``, embed the original PDF as an attachment.
@@ -134,62 +127,14 @@ def convert(
 
     Raises:
         FileNotFoundError: When ``input_path`` does not exist.
-        ValueError: When no searchable text is extracted or the parser is unknown.
+        ValueError: When no searchable text is extracted or the parser is unsupported.
     """
     source = Path(input_path)
     target = Path(output_path)
     if not source.exists():
         raise FileNotFoundError(input_path)
-    provider, _variant = parse_ingest_pipeline_spec(parser)
-    if provider != "pymupdf":
-        pipeline = get_ingest_pipeline(parser)
-        return invoke_ingest_pipeline(
-            pipeline,
-            str(source),
-            str(target),
-            model=model,
-            parser=parser,
-            chunk_size=chunk_size,
-            overlap=overlap,
-            store_original=store_original,
-            ocr_mode=ocr_mode,
-            ocr_language=ocr_language,
-            ocr_dpi=ocr_dpi,
-            cancel=cancel,
-        )
-    return convert_with_pymupdf(
-        str(source),
-        str(target),
-        model=model,
-        chunk_size=chunk_size,
-        overlap=overlap,
-        store_original=store_original,
-        ocr_mode=ocr_mode,
-        ocr_language=ocr_language,
-        ocr_dpi=ocr_dpi,
-        cancel=cancel,
-    )
-
-
-def convert_with_pymupdf(
-    input_path: str,
-    output_path: str,
-    *,
-    model: str = "hashing",
-    chunk_size: int = 500,
-    overlap: int = 75,
-    store_original: bool = True,
-    ocr_mode: str = "auto",
-    ocr_language: str = "eng",
-    ocr_dpi: int = 300,
-    cancel: Any | None = None,
-) -> str:
-    """Convert a PDF with the bundled PyMuPDF pipeline."""
-    source = Path(input_path)
-    target = Path(output_path)
-    if not source.exists():
-        raise FileNotFoundError(input_path)
-    parser = "pymupdf"
+    if parser != "pymupdf":
+        raise ValueError("v0.1 currently supports parser='pymupdf'")
 
     _raise_if_cancelled(cancel)
     source_data = source.read_bytes()

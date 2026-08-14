@@ -38,7 +38,7 @@ JSON-compatible caller data.
 
 `vera-ingest` publishes `vera_ingest`. It owns all source interpretation:
 
-- PDF parsing and table extraction, plus optional ingest pipeline plugins;
+- PDF parsing and table extraction;
 - selective OCR and bundled Tesseract data;
 - heading detection and chunk construction;
 - mapping pages, regions, figures, and provenance to chunk metadata;
@@ -64,11 +64,8 @@ helpers. The optional `vera-cli[mcp]` extra installs it for `vera mcp`.
 ### `vera-app`
 
 `vera-app` owns the Electron/React desktop application, Python sidecar, LLM
-providers, sessions, and application state. Packaged conversions keep the
-frozen sidecar for search, indexing, Ask, and the bundled `pymupdf` pipeline.
-Optional ingest plugins run in a shipped `vera_plugin_host` worker launched
-with a user-selected Python interpreter. The app depends on both `vera-doc`
-and `vera-ingest` (including viewer helpers), not on `vera-cli`.
+providers, sessions, and application state. It depends on both `vera-doc` and
+`vera-ingest` (including viewer helpers), not on `vera-cli`.
 
 ## Core Python API
 
@@ -133,10 +130,10 @@ packages/
   vera-ingest/
     src/vera_ingest/
       convert.py
-      pipeline.py
-      chunking.py
-      parsers/pdf.py
-      tessdata/
+      ingest/
+        chunking.py
+        parsers/pdf.py
+        tessdata/
   vera-cli/
     src/vera_cli/
       commands.py
@@ -145,12 +142,6 @@ packages/
     src/vera_mcp/
       server.py
   vera-app/
-    src/vera_app/
-      sidecar.py
-    src/vera_plugin_host/
-      worker.py
-    electron/
-      main.ts
 ```
 
 The root uv workspace links packages as editable dependencies. Published

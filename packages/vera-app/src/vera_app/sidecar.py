@@ -22,11 +22,6 @@ from vera import (
 )
 from vera.corpus import VeraCorpus
 from vera_ingest import batch_convert, convert
-from vera_ingest.pipeline import (
-    ensure_pymupdf_registered,
-    list_ingest_pipeline_descriptors,
-    list_ingest_pipelines,
-)
 from vera_ingest.viewer import (
     export_source_document,
     figures,
@@ -47,8 +42,6 @@ from vera_app.llm import (
     list_models,
 )
 from vera_app.modes import Mode, load_modes, resolve_mode
-
-ensure_pymupdf_registered()
 
 Request = dict[str, Any]
 Response = dict[str, Any]
@@ -1325,16 +1318,6 @@ def _page(request: Request) -> dict[str, Any] | None:
         doc.close()
 
 
-def _list_ingest_pipelines(_request: Request) -> dict[str, Any]:
-    return {"pipelines": list_ingest_pipelines()}
-
-
-def _describe_ingest_pipelines(_request: Request) -> dict[str, Any]:
-    return {
-        "pipelines": [item.as_dict() for item in list_ingest_pipeline_descriptors()],
-    }
-
-
 def _list_models(request: Request) -> dict[str, Any]:
     config = LlmConfig.from_request(request.get("llm"))
     models = list_models(config)
@@ -1358,8 +1341,6 @@ HANDLERS: dict[str, Handler] = {
     "page": _page,
     "list_models": _list_models,
     "list_modes": _list_modes,
-    "list_ingest_pipelines": _list_ingest_pipelines,
-    "describe_ingest_pipelines": _describe_ingest_pipelines,
 }
 
 _stdout_lock = threading.Lock()

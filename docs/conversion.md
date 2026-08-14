@@ -58,8 +58,8 @@ OCR text is stored as ordinary paragraph blocks with page bounding boxes, so
 search results and highlight regions work normally. This first OCR path targets
 scanned prose. It does not reconstruct scanned tables, forms, or complex
 multi-column reading order. Use an external layout-aware OCR tool for those
-documents; optional ingest plugins can provide layout-aware parsers. See
-[Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md).
+documents; Docling is a candidate for a future optional parser if representative
+corpus testing shows that need.
 
 ## Convert a directory
 
@@ -145,27 +145,13 @@ representative query set before adopting non-default values.
 
 ## Parser
 
-The bundled parser is `pymupdf`:
+`vera-ingest` currently supports the `pymupdf` parser:
 
 ```bash
 vera convert "input.pdf" --parser pymupdf
 ```
 
-Additional parsers are discovered from installed packages that register the
-`vera.ingest_pipelines` entry-point group:
-
-```bash
-python -m pip install vera-ingest-docling
-vera convert "input.pdf" --parser docling
-```
-
-Cloned plugins need an editable install so entry points are visible:
-
-```bash
-python -m pip install -e ./my-vera-plugin
-```
-
-Unknown names fail before parsing and never fall back to another pipeline.
+Other parser names currently fail.
 
 ## Storing the source PDF
 

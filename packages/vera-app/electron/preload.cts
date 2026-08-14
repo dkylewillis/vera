@@ -15,11 +15,6 @@ contextBridge.exposeInMainWorld('vera', {
   clearApiKey: (providerId: string) => ipcRenderer.invoke('vera:clearApiKey', providerId),
   saveHfToken: (token: string) => ipcRenderer.invoke('vera:saveHfToken', token),
   clearHfToken: () => ipcRenderer.invoke('vera:clearHfToken'),
-  pickPythonInterpreter: () => ipcRenderer.invoke('vera:pickPythonInterpreter'),
-  validatePythonEnvironment: (executable: string, artifactsPath?: string) => (
-    ipcRenderer.invoke('vera:validatePythonEnvironment', executable, artifactsPath)
-  ),
-  refreshExternalPipelines: () => ipcRenderer.invoke('vera:refreshExternalPipelines'),
   getSessions: () => ipcRenderer.invoke('vera:getSessions'),
   saveSession: (session: Session) => ipcRenderer.invoke('vera:saveSession', session),
   deleteSession: (id: string) => ipcRenderer.invoke('vera:deleteSession', id),

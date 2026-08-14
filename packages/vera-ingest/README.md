@@ -22,7 +22,6 @@ python -m pip install ./packages/vera-doc ./packages/vera-ingest
 ```
 
 See the [vera-ingest documentation](https://dkylewillis.github.io/vera/packages/vera-ingest/)
-for concepts, examples, and API reference. Extra parsers register as plugins;
-see [Creating an ingest pipeline plugin](https://dkylewillis.github.io/vera/creating-an-ingest-pipeline/).
+for concepts, examples, and API reference.
 
 See the [conversion guide](https://github.com/dkylewillis/vera/blob/main/docs/conversion.md).

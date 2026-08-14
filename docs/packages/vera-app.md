@@ -16,9 +16,7 @@ Download `VERA Setup <version>.exe` from the
 
 ## First workflow
 
-1. Open **Convert PDF** and convert selected PDFs or a directory. Choose an
-   ingest pipeline; extra parsers appear after you validate an external Python
-   environment under **File > LLM Providers**.
+1. Open **Convert PDF** and convert selected PDFs or a directory.
 2. Use **File > Open Folder** to activate a document library.
 3. Open **Search** for fully local hybrid retrieval.
 4. To use **Ask**, configure a provider under **File > LLM Providers**.
@@ -29,13 +27,6 @@ Download `VERA Setup <version>.exe` from the
 
 Search and conversion do not require a model-provider account. A provider is
 only required for generated Ask responses.
-
-Packaged conversions keep PyMuPDF in the frozen sidecar. Extra ingest plugins
-run from a trusted external Python environment configured under
-**File > LLM Providers**. Install plugins with `python -m pip install` or
-`python -m pip install -e <clone>`, then Validate / Refresh. See
-[Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md) and
-[Desktop app architecture](../desktop-app-architecture.md).
 
 ## Documentation
 

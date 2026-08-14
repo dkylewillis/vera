@@ -152,7 +152,7 @@ Requires the integration package: `pip install "vera-cli[mcp]"` or `pip install 
 - Python 3.10+, dependencies managed with [uv](https://docs.astral.sh/uv/):
   `uv sync --extra dev --extra ml --extra app --extra mcp`
 - Run tests with `pytest` (all tests must pass before committing).
-- Storage/search code lives in [packages/vera-doc/src/vera](packages/vera-doc/src/vera), extraction lives in [packages/vera-ingest/src/vera_ingest](packages/vera-ingest/src/vera_ingest), MCP lives in [packages/vera-mcp/src/vera_mcp](packages/vera-mcp/src/vera_mcp), CLI code lives in [packages/vera-cli/src/vera_cli](packages/vera-cli/src/vera_cli), and the desktop plugin host lives in [packages/vera-app/src/vera_plugin_host](packages/vera-app/src/vera_plugin_host); the current format spec is
+- Storage/search code lives in [packages/vera-doc/src/vera](packages/vera-doc/src/vera), extraction lives in [packages/vera-ingest/src/vera_ingest](packages/vera-ingest/src/vera_ingest), MCP lives in [packages/vera-mcp/src/vera_mcp](packages/vera-mcp/src/vera_mcp), and CLI code lives in [packages/vera-cli/src/vera_cli](packages/vera-cli/src/vera_cli); the current format spec is
  [docs/vera-spec-v0.2.md](docs/vera-spec-v0.2.md) — keep code and spec in sync.
 - Keep human and agent documentation current. Any user-visible feature change
   must update the relevant [README](README.md), human guide under
@@ -190,9 +190,7 @@ non-obvious caveats for this environment; standard commands live in the sections
   (OpenAI/OpenRouter/Ollama/LM Studio) — there is no offline/extractive answer mode, so Ask is
   blocked without a provider/API key. For fully offline testing use the left-sidebar **Search**
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
-  **Convert PDF** view. Convert keeps the bundled PyMuPDF pipeline in the sidecar; extra ingest
-  plugins require a validated external Python environment under **File > LLM Providers**. Ask is
-  blocked without a provider/API key.
+  **Convert PDF** view; both run entirely through the sidecar with no LLM.
 - MCP server (optional): `uv run --extra mcp vera mcp` (long-running stdio; no `--json`).
 - There are no PDFs in the repo; generate one with the `reportlab` dev dependency when you need
   a sample to `vera convert`.
