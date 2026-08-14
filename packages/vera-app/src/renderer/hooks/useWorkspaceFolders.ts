@@ -3,9 +3,11 @@ import {
   dropFolder,
   persistFolderPaths,
   readCachedIndexStatuses,
+  readSavedActiveLibraryPath,
   readSavedFolderPaths,
   replaceListedFolder,
   upsertFolder,
+  workspaceRestorePlan,
 } from '../lib/workspaceFolders';
 import type { LibraryIndexStatus, WorkspaceFolderResult } from '../types';
 
@@ -85,15 +87,18 @@ export function useWorkspaceFolders(options: UseWorkspaceFoldersOptions): {
       readCachedIndexStatuses(new Set(available.map((entry) => entry.path))),
     );
     setFolders(available);
-    const savedActive = localStorage.getItem('vera.activeLibraryPath') || '';
-    await Promise.all(
-      available
-        .filter((entry) => entry.path !== savedActive)
-        .map((entry) => optionsRef.current.refreshIndexStatus(entry.path)),
+    if (isCanceled()) return;
+    const { restoreActive, refreshPaths } = workspaceRestorePlan(
+      available.map((entry) => entry.path),
+      readSavedActiveLibraryPath(),
     );
-    if (!isCanceled() && available.some((entry) => entry.path === savedActive)) {
-      await optionsRef.current.onOpenLibrary(savedActive);
-    }
+    const restore = restoreActive
+      ? Promise.resolve(optionsRef.current.onOpenLibrary(restoreActive))
+      : Promise.resolve();
+    const refresh = Promise.all(
+      refreshPaths.map((folderPath) => optionsRef.current.refreshIndexStatus(folderPath)),
+    );
+    await Promise.all([restore, refresh]);
   }
 
   const folderPathsKey = folders.map((folder) => folder.path).join('\n');

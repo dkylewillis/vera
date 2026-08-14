@@ -608,3 +608,15 @@ def test_search_rejects_negative_context_chunks(tmp_path):
     with pytest.raises(ValueError, match="context_chunks"):
         doc.search("restaurant parking", context_chunks=-1)
     doc.close()
+
+
+def test_convert_missing_input_raises_file_not_found(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        convert(str(tmp_path / "missing.pdf"), str(tmp_path / "out.vera"))
+
+
+def test_convert_unsupported_parser_raises_value_error(tmp_path):
+    pdf = tmp_path / "test.pdf"
+    make_pdf(pdf)
+    with pytest.raises(ValueError, match="parser"):
+        convert(str(pdf), str(tmp_path / "out.vera"), parser="tika")

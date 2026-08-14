@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from .types import ParsedBlock
+from .types import IngestBlock, ParsedBlock, ParsedPage
 
 _HEADING_RE = re.compile(
     r"^(chapter|section|article|part|appendix|stormwater|zoning|[0-9]+(?:\.[0-9]+)*)\b", re.I
@@ -37,6 +37,12 @@ def tokens(text: str) -> list[str]:
 
 
 def detect_heading(text: str, current: str) -> str:
+    """Return the first short heading-like line in ``text``, else ``current``.
+
+    Public helper for custom pipelines that chunk page text with
+    :func:`chunk_pages`. First-party pipelines use structured heading blocks
+    via :func:`build_chunks_from_blocks` instead.
+    """
     for line in text.splitlines():
         stripped = line.strip()
         if stripped and len(stripped) < 120 and _HEADING_RE.match(stripped):
@@ -61,7 +67,15 @@ def _take_overflow_windows(
     return windows, buffer
 
 
-def chunk_pages(pages, chunk_size: int = 500, overlap: int = 75) -> list[Chunk]:
+def chunk_pages(
+    pages: list[ParsedPage], chunk_size: int = 500, overlap: int = 75
+) -> list[Chunk]:
+    """Sliding-window chunker over ``ParsedPage.text`` (whitespace-split words).
+
+    Public helper for custom pipelines that only have page text. First-party
+    pipelines (PyMuPDF, Docling) do not call this; they chunk structured
+    layout with :func:`build_chunks_from_blocks` or their own chunker.
+    """
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
     overlap = max(0, min(overlap, chunk_size - 1))
@@ -126,11 +140,16 @@ def chunk_pages(pages, chunk_size: int = 500, overlap: int = 75) -> list[Chunk]:
 
 
 def build_chunks_from_blocks(
-    blocks: list[tuple[str, ParsedBlock]],
+    blocks: list[tuple[str, ParsedBlock | IngestBlock]],
     chunk_size: int = 500,
     overlap: int = 75,
 ) -> list[Chunk]:
-    """Heading-aware chunking over structured blocks."""
+    """Heading-aware chunking over structured layout blocks.
+
+    Accepts ``(block_id, block)`` pairs of either :class:`ParsedBlock` or
+    :class:`IngestBlock`. First-party PyMuPDF uses this path; custom pipelines
+    that only have page text should use :func:`chunk_pages` instead.
+    """
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
     overlap = max(0, min(overlap, chunk_size - 1))

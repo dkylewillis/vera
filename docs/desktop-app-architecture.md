@@ -145,13 +145,15 @@ The Search/Ask dialog (with **Search anyway** and **Don't ask again**) is only
 for query-time prompts, not for an explicit menu action. File rows offer show-in-system-
 folder (and preview/trash where applicable). File rows use ordinary list
 selection: click selects one file, Ctrl/Cmd+click adds or removes it, Shift+click
-selects the range from the last anchor, and the checkbox always toggles that
-row. Selected `.vera` files become the Search/Ask scope; selected PDFs become
+selects the range from the last anchor, and the checkbox sets that row's membership
+(check adds, uncheck removes). The row highlight and the Search/Ask selected-document
+count follow that same list (a previewed document uses a
+distinct marker, not the selected background). Selected `.vera` files become the Search/Ask scope; selected PDFs become
 the Convert selection. Clicking a folder name clears the file selection and
 returns Search/Ask to the whole library. Clicking empty Explorer space or pressing Escape
 (while the sidebar has focus) clears file selection — PDF picks, `.vera`
 checkboxes, and a single-document scope (restoring the parent library when
-possible). Clicking a `.vera` does not collapse
+possible) — and does not leave the last file looking selected. Clicking a `.vera` does not collapse
 the folder or replace the document viewer. Double-click or right-click **View in document
 viewer** / **Preview embedded source** loads that PDF or archive original in
 the source pane; right-clicking a PDF also offers **Convert PDF** /
@@ -163,7 +165,11 @@ embedding are prefilled so they can be changed before replacing the archive. A
 second Reconvert click is ignored until that preparation finishes. The same menus can be opened from the keyboard with
 Shift+F10 or the Menu key, support arrow key navigation, and close with
 Escape. Show-in-folder opens a library directory in the OS file manager, or
-reveals a selected `.vera`/`.pdf` file in its parent folder. Explorer keeps
+reveals a selected `.vera`/`.pdf` file in its parent folder. Explorer restores
+collapse from the last session as soon as folders appear: the active library stays expanded
+and the rest stay collapsed, so every folder header remains visible without first
+flashing every tree open. Restoring the saved library does not wait for other folders'
+index-status checks; those badges still refresh in the background. Explorer keeps
 the active-folder highlight without an Active text label, including when
 selected files override the library, and represents index state with a compact
 database badge: green for a fresh index and orange when an index is missing or

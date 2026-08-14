@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SearchResult } from '../types';
-import { figureCacheKey, mergeFigureData, sameSearchResult } from './figures';
+import { figureCacheKey, hydrateFiguresFromCache, mergeFigureData, sameSearchResult } from './figures';
 
 const result: SearchResult = {
   chunk_id: 'chunk-1',
@@ -44,5 +44,35 @@ describe('lazy figure data', () => {
     );
     expect(sameSearchResult(result, { ...result })).toBe(true);
     expect(sameSearchResult(result, { ...result, chunk_id: 'chunk-2' })).toBe(false);
+  });
+});
+
+describe('hydrateFiguresFromCache', () => {
+  it('uses cached image data and reports missing asset ids', () => {
+    const cache = new Map([
+      [figureCacheKey('C:\\Library\\manual.vera', 'image-1'), {
+        asset_id: 'image-1',
+        page_number: 1,
+        data_url: 'data:image/png;base64,cached',
+      }],
+    ]);
+    const { hydrated, missingAssetIds } = hydrateFiguresFromCache(result, 'C:\\Library\\manual.vera', cache);
+    expect(hydrated.figures?.[0]?.data_url).toBe('data:image/png;base64,cached');
+    expect(missingAssetIds).toEqual([]);
+  });
+
+  it('stores inline figure data and lists assets that still need a fetch', () => {
+    const cache = new Map();
+    const withInline = {
+      ...result,
+      figures: [
+        { asset_id: 'image-1', page_number: 1, caption: 'A figure', data_url: 'data:image/png;base64,inline', included_in_context: true },
+        { asset_id: 'image-2', page_number: 2, caption: 'Missing' },
+      ],
+    };
+    const { hydrated, missingAssetIds } = hydrateFiguresFromCache(withInline, 'C:\\Library\\manual.vera', cache);
+    expect(cache.get(figureCacheKey('C:\\Library\\manual.vera', 'image-1'))?.data_url).toBe('data:image/png;base64,inline');
+    expect(hydrated.figures?.[0]?.data_url).toBe('data:image/png;base64,inline');
+    expect(missingAssetIds).toEqual(['image-2']);
   });
 });

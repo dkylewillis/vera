@@ -297,6 +297,13 @@ def test_hardening_json_contracts_are_documented():
     assert "**Convert PDFs…**" in desktop_architecture
     assert "not for an explicit menu action" in desktop_architecture
     assert "Shift+click" in desktop_architecture
+    assert "does not leave the last file looking selected" in desktop_architecture
+    assert "distinct marker" in desktop_architecture
+    assert "checkbox sets that row's membership" in desktop_architecture
+    assert "collapses inactive folders immediately" in desktop
+    assert "active library stays expanded" in desktop_architecture
+    assert "index-status checks" in desktop_architecture
+    assert "Ctrl/Cmd+click" in desktop
     assert "## Reconvert with a different parser or embedding" in conversion
     assert "**Reconvert…**" in conversion
     assert "registers the default" in desktop_architecture and "pymupdf" in desktop_architecture

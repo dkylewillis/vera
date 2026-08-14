@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   AlertTriangle,
@@ -21,21 +21,22 @@ import { CenterSearchView } from './components/CenterSearchView';
 import { ChatsSidebar } from './components/ChatsSidebar';
 import { ConvertPanel } from './components/ConvertPanel';
 import { DocumentInfoPanel } from './components/DocumentInfoPanel';
-import { ExplorerSidebar } from './components/ExplorerSidebar';
+import { ExplorerPanel } from './components/ExplorerPanel';
 import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexModal';
 import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { ModelManager, ProviderManager } from './components/ProviderManagers';
 import { mergePipelineFieldValues } from './components/PipelineConfigForm';
 import { VeraIcon } from './components/VeraIcon';
 import { useAppBootstrap } from './hooks/useAppBootstrap';
-import { DEFAULT_ACTION_TIMEOUT_MS, useSidecarCall } from './hooks/useSidecarCall';
+import { useConversion } from './hooks/useConversion';
+import { useSearch } from './hooks/useSearch';
+import { useSidecarCall } from './hooks/useSidecarCall';
+import { useSourceDocument, type ViewerMode } from './hooks/useSourceDocument';
 import { useWorkspaceFolders } from './hooks/useWorkspaceFolders';
 import { firstCitationInAnswer } from './lib/citations';
-import { backgroundTasksReducer, type BackgroundTask } from './lib/backgroundTasks';
+import { backgroundTasksReducer } from './lib/backgroundTasks';
 import { EMPTY_FIGURES, EMPTY_REGIONS } from './lib/constants';
-import { awaitConversionRequest } from './lib/conversion';
 import {
-  convertDefaultsFromSelection,
   fileName,
   formatBox,
   formatPages,
@@ -43,47 +44,31 @@ import {
   isPdfSource,
   sameFsPath,
   showInFolderLabel,
-  siblingPdfPath,
   type ExplorerSelection,
 } from './lib/formatting';
-import { INDEX_STATUSES_STORAGE_KEY } from './lib/workspaceFolders';
-import { figureCacheKey, mergeFigureData, sameSearchResult } from './lib/figures';
 import {
+  INDEX_STATUSES_STORAGE_KEY,
+  readSavedActiveLibraryPath,
+  readSavedFolderPaths,
+} from './lib/workspaceFolders';
+import {
+  isExplorerBlankPointerTarget,
   routeOpenTarget,
   syncCollapsedFolders,
   type ExplorerFileFilter,
 } from './lib/explorer';
-import {
-  findSiblingPdfPath,
-  reconvertExportGate,
-  reconvertInspectFailedMessage,
-  reconvertMissingSourceMessage,
-  reconvertPipelineOptionsFromInspect,
-  reconvertPrefillFromInspect,
-  resolveReconvertPdf,
-} from './lib/reconvert';
+import { libraryQueryScope } from './lib/search';
+import { hydrateSessionTurns, stripTrace, traceKey } from './lib/sessions';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS } from './lib/providers';
 import { SIDECAR_ACTIONS } from '../shared/protocol';
-import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
+import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
 import './styles.css';
-
-type ViewerMode = 'selection' | 'document' | 'info';
 
 // In-memory store for LLM traces. Traces are large (full prompt/response dumps),
 // so we keep them only for the lifetime of this app window instead of writing them
 // to the on-disk session store. They survive switching between sessions but are
 // discarded when the app is closed (window reload). Keyed by `${sessionId}:${turnTimestamp}`.
 const traceMemory = new Map<string, StreamEvent[]>();
-
-function traceKey(sessionId: string, timestamp: number): string {
-  return `${sessionId}:${timestamp}`;
-}
-
-function stripTrace(turn: SessionTurn): SessionTurn {
-  if (!turn.trace) return turn;
-  const { trace: _trace, ...rest } = turn;
-  return rest;
-}
 
 function App() {
   const customTitlebar = Boolean(window.vera.platform && window.vera.platform !== 'darwin');
@@ -154,8 +139,6 @@ function App() {
   const [selectedPdfs, setSelectedPdfs] = useState<string[]>([]);
   const [reconvertNotice, setReconvertNotice] = useState<string | null>(null);
   const [reconvertBusy, setReconvertBusy] = useState(false);
-  const reconvertInFlightRef = useRef(false);
-  const reconvertDefaultsRef = useRef<{ overwrite: boolean; storeOriginal: boolean } | null>(null);
   const [storeOriginal, setStoreOriginal] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [providerErrorDetail, setProviderErrorDetail] = useState<string | null>(null);
@@ -169,20 +152,13 @@ function App() {
   const [validation, setValidation] = useState<ValidateResult | null>(null);
   const [batchConvertResult, setBatchConvertResult] = useState<BatchConvertResult | null>(null);
   const [conversionError, setConversionError] = useState<string | null>(null);
-  const conversionRequestIdRef = useRef<string | null>(null);
-  const conversionProgressCleanupRef = useRef<{ requestId: string; off: () => void } | null>(null);
-  const conversionCanceledRef = useRef(false);
-  const conversionInterruptRef = useRef<'stop' | 'skip' | null>(null);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [sourceDocument, setSourceDocument] = useState<SourceDocumentResult | null>(null);
   const [sourceDocumentPath, setSourceDocumentPath] = useState('');
   const [pendingSourcePath, setPendingSourcePath] = useState('');
   const [libraryInfoPath, setLibraryInfoPath] = useState('');
-  const sourceDocumentLoadRef = useRef(0);
   const inspectGenerationRef = useRef(0);
-  const figureDataLoadRef = useRef(0);
   const sourceLoading = Boolean(pendingSourcePath);
-  const figureDataCache = useRef(new Map<string, FigureResult>());
   const [pageNumber, setPageNumber] = useState(1);
   const [pageResult, setPageResult] = useState<PageResult | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -190,7 +166,9 @@ function App() {
   const [citationJumpVersion, setCitationJumpVersion] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [selectionAnchorPath, setSelectionAnchorPath] = useState<string | null>(null);
-  const [collapsedFolders, setCollapsedFolders] = useState<string[]>([]);
+  const [collapsedFolders, setCollapsedFolders] = useState(() => (
+    syncCollapsedFolders(readSavedFolderPaths(), readSavedActiveLibraryPath())
+  ));
   const [explorerFileFilter, setExplorerFileFilter] = useState<ExplorerFileFilter>('vera');
   const [chatAnswer, setChatAnswer] = useState<ChatAnswerResult | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -226,6 +204,12 @@ function App() {
   });
   const [isResizingSide, setIsResizingSide] = useState(false);
   const openLibraryRef = useRef<(folderPath: string) => Promise<void> | void>(() => undefined);
+  const openTargetPathRef = useRef<(
+    value: string,
+    options?: { asLibrary?: boolean; preserveLibrary?: boolean },
+  ) => Promise<void>>(async () => undefined);
+  const promptForIndexBeforeQueryRef = useRef<() => Promise<boolean>>(async () => false);
+  const invalidateSourceLoadRef = useRef<() => void>(() => undefined);
   const refreshIndexStatusRef = useRef<(
     folderPath: string,
     verifyHashes?: boolean,
@@ -258,7 +242,7 @@ function App() {
         || (pendingSourcePath && isPathInsideFolder(pendingSourcePath, folderPath))
       ) {
         cancelActionScope('source');
-        sourceDocumentLoadRef.current += 1;
+        invalidateSourceLoadRef.current();
         setSourceDocument(null);
         setSourceDocumentPath('');
         setPendingSourcePath('');
@@ -448,24 +432,105 @@ function App() {
     };
   }, [selected, selectedSourcePath, selectedTargetPage, sourceDocumentPath]);
 
-  function applyConvertDefaultsFromSelection(selection: ExplorerSelection | null = explorerSelection) {
-    const defaults = convertDefaultsFromSelection(selection, activeLibraryPath);
-    if (!defaults?.batchDirectory) return;
-    setBatchDirectory(defaults.batchDirectory);
-  }
-
-  function snapshotConvertDefaultsForReconvert() {
-    if (reconvertDefaultsRef.current) return;
-    reconvertDefaultsRef.current = { overwrite: batchOverwrite, storeOriginal };
-  }
-
-  function restoreConvertDefaultsAfterReconvert() {
-    const snapshot = reconvertDefaultsRef.current;
-    if (!snapshot) return;
-    setBatchOverwrite(snapshot.overwrite);
-    setStoreOriginal(snapshot.storeOriginal);
-    reconvertDefaultsRef.current = null;
-  }
+  const conversion = useConversion({
+    convertMode,
+    selectedPdfs,
+    batchDirectory,
+    batchRecursive,
+    batchOverwrite,
+    storeOriginal,
+    embeddingModel,
+    ingestPipeline,
+    pipelineOptions,
+    explorerSelection,
+    activeLibraryPath,
+    conversionInProgress,
+    folders,
+    ingestPipelineDescriptors,
+    ingestPipelineConfigs,
+    call,
+    dispatchBackgroundTask,
+    refreshFolder,
+    setBatchDirectory,
+    setBatchOverwrite,
+    setStoreOriginal,
+    setConvertMode,
+    setSideView,
+    setSidebarCollapsed,
+    setReconvertNotice,
+    setReconvertBusy,
+    setConversionError,
+    setBatchConvertResult,
+    setSelectedPdfs,
+    setExplorerSelection,
+    setEmbeddingModel,
+    setIngestPipeline,
+    setIngestPipelineConfigs,
+    setPipelineOptions,
+  });
+  const source = useSourceDocument({
+    path,
+    folders,
+    pendingSourcePath,
+    sourceDocument,
+    sourceDocumentPath,
+    call,
+    cancelActionScope,
+    openTargetPath: (value, options) => openTargetPathRef.current(value, options),
+    applyConvertDefaultsFromSelection: conversion.applyConvertDefaultsFromSelection,
+    setPendingSourcePath,
+    setLibraryInfoPath,
+    setSourceDocument,
+    setSourceDocumentPath,
+    setViewerMode,
+    setViewerCollapsed,
+    setExplorerSelection,
+    setSelected,
+  });
+  const search = useSearch({
+    hasSearchableScope,
+    searchScopePath,
+    selectedFiles,
+    activeLibraryPath,
+    activeIndexStatus,
+    searchQuery,
+    mode,
+    topK,
+    contextChunks,
+    includeFigures,
+    path,
+    sourceDocument,
+    sourceDocumentPath,
+    results,
+    call,
+    cancelActionScope,
+    promptForIndexBeforeQuery: () => promptForIndexBeforeQueryRef.current(),
+    loadSourceDocument: source.loadSourceDocument,
+    nextSourceLoadId: source.nextLoadId,
+    setErrorMessage,
+    setSubmittedSearchQuery,
+    setResults,
+    setSelected,
+    setCenterView,
+    setCitationJumpVersion,
+    setViewerMode,
+    setPendingSourcePath,
+  });
+  const {
+    applyConvertDefaultsFromSelection,
+    restoreConvertDefaultsAfterReconvert,
+    openConvertSelected,
+    openConvertFolder,
+    openReconvert,
+    toggleSelectedPdf,
+    choosePdfs,
+    chooseBatchDirectory,
+    stopConversion,
+    skipCurrentConversion,
+    batchConvertPdfs,
+  } = conversion;
+  const { loadSourceDocument, closeSourceDocument, previewSourceDocument } = source;
+  const { searchTarget, selectSearchResult, selectChunkResult, selectCitation } = search;
 
   function openSide(view: SideView, selectionOverride?: ExplorerSelection | null) {
     if (view === 'convert') {
@@ -483,167 +548,6 @@ function App() {
     setSidebarCollapsed(false);
   }
 
-  function openConvertSelected(paths?: string[]) {
-    if (paths?.length) {
-      setSelectedPdfs(paths);
-      setExplorerSelection({ kind: 'file', path: paths[paths.length - 1], type: 'pdf' });
-    }
-    setReconvertNotice(null);
-    setConvertMode('selected');
-    setSideView('convert');
-    setSidebarCollapsed(false);
-  }
-
-  function openConvertFolder(folderPath: string) {
-    setReconvertNotice(null);
-    setConversionError(null);
-    setBatchDirectory(folderPath);
-    setConvertMode('batch');
-    setExplorerSelection({ kind: 'folder', path: folderPath });
-    setSideView('convert');
-    setSidebarCollapsed(false);
-  }
-
-  async function openReconvert(entry: FolderEntry, folderPath: string) {
-    if (conversionInProgress || reconvertInFlightRef.current) return;
-    reconvertInFlightRef.current = true;
-    const folder = folders.find((item) => item.path === folderPath);
-    const listedPdf = findSiblingPdfPath(entry.path, folder?.entries ?? []);
-    snapshotConvertDefaultsForReconvert();
-    setReconvertBusy(true);
-    setConversionError(null);
-    setBatchOverwrite(true);
-    setConvertMode('selected');
-    setSideView('convert');
-    setSidebarCollapsed(false);
-    setReconvertNotice(`Preparing to reconvert “${fileName(entry.path)}”…`);
-    if (listedPdf) {
-      setSelectedPdfs([listedPdf]);
-      setExplorerSelection({ kind: 'file', path: listedPdf, type: 'pdf' });
-    }
-    const reconvertCall = { scope: 'reconvert', timeoutMs: DEFAULT_ACTION_TIMEOUT_MS };
-    let prepared = false;
-    try {
-      const sibling = siblingPdfPath(entry.path);
-      const siblingExists = Boolean(listedPdf) || (sibling ? await window.vera.pathExists(sibling) : false);
-      const resolution = resolveReconvertPdf(entry.path, {
-        entries: folder?.entries ?? [],
-        siblingExists,
-      });
-      const inspectResult = await call<InspectResult>(
-        { action: SIDECAR_ACTIONS.inspect, path: entry.path },
-        'Preparing reconvert',
-        undefined,
-        reconvertCall,
-      );
-      const prefill = reconvertPrefillFromInspect(inspectResult);
-
-      let pdfPath: string | null = listedPdf;
-      let restoredFromArchive = false;
-      if (resolution.status === 'ready') {
-        pdfPath = resolution.pdfPath;
-      } else if (resolution.status === 'export') {
-        const gate = reconvertExportGate({
-          inspectOk: inspectResult !== null,
-          hasEmbeddedSource: prefill.hasEmbeddedSource,
-        });
-        if (!gate.allow) {
-          setReconvertNotice(null);
-          setConversionError(
-            gate.reason === 'inspect-failed'
-              ? reconvertInspectFailedMessage()
-              : reconvertMissingSourceMessage(entry.path),
-          );
-          return;
-        }
-        const exported = await call<ExportResult>(
-          { action: SIDECAR_ACTIONS.export, path: entry.path, output: resolution.pdfPath },
-          'Restoring embedded PDF',
-          undefined,
-          reconvertCall,
-        );
-        if (exported?.output) {
-          pdfPath = exported.output;
-          restoredFromArchive = true;
-          void refreshFolder(folderPath, { showBusy: false }).catch((error) => {
-            console.error('Unable to refresh folder after restoring source PDF', error);
-          });
-        } else {
-          setReconvertNotice(null);
-          setConversionError(reconvertMissingSourceMessage(entry.path));
-          return;
-        }
-      } else {
-        setReconvertNotice(null);
-        setConversionError(reconvertMissingSourceMessage(entry.path));
-        return;
-      }
-
-      if (!pdfPath) {
-        setReconvertNotice(null);
-        setConversionError(reconvertMissingSourceMessage(entry.path));
-        return;
-      }
-
-      if (prefill.embeddingModel) setEmbeddingModel(prefill.embeddingModel);
-      const nextPipeline = prefill.ingestPipeline || ingestPipeline;
-      const nextDescriptor = ingestPipelineDescriptors.find(
-        (item) => item.spec === nextPipeline || item.provider === nextPipeline,
-      ) ?? null;
-      const inspectOptions = reconvertPipelineOptionsFromInspect(inspectResult);
-      const mergedOptions = mergePipelineFieldValues(nextDescriptor, {
-        ...ingestPipelineConfigs[nextPipeline],
-        ...inspectOptions,
-      });
-      if (prefill.ingestPipeline) setIngestPipeline(prefill.ingestPipeline);
-      setIngestPipelineConfigs((prev) => ({ ...prev, [nextPipeline]: mergedOptions }));
-      setPipelineOptions(mergedOptions);
-      if (prefill.hasEmbeddedSource || restoredFromArchive) {
-        setStoreOriginal(true);
-      }
-
-      setSelectedPdfs([pdfPath]);
-      setExplorerSelection({ kind: 'file', path: pdfPath, type: 'pdf' });
-      setReconvertNotice(
-        restoredFromArchive
-          ? 'Restored the embedded PDF beside this archive. Overwrite is on so Convert will replace the existing .vera. Choose a different pipeline or embedding if you want, then convert. Update the library index afterward if this folder is indexed.'
-          : 'Overwrite is on so Convert will replace the existing .vera. The pipeline and embedding below start from this archive — change them if you want, then convert. Update the library index afterward if this folder is indexed.',
-      );
-      prepared = true;
-    } catch (error) {
-      setReconvertNotice(null);
-      setConversionError(error instanceof Error ? error.message : reconvertMissingSourceMessage(entry.path));
-    } finally {
-      reconvertInFlightRef.current = false;
-      setReconvertBusy(false);
-      if (!prepared) restoreConvertDefaultsAfterReconvert();
-    }
-  }
-
-  function toggleSelectedPdf(pdfPathValue: string) {
-    setSelectedPdfs((prev) => {
-      if (prev.includes(pdfPathValue)) {
-        return prev.filter((entry) => entry !== pdfPathValue);
-      }
-      return [...prev, pdfPathValue];
-    });
-  }
-
-  async function choosePdfs() {
-    const paths = (await window.vera.pickPdf()).map((entry) => entry.trim()).filter(Boolean);
-    if (!paths.length) return;
-    setSelectedPdfs((prev) => {
-      const merged = [...prev];
-      for (const filePath of paths) {
-        if (!merged.includes(filePath)) merged.push(filePath);
-      }
-      return merged;
-    });
-    setExplorerSelection({ kind: 'file', path: paths[paths.length - 1], type: 'pdf' });
-    setConvertMode('selected');
-    setBatchConvertResult(null);
-  }
-
   function selectExplorerFolder(folderPath: string) {
     setLibraryInfoPath('');
     setSelected(null);
@@ -655,7 +559,7 @@ function App() {
   async function openLibraryInfo(folderPath: string) {
     selectExplorerFolder(folderPath);
     cancelActionScope('source');
-    sourceDocumentLoadRef.current += 1;
+    source.invalidateLoad();
     const generation = ++inspectGenerationRef.current;
     setSourceDocument(null);
     setSourceDocumentPath('');
@@ -771,6 +675,12 @@ function App() {
       return true;
     }
 
+    if (activeLibraryPath) {
+      setExplorerSelection({ kind: 'folder', path: activeLibraryPath });
+      if (path !== activeLibraryPath) setPath(activeLibraryPath);
+      return true;
+    }
+
     if (explorerSelection?.kind === 'file') {
       setExplorerSelection(null);
     }
@@ -779,38 +689,9 @@ function App() {
 
   function handleExplorerBlankPointer(event: { button?: number; currentTarget: HTMLElement; target: EventTarget | null }) {
     if (event.button !== undefined && event.button !== 0) return;
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    // Only pane chrome / tree padding — not 1px gaps between file rows.
-    if (target !== event.currentTarget && !target.classList.contains('explorerTree')) {
-      return;
-    }
+    if (!isExplorerBlankPointerTarget(event.target, event.currentTarget)) return;
     event.currentTarget.focus({ preventScroll: true });
     clearExplorerFileSelection();
-  }
-
-  async function previewSourceDocument(entry: FolderEntry) {
-    if (entry.type !== 'vera' && entry.type !== 'pdf') return;
-    // Ignore further explorer opens while a document is loading so repeated
-    // double-clicks do not stack work when feedback is easy to miss.
-    if (pendingSourcePath) return;
-    const selection: ExplorerSelection = { kind: 'file', path: entry.path, type: entry.type };
-    const requestId = ++sourceDocumentLoadRef.current;
-    setPendingSourcePath(entry.path);
-    setLibraryInfoPath('');
-    setExplorerSelection(selection);
-    setSelected(null);
-    setViewerMode('document');
-    setViewerCollapsed(false);
-    if (entry.type === 'vera') {
-      await openTargetPath(entry.path, { preserveLibrary: true });
-    } else {
-      applyConvertDefaultsFromSelection(selection);
-    }
-    // A newer open/close may have invalidated this preview while inspect ran.
-    // That successor owns pendingSourcePath clearing.
-    if (requestId !== sourceDocumentLoadRef.current) return;
-    await loadSourceDocument(entry.path, true, requestId);
   }
 
   async function trashEntry(entry: FolderEntry, folderPath: string) {
@@ -823,7 +704,7 @@ function App() {
       // Scope and viewer are independent — only blank the viewer when its open file is gone.
       if (sourceDocumentPath === entry.path || pendingSourcePath === entry.path) {
         cancelActionScope('source');
-        sourceDocumentLoadRef.current += 1;
+        source.invalidateLoad();
         setSourceDocument(null);
         setSourceDocumentPath('');
         setPendingSourcePath('');
@@ -876,6 +757,7 @@ function App() {
       setActiveLibraryPath(value);
       try { localStorage.setItem('vera.activeLibraryPath', value); } catch { /* ignore persistence errors */ }
       setSelectedFiles([]);
+      setSelectedPdfs([]);
       setSelectionAnchorPath(null);
       setPath(value);
       setValidation(null);
@@ -899,6 +781,8 @@ function App() {
       setActiveLibraryPath('');
       try { localStorage.removeItem('vera.activeLibraryPath'); } catch { /* ignore persistence errors */ }
       setSelectedFiles([]);
+      setSelectedPdfs([]);
+      setSelectionAnchorPath(null);
     }
     const generation = ++inspectGenerationRef.current;
     updateTargetPath(value);
@@ -910,6 +794,9 @@ function App() {
   }
 
   openLibraryRef.current = (folderPath) => openTargetPath(folderPath, { asLibrary: true });
+  openTargetPathRef.current = openTargetPath;
+  promptForIndexBeforeQueryRef.current = promptForIndexBeforeQuery;
+  invalidateSourceLoadRef.current = source.invalidateLoad;
   refreshIndexStatusRef.current = refreshIndexStatus;
 
   function updateTargetPath(value: string) {
@@ -921,14 +808,6 @@ function App() {
     setValidation(null);
     setExportResult(null);
     setPageResult(null);
-  }
-
-  async function chooseBatchDirectory() {
-    const chosen = await window.vera.pickFolder();
-    if (chosen) {
-      setBatchDirectory(chosen);
-      setBatchConvertResult(null);
-    }
   }
 
   async function inspectTarget(targetPath = path) {
@@ -1138,39 +1017,6 @@ function App() {
     });
   }
 
-  async function searchTarget() {
-    if (!hasSearchableScope) {
-      setErrorMessage('This library does not contain any VERA documents yet.');
-      return;
-    }
-    if (await promptForIndexBeforeQuery()) return;
-    const result = await call<SearchResult[]>({
-      action: SIDECAR_ACTIONS.search,
-      path: searchScopePath,
-      ...(selectedFiles.length ? { paths: selectedFiles } : {}),
-      ...(activeLibraryPath && selectedFiles.length === 0
-        ? { recursive: activeIndexStatus?.fresh ? activeIndexStatus.recursive ?? true : true, excludes: activeIndexStatus?.excludes ?? [] }
-        : {}),
-      query: searchQuery,
-      mode,
-      top_k: topK,
-      context_chunks: contextChunks,
-      include_regions: true,
-      include_figures: includeFigures,
-      include_figure_data: false,
-    }, 'Searching');
-    if (result) {
-      setSubmittedSearchQuery(searchQuery.trim());
-      setResults(result);
-      if (result[0]) {
-        selectSearchResult(result[0]);
-      } else {
-        setSelected(null);
-      }
-      setCenterView('search');
-    }
-  }
-
   const MAX_ATTACHMENTS = 6;
 
   function readFileAsDataUrl(file: File): Promise<string> {
@@ -1346,9 +1192,7 @@ function App() {
       action: SIDECAR_ACTIONS.answer,
       path: searchScopePath,
       ...(selectedFiles.length ? { paths: selectedFiles } : {}),
-      ...(activeLibraryPath && selectedFiles.length === 0
-        ? { recursive: activeIndexStatus?.fresh ? activeIndexStatus.recursive ?? true : true, excludes: activeIndexStatus?.excludes ?? [] }
-        : {}),
+      ...libraryQueryScope(activeLibraryPath, selectedFiles, activeIndexStatus),
       prompt,
       mode_id: activeModeId || activeMode?.id || '',
       history,
@@ -1483,11 +1327,7 @@ function App() {
   async function loadSession(session: Session) {
     setActiveSessionId(session.id);
     // Re-attach any in-memory traces captured earlier this app session.
-    const hydratedTurns = session.turns.map((turn) => {
-      if (turn.role !== 'assistant') return turn;
-      const trace = traceMemory.get(traceKey(session.id, turn.timestamp));
-      return trace ? { ...turn, trace } : turn;
-    });
+    const hydratedTurns = hydrateSessionTurns(session.turns, traceMemory, session.id);
     shouldAutoScrollThreadRef.current = true;
     setShowJumpToLatest(false);
     setSessionTurns(hydratedTurns);
@@ -1716,346 +1556,7 @@ function App() {
     await persistSettings(settingsSnapshot({ active_mode_id: modeId }));
   }
 
-  function updateConversionTask(
-    update: Partial<Omit<BackgroundTask, 'id' | 'kind'>>,
-    requestId = conversionRequestIdRef.current,
-  ) {
-    if (!requestId) return;
-    dispatchBackgroundTask({ type: 'update', id: requestId, update });
-  }
-
-  function stopConversion() {
-    const requestId = conversionRequestIdRef.current;
-    if (!conversionInProgress || !requestId) return;
-    conversionCanceledRef.current = true;
-    conversionInterruptRef.current = 'stop';
-    updateConversionTask({ message: 'Stopping…' }, requestId);
-    void window.vera.cancelAnswer(requestId).then((result) => {
-      if (result && 'cancelled' in result && !result.cancelled) {
-        conversionCanceledRef.current = false;
-        conversionInterruptRef.current = null;
-        updateConversionTask({ message: 'Converting…' }, requestId);
-        setConversionError('Unable to stop conversion (request was not found). Restart the app if this persists.');
-      } else if (result && 'cancelled' in result && result.cancelled) {
-        clearConversionUi(requestId);
-      }
-    }).catch((error) => {
-      conversionCanceledRef.current = false;
-      conversionInterruptRef.current = null;
-      updateConversionTask({ message: 'Converting…' }, requestId);
-      setConversionError(error instanceof Error ? error.message : 'Unable to stop conversion');
-    });
-  }
-
-  function skipCurrentConversion() {
-    const requestId = conversionRequestIdRef.current;
-    if (!conversionInProgress || !requestId || (convertMode !== 'batch' && convertMode !== 'selected')) return;
-    if (conversionInterruptRef.current === 'stop') return;
-    conversionInterruptRef.current = 'skip';
-    updateConversionTask({ message: 'Skipping…' }, requestId);
-    void window.vera.skipConversion(requestId).then((result) => {
-      if (!result.skipped) {
-        conversionInterruptRef.current = null;
-        updateConversionTask({ message: 'Converting…' }, requestId);
-        setConversionError('Unable to skip file (request was not found). Restart the app if this persists.');
-      }
-    }).catch((error) => {
-      conversionInterruptRef.current = null;
-      updateConversionTask({ message: 'Converting…' }, requestId);
-      setConversionError(error instanceof Error ? error.message : 'Unable to skip file');
-    });
-  }
-
-  function applyConversionProgress(requestId: string, event: StreamEvent, mode: 'single' | 'batch') {
-    // Keep "Stopping…" visible until the request ends.
-    if (conversionInterruptRef.current === 'stop') return;
-    // After skip is acknowledged, the next progress event means we moved on.
-    if (conversionInterruptRef.current === 'skip') {
-      conversionInterruptRef.current = null;
-    }
-    const total = event.total ?? 0;
-    const completed = event.completed ?? 0;
-    const currentFile = event.input?.trim() || null;
-    if (event.phase === 'discovering') {
-      updateConversionTask({
-        phase: event.phase,
-        message: 'Discovering PDFs…',
-        completed,
-        total,
-        currentItem: currentFile || undefined,
-      }, requestId);
-      return;
-    }
-    const update = {
-      phase: event.phase,
-      completed,
-      total,
-      currentItem: currentFile || undefined,
-    };
-    if (!total) {
-      updateConversionTask({
-        ...update,
-        message: mode === 'batch' ? 'No PDFs found to convert.' : 'Converting…',
-      }, requestId);
-      return;
-    }
-    if (completed >= total) {
-      updateConversionTask({
-        ...update,
-        message: mode === 'batch' ? `Converted ${completed} of ${total}` : 'Converted',
-      }, requestId);
-      return;
-    }
-    const current = completed + 1;
-    updateConversionTask({ ...update, message: `${current} of ${total}` }, requestId);
-  }
-
-  async function refreshFoldersForPath(target: string) {
-    await Promise.all(
-      folders
-        .filter((folder) => isPathInsideFolder(target, folder.path))
-        .map((folder) => refreshFolder(folder.path, { showBusy: false })),
-    );
-  }
-
-  function refreshFoldersAfterConversion(target: string) {
-    void refreshFoldersForPath(target).catch((error) => {
-      console.error('Unable to refresh folders after conversion', error);
-    });
-  }
-
-  function clearConversionUi(requestId: string) {
-    if (conversionProgressCleanupRef.current?.requestId === requestId) {
-      conversionProgressCleanupRef.current.off();
-      conversionProgressCleanupRef.current = null;
-    }
-    if (conversionRequestIdRef.current !== requestId) return;
-    conversionRequestIdRef.current = null;
-    dispatchBackgroundTask({ type: 'finish', id: requestId });
-    conversionInterruptRef.current = null;
-  }
-
-  function settleConversionRequest(requestId: string) {
-    clearConversionUi(requestId);
-  }
-
-  function conversionRequestWasSuperseded(requestId: string) {
-    const activeRequestId = conversionRequestIdRef.current;
-    return activeRequestId !== null && activeRequestId !== requestId;
-  }
-
-  async function batchConvertPdfs(options: { paths?: string[] } = {}) {
-    const selectedPaths = (options.paths ?? []).map((entry) => entry.trim()).filter(Boolean);
-    const directory = batchDirectory.trim();
-    if (!selectedPaths.length && !directory) {
-      setConversionError(selectedPaths.length === 0 && convertMode === 'selected'
-        ? 'Select one or more PDFs in Explorer (click, Ctrl/Cmd+click, or Shift+click).'
-        : 'Choose the directory containing the PDFs to convert.');
-      return;
-    }
-    conversionCanceledRef.current = false;
-    conversionInterruptRef.current = null;
-    setConversionError(null);
-    setBatchConvertResult(null);
-    setReconvertNotice(null);
-    const conversionRequestId = crypto.randomUUID();
-    conversionRequestIdRef.current = conversionRequestId;
-    dispatchBackgroundTask({
-      type: 'start',
-      task: {
-        id: conversionRequestId,
-        kind: 'conversion',
-        label: 'Conversion',
-        message: 'Starting…',
-      },
-    });
-    const refreshRoot = selectedPaths[0] || directory;
-    const offProgress = window.vera.onAnswerEvent((event) => {
-      if (event.id !== conversionRequestId || event.event !== 'conversion_progress') return;
-      applyConversionProgress(conversionRequestId, event, 'batch');
-    });
-    conversionProgressCleanupRef.current = { requestId: conversionRequestId, off: offProgress };
-    try {
-      const response = await awaitConversionRequest(
-        window.vera.request<BatchConvertResult>({
-          action: SIDECAR_ACTIONS.batchConvert,
-          ...(selectedPaths.length
-            ? { paths: selectedPaths }
-            : { directory, recursive: batchRecursive }),
-          overwrite: batchOverwrite,
-          model: embeddingModel,
-          parser: ingestPipeline,
-          store_original: storeOriginal,
-          pipeline_options: pipelineOptions,
-        }, conversionRequestId),
-        () => settleConversionRequest(conversionRequestId),
-      );
-      if (conversionRequestWasSuperseded(conversionRequestId)) return;
-      if (response.cancelled || response.error?.includes('cancelled')) {
-        refreshFoldersAfterConversion(refreshRoot);
-        setConversionError(null);
-        return;
-      }
-      if (!response.ok || !response.result) {
-        throw new Error(response.error || (selectedPaths.length ? 'Selected PDF conversion failed' : 'PDF directory conversion failed'));
-      }
-      const result = response.result;
-      setBatchConvertResult(result);
-      refreshFoldersAfterConversion(result.directory || refreshRoot);
-      if (selectedPaths.length) {
-        setSelectedPdfs([]);
-      }
-    } catch (error) {
-      if (conversionRequestWasSuperseded(conversionRequestId)) return;
-      const message = error instanceof Error
-        ? error.message
-        : (selectedPaths.length ? 'Selected PDF conversion failed' : 'PDF directory conversion failed');
-      if (conversionCanceledRef.current || message.toLowerCase().includes('cancelled')) {
-        refreshFoldersAfterConversion(refreshRoot);
-        setConversionError(null);
-        return;
-      }
-      setConversionError(message);
-    } finally {
-      settleConversionRequest(conversionRequestId);
-      if (conversionRequestIdRef.current === null) {
-        conversionCanceledRef.current = false;
-        conversionInterruptRef.current = null;
-      }
-      restoreConvertDefaultsAfterReconvert();
-    }
-  }
-
-  async function loadSourceDocument(
-    targetPath = path,
-    activateViewer = true,
-    requestId = ++sourceDocumentLoadRef.current,
-  ) {
-    if (folders.some((folder) => folder.path === targetPath)) {
-      if (requestId === sourceDocumentLoadRef.current) {
-        setPendingSourcePath('');
-      }
-      return;
-    }
-    setPendingSourcePath(targetPath);
-    try {
-      const result = await call<SourceDocumentResult>(
-        { action: SIDECAR_ACTIONS.source, path: targetPath },
-        'Loading source',
-        undefined,
-        { scope: 'source' },
-      );
-      if (result && requestId === sourceDocumentLoadRef.current) {
-        setLibraryInfoPath('');
-        setSourceDocument(result);
-        setSourceDocumentPath(targetPath);
-        if (activateViewer) setViewerMode('document');
-      }
-    } finally {
-      if (requestId === sourceDocumentLoadRef.current) {
-        setPendingSourcePath('');
-      }
-    }
-  }
-
-  function closeSourceDocument() {
-    cancelActionScope('source');
-    sourceDocumentLoadRef.current += 1;
-    setSourceDocument(null);
-    setSourceDocumentPath('');
-    setPendingSourcePath('');
-    setLibraryInfoPath('');
-    setSelected(null);
-    setViewerMode('document');
-  }
-
-  function selectSearchResult(result: SearchResult) {
-    const resultPath = result.file || path;
-    const figureRequestId = ++figureDataLoadRef.current;
-    const cachedFigures: FigureResult[] = [];
-    for (const figure of result.figures || []) {
-      if (!figure.asset_id) continue;
-      if (figure.data_url) {
-        figureDataCache.current.set(
-          figureCacheKey(resultPath, figure.asset_id),
-          figure,
-        );
-        cachedFigures.push(figure);
-        continue;
-      }
-      const cached = figureDataCache.current.get(
-        figureCacheKey(resultPath, figure.asset_id),
-      );
-      if (cached) cachedFigures.push(cached);
-    }
-    const hydratedResult = mergeFigureData(result, cachedFigures);
-    setSelected(hydratedResult);
-    const missingAssetIds = (hydratedResult.figures || [])
-      .filter((figure) => figure.asset_id && !figure.data_url)
-      .map((figure) => figure.asset_id as string);
-    if (resultPath && missingAssetIds.length) {
-      void window.vera.request<FigureResult[]>({
-        action: SIDECAR_ACTIONS.figureData,
-        path: resultPath,
-        asset_ids: missingAssetIds,
-      }).then((response) => {
-        if (!response.ok || figureRequestId !== figureDataLoadRef.current) return;
-        const loadedFigures = response.result || [];
-        for (const figure of loadedFigures) {
-          if (!figure.asset_id || !figure.data_url) continue;
-          figureDataCache.current.set(
-            figureCacheKey(resultPath, figure.asset_id),
-            figure,
-          );
-        }
-        setSelected((current) => (
-          current && sameSearchResult(current, result)
-            ? mergeFigureData(current, loadedFigures)
-            : current
-        ));
-        setResults((current) => current.map((entry) => (
-          sameSearchResult(entry, result)
-            ? mergeFigureData(entry, loadedFigures)
-            : entry
-        )));
-      }).catch(() => undefined);
-    }
-    // Every selection supersedes earlier document requests, including a click
-    // back to the document that is already visible while another load is pending.
-    const requestId = ++sourceDocumentLoadRef.current;
-    if (resultPath && (resultPath !== sourceDocumentPath || !sourceDocument)) {
-      void loadSourceDocument(resultPath, false, requestId);
-    } else {
-      cancelActionScope('source');
-      setPendingSourcePath('');
-    }
-  }
-
-  function selectChunkResult(index: number) {
-    const result = results[index];
-    if (!result) return;
-    selectSearchResult(result);
-    setCitationJumpVersion((version) => version + 1);
-  }
-
-  function selectCitation(citation: ChatCitationResult, citationGroup?: ChatCitationResult[]) {
-    if (citationGroup?.length) {
-      setResults(citationGroup.map((entry) => entry.result));
-    }
-    selectSearchResult(citation.result);
-    setCitationJumpVersion((version) => version + 1);
-    setViewerMode('document');
-  }
-
-  // `selectCitation` is recreated every render (it closes over lots of state), which
-  // would defeat memoization on chat-turn children. Route through a ref so callers get
-  // a permanently stable function identity while still always invoking the latest logic.
-  const selectCitationRef = useRef(selectCitation);
-  selectCitationRef.current = selectCitation;
-  const stableSelectCitation = useMemo(
-    () => (citation: ChatCitationResult, citationGroup?: ChatCitationResult[]) => selectCitationRef.current(citation, citationGroup),
-    [],
-  );
+  const stableSelectCitation = selectCitation;
 
   const handleOpenTargetRef = useRef<(targetPath: string) => void>(() => {});
   handleOpenTargetRef.current = (targetPath: string) => {
@@ -2078,8 +1579,10 @@ function App() {
   // Keep folder headers scannable: expand the active library, collapse the rest.
   // Selecting a .vera clears the active library for Search/Ask scope but must
   // not collapse the folder the user just clicked. Manual caret toggles still
-  // work until the active library or folder set changes.
-  useEffect(() => {
+  // work until the active library or folder set changes. Layout effect applies
+  // the collapse before paint so startup and library switches do not flash
+  // every folder expanded.
+  useLayoutEffect(() => {
     const folderPaths = folderPathsKey ? folderPathsKey.split('\n') : [];
     setCollapsedFolders((prev) => syncCollapsedFolders(folderPaths, activeLibraryPath, prev));
   }, [folderPathsKey, activeLibraryPath]);
@@ -2254,7 +1757,7 @@ function App() {
         sidebarBody={(
           <>
             {sideView === 'explorer' ? (
-                <ExplorerSidebar
+                <ExplorerPanel
                   folders={folders}
                   activeLibraryPath={activeLibraryPath}
                   path={path}
@@ -2424,7 +1927,7 @@ function App() {
             onSelectResult={(result) => { selectSearchResult(result); setViewerMode('document'); }}
             onSearchQueryChange={setSearchQuery}
             onSearch={() => { void searchTarget(); }}
-            onClearSelectedFiles={() => setSelectedFiles([])}
+            onClearSelectedFiles={() => { clearExplorerFileSelection(); }}
             onModeChange={setMode}
             onTopKChange={setTopK}
             onContextChunksChange={setContextChunks}

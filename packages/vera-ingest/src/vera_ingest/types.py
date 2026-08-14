@@ -16,7 +16,13 @@ class ParsedPage:
 
 @dataclass
 class ParsedBlock:
-    """Legacy parser block retained as part of the public ingest API."""
+    """Layout block from a parser before a stable ``block_id`` is assigned.
+
+    First-party pipelines (and most custom parsers) emit these, then convert
+    with :meth:`IngestBlock.from_parsed` before returning
+    :class:`IngestResult`. Pipelines that mint IDs while parsing can
+    construct :class:`IngestBlock` directly.
+    """
 
     page_number: int
     block_type: str
@@ -44,6 +50,32 @@ class IngestBlock:
     image_bytes: bytes | None = None
     image_ext: str = ""
     regions: list[dict[str, Any]] = field(default_factory=list)
+
+    @classmethod
+    def from_parsed(
+        cls,
+        block_id: str,
+        block: ParsedBlock,
+        *,
+        regions: list[dict[str, Any]] | None = None,
+    ) -> IngestBlock:
+        """Copy parser output into an archive-ready block with a stable id.
+
+        Use this when a parser (including ``parse_pdf_structured``) returns
+        :class:`ParsedBlock` values. Pipelines that mint IDs while parsing can
+        construct :class:`IngestBlock` directly.
+        """
+        return cls(
+            block_id=block_id,
+            page_number=block.page_number,
+            block_type=block.block_type,
+            text=block.text,
+            bbox=block.bbox,
+            heading_level=block.heading_level,
+            image_bytes=block.image_bytes,
+            image_ext=block.image_ext,
+            regions=list(regions or []),
+        )
 
 
 @dataclass

@@ -88,6 +88,12 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   original is present; pipeline and OCR options prefill from inspect.
 - Explorer type filters prune files hidden by the filter from the current
   selection.
+- Explorer restores the last active library and collapsed inactive folders as
+  soon as folders appear, instead of expanding every tree until other folders'
+  index-status checks finish.
+- Explorer checkboxes set row membership from the native change event so
+  unchecking a file cannot leave a stale checkmark while Chat still shows one
+  selected document.
 - Removed unused `saveVera` / `defaultVeraPath` helpers.
 - Shared IPC channel, sidecar action, and stream event names, with a contract
   test that TypeScript `StreamEvent` names match sidecar emissions.

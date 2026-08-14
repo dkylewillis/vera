@@ -1,9 +1,11 @@
 """Tests for corpus search across a folder of .vera files."""
 
 import json
+import shutil
 import sqlite3
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -104,6 +106,34 @@ class TestOpen:
     def test_non_directory_raises(self, corpus_dir):
         with pytest.raises(NotADirectoryError):
             VeraCorpus.open(str(corpus_dir / "zoning.vera"))
+
+
+class TestFromPaths:
+    def test_cross_drive_commonpath_failure_still_attributes_file(
+        self, corpus_dir, tmp_path, monkeypatch
+    ):
+        left = tmp_path / "left"
+        right = tmp_path / "right"
+        left.mkdir()
+        right.mkdir()
+        zoning = left / "zoning.vera"
+        stormwater = right / "stormwater.vera"
+        shutil.copy(corpus_dir / "zoning.vera", zoning)
+        shutil.copy(corpus_dir / "stormwater.vera", stormwater)
+
+        def reject_commonpath(paths):
+            raise ValueError("Paths don't have the same drive")
+
+        monkeypatch.setattr("vera_doc.corpus.os.path.commonpath", reject_commonpath)
+
+        with VeraCorpus.from_paths([str(zoning), str(stormwater)]) as corpus:
+            assert corpus.directory == str(zoning.parent)
+            relative_outside = corpus._relative_corpus_path(str(stormwater))
+            assert "stormwater" in relative_outside
+            results = corpus.search("chapter requirements", mode="hybrid", top_k=10)
+            files = {Path(result.file).resolve() for result in results}
+            assert zoning.resolve() in files
+            assert stormwater.resolve() in files
 
 
 class TestSearch:

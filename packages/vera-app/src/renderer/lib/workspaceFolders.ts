@@ -20,6 +20,31 @@ export function persistFolderPaths(paths: string[], storage: StorageWriter = loc
   storage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(paths));
 }
 
+export function readSavedActiveLibraryPath(storage: StorageReader = localStorage): string {
+  try {
+    return storage.getItem(ACTIVE_LIBRARY_STORAGE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Restore the last active library immediately. Other folders can refresh
+ * their index badges in parallel instead of blocking Explorer collapse.
+ */
+export function workspaceRestorePlan(
+  availablePaths: string[],
+  savedActive: string,
+): { restoreActive: string | null; refreshPaths: string[] } {
+  const restoreActive = savedActive && availablePaths.includes(savedActive)
+    ? savedActive
+    : null;
+  return {
+    restoreActive,
+    refreshPaths: availablePaths.filter((folderPath) => folderPath !== restoreActive),
+  };
+}
+
 export function upsertFolder(
   folders: WorkspaceFolderResult[],
   folder: WorkspaceFolderResult,

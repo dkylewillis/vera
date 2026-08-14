@@ -531,11 +531,22 @@ def test_cli_index_exclude_defaults_to_none():
     assert args.exclude is None
 
 
+@pytest.mark.parametrize("value", ["true", "True", "TRUE", "1", "yes", "YES", "y", "on"])
+def test_str_to_bool_truthy_values(value):
+    assert str_to_bool(value) is True
+
+
+@pytest.mark.parametrize("value", ["false", "False", "0", "no", "n", "off", ""])
+def test_str_to_bool_falsy_values(value):
+    assert str_to_bool(value) is False
+
+
 def test_str_to_bool_rejects_unknown_tokens():
     with pytest.raises(ValueError, match="invalid boolean"):
+        str_to_bool("random")
+    with pytest.raises(ValueError, match="invalid boolean"):
         str_to_bool("maybe")
-    assert str_to_bool("false") is False
-    assert str_to_bool("1") is True
+
 
 
 def test_cli_rejects_unknown_store_original():

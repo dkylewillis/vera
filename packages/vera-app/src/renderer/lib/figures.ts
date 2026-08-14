@@ -29,3 +29,26 @@ export function mergeFigureData(
     }),
   };
 }
+
+export function hydrateFiguresFromCache(
+  result: SearchResult,
+  resultPath: string,
+  cache: Map<string, FigureResult>,
+): { hydrated: SearchResult; missingAssetIds: string[] } {
+  const cachedFigures: FigureResult[] = [];
+  for (const figure of result.figures || []) {
+    if (!figure.asset_id) continue;
+    if (figure.data_url) {
+      cache.set(figureCacheKey(resultPath, figure.asset_id), figure);
+      cachedFigures.push(figure);
+      continue;
+    }
+    const cached = cache.get(figureCacheKey(resultPath, figure.asset_id));
+    if (cached) cachedFigures.push(cached);
+  }
+  const hydrated = mergeFigureData(result, cachedFigures);
+  const missingAssetIds = (hydrated.figures || [])
+    .filter((figure) => figure.asset_id && !figure.data_url)
+    .map((figure) => figure.asset_id as string);
+  return { hydrated, missingAssetIds };
+}

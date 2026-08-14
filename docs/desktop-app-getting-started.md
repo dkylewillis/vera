@@ -76,6 +76,12 @@ to open directory conversion for that folder. To rebuild an existing archive wit
 pipeline or embedding model, right-click the `.vera` file in Explorer and
 choose **Reconvert…**; Convert opens immediately with a preparing status while
 the archive is read, then prefills the current settings and turns overwrite on.
+In Explorer, click a file to select it, Ctrl/Cmd+click to add or remove it, and
+Shift+click to select a range. The checkbox next to a file adds or removes that
+row from the same list — unchecking it deselects it, and the highlight and the
+Chat/Search “selected document” count stay in sync. Selected `.vera` files become the Search/Ask
+scope and selected PDFs become the Convert list. Click the folder name, empty
+Explorer space, or press Escape to search the whole library again.
 Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,
 and keyword modes from its composer options. Its ranked passage cards open and
@@ -117,9 +123,11 @@ can continue browsing and using Search or Ask while the existing index, or
 recursive fallback search, remains available. A completed warning badge means
 some archives were skipped; select it to review the latest indexing report.
 
-On startup, folders show their last verified badge state while VERA checks the
-current filesystem in the background. A neutral spinner is shown when there is
-no saved status yet, rather than treating the folder as unindexed.
+On startup, Explorer collapses inactive folders immediately so every library
+header stays visible and the last active library stays expanded. Folders show
+their last verified badge state while VERA checks the current filesystem in
+the background. A neutral spinner is shown when there is no saved status yet,
+rather than treating the folder as unindexed.
 
 Parent and empty folders can also be activated as libraries. Nested `.vera`
 files are discovered recursively when there is no saved index configuration.

@@ -482,7 +482,7 @@ button {
 
 .explorerTree {
   display: grid;
-  gap: 4px;
+  gap: 0;
   min-width: 0;
   flex: 1;
   align-content: start;
@@ -526,9 +526,13 @@ button {
 
 .folderGroup {
   display: grid;
-  gap: 1px;
+  gap: 0;
   min-width: 0;
   max-width: 100%;
+}
+
+.folderGroup + .folderGroup {
+  padding-top: 4px;
 }
 
 .folderGroupHead {
@@ -778,12 +782,17 @@ button {
   color: var(--accent-text);
 }
 
+.fileRow.previewing {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
 .fileRowWrap {
   display: flex;
   align-items: center;
   gap: 2px;
   min-width: 0;
   padding-left: 9px;
+  user-select: none;
 }
 
 .fileRowWrap .fileRow {

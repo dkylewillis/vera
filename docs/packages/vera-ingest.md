@@ -75,6 +75,10 @@ own default.
   `IngestRequest` with opaque `pipeline_options`.
 - **Chunking helpers** remain available for providers that want sliding-window
   behavior (whitespace-split words, not characters) without owning the writer.
+  First-party pipelines use `build_chunks_from_blocks` (or their own chunker).
+  `chunk_pages` and `detect_heading` stay public for custom pipelines that
+  only have page text. Parsers emit `ParsedBlock`; convert with
+  `IngestBlock.from_parsed` before returning `IngestResult.blocks`.
 - **Atomic conversion** validates a temporary archive before publishing it.
 
 ## Documentation

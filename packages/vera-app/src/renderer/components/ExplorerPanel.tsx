@@ -12,8 +12,11 @@ import {
 } from 'lucide-react';
 import { VeraIcon } from './VeraIcon';
 import {
+  applyFileListCheckbox,
   applyFileListSelection,
   explorerFileMatchesFilter,
+  explorerRowTone,
+  explorerSelectionAfterFileList,
   partitionExplorerSelection,
   pruneExplorerSelectionForFilter,
   visibleExplorerEntries,
@@ -127,6 +130,17 @@ export function ExplorerPanel({
     () => visibleExplorerEntries(folders, collapsedFolders, explorerFileFilter),
     [folders, collapsedFolders, explorerFileFilter],
   );
+  const fileSelectionRef = useRef({ selectedFiles, selectedPdfs, selectionAnchorPath });
+  fileSelectionRef.current = { selectedFiles, selectedPdfs, selectionAnchorPath };
+
+  function commitFileSelection(next: ExplorerFileSelection) {
+    fileSelectionRef.current = {
+      selectedFiles: next.selectedFiles,
+      selectedPdfs: next.selectedPdfs,
+      selectionAnchorPath: next.selectionAnchorPath,
+    };
+    onFileSelectionChange(next);
+  }
   const folderMenuPdfCount = folderContextMenu
     ? folders.find((folder) => folder.path === folderContextMenu.path)?.entries.filter((entry) => entry.type === 'pdf').length ?? 0
     : 0;
@@ -202,13 +216,23 @@ export function ExplorerPanel({
 
   function applyExplorerFileFilter(filter: ExplorerFileFilter) {
     onFileFilterChange(filter);
+    const current = fileSelectionRef.current;
     const next = pruneExplorerSelectionForFilter(
-      [...selectedFiles, ...selectedPdfs],
+      [...current.selectedFiles, ...current.selectedPdfs],
       filter,
-      selectionAnchorPath,
+      current.selectionAnchorPath,
     );
     const partitioned = partitionExplorerSelection(next.selected);
-    onFileSelectionChange({
+    if (next.selected.length === 0) {
+      fileSelectionRef.current = {
+        selectedFiles: [],
+        selectedPdfs: [],
+        selectionAnchorPath: next.anchor,
+      };
+      onClearFileSelection();
+      return;
+    }
+    commitFileSelection({
       selectedFiles: partitioned.vera,
       selectedPdfs: partitioned.pdf,
       selectionAnchorPath: next.anchor,
@@ -218,26 +242,59 @@ export function ExplorerPanel({
     });
   }
 
-  function selectExplorerEntry(entry: FolderEntry, event: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean } = {}) {
-    const visiblePaths = visibleExplorerFiles.map((item) => item.path);
-    const currentSelected = [...selectedFiles, ...selectedPdfs];
-    const next = applyFileListSelection({
-      visiblePaths,
-      selected: currentSelected,
-      anchor: selectionAnchorPath,
-      clicked: entry.path,
-      event,
-    });
+  function commitFromFileList(entry: FolderEntry, next: { selected: string[]; anchor: string | null }) {
     const partitioned = partitionExplorerSelection(next.selected);
-    onFileSelectionChange({
+    if (next.selected.length === 0) {
+      fileSelectionRef.current = {
+        selectedFiles: [],
+        selectedPdfs: [],
+        selectionAnchorPath: next.anchor,
+      };
+      onClearFileSelection();
+      return;
+    }
+    commitFileSelection({
       selectedFiles: partitioned.vera,
       selectedPdfs: partitioned.pdf,
       selectionAnchorPath: next.anchor,
-      explorerSelection: { kind: 'file', path: entry.path, type: entry.type },
+      explorerSelection: explorerSelectionAfterFileList({
+        selectedVera: partitioned.vera,
+        selectedPdf: partitioned.pdf,
+        clickedPath: entry.path,
+        clickedType: entry.type,
+        activeLibraryPath,
+      }),
     });
-    if (entry.type === 'vera' && partitioned.vera.length > 0) {
+    // Keep the library path as Search/Ask fallback so deselecting a file does
+    // not leave that file looking (and acting) like the current document.
+    if (entry.type === 'vera' && partitioned.vera.length > 0 && !activeLibraryPath) {
       onUpdateTargetPath(entry.path);
     }
+  }
+
+  function selectExplorerEntry(entry: FolderEntry, event: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean } = {}) {
+    const current = fileSelectionRef.current;
+    const visiblePaths = visibleExplorerFiles.map((item) => item.path);
+    commitFromFileList(entry, applyFileListSelection({
+      visiblePaths,
+      selected: [...current.selectedFiles, ...current.selectedPdfs],
+      anchor: current.selectionAnchorPath,
+      clicked: entry.path,
+      event,
+    }));
+  }
+
+  function applyExplorerCheckbox(entry: FolderEntry, checked: boolean, shiftKey: boolean) {
+    const current = fileSelectionRef.current;
+    const visiblePaths = visibleExplorerFiles.map((item) => item.path);
+    commitFromFileList(entry, applyFileListCheckbox({
+      visiblePaths,
+      selected: [...current.selectedFiles, ...current.selectedPdfs],
+      anchor: current.selectionAnchorPath,
+      clicked: entry.path,
+      checked,
+      shiftKey,
+    }));
   }
 
   function toggleFolderCollapsed(folderPath: string) {
@@ -553,30 +610,40 @@ export function ExplorerPanel({
                 visibleEntries.map((entry) => {
                   const listed = selectedFiles.includes(entry.path) || selectedPdfs.includes(entry.path);
                   const previewing = pendingSourcePath === entry.path || sourceDocumentPath === entry.path;
-                  const currentDoc = selectedFiles.length === 0 && selectedPdfs.length === 0 && path === entry.path;
+                  const scopedDocument = !activeLibraryPath
+                    && selectedFiles.length === 0
+                    && selectedPdfs.length === 0
+                    && path === entry.path;
+                  const tone = explorerRowTone({ selected: listed, previewing, scopedDocument });
+                  const rowClass = tone === 'idle'
+                    ? 'fileRow'
+                    : tone === 'preview' ? 'fileRow previewing' : 'fileRow active';
                   return (
-                  <div key={entry.path} className="fileRowWrap">
+                  <div
+                    key={entry.path}
+                    className="fileRowWrap"
+                    onClick={(event) => {
+                      const origin = event.target;
+                      if (origin instanceof Element && origin.closest('.fileRowCheck, .fileRow')) return;
+                      selectExplorerEntry(entry, event);
+                    }}
+                  >
                     <input
                       type="checkbox"
                       className="fileRowCheck"
                       checked={listed}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        selectExplorerEntry(entry, {
-                          ctrlKey: true,
-                          metaKey: event.metaKey,
-                          shiftKey: event.shiftKey,
-                        });
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={(event) => {
+                        event.stopPropagation();
+                        const shiftKey = 'shiftKey' in event.nativeEvent
+                          && Boolean((event.nativeEvent as MouseEvent).shiftKey);
+                        applyExplorerCheckbox(entry, event.target.checked, shiftKey);
                       }}
-                      onChange={() => undefined}
                       title={entry.type === 'vera' ? 'Add or remove from search scope' : 'Add or remove from Convert selection'}
                     />
                     <button
-                      className={listed || previewing || currentDoc ? 'fileRow active' : 'fileRow'}
-                      aria-selected={listed || currentDoc}
-                      onMouseDown={(event) => {
-                        if (event.shiftKey) event.preventDefault();
-                      }}
+                      className={rowClass}
+                      aria-selected={listed || scopedDocument}
                       onClick={(event) => selectExplorerEntry(entry, event)}
                       onDoubleClick={() => {
                         if (entry.type === 'vera' || entry.type === 'pdf') {

@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  applyFileListCheckbox,
   applyFileListSelection,
   explorerEntryType,
   explorerFileMatchesFilter,
+  explorerRowTone,
+  explorerSelectionAfterFileList,
   isDirectoryOpenTarget,
+  isExplorerBlankPointerTarget,
   partitionExplorerSelection,
   pruneExplorerSelectionForFilter,
   routeOpenTarget,
@@ -30,6 +34,10 @@ describe('syncCollapsedFolders', () => {
 
   it('expands a lone active library', () => {
     expect(syncCollapsedFolders(['/only'], '/only', ['/only'])).toEqual([]);
+  });
+
+  it('seeds startup collapse from saved folders and the last active library', () => {
+    expect(syncCollapsedFolders(['/a', '/b', '/c'], '/a')).toEqual(['/b', '/c']);
   });
 });
 
@@ -204,5 +212,141 @@ describe('applyFileListSelection', () => {
       clicked: 'c.vera',
       event: { shiftKey: true },
     })).toEqual({ selected: ['c.vera'], anchor: 'c.vera' });
+  });
+});
+
+describe('applyFileListCheckbox', () => {
+  const visible = ['a.vera', 'b.vera', 'c.vera', 'd.pdf'];
+
+  it('unchecks a row without toggling it back on', () => {
+    expect(applyFileListCheckbox({
+      visiblePaths: visible,
+      selected: ['a.vera', 'b.vera'],
+      anchor: 'a.vera',
+      clicked: 'b.vera',
+      checked: false,
+    })).toEqual({ selected: ['a.vera'], anchor: 'b.vera' });
+  });
+
+  it('unchecking the only selected file leaves an empty list', () => {
+    expect(applyFileListCheckbox({
+      visiblePaths: visible,
+      selected: ['a.vera'],
+      anchor: 'a.vera',
+      clicked: 'a.vera',
+      checked: false,
+    })).toEqual({ selected: [], anchor: 'a.vera' });
+  });
+
+  it('is idempotent when the native change event repeats', () => {
+    const once = applyFileListCheckbox({
+      visiblePaths: visible,
+      selected: ['a.vera'],
+      anchor: 'a.vera',
+      clicked: 'a.vera',
+      checked: false,
+    });
+    expect(applyFileListCheckbox({
+      visiblePaths: visible,
+      selected: once.selected,
+      anchor: once.anchor,
+      clicked: 'a.vera',
+      checked: false,
+    })).toEqual({ selected: [], anchor: 'a.vera' });
+  });
+
+  it('checks a row onto the current selection', () => {
+    expect(applyFileListCheckbox({
+      visiblePaths: visible,
+      selected: ['a.vera'],
+      anchor: 'a.vera',
+      clicked: 'c.vera',
+      checked: true,
+    })).toEqual({ selected: ['a.vera', 'c.vera'], anchor: 'c.vera' });
+  });
+
+  it('extends the range when Shift+checking', () => {
+    expect(applyFileListCheckbox({
+      visiblePaths: visible,
+      selected: ['a.vera'],
+      anchor: 'a.vera',
+      clicked: 'c.vera',
+      checked: true,
+      shiftKey: true,
+    })).toEqual({ selected: ['a.vera', 'b.vera', 'c.vera'], anchor: 'a.vera' });
+  });
+});
+
+describe('explorerSelectionAfterFileList', () => {
+  it('keeps the clicked file when it is still selected', () => {
+    expect(explorerSelectionAfterFileList({
+      selectedVera: ['a.vera', 'b.vera'],
+      selectedPdf: [],
+      clickedPath: 'b.vera',
+      clickedType: 'vera',
+      activeLibraryPath: 'C:\\lib',
+    })).toEqual({ kind: 'file', path: 'b.vera', type: 'vera' });
+  });
+
+  it('falls back to a remaining file after unchecking one', () => {
+    expect(explorerSelectionAfterFileList({
+      selectedVera: ['a.vera'],
+      selectedPdf: [],
+      clickedPath: 'b.vera',
+      clickedType: 'vera',
+      activeLibraryPath: 'C:\\lib',
+    })).toEqual({ kind: 'file', path: 'a.vera', type: 'vera' });
+  });
+
+  it('restores the active library when the list is empty', () => {
+    expect(explorerSelectionAfterFileList({
+      selectedVera: [],
+      selectedPdf: [],
+      clickedPath: 'a.vera',
+      clickedType: 'vera',
+      activeLibraryPath: 'C:\\lib',
+    })).toEqual({ kind: 'folder', path: 'C:\\lib' });
+  });
+});
+
+describe('explorerRowTone', () => {
+  it('prefers list selection over preview and scoped-document fallbacks', () => {
+    expect(explorerRowTone({ selected: true, previewing: true, scopedDocument: true })).toBe('selected');
+  });
+
+  it('keeps a scoped single file highlighted only when nothing is listed', () => {
+    expect(explorerRowTone({ selected: false, previewing: false, scopedDocument: true })).toBe('scoped');
+  });
+
+  it('uses a quieter preview marker when the row is not selected', () => {
+    expect(explorerRowTone({ selected: false, previewing: true, scopedDocument: false })).toBe('preview');
+    expect(explorerRowTone({ selected: false, previewing: false, scopedDocument: false })).toBe('idle');
+  });
+});
+
+describe('isExplorerBlankPointerTarget', () => {
+  function fakeTarget(className: string, ancestor?: string) {
+    const classes = new Set([className, ancestor].filter(Boolean) as string[]);
+    return {
+      classList: { contains: (token: string) => token === className },
+      closest: (selector: string) => {
+        const tokens = selector.split(',').map((item) => item.trim().replace(/^\./, ''));
+        return tokens.some((token) => classes.has(token)) ? {} : null;
+      },
+    };
+  }
+
+  it('treats pane chrome and leftover tree space as a clear click', () => {
+    const pane = fakeTarget('sidePanelBody');
+    expect(isExplorerBlankPointerTarget(pane, pane)).toBe(true);
+    expect(isExplorerBlankPointerTarget(fakeTarget('explorerTree'), pane)).toBe(true);
+  });
+
+  it('ignores file rows, folder headers, and gaps inside a folder group', () => {
+    const pane = fakeTarget('sidePanelBody');
+    expect(isExplorerBlankPointerTarget(fakeTarget('fileRowWrap'), pane)).toBe(false);
+    expect(isExplorerBlankPointerTarget(fakeTarget('folderGroupHead'), pane)).toBe(false);
+    expect(isExplorerBlankPointerTarget(fakeTarget('folderGroup'), pane)).toBe(false);
+    expect(isExplorerBlankPointerTarget(null, pane)).toBe(false);
   });
 });

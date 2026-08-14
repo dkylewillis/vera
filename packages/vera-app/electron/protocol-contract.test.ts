@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -6,6 +6,16 @@ import { describe, expect, it } from 'vitest';
 import { IPC_CHANNELS, SIDECAR_ACTIONS, STREAM_EVENTS } from '../src/shared/protocol.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const sidecarPackageDir = join(root, 'src/vera_app');
+
+/** Concatenate every top-level sidecar package module so event literals can live outside sidecar.py. */
+function sidecarPackageSources(): string {
+  return readdirSync(sidecarPackageDir)
+    .filter((name) => name.endsWith('.py'))
+    .sort()
+    .map((name) => readFileSync(join(sidecarPackageDir, name), 'utf8'))
+    .join('\n');
+}
 
 function pythonTuple(name: string, source: string): string[] {
   const match = source.match(new RegExp(`${name} = \\(([\\s\\S]*?)\\n\\)`));
@@ -32,7 +42,7 @@ function preloadIpcChannels(source: string): Record<string, string> {
 
 describe('sidecar protocol contract', () => {
   const pythonProtocol = readFileSync(join(root, 'src/vera_app/protocol.py'), 'utf8');
-  const sidecar = readFileSync(join(root, 'src/vera_app/sidecar.py'), 'utf8');
+  const sidecarPackage = sidecarPackageSources();
   const preload = readFileSync(join(root, 'electron/preload.cts'), 'utf8');
 
   it('keeps TypeScript STREAM_EVENTS aligned with Python', () => {
@@ -44,7 +54,7 @@ describe('sidecar protocol contract', () => {
   });
 
   it('only emits StreamEvent names declared in the shared contract', () => {
-    const emitted = [...sidecar.matchAll(/"event": "([a-z_]+)"/g)].map((item) => item[1]);
+    const emitted = [...sidecarPackage.matchAll(/"event": "([a-z_]+)"/g)].map((item) => item[1]);
     expect(emitted.length).toBeGreaterThan(0);
     expect(new Set(emitted)).toEqual(new Set(STREAM_EVENTS));
   });

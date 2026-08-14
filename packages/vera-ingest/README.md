@@ -2,7 +2,10 @@
 
 `vera-ingest` contains VERA's provider-neutral ingestion core: shared types,
 descriptors, option parsing, a strict ingest-pipeline registry, conversion,
-chunking helpers, and archive viewer conventions.
+chunking helpers (`build_chunks_from_blocks` for structured layout,
+`chunk_pages` / `detect_heading` for custom page-text pipelines), and archive
+viewer conventions. Parsers emit `ParsedBlock`; convert with
+`IngestBlock.from_parsed` before returning `IngestResult.blocks`.
 
 PDF conversion pipelines register through the `vera.ingest_pipelines`
 entry-point group. The default `pymupdf` provider ships as

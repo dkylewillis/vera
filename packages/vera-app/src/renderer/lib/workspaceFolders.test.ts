@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { LibraryIndexStatus, WorkspaceFolderResult } from '../types';
 import {
+  ACTIVE_LIBRARY_STORAGE_KEY,
   dropFolder,
   FOLDERS_STORAGE_KEY,
   persistFolderPaths,
   readCachedIndexStatuses,
+  readSavedActiveLibraryPath,
   readSavedFolderPaths,
   replaceListedFolder,
   upsertFolder,
+  workspaceRestorePlan,
 } from './workspaceFolders';
 
 function memoryStorage(initial: Record<string, string> = {}) {
@@ -44,6 +47,39 @@ describe('persistFolderPaths', () => {
     const storage = memoryStorage();
     persistFolderPaths(['C:\\docs'], storage);
     expect(storage.getItem(FOLDERS_STORAGE_KEY)).toBe(JSON.stringify(['C:\\docs']));
+  });
+});
+
+describe('readSavedActiveLibraryPath', () => {
+  it('returns the persisted active library', () => {
+    const storage = memoryStorage({
+      [ACTIVE_LIBRARY_STORAGE_KEY]: 'C:\\library',
+    });
+    expect(readSavedActiveLibraryPath(storage)).toBe('C:\\library');
+  });
+
+  it('returns empty when unset', () => {
+    expect(readSavedActiveLibraryPath(memoryStorage())).toBe('');
+  });
+});
+
+describe('workspaceRestorePlan', () => {
+  it('restores the saved library immediately and refreshes the rest', () => {
+    expect(workspaceRestorePlan(['C:\\a', 'C:\\b', 'C:\\c'], 'C:\\b')).toEqual({
+      restoreActive: 'C:\\b',
+      refreshPaths: ['C:\\a', 'C:\\c'],
+    });
+  });
+
+  it('refreshes every listed folder when none is still saved as active', () => {
+    expect(workspaceRestorePlan(['C:\\a', 'C:\\b'], 'C:\\gone')).toEqual({
+      restoreActive: null,
+      refreshPaths: ['C:\\a', 'C:\\b'],
+    });
+    expect(workspaceRestorePlan(['C:\\a'], '')).toEqual({
+      restoreActive: null,
+      refreshPaths: ['C:\\a'],
+    });
   });
 });
 

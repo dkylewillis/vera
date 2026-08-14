@@ -49,6 +49,21 @@ Shared conversion enforces a few invariants on the result before writing it:
 block and chunk IDs must be non-empty and unique, every chunk's `block_ids`
 must reference a real block, and every chunk's `text` must be non-empty.
 
+Parsers often emit `ParsedBlock` (the same layout fields without a stable
+`block_id`). Convert with `IngestBlock.from_parsed(block_id, block)` before
+returning `IngestResult.blocks`. Pipelines that mint IDs while parsing can
+construct `IngestBlock` directly.
+
+## Reusable chunking helpers
+
+`vera_ingest.chunking` counts whitespace-split words, not characters.
+
+- `build_chunks_from_blocks` — heading-aware sliding windows over
+  `(block_id, ParsedBlock | IngestBlock)` pairs. PyMuPDF uses this; custom
+  pipelines with structured layout should too.
+- `chunk_pages` / `detect_heading` — public helpers for custom pipelines that
+  only have `ParsedPage.text`. First-party pipelines do not call them.
+
 ## Minimal example
 
 This plugin ingests plain-text files as a single page/block/chunk — enough to
@@ -369,8 +384,9 @@ produced by each pipeline and compare hit rate / MRR — see
 
 - [`vera-ingest-pymupdf`](packages/vera-ingest-pymupdf.md) — the simplest real
   pipeline: a plain `pymupdf_pipeline(source_path, options)` function,
-  deterministic parsing, shared sliding-window chunking helpers
-  (`vera_ingest.chunking`, which count whitespace-split words, not characters),
+  deterministic parsing, shared sliding-window chunking
+  (`build_chunks_from_blocks`; `chunk_pages` is available for custom
+  page-text pipelines),
   selective Tesseract OCR — and its `PyMuPDFOptions`
   inherits `PipelineOptions` for `from_mapping`, same as this guide's example.
   Start here.

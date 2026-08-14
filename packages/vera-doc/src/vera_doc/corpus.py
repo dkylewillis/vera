@@ -10,12 +10,13 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from ._util import _MAX_TOP_K
 from .collection import (
     VeraCollectionIndex,
     discover_vera_files,
     library_index_status,
 )
-from .document import _MAX_TOP_K, VeraDocument
+from .document import VeraDocument
 from .models import QueryResult
 from .ranking import RRF_K, reciprocal_rank_fusion
 
@@ -40,6 +41,31 @@ def _with_file(result: QueryResult, file: str) -> CorpusSearchResult:
         after=result.after,
         file=file,
     )
+
+
+def _corpus_root_for_paths(paths: list[str]) -> str:
+    """Return a directory to attribute selected files, even across drives."""
+    if len(paths) == 1:
+        return str(Path(paths[0]).parent)
+    try:
+        return os.path.commonpath(paths)
+    except ValueError:
+        return str(Path(paths[0]).parent)
+
+
+def _relative_to_corpus_root(path: str, directory: str) -> str:
+    """Return a stable relative key, falling back to an absolute posix path.
+
+    ``Path.relative_to`` raises ``ValueError`` when ``path`` is on another
+    drive (Windows multi-select) or otherwise outside ``directory``. Hybrid
+    fusion only needs a unique file key; search results still use ``path``.
+    """
+    resolved = Path(path).resolve()
+    root = Path(directory).resolve()
+    try:
+        return resolved.relative_to(root).as_posix()
+    except ValueError:
+        return resolved.as_posix()
 
 
 def _hydrate_context_chunks(
@@ -78,16 +104,12 @@ def _hydrate_context_chunks(
                 result,
                 before=tuple(
                     by_id[chunk_id]
-                    for chunk_id in ordered_ids[
-                        max(0, position - context_chunks) : position
-                    ]
+                    for chunk_id in ordered_ids[max(0, position - context_chunks) : position]
                     if chunk_id in by_id
                 ),
                 after=tuple(
                     by_id[chunk_id]
-                    for chunk_id in ordered_ids[
-                        position + 1 : position + context_chunks + 1
-                    ]
+                    for chunk_id in ordered_ids[position + 1 : position + context_chunks + 1]
                     if chunk_id in by_id
                 ),
             )
@@ -231,18 +253,17 @@ class VeraCorpus:
 
     @classmethod
     def from_paths(cls, paths: list[str]) -> VeraCorpus:
-        """Build a corpus from an explicit list of .vera file paths."""
+        """Build a corpus from an explicit list of .vera file paths.
+
+        Selected files do not need a shared parent. Desktop multi-select can
+        include paths on different Windows drives, where ``os.path.commonpath``
+        raises ``ValueError``; the corpus root then falls back to the first
+        file's parent. Result ``file`` attributes remain the original paths.
+        """
         resolved = [str(Path(p)) for p in paths]
         if not resolved:
             raise FileNotFoundError("No .vera files selected")
-        if len(resolved) == 1:
-            root = str(Path(resolved[0]).parent)
-        else:
-            try:
-                root = os.path.commonpath(resolved)
-            except ValueError:
-                root = str(Path(resolved[0]).parent)
-        return cls(root, sorted(resolved))
+        return cls(_corpus_root_for_paths(resolved), sorted(resolved))
 
     def document(self, file: str) -> VeraDocument:
         """Return the (cached) open VeraDocument for a file in this corpus."""
@@ -597,7 +618,7 @@ class VeraCorpus:
         ]
 
     def _relative_corpus_path(self, path: str) -> str:
-        return Path(path).resolve().relative_to(Path(self.directory).resolve()).as_posix()
+        return _relative_to_corpus_root(path, self.directory)
 
     def _fuse_hybrid(
         self,

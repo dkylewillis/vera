@@ -41,7 +41,8 @@ core:
 
 - ingest-pipeline registry and descriptors;
 - shared types (`IngestRequest` / `IngestResult`, pages/blocks);
-- reusable chunking helpers;
+- reusable chunking helpers (`build_chunks_from_blocks` for structured
+  layout; `chunk_pages` / `detect_heading` for custom page-text pipelines);
 - atomic single-file and batch conversion workflows;
 - reader helpers for pages, figures, regions, and source export.
 

@@ -18,6 +18,7 @@ from vera_app.llm import (
     VisionUnsupportedError,
 )
 from vera_app.sidecar import handle
+from vera_doc import VeraDocument
 from vera_ingest import convert
 
 
@@ -586,7 +587,6 @@ def test_batch_convert_paths_converts_only_selected_pdfs(tmp_path):
 
 
 def test_sidecar_forwards_ocr_options_for_single_and_batch_conversion(monkeypatch):
-    sidecar = importlib.import_module("vera_app.sidecar")
     captured = {}
 
     def fake_convert(input_path, output_path, **kwargs):
@@ -597,8 +597,9 @@ def test_sidecar_forwards_ocr_options_for_single_and_batch_conversion(monkeypatc
         captured["batch"] = (directory, kwargs)
         return {"converted": 0, "failed": 0}
 
-    monkeypatch.setattr(sidecar, "convert", fake_convert)
-    monkeypatch.setattr(sidecar, "batch_convert", fake_batch_convert)
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "convert", fake_convert)
+    monkeypatch.setattr(convert_mod, "batch_convert", fake_batch_convert)
 
     single = handle(
         {
@@ -635,7 +636,6 @@ def test_sidecar_forwards_ocr_options_for_single_and_batch_conversion(monkeypatc
 
 
 def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):
-    sidecar = importlib.import_module("vera_app.sidecar")
     captured = {}
 
     class FakeDescriptor:
@@ -660,10 +660,11 @@ def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):
         captured["batch"] = kwargs
         return {"converted": 0, "failed": 0}
 
-    monkeypatch.setattr(sidecar, "convert", fake_convert)
-    monkeypatch.setattr(sidecar, "batch_convert", fake_batch_convert)
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "convert", fake_convert)
+    monkeypatch.setattr(convert_mod, "batch_convert", fake_batch_convert)
     monkeypatch.setattr(
-        sidecar,
+        convert_mod,
         "list_ingest_pipeline_descriptors",
         lambda: [FakeDescriptor()],
     )
@@ -709,14 +710,14 @@ def test_sidecar_default_ocr_language_is_not_forwarded_to_docling(monkeypatch):
     from vera_ingest import prepare_pipeline_options
     from vera_ingest_docling.options import DoclingOptions
 
-    sidecar = importlib.import_module("vera_app.sidecar")
     captured = {}
 
     def fake_convert(input_path, output_path, **kwargs):
         captured.update(kwargs)
         return output_path
 
-    monkeypatch.setattr(sidecar, "convert", fake_convert)
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "convert", fake_convert)
     response = handle(
         {
             "id": "docling-ocr-default",
@@ -752,14 +753,14 @@ def test_sidecar_default_ocr_language_is_not_forwarded_to_docling(monkeypatch):
 
 
 def test_sidecar_forwards_ocr_download_flag(monkeypatch):
-    sidecar = importlib.import_module("vera_app.sidecar")
     captured = {}
 
     def fake_convert(input_path, output_path, **kwargs):
         captured["single"] = kwargs
         return output_path
 
-    monkeypatch.setattr(sidecar, "convert", fake_convert)
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "convert", fake_convert)
 
     response = handle(
         {
@@ -796,7 +797,8 @@ def test_sidecar_ocr_languages_download_streams_progress_and_returns_cache_dir(m
             progress(language, 100, 100)
         return "/fake/cache/dir"
 
-    monkeypatch.setattr(sidecar, "download_ocr_language_data", fake_download)
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "download_ocr_language_data", fake_download)
 
     response = sidecar.handle(
         {"id": "ocr-download", "action": "ocr_languages_download", "language": "fra"}
@@ -828,16 +830,16 @@ def test_sidecar_ocr_languages_download_requires_language():
 
 
 def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):
-    sidecar = importlib.import_module("vera_app.sidecar")
     captured = {}
 
     def fake_convert(input_path, output_path, **kwargs):
         captured["model"] = kwargs["model"]
         return output_path
 
-    monkeypatch.setattr(sidecar, "convert", fake_convert)
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "convert", fake_convert)
     monkeypatch.setattr(
-        sidecar,
+        convert_mod,
         "list_embedding_providers",
         lambda: ["hashing", "openai"],
     )
@@ -979,12 +981,10 @@ def test_source_action_reuses_cache_without_extracting_blob(tmp_path, monkeypatc
     )
     assert first["ok"] is True
 
-    sidecar = importlib.import_module("vera_app.sidecar")
-
     def fail_extract(*args, **kwargs):
         raise AssertionError("cache hit should not extract the embedded PDF")
 
-    monkeypatch.setattr(sidecar.VeraDocument, "write_attachment", fail_extract)
+    monkeypatch.setattr(VeraDocument, "write_attachment", fail_extract)
     again = handle(
         {
             "id": "2",
@@ -1003,12 +1003,11 @@ def test_source_action_copies_sibling_pdf_instead_of_embedded_blob(tmp_path, mon
     cache_dir = tmp_path / "source-cache"
     make_pdf(pdf)
     convert(str(pdf), str(out), model="hashing", store_original=True)
-    sidecar = importlib.import_module("vera_app.sidecar")
 
     def fail_extract(*args, **kwargs):
         raise AssertionError("matching sibling PDF should be copied instead of extracted")
 
-    monkeypatch.setattr(sidecar.VeraDocument, "write_attachment", fail_extract)
+    monkeypatch.setattr(VeraDocument, "write_attachment", fail_extract)
     response = handle(
         {
             "id": "1",
@@ -1109,7 +1108,7 @@ def test_answer_action_returns_structured_cancellation(tmp_path, monkeypatch):
             model="test-model",
         )
 
-    monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
+    monkeypatch.setattr("vera_app.chat.chat", fake_chat)
 
     response = handle(
         {
@@ -1157,7 +1156,8 @@ def test_conversion_actions_can_be_cancelled(monkeypatch):
         if len(responses) >= 2:
             all_responses.set()
 
-    monkeypatch.setattr(sidecar, "batch_convert", fake_batch_convert)
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "batch_convert", fake_batch_convert)
     monkeypatch.setattr(sidecar, "_write_response", capture_response)
     monkeypatch.setattr(sidecar.sys, "stdin", stdin)
 
@@ -1193,7 +1193,8 @@ def test_convert_action_returns_structured_cancellation(monkeypatch):
         assert kwargs.get("cancel") is cancel
         cancel.raise_if_cancelled()
 
-    monkeypatch.setattr(sidecar, "convert", fake_convert)
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "convert", fake_convert)
 
     response = sidecar.handle(
         {
@@ -1250,7 +1251,8 @@ def test_batch_convert_skip_request_continues_remaining_files(monkeypatch):
         if len(responses) >= 2:
             all_responses.set()
 
-    monkeypatch.setattr(sidecar, "batch_convert", fake_batch_convert)
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "batch_convert", fake_batch_convert)
     monkeypatch.setattr(sidecar, "_write_response", capture_response)
     monkeypatch.setattr(sidecar.sys, "stdin", stdin)
 
@@ -1327,7 +1329,7 @@ def test_answer_action_runs_agentic_search(tmp_path, monkeypatch):
             usage={"total_tokens": 42},
         )
 
-    monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
+    monkeypatch.setattr("vera_app.chat.chat", fake_chat)
     monkeypatch.setattr("vera_app.sidecar._write_response", emitted.append)
 
     response = handle(
@@ -1385,7 +1387,7 @@ def test_answer_action_merges_custom_instructions(tmp_path, monkeypatch):
             usage=None,
         )
 
-    monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
+    monkeypatch.setattr("vera_app.chat.chat", fake_chat)
 
     response = handle(
         {
@@ -1431,8 +1433,8 @@ def test_answer_action_falls_back_when_tools_unsupported(tmp_path, monkeypatch):
 
         return Result()
 
-    monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
-    monkeypatch.setattr("vera_app.sidecar.generate", fake_generate)
+    monkeypatch.setattr("vera_app.chat.chat", fake_chat)
+    monkeypatch.setattr("vera_app.chat.generate", fake_generate)
     monkeypatch.setattr("vera_app.sidecar._write_response", emitted.append)
 
     response = handle(
@@ -1526,7 +1528,7 @@ def test_answer_action_sends_figure_images_to_llm(tmp_path, monkeypatch):
             usage=None,
         )
 
-    monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
+    monkeypatch.setattr("vera_app.chat.chat", fake_chat)
 
     response = handle(
         {
@@ -1621,7 +1623,7 @@ def test_answer_action_falls_back_to_text_when_vision_unsupported(tmp_path, monk
             usage=None,
         )
 
-    monkeypatch.setattr("vera_app.sidecar.chat", fake_chat)
+    monkeypatch.setattr("vera_app.chat.chat", fake_chat)
 
     response = handle(
         {
@@ -1675,7 +1677,7 @@ def test_list_models_action_returns_sorted_ids(monkeypatch):
         captured["api_key"] = config.api_key
         return ["gpt-4o", "gpt-4o-mini"]
 
-    monkeypatch.setattr("vera_app.sidecar.list_models", fake_list_models)
+    monkeypatch.setattr("vera_app.chat.list_models", fake_list_models)
 
     response = handle(
         {
