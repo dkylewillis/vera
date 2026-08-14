@@ -190,7 +190,9 @@ Unknown names fail before parsing and never fall back to another pipeline.
 The packaged desktop app can also run extra parsers from a trusted external
 Python environment. Install them with `python -m pip install` or
 `python -m pip install -e <clone>` in that environment, then Validate under
-**File > LLM Providers**. Raw `PYTHONPATH` folders are not discovered.
+**File > LLM Providers**. After a relaunch VERA re-probes that saved
+interpreter; wait for Convert to refresh before treating a parser as missing.
+Raw `PYTHONPATH` folders are not discovered.
 
 If Hugging Face Hub downloads warn about unauthenticated requests or hit rate
 limits, set `HF_TOKEN` (see `.env.example`) or save a token under **File >

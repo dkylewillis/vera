@@ -116,6 +116,11 @@ export class JsonLineProcess {
     this.killChild(`${this.label} restarted`);
   }
 
+  /** Kill even when a request is still in flight (timed-out probes). */
+  forceRestart(): void {
+    this.killChild(`${this.label} restarted`);
+  }
+
   get running(): boolean {
     return this.child !== null;
   }

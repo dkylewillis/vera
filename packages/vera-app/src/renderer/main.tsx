@@ -1386,7 +1386,8 @@ function App() {
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
     setHasHfToken(Boolean(saved.has_hf_token));
     setExternalPython(saved.external_python || { enabled: false, executable: '' });
-    setPythonStatus(saved.external_python_status || null);
+    // Probe status is runtime-only. Saving settings used to copy a stale
+    // timeout from a previous launch probe into the Validate UI.
     return saved;
   }
 
@@ -1629,6 +1630,11 @@ function App() {
 
   useEffect(() => window.vera.onOpenSettings(() => {
     setSettingsOpen(true);
+  }), []);
+
+  useEffect(() => window.vera.onPythonEnvironment((probe) => {
+    setPythonStatus(probe);
+    void reloadIngestPipelines();
   }), []);
 
   const folderPathsKey = folders.map((folder) => folder.path).join('\n');

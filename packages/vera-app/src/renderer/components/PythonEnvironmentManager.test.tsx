@@ -75,4 +75,20 @@ describe('PythonEnvironmentManager', () => {
     );
     expect(html).toContain('not compatible');
   });
+
+  it('hides a stale probe error while Validate is in flight', () => {
+    const html = renderToStaticMarkup(
+      <PythonEnvironmentManager
+        config={config}
+        status={{ ok: false, error: 'Python environment probe timed out after 20s' }}
+        busy
+        onConfigChange={() => undefined}
+        onPick={() => undefined}
+        onValidate={() => undefined}
+        onRefresh={() => undefined}
+      />,
+    );
+    expect(html).toContain('Checking the Python environment');
+    expect(html).not.toContain('timed out');
+  });
 });
