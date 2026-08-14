@@ -72,7 +72,9 @@ export function PythonEnvironmentManager({
           Refresh plugins
         </button>
       </div>
-      {status ? (
+      {busy ? (
+        <p className="sideMuted" role="status">Checking the Python environment…</p>
+      ) : status ? (
         <div className={status.ok ? 'pythonEnvStatus ok' : 'pythonEnvStatus error'} role="status">
           {!status.ok ? <AlertTriangle size={14} /> : null}
           <div>

@@ -67,5 +67,6 @@ describe('sidecar protocol contract', () => {
     expect(IPC_CHANNELS.pickPythonInterpreter).toBe('vera:pickPythonInterpreter');
     expect(IPC_CHANNELS.validatePythonEnvironment).toBe('vera:validatePythonEnvironment');
     expect(IPC_CHANNELS.refreshExternalPipelines).toBe('vera:refreshExternalPipelines');
+    expect(IPC_CHANNELS.pythonEnvironment).toBe('vera:pythonEnvironment');
   });
 });

@@ -401,7 +401,9 @@ user-selected Python interpreter:
 1. Create a venv and install `vera-ingest` 0.3.x plus your plugin
    (`python -m pip install …` or `python -m pip install -e <clone>`).
 2. In VERA, open **File > LLM Providers**, enable **External Python plugins**,
-   choose that environment's interpreter, and **Validate**.
+   choose that environment's interpreter, and **Validate** once. Later launches
+   re-probe that saved interpreter and refresh Convert; first discovery can
+   take about a minute when Docling/Torch imports are cold.
 3. Convert lists extra providers as `(external)`. Bundled `pymupdf` wins on
    duplicate names. Treat the interpreter as trusted code; raw `PYTHONPATH`
    folders are not discovered.

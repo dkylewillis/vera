@@ -79,6 +79,7 @@ export interface VeraApi {
   onOpenSettings(callback: () => void): () => void;
   onFolderChanged(callback: (path: string) => void): () => void;
   onAnswerEvent(callback: (data: StreamEvent) => void): () => void;
+  onPythonEnvironment(callback: (probe: PythonEnvironmentProbe) => void): () => void;
 }
 
 export interface FolderEntry {

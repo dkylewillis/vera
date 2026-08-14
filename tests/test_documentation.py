@@ -286,7 +286,10 @@ def test_hardening_json_contracts_are_documented():
     assert "external Python environment" in desktop
     assert "vera.ingest_pipelines" in desktop
     assert "pip install -e" in desktop
+    assert "re-probes the saved interpreter" in desktop
+    assert "Checking the Python environment" in desktop
     assert "python -m vera_plugin_host" in desktop_architecture
+    assert "re-probed on launch" in desktop_architecture
     assert "trusted" in desktop_architecture
     assert "python/plugin-host/vera_plugin_host" in (
         ROOT / "packages" / "vera-app" / "package.json"

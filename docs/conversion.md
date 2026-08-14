@@ -295,7 +295,8 @@ Unknown pipeline names fail before parsing with an install-the-plugin message;
 VERA never silently falls back to PyMuPDF. The packaged desktop app can run
 extra pipelines from a trusted external Python environment after
 `python -m pip install` or `python -m pip install -e <clone>` and Validate
-under **File > LLM Providers**. On Docling memory errors
+under **File > LLM Providers**. Later launches re-probe that saved interpreter.
+On Docling memory errors
 (`bad_alloc`), VERA retries failed pages with a fresh converter and falls back
 to the `pypdfium2` PDF backend when needed; conversion rejects only when that
 recovery is exhausted. Force the low-memory backend with
