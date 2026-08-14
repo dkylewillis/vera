@@ -24,8 +24,10 @@ import {
   normalizePipelineDescriptor,
   parsePipelineProvider,
   pluginHostSpawnCommand,
+  PLUGIN_HOST_VALIDATE_TIMEOUT_MS,
   processOwnerFor,
   probeFromPing,
+  shouldRouteToExternal,
 } from './ingest-runtime.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
 
@@ -109,10 +111,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   external_python: { enabled: false, executable: '' },
 };
 
-const PLUGIN_HOST_VALIDATE_TIMEOUT_MS = 20_000;
 let pluginWorkerExecutable = '';
 let pluginWorkerArtifacts = '';
 let lastPythonProbe: PythonEnvironmentProbe | null = null;
+let pythonProbeTask: Promise<PythonEnvironmentProbe> | null = null;
 const requestOwners = new Map<string, 'core' | 'external'>();
 let bundledProviders = new Set<string>(['pymupdf']);
 
@@ -411,6 +413,18 @@ function pluginHostCommand() {
 
 const pluginWorker = new JsonLineProcess('vera-plugin-host', pluginHostCommand);
 
+function broadcastPythonEnvironment(probe: PythonEnvironmentProbe): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.pythonEnvironment, probe);
+  }
+}
+
+function setPythonProbe(probe: PythonEnvironmentProbe): PythonEnvironmentProbe {
+  lastPythonProbe = probe;
+  broadcastPythonEnvironment(probe);
+  return probe;
+}
+
 function syncPluginWorker(config: ExternalPythonConfig | null | undefined): void {
   const executable = config?.enabled ? config.executable.trim() : '';
   const artifacts = config?.enabled ? (config.artifacts_path || '').trim() : '';
@@ -519,6 +533,13 @@ async function routeSidecarRequest(
   }
   const settings = readSettings();
   const parser = typeof request.parser === 'string' ? request.parser : 'pymupdf';
+  if (
+    pythonProbeTask
+    && (request.action === SIDECAR_ACTIONS.convert || request.action === SIDECAR_ACTIONS.batchConvert)
+    && shouldRouteToExternal(parser, bundledProviders)
+  ) {
+    await pythonProbeTask.catch(() => undefined);
+  }
   const owner = conversionRuntimeOwner(
     request.action,
     parser,
@@ -535,21 +556,12 @@ async function routeSidecarRequest(
   }
 }
 
-async function validatePythonEnvironment(
-  executable: string,
-  artifactsPath?: string,
+async function runPythonProbe(
+  resolved: string,
+  artifacts: string,
 ): Promise<PythonEnvironmentProbe> {
-  const resolved = executable.trim();
-  if (!resolved) {
-    lastPythonProbe = { ok: false, error: 'Choose a Python interpreter.' };
-    return lastPythonProbe;
-  }
-  if (!existsSync(resolved)) {
-    lastPythonProbe = { ok: false, executable: resolved, error: `Python interpreter not found: ${resolved}` };
-    return lastPythonProbe;
-  }
   pluginWorkerExecutable = resolved;
-  pluginWorkerArtifacts = (artifactsPath || '').trim();
+  pluginWorkerArtifacts = artifacts;
   if (pluginWorker.running) pluginWorker.restart();
   try {
     const ping = await withTimeout(
@@ -558,33 +570,64 @@ async function validatePythonEnvironment(
       'Python environment probe',
     );
     if (!ping.ok) {
-      lastPythonProbe = {
+      return setPythonProbe({
         ok: false,
         executable: resolved,
         error: ping.error || 'Plugin host ping failed',
-      };
-      return lastPythonProbe;
+      });
     }
     const pingResult = (ping.result || {}) as Record<string, unknown>;
     const described = await pluginWorker.request({ action: SIDECAR_ACTIONS.describeIngestPipelines });
     const pipelines = described.ok ? descriptorsFromResult(described.result, 'external') : [];
-    lastPythonProbe = probeFromPing(resolved, pingResult, pipelines);
+    const probe = probeFromPing(resolved, pingResult, pipelines);
     if (described.ok && described.result && typeof described.result === 'object') {
       const loadErrors = (described.result as { load_errors?: unknown }).load_errors;
       if (Array.isArray(loadErrors)) {
-        lastPythonProbe.load_errors = loadErrors.filter((value): value is string => typeof value === 'string');
+        probe.load_errors = loadErrors.filter((value): value is string => typeof value === 'string');
       }
     }
-    return lastPythonProbe;
+    return setPythonProbe(probe);
   } catch (error) {
-    lastPythonProbe = {
+    pluginWorker.forceRestart();
+    return setPythonProbe({
       ok: false,
       executable: resolved,
       error: error instanceof Error ? error.message : 'Unable to start the plugin host',
-    };
-    pluginWorker.restart();
-    return lastPythonProbe;
+    });
   }
+}
+
+async function validatePythonEnvironment(
+  executable: string,
+  artifactsPath?: string,
+): Promise<PythonEnvironmentProbe> {
+  const resolved = executable.trim();
+  const artifacts = (artifactsPath || '').trim();
+  if (!resolved) {
+    return setPythonProbe({ ok: false, error: 'Choose a Python interpreter.' });
+  }
+  if (!existsSync(resolved)) {
+    return setPythonProbe({
+      ok: false,
+      executable: resolved,
+      error: `Python interpreter not found: ${resolved}`,
+    });
+  }
+  if (
+    pythonProbeTask
+    && resolved === pluginWorkerExecutable
+    && artifacts === pluginWorkerArtifacts
+  ) {
+    return pythonProbeTask;
+  }
+  if (pythonProbeTask) {
+    await pythonProbeTask.catch(() => undefined);
+  }
+  const task = runPythonProbe(resolved, artifacts);
+  pythonProbeTask = task.finally(() => {
+    if (pythonProbeTask === task) pythonProbeTask = null;
+  });
+  return task;
 }
 
 async function pickPythonInterpreter(): Promise<string | null> {

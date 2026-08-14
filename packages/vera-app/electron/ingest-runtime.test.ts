@@ -8,6 +8,7 @@ import {
   parsePipelineProvider,
   pluginHostCompatibilityError,
   pluginHostSpawnCommand,
+  PLUGIN_HOST_VALIDATE_TIMEOUT_MS,
   processOwnerFor,
   shouldRouteToExternal,
 } from './ingest-runtime.js';
@@ -57,6 +58,10 @@ describe('ingest-runtime', () => {
     expect(shouldRouteToExternal('pymupdf', ['pymupdf'])).toBe(false);
     expect(shouldRouteToExternal('docling', ['pymupdf'])).toBe(true);
     expect(shouldRouteToExternal('docling:hybrid', ['pymupdf'])).toBe(true);
+  });
+
+  it('gives cold plugin-host imports more than 20s to finish', () => {
+    expect(PLUGIN_HOST_VALIDATE_TIMEOUT_MS).toBeGreaterThanOrEqual(90_000);
   });
 
   it('rejects incompatible plugin hosts', () => {

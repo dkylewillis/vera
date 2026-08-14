@@ -32,6 +32,7 @@ export const IPC_CHANNELS = {
   pickPythonInterpreter: 'vera:pickPythonInterpreter',
   validatePythonEnvironment: 'vera:validatePythonEnvironment',
   refreshExternalPipelines: 'vera:refreshExternalPipelines',
+  pythonEnvironment: 'vera:pythonEnvironment',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];

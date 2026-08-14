@@ -1631,6 +1631,11 @@ function App() {
     setSettingsOpen(true);
   }), []);
 
+  useEffect(() => window.vera.onPythonEnvironment((probe) => {
+    setPythonStatus(probe);
+    void reloadIngestPipelines();
+  }), []);
+
   const folderPathsKey = folders.map((folder) => folder.path).join('\n');
 
   // Keep folder headers scannable: expand the active library, collapse the rest.

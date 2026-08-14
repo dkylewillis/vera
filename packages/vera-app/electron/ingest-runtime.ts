@@ -12,6 +12,8 @@ import {
 } from '../src/shared/protocol.js';
 
 export const BUNDLED_PIPELINE_PROVIDER = 'pymupdf';
+/** Cold Docling/Torch imports often exceed 40s; keep the launch probe above that. */
+export const PLUGIN_HOST_VALIDATE_TIMEOUT_MS = 120_000;
 
 export function parsePipelineProvider(spec: string | undefined | null): string {
   const raw = (spec || '').trim().toLowerCase();

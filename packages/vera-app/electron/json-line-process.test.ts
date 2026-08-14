@@ -94,4 +94,17 @@ describe('JsonLineProcess', () => {
     child.stdout.emit('data', Buffer.from('{"id":"job-1","ok":true,"result":{"output":"out.vera"}}\n'));
     await expect(convert).resolves.toMatchObject({ ok: true });
   });
+
+  it('forceRestart kills in-flight work instead of waiting for idle', async () => {
+    const child = fakeChild();
+    spawn.mockReturnValue(child);
+    const proc = new JsonLineProcess('plugin-host', () => ({
+      executable: 'python',
+      args: ['-m', 'vera_plugin_host'],
+    }));
+    const pending = proc.request({ action: 'ping' });
+    proc.forceRestart();
+    await expect(pending).rejects.toThrow(/restarted/);
+    expect(child.kill).toHaveBeenCalled();
+  });
 });

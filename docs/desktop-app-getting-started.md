@@ -184,10 +184,16 @@ the frozen sidecar. To use extra ingest plugins:
    ```
    Adding a clone to `PYTHONPATH` without installing it is not enough.
 2. In VERA, open **File > LLM Providers**, enable **External Python plugins**,
-   choose that environment's `python.exe`, and click **Validate**.
+   choose that environment's `python.exe`, and click **Validate** once.
 3. Convert lists extra providers as `(external)`. Bundled `pymupdf` wins when a
    plugin repeats that name. After installing or updating plugins, click
    **Refresh plugins**.
+
+On later launches VERA re-probes the saved interpreter in the background and
+refreshes Convert when that probe succeeds. You do not need to Validate after
+every launch. First discovery can take about a minute when Docling or Torch
+imports are cold; Convert may show Docling as not installed until that probe
+finishes.
 
 The selected environment must provide `vera-ingest` 0.3.x (plugin API version
 1). Plugins register under the `vera.ingest_pipelines` entry-point group.
@@ -219,11 +225,13 @@ Optional Hugging Face tokens and the **Model cache** field
   repository and `%TEMP%` from real-time scanning, then retry.
 - **Validate fails for the external Python environment** — choose an absolute
   interpreter path that exists, install `vera-ingest` 0.3.x into that
-  environment, then Validate again.
+  environment, then Validate again. A cold Docling/Torch import can take about
+  a minute; wait for Ready rather than assuming the probe hung.
 - **An extra parser is missing from Convert** — install it with
   `python -m pip install` or `python -m pip install -e <clone>` in the selected
-  environment, then **Refresh plugins**. Raw `PYTHONPATH` folders are not
-  discovered.
+  environment, then **Refresh plugins**. After a relaunch, wait for the
+  automatic re-probe before treating the parser as missing. Raw `PYTHONPATH`
+  folders are not discovered.
 
 ## Provider request errors
 

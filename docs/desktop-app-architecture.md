@@ -93,7 +93,9 @@ to that worker package so plugins come from the selected environment after
 sidecar implementation. The worker speaks `ping`, `list_ingest_pipelines`,
 `describe_ingest_pipelines`, `convert`, `batch_convert`, `cancel`, and `skip`.
 Treat the selected interpreter as trusted code. Hugging Face tokens and
-`DOCLING_ARTIFACTS_PATH` are forwarded to the worker.
+`DOCLING_ARTIFACTS_PATH` are forwarded to the worker. A saved interpreter is
+re-probed on launch; Convert refreshes when that probe succeeds. The probe
+allows up to two minutes because a cold Docling/Torch import often exceeds 40s.
 
 ## Active Libraries and Collection Indexes
 

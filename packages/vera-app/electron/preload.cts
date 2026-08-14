@@ -1,4 +1,4 @@
-import type { AppSettings, Session, StreamEvent } from '../src/shared/contracts.js';
+import type { AppSettings, PythonEnvironmentProbe, Session, StreamEvent } from '../src/shared/contracts.js';
 import type { IPC_CHANNELS as IpcChannels } from '../src/shared/protocol.js';
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -43,6 +43,7 @@ const IPC_CHANNELS: typeof IpcChannels = {
   pickPythonInterpreter: 'vera:pickPythonInterpreter',
   validatePythonEnvironment: 'vera:validatePythonEnvironment',
   refreshExternalPipelines: 'vera:refreshExternalPipelines',
+  pythonEnvironment: 'vera:pythonEnvironment',
 };
 
 contextBridge.exposeInMainWorld('vera', {
@@ -96,5 +97,10 @@ contextBridge.exposeInMainWorld('vera', {
     const listener = (_event: unknown, data: StreamEvent) => callback(data);
     ipcRenderer.on(IPC_CHANNELS.answerEvent, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.answerEvent, listener);
+  },
+  onPythonEnvironment: (callback: (probe: PythonEnvironmentProbe) => void) => {
+    const listener = (_event: unknown, probe: PythonEnvironmentProbe) => callback(probe);
+    ipcRenderer.on(IPC_CHANNELS.pythonEnvironment, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.pythonEnvironment, listener);
   },
 });

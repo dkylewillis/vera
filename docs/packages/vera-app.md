@@ -41,7 +41,8 @@ only required for generated Ask responses.
 Packaged conversions keep PyMuPDF in the frozen sidecar. Extra ingest plugins
 run from a trusted external Python environment configured under
 **File > LLM Providers**. Install plugins with `python -m pip install` or
-`python -m pip install -e <clone>`, then Validate / Refresh. See
+`python -m pip install -e <clone>`, then Validate / Refresh. Later launches
+re-probe the saved interpreter. See
 [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md) and
 [Desktop app architecture](../desktop-app-architecture.md).
 
