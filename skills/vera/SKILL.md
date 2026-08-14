@@ -10,6 +10,9 @@ metadata:
 
 # VERA
 
+Frontmatter `metadata.version` is this skill's schema version, not the VERA
+product (0.3.x) or archive format (0.2).
+
 Use `vera-cli` to retrieve grounded evidence from `.vera` archives. Prefer the
 CLI's JSON output, read the returned text, and cite the source page and heading
 for every document-backed claim.
@@ -149,9 +152,9 @@ request that only asks to search or explain a document.
 
 - Always inspect the exit code before trusting output.
 - Do not assume all nonzero exits lack JSON. `validate`, `index status`, `eval`,
-  and a failed `export` can print useful JSON while returning 1.
-- Most missing-path and runtime failures are unstructured tracebacks on stderr.
-  Do not parse stderr as JSON.
+  a failed `export`, and a failed `convert` can print useful JSON while returning 1.
+- Most other missing-path and runtime failures are unstructured tracebacks on
+  stderr. Do not parse stderr as JSON.
 - Directory conversion skips an existing `.vera` only when it validates and
   its stored `source_file_hash` matches the current PDF, and exits 1 when
   `malformed_existing` is nonempty.

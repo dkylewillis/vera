@@ -149,6 +149,12 @@ def cmd_convert(args) -> int:
         else:
             print(str(exc), file=sys.stderr)
         return 2
+    except (ValueError, FileNotFoundError) as exc:
+        if args.json:
+            print(json.dumps({"ok": False, "error": str(exc)}))
+        else:
+            print(str(exc), file=sys.stderr)
+        return 1
     if args.json:
         print(json.dumps({"ok": True, "output": str(path)}))
     else:

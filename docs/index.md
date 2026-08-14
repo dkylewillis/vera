@@ -37,11 +37,13 @@ Install the CLI from PyPI:
 python -m pip install "vera-cli>=0.3.0"
 ```
 
-That pulls in `vera-doc` and `vera-ingest`. Library-only installs:
+That pulls in `vera-doc`, `vera-ingest`, and `vera-ingest-pymupdf`. Library-only
+installs (include the pymupdf plugin for a working default PDF convert path):
 
 ```bash
 python -m pip install "vera-doc>=0.3.0"
 python -m pip install "vera-ingest>=0.3.0"
+python -m pip install "vera-ingest-pymupdf>=0.3.0"
 ```
 
 Contributors using [uv](https://docs.astral.sh/uv/) can clone the repository and

@@ -694,9 +694,14 @@ def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):
     assert described["result"]["pipelines"][0]["fields"][0]["key"] == "chunk_size"
     assert single["ok"] is True
     assert captured["single"]["pipeline_options"] == {"chunk_size": 800, "ocr_mode": "force"}
+    assert "chunk_size" not in captured["single"]
+    assert "ocr_mode" not in captured["single"]
+    assert "ocr_language" not in captured["single"]
     assert batch["ok"] is True
     assert captured["batch"]["pipeline_options"] == {"chunk_size": 250, "ocr_language": "en"}
     assert captured["batch"]["parser"] == "docling"
+    assert "chunk_size" not in captured["batch"]
+    assert "ocr_language" not in captured["batch"]
 
 
 def test_sidecar_default_ocr_language_is_not_forwarded_to_docling(monkeypatch):
@@ -723,17 +728,23 @@ def test_sidecar_default_ocr_language_is_not_forwarded_to_docling(monkeypatch):
     )
 
     assert response["ok"] is True
-    assert captured["ocr_language"] == "eng"
+    assert "ocr_language" not in captured
+    assert "chunk_size" not in captured
+    assert "ocr_mode" not in captured
     merged = prepare_pipeline_options(
         spec=captured["parser"],
         pipeline_options=captured.get("pipeline_options"),
         legacy_options={
-            "chunk_size": captured["chunk_size"],
-            "overlap": captured["overlap"],
-            "ocr_mode": captured["ocr_mode"],
-            "ocr_language": captured["ocr_language"],
-            "ocr_dpi": captured["ocr_dpi"],
-            "ocr_download": captured["ocr_download"],
+            key: captured[key]
+            for key in (
+                "chunk_size",
+                "overlap",
+                "ocr_mode",
+                "ocr_language",
+                "ocr_dpi",
+                "ocr_download",
+            )
+            if key in captured
         },
     )
     assert "ocr_language" not in merged

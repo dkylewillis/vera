@@ -28,12 +28,11 @@ It owns:
 - transactional chunk and attachment CRUD;
 - embedding generation and storage;
 - keyword, semantic, and hybrid retrieval;
-- read-only compatibility for 0.1 document archives;
 - corpus search and rebuildable `.vera-index/` library indexes.
 
 It does not parse, clean, OCR, or chunk source content. It does not know what a
 PDF is. Attachments are opaque bytes, and chunk/archive metadata is
-JSON-compatible caller data.
+JSON-compatible caller data. Format 0.1 is historical; `vera-doc` reads 0.2 archives only.
 
 ### `vera-ingest`
 

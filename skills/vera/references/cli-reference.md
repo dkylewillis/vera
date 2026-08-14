@@ -34,27 +34,28 @@ Options:
   example `docling` or `docling:hybrid` when `vera-ingest-docling` is
   installed). Unknown providers exit with a non-zero status and an
   install-the-plugin message; there is no silent fallback.
-- `--chunk-size N` defaults to `500`. Compatibility alias forwarded only when
-  the selected pipeline advertises a `chunk_size` field. PyMuPDF counts
-  whitespace-split words; Docling counts whitespace tokens (not LLM subword
-  tokens).
-- `--overlap N` defaults to `75`. Compatibility alias forwarded only when the
-  pipeline advertises `overlap` (PyMuPDF, also whitespace-split words).
-  Docling does not receive overlap.
+- `--chunk-size N`. Compatibility alias; omitted uses the selected pipeline's
+  default. Forwarded only when the selected pipeline advertises a `chunk_size`
+  field. PyMuPDF counts whitespace-split words; Docling counts whitespace
+  tokens (not LLM subword tokens).
+- `--overlap N`. Compatibility alias; omitted uses the selected pipeline's
+  default. Forwarded only when the pipeline advertises `overlap` (PyMuPDF,
+  also whitespace-split words). Docling does not receive overlap.
 - `--store-original VALUE` defaults to `true`. Values `1`, `true`, `yes`, `y`,
   and `on` are true; `0`, `false`, `no`, `n`, `off`, and empty are false
   (case-insensitive). Any other token is rejected.
-- `--ocr auto|off|force` defaults to `auto`. Compatibility alias for
-  `ocr_mode`. Automatic mode OCRs only image-dominant low-text pages.
-- `--ocr-language CODE` defaults to `eng` (PyMuPDF/Tesseract). Compatibility
-  alias, forwarded only when the selected pipeline's OCR engine is Tesseract
-  (PyMuPDF). Docling/RapidOCR does not receive this alias and keeps its own
-  default `en` unless you pass `--pipeline-option ocr_language=` with a
-  RapidOCR-native code (`en`, `fr`, `cyrillic`, ...). `eng` is not valid for
-  Docling.
-- `--ocr-dpi N` defaults to `300` and must be positive. Compatibility alias
-  forwarded only when the pipeline advertises `ocr_dpi` (PyMuPDF). Docling
-  does not receive DPI.
+- `--ocr auto|off|force`. Compatibility alias for `ocr_mode`; omitted uses
+  the selected pipeline's default. Automatic mode OCRs only image-dominant
+  low-text pages.
+- `--ocr-language CODE`. Compatibility alias; omitted uses the selected
+  pipeline's default. Forwarded only when the selected pipeline's OCR engine
+  is Tesseract (PyMuPDF). Docling/RapidOCR does not receive this alias and
+  keeps its own default `en` unless you pass `--pipeline-option ocr_language=`
+  with a RapidOCR-native code (`en`, `fr`, `cyrillic`, ...). `eng` is not
+  valid for Docling.
+- `--ocr-dpi N` must be positive. Compatibility alias; omitted uses the
+  selected pipeline's default. Forwarded only when the pipeline advertises
+  `ocr_dpi` (PyMuPDF). Docling does not receive DPI.
 - `--ocr-allow-download` defaults to off. Compatibility alias for
   `ocr_download` (PyMuPDF only). When set, missing `--ocr-language` data is
   fetched from VERA's curated, checksum-verified registry (a subset of
@@ -112,6 +113,19 @@ Single-file JSON:
   "output": "C:/docs/manual.vera"
 }
 ```
+
+Empty-OCR, missing input, or validation failure with `--json`:
+
+```json
+{
+  "ok": false,
+  "error": "No searchable text or chunks were extracted; the PDF may be scanned and requires OCR."
+}
+```
+
+Exit 1. `FileNotFoundError` uses the same `{ok, error}` object. Without `--json`,
+the message is printed to stderr. Unknown `--parser` / `--model` uses the same
+JSON object and exits 2.
 
 Directory JSON:
 
@@ -630,14 +644,17 @@ exit code before deciding how to interpret output:
 
 - Exit 0: parse stdout as JSON when `--json` was supplied.
 - Exit 1 with structured JSON: expected negative result from `validate`,
-  `index status`, `eval`, or `export` without an embedded source.
+  `index status`, `eval`, `export` without an embedded source, or `convert`
+  when extraction/validation fails or the input path is missing (`{ok: false,
+  error}`).
 - Exit 1 with stderr traceback: most path, dependency, or runtime failures.
 - Exit 1 after batch report: one or more directory conversions failed or an
   existing output was malformed.
 - Exit 2: argparse usage/type failure, an output path supplied for directory
   conversion, an unknown `parser`/`model`, or a failed `ocr-languages
-  download` (unknown code, network error, or checksum mismatch — all with
-  structured JSON under `--json`).
+  download` (unknown code, network error, or checksum mismatch — convert
+  unknown-provider and `ocr-languages download` failures emit structured JSON
+  under `--json`).
 
 Do not assume stderr is JSON. Do not discard stdout solely because the exit code
 is 1; first check whether the command is one of the documented structured

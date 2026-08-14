@@ -24,6 +24,52 @@ from vera_ingest import convert
 from vera_ingest.viewer import regions_for
 
 
+def _sequence_library(tmp_path, n_pages: int = 12, target_index: int = 5):
+    """Build a library whose middle page is uniquely searchable with neighbors."""
+    import fitz
+
+    library = tmp_path / "seq-library"
+    library.mkdir()
+    pdf = tmp_path / "sequence.pdf"
+    doc = fitz.open()
+    before_text = "Alpha approach overview precedes the target section."
+    after_text = "Omega followup details come after the target section."
+    for index in range(n_pages):
+        page = doc.new_page()
+        if index == target_index:
+            text = "Middle Target\nBeacon target language lives in this middle section."
+        elif index == target_index - 1:
+            text = f"Opening Context\n{before_text}"
+        elif index == target_index + 1:
+            text = f"Closing Context\n{after_text}"
+        else:
+            text = f"Filler {index:02d}\nUnique filler token filler_{index:02d} padding text."
+        page.insert_text((72, 72), text)
+    doc.save(pdf)
+    doc.close()
+    vera = library / "sequence.vera"
+    convert(str(pdf), str(vera), model="hashing", chunk_size=100, overlap=0)
+    with VeraDocument.open(str(vera)) as archive:
+        records = list(archive.get())
+    hit_index = next(
+        index for index, record in enumerate(records) if "beacon target" in record.text.lower()
+    )
+    return library, len(records), records[hit_index - 1].text, records[hit_index + 1].text
+
+
+def _spy_document_get_ids(monkeypatch):
+    """Record every VeraDocument.get(ids=...) call; None means a full-table load."""
+    calls: list[list[str] | None] = []
+    original = VeraDocument.get
+
+    def spy(self, ids=None, *, where=None, limit=None):
+        calls.append(None if ids is None else list(ids))
+        return original(self, ids, where=where, limit=limit)
+
+    monkeypatch.setattr(VeraDocument, "get", spy)
+    return calls
+
+
 def _convert_topic(
     root: Path,
     relative: str,
@@ -200,6 +246,33 @@ class TestBuildAndSearch:
             assert isinstance(result.before_chunks, list)
             assert isinstance(result.after_chunks, list)
             assert regions_for(corpus.document(result.file), result)
+
+    def test_context_chunks_hydrates_neighbors_without_full_table(self, tmp_path, monkeypatch):
+        library, chunk_count, before_text, after_text = _sequence_library(tmp_path)
+        build_library_index(str(library))
+        fetched_ids = _spy_document_get_ids(monkeypatch)
+
+        with VeraCorpus.open(str(library)) as corpus:
+            assert corpus.uses_index is True
+            result = corpus.search(
+                "beacon target",
+                mode="keyword",
+                top_k=1,
+                context_chunks=1,
+            )[0]
+
+        assert "beacon target" in result.text.lower()
+        assert len(result.before_chunks) == 1
+        assert len(result.after_chunks) == 1
+        assert before_text.lower() in result.before_chunks[0]["text"].lower()
+        assert after_text.lower() in result.after_chunks[0]["text"].lower()
+        payload = result.as_dict()
+        assert "before_chunks" in payload
+        assert "after_chunks" in payload
+        # Regression: hydration must pass explicit ids to get(), never the full table.
+        assert fetched_ids
+        assert all(ids is not None for ids in fetched_ids)
+        assert max(len(ids) for ids in fetched_ids) < chunk_count
 
     def test_indexed_summary_does_not_reopen_archives(self, nested_library, monkeypatch):
         build_library_index(str(nested_library), recursive=True, excludes=["archive"])

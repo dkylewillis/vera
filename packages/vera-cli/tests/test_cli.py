@@ -330,6 +330,68 @@ def test_cli_ocr_allow_download_defaults_false():
     assert args.ocr_allow_download is False
 
 
+def test_cli_omitted_convert_aliases_are_unset(tmp_path, monkeypatch):
+    pdf = tmp_path / "scan.pdf"
+    output = tmp_path / "scan.vera"
+    pdf.write_bytes(b"%PDF-test-placeholder")
+    captured = {}
+
+    def fake_convert(input_path, output_path, **kwargs):
+        captured.update(kwargs)
+        return output_path
+
+    monkeypatch.setattr(cli_commands, "convert", fake_convert)
+    args = build_parser().parse_args(["convert", str(pdf), str(output)])
+
+    assert args.chunk_size is None
+    assert args.overlap is None
+    assert args.ocr_mode is None
+    assert args.ocr_language is None
+    assert args.ocr_dpi is None
+    assert args.func(args) == 0
+    assert captured["chunk_size"] is None
+    assert captured["overlap"] is None
+    assert captured["ocr_mode"] is None
+    assert captured["ocr_language"] is None
+    assert captured["ocr_dpi"] is None
+
+
+def test_cli_convert_value_error_emits_json(tmp_path, monkeypatch, capsys):
+    pdf = tmp_path / "scan.pdf"
+    output = tmp_path / "scan.vera"
+    pdf.write_bytes(b"%PDF-test-placeholder")
+    message = (
+        "No searchable text or chunks were extracted; the PDF may be scanned and requires OCR."
+    )
+
+    def fake_convert(input_path, output_path, **kwargs):
+        raise ValueError(message)
+
+    monkeypatch.setattr(cli_commands, "convert", fake_convert)
+    args = build_parser().parse_args(["convert", str(pdf), str(output), "--json"])
+
+    assert args.func(args) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"ok": False, "error": message}
+
+
+def test_cli_convert_unknown_provider_emits_json(tmp_path, monkeypatch, capsys):
+    pdf = tmp_path / "scan.pdf"
+    output = tmp_path / "scan.vera"
+    pdf.write_bytes(b"%PDF-test-placeholder")
+    message = "Unknown ingest pipeline 'nope'"
+
+    def fake_convert(input_path, output_path, **kwargs):
+        raise cli_commands.UnknownIngestPipelineError(message)
+
+    monkeypatch.setattr(cli_commands, "convert", fake_convert)
+    args = build_parser().parse_args(["convert", str(pdf), str(output), "--json"])
+
+    assert args.func(args) == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"ok": False, "error": message}
+
+
 def test_cli_ocr_languages_list_json(capsys):
     args = build_parser().parse_args(["ocr-languages", "list", "eng+zzz", "--json"])
     assert args.func(args) == 0
@@ -374,17 +436,22 @@ def test_cli_default_ocr_language_is_not_forwarded_to_docling():
     from vera_ingest_docling.options import DoclingOptions
 
     args = build_parser().parse_args(["convert", "scan.pdf", "--parser", "docling"])
-    assert args.ocr_language == "eng"
-    merged = prepare_pipeline_options(
-        spec=args.parser,
-        legacy_options={
+    assert args.ocr_language is None
+    legacy_options = {
+        key: value
+        for key, value in {
             "chunk_size": args.chunk_size,
             "overlap": args.overlap,
             "ocr_mode": args.ocr_mode,
             "ocr_language": args.ocr_language,
             "ocr_dpi": args.ocr_dpi,
             "ocr_download": args.ocr_allow_download,
-        },
+        }.items()
+        if value is not None
+    }
+    merged = prepare_pipeline_options(
+        spec=args.parser,
+        legacy_options=legacy_options,
     )
     assert "ocr_language" not in merged
     assert DoclingOptions.from_mapping(merged).ocr_language == "en"

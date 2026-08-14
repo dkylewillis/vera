@@ -81,19 +81,21 @@ def build_parser() -> argparse.ArgumentParser:
     convert_p.add_argument(
         "--chunk-size",
         type=int,
-        default=500,
+        default=None,
         help=(
             "Compatibility alias for pipeline chunk_size (PyMuPDF: whitespace-split "
-            "words; Docling: whitespace tokens)"
+            "words; Docling: whitespace tokens). Omitted uses the selected "
+            "pipeline's default."
         ),
     )
     convert_p.add_argument(
         "--overlap",
         type=int,
-        default=75,
+        default=None,
         help=(
             "Compatibility alias for pipeline overlap (PyMuPDF: whitespace-split "
-            "words; not forwarded to Docling)"
+            "words; not forwarded to Docling). Omitted uses the selected "
+            "pipeline's default."
         ),
     )
     convert_p.add_argument("--store-original", type=str_to_bool, default=True)
@@ -101,22 +103,29 @@ def build_parser() -> argparse.ArgumentParser:
         "--ocr",
         dest="ocr_mode",
         choices=["auto", "off", "force"],
-        default="auto",
-        help="OCR mode: auto scans image-based pages, off disables OCR, force OCRs every page",
+        default=None,
+        help=(
+            "OCR mode: auto scans image-based pages, off disables OCR, force OCRs "
+            "every page. Compatibility alias; omitted uses the selected pipeline's default."
+        ),
     )
     convert_p.add_argument(
         "--ocr-language",
-        default="eng",
+        default=None,
         help=(
             "Tesseract language code (PyMuPDF compatibility alias; not "
-            "forwarded to Docling/RapidOCR)"
+            "forwarded to Docling/RapidOCR). Omitted uses the selected "
+            "pipeline's default."
         ),
     )
     convert_p.add_argument(
         "--ocr-dpi",
         type=positive_int,
-        default=300,
-        help="OCR render resolution (compatibility alias)",
+        default=None,
+        help=(
+            "OCR render resolution (compatibility alias). Omitted uses the "
+            "selected pipeline's default."
+        ),
     )
     convert_p.add_argument(
         "--ocr-allow-download",

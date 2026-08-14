@@ -1170,6 +1170,21 @@ def _answer(
     }
 
 
+_CONVERT_ALIAS_CASTERS = (
+    ("chunk_size", int),
+    ("overlap", int),
+    ("ocr_mode", str),
+    ("ocr_language", str),
+    ("ocr_dpi", int),
+    ("ocr_download", bool),
+)
+
+
+def _explicit_convert_aliases(request: Request) -> dict[str, Any]:
+    """Forward convert compatibility aliases only when the request set them."""
+    return {key: caster(request[key]) for key, caster in _CONVERT_ALIAS_CASTERS if key in request}
+
+
 def _convert(
     request: Request,
     write_event=None,
@@ -1198,16 +1213,11 @@ def _convert(
         str(request["output"]),
         model=str(request.get("model", "hashing")),
         parser=str(request.get("parser", "pymupdf")),
-        chunk_size=int(request.get("chunk_size", 500)),
-        overlap=int(request.get("overlap", 75)),
         store_original=bool(request.get("store_original", True)),
-        ocr_mode=str(request.get("ocr_mode", "auto")),
-        ocr_language=str(request.get("ocr_language", "eng")),
-        ocr_dpi=int(request.get("ocr_dpi", 300)),
-        ocr_download=bool(request.get("ocr_download", False)),
         pipeline_options=pipeline_options,
         embedder_options=embedder_options,
         cancel=cancel,
+        **_explicit_convert_aliases(request),
     )
     if write_event:
         write_event(
@@ -1272,13 +1282,7 @@ def _batch_convert(
         overwrite=bool(request.get("overwrite", False)),
         model=str(request.get("model", "hashing")),
         parser=str(request.get("parser", "pymupdf")),
-        chunk_size=int(request.get("chunk_size", 500)),
-        overlap=int(request.get("overlap", 75)),
         store_original=bool(request.get("store_original", True)),
-        ocr_mode=str(request.get("ocr_mode", "auto")),
-        ocr_language=str(request.get("ocr_language", "eng")),
-        ocr_dpi=int(request.get("ocr_dpi", 300)),
-        ocr_download=bool(request.get("ocr_download", False)),
         pipeline_options=(
             dict(request["pipeline_options"])
             if isinstance(request.get("pipeline_options"), dict)
@@ -1291,6 +1295,7 @@ def _batch_convert(
         ),
         progress=report_progress,
         cancel=cancel,
+        **_explicit_convert_aliases(request),
     )
 
 

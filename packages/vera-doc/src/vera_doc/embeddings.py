@@ -557,11 +557,7 @@ def _register_builtins() -> None:
 
 
 def _load_entry_point_group(group: str) -> list[Any]:
-    try:
-        selected = entry_points(group=group)
-    except TypeError:  # pragma: no cover - Python <3.10 compatibility path
-        selected = entry_points().get(group, [])  # type: ignore[arg-type]
-    return list(selected)
+    return list(entry_points(group=group))
 
 
 def _safe_load_entry_point(entry: Any, provider: str, *, kind: str) -> Any | None:

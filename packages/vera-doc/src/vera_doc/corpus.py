@@ -42,6 +42,59 @@ def _with_file(result: QueryResult, file: str) -> CorpusSearchResult:
     )
 
 
+def _hydrate_context_chunks(
+    doc: VeraDocument,
+    results: list[CorpusSearchResult],
+    context_chunks: int,
+) -> list[CorpusSearchResult]:
+    """Attach ±N neighbors to hits without loading the full chunk table.
+
+    Mirrors :meth:`VeraDocument.search`: ordered chunk ids, then ``get()`` only
+    the ranked hits and their adjacent windows. Directory/index search used to
+    call ``doc.get()`` (every row) per hit file when ``context_chunks > 0``.
+    """
+    if not context_chunks or not results:
+        return results
+    hit_ids = [result.record.id for result in results]
+    ordered_ids = doc._chunk_ids_in_order()
+    positions = {chunk_id: index for index, chunk_id in enumerate(ordered_ids)}
+    extra: list[str] = []
+    for record_id in hit_ids:
+        position = positions.get(record_id)
+        if position is None:
+            continue
+        extra.extend(ordered_ids[max(0, position - context_chunks) : position])
+        extra.extend(ordered_ids[position + 1 : position + context_chunks + 1])
+    needed = list(dict.fromkeys([*hit_ids, *extra]))
+    by_id = {record.id: record for record in doc.get(needed)}
+    hydrated: list[CorpusSearchResult] = []
+    for result in results:
+        position = positions.get(result.record.id)
+        if position is None:
+            hydrated.append(result)
+            continue
+        hydrated.append(
+            replace(
+                result,
+                before=tuple(
+                    by_id[chunk_id]
+                    for chunk_id in ordered_ids[
+                        max(0, position - context_chunks) : position
+                    ]
+                    if chunk_id in by_id
+                ),
+                after=tuple(
+                    by_id[chunk_id]
+                    for chunk_id in ordered_ids[
+                        position + 1 : position + context_chunks + 1
+                    ]
+                    if chunk_id in by_id
+                ),
+            )
+        )
+    return hydrated
+
+
 class VeraCorpus:
     """A folder of .vera files searchable as one corpus.
 
@@ -399,17 +452,16 @@ class VeraCorpus:
             else:
                 final = self._fuse_rrf(per_file, top_k)
         if context_chunks:
+            by_file: dict[str, list[int]] = {}
             for result_index, result in enumerate(final):
-                doc = self.document(result.file)
-                records = doc.get()
-                positions = {record.id: index for index, record in enumerate(records)}
-                position = positions.get(result.record.id)
-                if position is not None:
-                    replacement = replace(
-                        result,
-                        before=tuple(records[max(0, position - context_chunks) : position]),
-                        after=tuple(records[position + 1 : position + context_chunks + 1]),
-                    )
+                by_file.setdefault(result.file, []).append(result_index)
+            for path, indexes in by_file.items():
+                replacements = _hydrate_context_chunks(
+                    self.document(path),
+                    [final[index] for index in indexes],
+                    context_chunks,
+                )
+                for result_index, replacement in zip(indexes, replacements, strict=True):
                     final[result_index] = replacement
         return final
 

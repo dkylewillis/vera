@@ -412,3 +412,35 @@ def test_release_0_3_versioning_and_install_pins():
             leftover_caveats.append(str(path.relative_to(ROOT)))
     assert leftover_pins == [], f"stale >=0.2.4 install pins in {leftover_pins}"
     assert leftover_caveats == [], f"stale PyPI caveats in {leftover_caveats}"
+
+
+def test_architecture_vera_doc_reads_format_0_2_only():
+    architecture = (DOCS / "architecture.md").read_text(encoding="utf-8")
+    assert "read-only compatibility for 0.1" not in architecture
+    assert "Format 0.1 is historical" in architecture
+    assert "`vera-doc` reads 0.2 archives only" in architecture
+
+
+def test_docs_index_library_install_includes_default_pdf_pipeline():
+    index = (DOCS / "index.md").read_text(encoding="utf-8")
+    marker = "Library-only"
+    assert marker in index
+    block = index.split(marker, 1)[1].split("```bash", 1)[1].split("```", 1)[0]
+    assert "vera-doc>=0.3.0" in block
+    assert "vera-ingest>=0.3.0" in block
+    assert "vera-ingest-pymupdf>=0.3.0" in block
+
+
+def test_skill_version_is_schema_not_product_or_format():
+    skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
+    assert 'version: "1.0.0"' in skill
+    assert "skill's schema version" in skill
+    assert "not the VERA" in skill
+    assert "archive format (0.2)" in skill
+
+
+def test_agents_and_skill_document_convert_json_on_failure():
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
+    assert "failed `convert`" in agents
+    assert "failed `convert`" in skill
