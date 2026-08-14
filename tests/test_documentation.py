@@ -283,6 +283,15 @@ def test_hardening_json_contracts_are_documented():
     assert "describe_ingest_pipelines" in desktop
     assert "PipelineConfigForm" in desktop
     assert "Advanced pipeline options" in desktop
+    assert "external Python environment" in desktop
+    assert "vera.ingest_pipelines" in desktop
+    assert "pip install -e" in desktop
+    assert "python -m vera_plugin_host" in desktop_architecture
+    assert "trusted" in desktop_architecture
+    assert "python/plugin-host/vera_plugin_host" in (
+        ROOT / "packages" / "vera-app" / "package.json"
+    ).read_text(encoding="utf-8")
+    assert (ROOT / "packages" / "vera-app" / "src" / "vera_plugin_host" / "__main__.py").is_file()
     assert "only explicit `search_start` and `search_done`" in desktop_architecture
     assert "Token-level `answer_delta`" in desktop_architecture
     assert "describe_ingest_pipelines" in desktop_architecture

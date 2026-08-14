@@ -5,13 +5,28 @@ import { basename, delimiter, isAbsolute, join, relative, resolve, sep } from 'n
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
   AppSettings,
+  ExternalPythonConfig,
+  PipelineDescriptor,
   PipelineOptions,
   CredentialResult,
   ProviderProfile,
+  PythonEnvironmentProbe,
   Session,
 } from '../src/shared/contracts.js';
 import { IPC_CHANNELS, SIDECAR_ACTIONS } from '../src/shared/protocol.js';
 import { listFolderEntries } from './folder-listing.js';
+import { JsonLineProcess, type JsonLineEvent, type JsonLineResponse } from './json-line-process.js';
+import {
+  conversionRuntimeOwner,
+  fallbackBundledDescriptors,
+  mergePipelineDescriptors,
+  normalizeExternalPython,
+  normalizePipelineDescriptor,
+  parsePipelineProvider,
+  pluginHostSpawnCommand,
+  processOwnerFor,
+  probeFromPing,
+} from './ingest-runtime.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
 
 /** Prefer the workspace uv venv so optional plugins (ml/docling) resolve in source-run. */
@@ -91,7 +106,15 @@ const DEFAULT_SETTINGS: AppSettings = {
   embedding_model: 'hashing',
   ingest_pipeline: 'pymupdf',
   ingest_pipeline_configs: {},
+  external_python: { enabled: false, executable: '' },
 };
+
+const PLUGIN_HOST_VALIDATE_TIMEOUT_MS = 20_000;
+let pluginWorkerExecutable = '';
+let pluginWorkerArtifacts = '';
+let lastPythonProbe: PythonEnvironmentProbe | null = null;
+const requestOwners = new Map<string, 'core' | 'external'>();
+let bundledProviders = new Set<string>(['pymupdf']);
 
 function isJsonPrimitive(value: unknown): value is string | number | boolean | null {
   return value === null
@@ -360,6 +383,222 @@ class PythonSidecar {
 
 const sidecar = new PythonSidecar();
 
+function pluginHostPythonPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'python', 'plugin-host')
+    : join(process.cwd(), 'src');
+}
+
+function pluginHostCommand() {
+  const settings = readSettings();
+  const executable = pluginWorkerExecutable || settings.external_python?.executable?.trim() || '';
+  if (!executable) {
+    throw new Error('Select a Python interpreter before using external ingest plugins.');
+  }
+  const env = { ...process.env };
+  applyHfTokenEnv(env);
+  const command = pluginHostSpawnCommand({
+    pythonPath: executable,
+    pluginHostRoot: pluginHostPythonPath(),
+    artifactsPath: pluginWorkerArtifacts || settings.external_python?.artifacts_path,
+    extraEnv: env,
+  });
+  return {
+    ...command,
+    cwd: app.getPath('userData'),
+  };
+}
+
+const pluginWorker = new JsonLineProcess('vera-plugin-host', pluginHostCommand);
+
+function syncPluginWorker(config: ExternalPythonConfig | null | undefined): void {
+  const executable = config?.enabled ? config.executable.trim() : '';
+  const artifacts = config?.enabled ? (config.artifacts_path || '').trim() : '';
+  if (!executable) {
+    if (pluginWorker.running) pluginWorker.restart();
+    pluginWorkerExecutable = '';
+    pluginWorkerArtifacts = '';
+    return;
+  }
+  if (executable !== pluginWorkerExecutable || artifacts !== pluginWorkerArtifacts) {
+    if (pluginWorker.running) pluginWorker.restart();
+  }
+  pluginWorkerExecutable = executable;
+  pluginWorkerArtifacts = artifacts;
+}
+
+function ownerFor(requestId: string | undefined): PythonSidecar | JsonLineProcess {
+  return processOwnerFor(requestId, requestOwners) === 'external' ? pluginWorker : sidecar;
+}
+
+function descriptorsFromResult(result: unknown, source: 'bundled' | 'external'): PipelineDescriptor[] {
+  const pipelines = result && typeof result === 'object'
+    ? (result as { pipelines?: unknown }).pipelines
+    : undefined;
+  if (!Array.isArray(pipelines)) return source === 'bundled' ? fallbackBundledDescriptors() : [];
+  const normalized = pipelines
+    .map((item) => normalizePipelineDescriptor(item, source))
+    .filter((item): item is PipelineDescriptor => item !== null);
+  return source === 'bundled' && normalized.length === 0 ? fallbackBundledDescriptors() : normalized;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs / 1000}s`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function describeMergedPipelines(): Promise<JsonLineResponse> {
+  const core = await sidecar.request({ action: SIDECAR_ACTIONS.describeIngestPipelines });
+  const bundled = core.ok
+    ? descriptorsFromResult(core.result, 'bundled')
+    : fallbackBundledDescriptors();
+  bundledProviders = new Set(bundled.map((item) => parsePipelineProvider(item.provider || item.spec)));
+  let external: PipelineDescriptor[] = [];
+  const settings = readSettings();
+  if (settings.external_python?.enabled && settings.external_python.executable && lastPythonProbe?.ok) {
+    try {
+      const worker = await pluginWorker.request({ action: SIDECAR_ACTIONS.describeIngestPipelines });
+      if (worker.ok) {
+        external = descriptorsFromResult(worker.result, 'external');
+        const loadErrors = worker.result && typeof worker.result === 'object'
+          ? (worker.result as { load_errors?: unknown }).load_errors
+          : [];
+        lastPythonProbe = {
+          ...lastPythonProbe,
+          pipelines: external,
+          load_errors: Array.isArray(loadErrors)
+            ? loadErrors.filter((value): value is string => typeof value === 'string')
+            : lastPythonProbe.load_errors,
+        };
+      }
+    } catch (error) {
+      lastPythonProbe = {
+        ok: false,
+        executable: settings.external_python.executable,
+        error: error instanceof Error ? error.message : 'External plugin host failed',
+      };
+    }
+  }
+  const pipelines = mergePipelineDescriptors(bundled, external);
+  if (core.ok) {
+    return { ...core, result: { pipelines } };
+  }
+  return { id: core.id, ok: true, result: { pipelines } };
+}
+
+async function listMergedPipelines(): Promise<JsonLineResponse> {
+  const described = await describeMergedPipelines();
+  const pipelines = described.result && typeof described.result === 'object'
+    ? (described.result as { pipelines?: PipelineDescriptor[] }).pipelines ?? []
+    : [];
+  return {
+    ...described,
+    result: { pipelines: pipelines.map((item) => item.spec || item.provider) },
+  };
+}
+
+async function routeSidecarRequest(
+  request: SidecarPayload,
+  onEvent: (event: JsonLineEvent) => void,
+  requestId?: string,
+): Promise<JsonLineResponse> {
+  if (request.action === SIDECAR_ACTIONS.describeIngestPipelines) {
+    return describeMergedPipelines();
+  }
+  if (request.action === SIDECAR_ACTIONS.listIngestPipelines) {
+    return listMergedPipelines();
+  }
+  const settings = readSettings();
+  const parser = typeof request.parser === 'string' ? request.parser : 'pymupdf';
+  const owner = conversionRuntimeOwner(
+    request.action,
+    parser,
+    bundledProviders,
+    Boolean(settings.external_python?.enabled && lastPythonProbe?.ok),
+  );
+  const target = owner === 'external' ? pluginWorker : sidecar;
+  const id = requestId;
+  if (id) requestOwners.set(id, owner);
+  try {
+    return await target.request(request, onEvent, requestId);
+  } finally {
+    if (id) requestOwners.delete(id);
+  }
+}
+
+async function validatePythonEnvironment(
+  executable: string,
+  artifactsPath?: string,
+): Promise<PythonEnvironmentProbe> {
+  const resolved = executable.trim();
+  if (!resolved) {
+    lastPythonProbe = { ok: false, error: 'Choose a Python interpreter.' };
+    return lastPythonProbe;
+  }
+  if (!existsSync(resolved)) {
+    lastPythonProbe = { ok: false, executable: resolved, error: `Python interpreter not found: ${resolved}` };
+    return lastPythonProbe;
+  }
+  pluginWorkerExecutable = resolved;
+  pluginWorkerArtifacts = (artifactsPath || '').trim();
+  if (pluginWorker.running) pluginWorker.restart();
+  try {
+    const ping = await withTimeout(
+      pluginWorker.request({ action: SIDECAR_ACTIONS.ping }),
+      PLUGIN_HOST_VALIDATE_TIMEOUT_MS,
+      'Python environment probe',
+    );
+    if (!ping.ok) {
+      lastPythonProbe = {
+        ok: false,
+        executable: resolved,
+        error: ping.error || 'Plugin host ping failed',
+      };
+      return lastPythonProbe;
+    }
+    const pingResult = (ping.result || {}) as Record<string, unknown>;
+    const described = await pluginWorker.request({ action: SIDECAR_ACTIONS.describeIngestPipelines });
+    const pipelines = described.ok ? descriptorsFromResult(described.result, 'external') : [];
+    lastPythonProbe = probeFromPing(resolved, pingResult, pipelines);
+    if (described.ok && described.result && typeof described.result === 'object') {
+      const loadErrors = (described.result as { load_errors?: unknown }).load_errors;
+      if (Array.isArray(loadErrors)) {
+        lastPythonProbe.load_errors = loadErrors.filter((value): value is string => typeof value === 'string');
+      }
+    }
+    return lastPythonProbe;
+  } catch (error) {
+    lastPythonProbe = {
+      ok: false,
+      executable: resolved,
+      error: error instanceof Error ? error.message : 'Unable to start the plugin host',
+    };
+    pluginWorker.restart();
+    return lastPythonProbe;
+  }
+}
+
+async function pickPythonInterpreter(): Promise<string | null> {
+  const options: Electron.OpenDialogOptions = {
+    title: 'Select Python interpreter',
+    properties: ['openFile'],
+    filters: process.platform === 'win32'
+      ? [{ name: 'Python', extensions: ['exe'] }]
+      : undefined,
+  };
+  const result = await dialog.showOpenDialog(options);
+  return result.canceled ? null : result.filePaths[0] || null;
+}
+
 function settingsPath(): string {
   return join(app.getPath('userData'), 'settings.json');
 }
@@ -480,6 +719,7 @@ function withRuntime(settings: AppSettings): AppSettings {
       has_api_key: Boolean(keys[credentialKey(profile.base_url)]),
     })),
     has_hf_token: Boolean(resolveHfToken()),
+    external_python_status: lastPythonProbe,
   };
 }
 
@@ -552,6 +792,7 @@ function readSettings(): AppSettings {
         ? raw.ingest_pipeline.trim()
         : 'pymupdf',
       ingest_pipeline_configs: normalizePipelineConfigs(raw.ingest_pipeline_configs),
+      external_python: normalizeExternalPython(raw.external_python),
     };
     return withRuntime(merged);
   } catch {
@@ -571,7 +812,9 @@ function writeSettings(settings: AppSettings): AppSettings {
     embedding_model: settings.embedding_model?.trim() || 'hashing',
     ingest_pipeline: settings.ingest_pipeline?.trim() || 'pymupdf',
     ingest_pipeline_configs: normalizePipelineConfigs(settings.ingest_pipeline_configs),
+    external_python: normalizeExternalPython(settings.external_python),
   };
+  syncPluginWorker(sanitized.external_python);
   const target = settingsPath();
   const temp = `${target}.tmp`;
   writeFileSync(temp, JSON.stringify(sanitized, null, 2), 'utf8');
@@ -615,6 +858,7 @@ function saveHfToken(token: string): CredentialResult {
   keys[HF_TOKEN_SECRET_KEY] = trimmed;
   writeApiKeys(keys);
   sidecar.restart();
+  pluginWorker.restart();
   return { ok: true, has_api_key: true };
 }
 
@@ -625,6 +869,7 @@ function clearHfToken(): CredentialResult {
     writeApiKeys(keys);
   }
   sidecar.restart();
+  pluginWorker.restart();
   return { ok: true, has_api_key: Boolean(environmentHfToken()) };
 }
 
@@ -938,14 +1183,14 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.deleteSession, async (_event, id: string) => deleteSession(id));
   ipcMain.handle(IPC_CHANNELS.request, async (event, payload: SidecarPayload, requestId?: string) => {
     const sender = event.sender;
-    const onEvent = (e: SidecarEvent) => {
+    const onEvent = (e: JsonLineEvent) => {
       if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.answerEvent, e);
     };
     const prepared = withModesDir(withStoredApiKey(payload));
     const request = prepared.action === 'source'
       ? { ...prepared, cache_dir: sourceCacheDir() }
       : prepared;
-    const response = await sidecar.request(request, onEvent, requestId);
+    const response = await routeSidecarRequest(request, onEvent, requestId);
     if (
       response.ok
       && request.action === 'source'
@@ -968,13 +1213,28 @@ app.whenReady().then(() => {
     }
     return response;
   });
-  ipcMain.handle(IPC_CHANNELS.cancelAnswer, (_event, requestId: string) => sidecar.cancelAnswer(requestId));
-  ipcMain.handle(IPC_CHANNELS.cancelRequest, (_event, requestId: string) => sidecar.cancelRequest(requestId));
-  ipcMain.handle(IPC_CHANNELS.skipConversion, (_event, requestId: string) => sidecar.skipConversion(requestId));
+  ipcMain.handle(IPC_CHANNELS.cancelAnswer, (_event, requestId: string) => ownerFor(requestId).cancelAnswer(requestId));
+  ipcMain.handle(IPC_CHANNELS.cancelRequest, (_event, requestId: string) => ownerFor(requestId).cancelRequest(requestId));
+  ipcMain.handle(IPC_CHANNELS.skipConversion, (_event, requestId: string) => ownerFor(requestId).skipConversion(requestId));
   ipcMain.handle(IPC_CHANNELS.listModes, async () => sidecar.request({ action: SIDECAR_ACTIONS.listModes, modes_dir: modesDir() }));
   ipcMain.handle(IPC_CHANNELS.openModesFolder, async () => shell.openPath(modesDir()));
   ipcMain.handle(IPC_CHANNELS.getSettings, async () => readSettings());
   ipcMain.handle(IPC_CHANNELS.saveSettings, async (_event, settings: AppSettings) => writeSettings(settings));
+  ipcMain.handle(IPC_CHANNELS.pickPythonInterpreter, async () => pickPythonInterpreter());
+  ipcMain.handle(IPC_CHANNELS.validatePythonEnvironment, async (_event, executable: string, artifactsPath?: string) => {
+    return validatePythonEnvironment(String(executable || ''), artifactsPath);
+  });
+  ipcMain.handle(IPC_CHANNELS.refreshExternalPipelines, async () => {
+    const settings = readSettings();
+    if (!settings.external_python?.enabled || !settings.external_python.executable) {
+      lastPythonProbe = { ok: false, error: 'External Python is not configured.' };
+      return lastPythonProbe;
+    }
+    return validatePythonEnvironment(
+      settings.external_python.executable,
+      settings.external_python.artifacts_path,
+    );
+  });
   ipcMain.handle(IPC_CHANNELS.saveApiKey, async (_event, providerId: string, apiKey: string) => saveApiKey(providerId, apiKey));
   ipcMain.handle(IPC_CHANNELS.clearApiKey, async (_event, providerId: string) => clearApiKey(providerId));
   ipcMain.handle(IPC_CHANNELS.saveHfToken, async (_event, token: string) => saveHfToken(token));
@@ -1007,6 +1267,10 @@ app.whenReady().then(() => {
     const result = await dialog.showSaveDialog({ title: 'Save file' });
     return result.canceled ? null : result.filePath;
   });
+  const startupPython = readSettings().external_python;
+  if (startupPython?.enabled && startupPython.executable) {
+    void validatePythonEnvironment(startupPython.executable, startupPython.artifacts_path);
+  }
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -1018,6 +1282,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   stopFolderWatchers();
   sidecar.stop();
+  pluginWorker.stop();
 });
 
 app.on('window-all-closed', () => {

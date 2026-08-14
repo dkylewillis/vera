@@ -27,6 +27,7 @@ from vera_ingest import (
     get_chunk_regions,
     get_ingest_pipeline,
     list_ingest_pipeline_descriptors,
+    list_ingest_pipeline_load_errors,
     list_ingest_pipelines,
     prepare_pipeline_options,
     register_ingest_pipeline,
@@ -68,6 +69,25 @@ def test_pymupdf_ensure_registered_works_without_entry_points(monkeypatch):
     assert "pymupdf" in list_ingest_pipelines()
     assert get_ingest_pipeline("pymupdf") is get_ingest_pipeline("pymupdf")
     assert describe_ingest_pipeline("pymupdf").provider == "pymupdf"
+
+
+def test_entry_point_load_failures_are_reported(monkeypatch):
+    class BrokenEntry:
+        name = "broken"
+
+        def load(self):
+            raise ImportError("missing extra")
+
+    monkeypatch.setattr(
+        "vera_ingest.pipeline._load_entry_point_group",
+        lambda group: [BrokenEntry()] if group == "vera.ingest_pipelines" else [],
+    )
+    reset_ingest_pipeline_registry()
+    assert list_ingest_pipelines() == []
+    errors = list_ingest_pipeline_load_errors()
+    assert errors
+    assert "broken" in errors[0]
+    assert "missing extra" in errors[0]
 
 
 def test_builtin_conversion_records_real_pymupdf_version(tmp_path):

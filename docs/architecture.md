@@ -85,7 +85,9 @@ helpers. The optional `vera-cli[mcp]` extra installs it for `vera mcp`.
 `vera-app` owns the Electron/React desktop application, Python sidecar, LLM
 providers, sessions, and application state. It depends on `vera-doc`,
 `vera-ingest`, and `vera-ingest-pymupdf` (including viewer helpers), not on
-`vera-cli`.
+`vera-cli`. Packaged conversions keep the frozen sidecar for search, Ask, and
+bundled PyMuPDF. Extra ingest plugins run in a shipped `vera_plugin_host`
+worker launched with a user-selected Python interpreter.
 
 ### `vera-lab`
 

@@ -78,8 +78,18 @@ describe('convertPresets', () => {
     expect(withoutDocling[1]?.requiresProvider).toBe('docling');
   });
 
+  it('preserves bundled vs external source on installed options', () => {
+    const options = pipelineSelectOptions([
+      { ...pymupdfDescriptor, source: 'bundled' },
+      { ...doclingDescriptor, source: 'external' },
+    ]);
+    expect(options[0]?.source).toBe('bundled');
+    expect(options[1]?.source).toBe('external');
+  });
+
   it('returns install hints for missing optional pipelines', () => {
-    expect(pipelineInstallHint('docling', [pymupdfDescriptor])).toContain('uv sync --extra docling');
+    expect(pipelineInstallHint('docling', [pymupdfDescriptor])).toContain('python -m pip install vera-ingest-docling');
+    expect(pipelineInstallHint('docling', [pymupdfDescriptor])).toContain('pip install -e');
     expect(pipelineInstallHint('pymupdf', [pymupdfDescriptor])).toBe('Default PDF ingest pipeline');
   });
 });

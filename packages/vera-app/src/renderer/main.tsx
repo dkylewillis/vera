@@ -27,7 +27,7 @@ import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { ModelManager, ProviderManager } from './components/ProviderManagers';
 import { mergePipelineFieldValues } from './components/PipelineConfigForm';
 import { VeraIcon } from './components/VeraIcon';
-import { useAppBootstrap } from './hooks/useAppBootstrap';
+import { useAppBootstrap, loadIngestPipelineDescriptors } from './hooks/useAppBootstrap';
 import { useConversion } from './hooks/useConversion';
 import { useSearch } from './hooks/useSearch';
 import { useSidecarCall } from './hooks/useSidecarCall';
@@ -61,7 +61,7 @@ import { libraryQueryScope } from './lib/search';
 import { hydrateSessionTurns, stripTrace, traceKey } from './lib/sessions';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS } from './lib/providers';
 import { SIDECAR_ACTIONS } from '../shared/protocol';
-import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
+import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, ExternalPythonConfig, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, PythonEnvironmentProbe, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
 import './styles.css';
 
 // In-memory store for LLM traces. Traces are large (full prompt/response dumps),
@@ -120,6 +120,9 @@ function App() {
   const [ingestPipelineConfigs, setIngestPipelineConfigs] = useState<Record<string, PipelineOptions>>({});
   const [pipelineOptions, setPipelineOptions] = useState<PipelineOptions>({});
   const [hasHfToken, setHasHfToken] = useState(false);
+  const [externalPython, setExternalPython] = useState<ExternalPythonConfig>({ enabled: false, executable: '' });
+  const [pythonStatus, setPythonStatus] = useState<PythonEnvironmentProbe | null>(null);
+  const [pythonBusy, setPythonBusy] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
@@ -1382,6 +1385,8 @@ function App() {
     setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
     setHasHfToken(Boolean(saved.has_hf_token));
+    setExternalPython(saved.external_python || { enabled: false, executable: '' });
+    setPythonStatus(saved.external_python_status || null);
     return saved;
   }
 
@@ -1395,6 +1400,8 @@ function App() {
     setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
     setHasHfToken(Boolean(saved.has_hf_token));
+    setExternalPython(saved.external_python || { enabled: false, executable: '' });
+    setPythonStatus(saved.external_python_status || null);
     return saved;
   }
 
@@ -1407,6 +1414,7 @@ function App() {
       embedding_model: embeddingModel,
       ingest_pipeline: ingestPipeline,
       ingest_pipeline_configs: ingestPipelineConfigs,
+      external_python: externalPython,
       ...overrides,
     };
   }
@@ -1448,6 +1456,55 @@ function App() {
     setIngestPipelineConfigs(nextConfigs);
     await persistSettings(settingsSnapshot({ ingest_pipeline_configs: nextConfigs }));
   }
+
+  async function persistExternalPython(next: ExternalPythonConfig) {
+    setExternalPython(next);
+    await persistSettings(settingsSnapshot({ external_python: next }));
+  }
+
+  async function reloadIngestPipelines() {
+    setIngestPipelineDescriptors(await loadIngestPipelineDescriptors());
+  }
+
+  async function pickPythonInterpreter() {
+    const selected = await window.vera.pickPythonInterpreter();
+    if (!selected) return;
+    await persistExternalPython({ ...externalPython, executable: selected, enabled: true });
+  }
+
+  async function validatePythonEnvironment() {
+    setPythonBusy(true);
+    try {
+      await persistExternalPython(externalPython);
+      const probe = await window.vera.validatePythonEnvironment(
+        externalPython.executable,
+        externalPython.artifacts_path,
+      );
+      setPythonStatus(probe);
+      if (probe.ok) {
+        await persistExternalPython({
+          ...externalPython,
+          enabled: true,
+          validated_at: Date.now(),
+        });
+        await reloadIngestPipelines();
+      }
+    } finally {
+      setPythonBusy(false);
+    }
+  }
+
+  async function refreshExternalPipelines() {
+    setPythonBusy(true);
+    try {
+      const probe = await window.vera.refreshExternalPipelines();
+      setPythonStatus(probe);
+      await reloadIngestPipelines();
+    } finally {
+      setPythonBusy(false);
+    }
+  }
+
   async function selectActiveModel(providerId: string, model: string) {
     setModelPickerOpen(false);
     setActiveProviderId(providerId);
@@ -1597,6 +1654,8 @@ function App() {
       setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
       setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
       setHasHfToken(Boolean(saved.has_hf_token));
+      setExternalPython(saved.external_python || { enabled: false, executable: '' });
+      setPythonStatus(saved.external_python_status || null);
     },
     setEmbeddingProviders,
     setIngestPipelineDescriptors,
@@ -2293,8 +2352,15 @@ function App() {
           ingestPipeline={ingestPipeline}
           ingestPipelineConfigs={ingestPipelineConfigs}
           hasHfToken={hasHfToken}
+          externalPython={externalPython}
+          pythonStatus={pythonStatus}
+          pythonBusy={pythonBusy}
           onPersist={persistSettings}
           onRefresh={refreshSettings}
+          onExternalPythonChange={(next) => { void persistExternalPython(next); }}
+          onPickPython={() => { void pickPythonInterpreter(); }}
+          onValidatePython={() => { void validatePythonEnvironment(); }}
+          onRefreshPipelines={() => { void refreshExternalPipelines(); }}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}

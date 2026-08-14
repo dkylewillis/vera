@@ -13,7 +13,24 @@ export function fallbackPipelineDescriptors(pipelines: string[]): PipelineDescri
     capabilities: {},
     fields: [],
     notes: [],
+    source: spec === 'pymupdf' ? 'bundled' : 'external',
   }));
+}
+
+export async function loadIngestPipelineDescriptors(): Promise<PipelineDescriptor[]> {
+  const response = await window.vera.request<{ pipelines: PipelineDescriptor[] }>({
+    action: SIDECAR_ACTIONS.describeIngestPipelines,
+  });
+  if (response.ok && response.result?.pipelines?.length) {
+    return response.result.pipelines;
+  }
+  const fallback = await window.vera.request<{ pipelines: string[] }>({
+    action: SIDECAR_ACTIONS.listIngestPipelines,
+  });
+  const pipelines = fallback.ok && fallback.result?.pipelines?.length
+    ? fallback.result.pipelines
+    : ['pymupdf'];
+  return fallbackPipelineDescriptors(pipelines);
 }
 
 export function useAppBootstrap(options: {
@@ -42,22 +59,9 @@ export function useAppBootstrap(options: {
       }
     }
     async function loadIngestPipelines() {
-      const response = await window.vera.request<{ pipelines: PipelineDescriptor[] }>({
-        action: SIDECAR_ACTIONS.describeIngestPipelines,
-      });
-      if (canceled) return;
-      if (response.ok && response.result?.pipelines?.length) {
-        optionsRef.current.setIngestPipelineDescriptors(response.result.pipelines);
-        return;
-      }
-      const fallback = await window.vera.request<{ pipelines: string[] }>({
-        action: SIDECAR_ACTIONS.listIngestPipelines,
-      });
-      if (!canceled && fallback.ok) {
-        const pipelines = fallback.result?.pipelines?.length
-          ? fallback.result.pipelines
-          : ['pymupdf'];
-        optionsRef.current.setIngestPipelineDescriptors(fallbackPipelineDescriptors(pipelines));
+      const descriptors = await loadIngestPipelineDescriptors();
+      if (!canceled) {
+        optionsRef.current.setIngestPipelineDescriptors(descriptors);
       }
     }
     async function loadSessions() {

@@ -14,6 +14,7 @@ from .descriptors import (
     PipelineFieldChoice,
 )
 from .pipeline import (
+    PLUGIN_API_VERSION,
     IngestPipeline,
     UnknownIngestPipelineError,
     clear_ingest_pipeline_cache,
@@ -21,6 +22,7 @@ from .pipeline import (
     get_ingest_pipeline,
     invoke_ingest_pipeline,
     list_ingest_pipeline_descriptors,
+    list_ingest_pipeline_load_errors,
     list_ingest_pipelines,
     prepare_pipeline_options,
     register_ingest_pipeline,
@@ -60,6 +62,7 @@ __all__ = [
     "IngestResult",
     "ParsedBlock",
     "ParsedPage",
+    "PLUGIN_API_VERSION",
     "PipelineCapabilities",
     "PipelineDescriptor",
     "PipelineField",
@@ -84,6 +87,7 @@ __all__ = [
     "get_source_document",
     "invoke_ingest_pipeline",
     "list_ingest_pipeline_descriptors",
+    "list_ingest_pipeline_load_errors",
     "list_ingest_pipelines",
     "prepare_pipeline_options",
     "regions_for",

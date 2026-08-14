@@ -193,6 +193,8 @@ export interface PipelineCapabilities {
   source_formats?: string[];
 }
 
+export type PipelineRuntimeSource = 'bundled' | 'external';
+
 export interface PipelineDescriptor {
   provider: string;
   variant: string;
@@ -203,6 +205,26 @@ export interface PipelineDescriptor {
   capabilities: PipelineCapabilities;
   fields: PipelineFieldDescriptor[];
   notes?: string[];
+  source?: PipelineRuntimeSource;
+}
+
+export interface ExternalPythonConfig {
+  enabled: boolean;
+  executable: string;
+  artifacts_path?: string;
+  validated_at?: number;
+}
+
+export interface PythonEnvironmentProbe {
+  ok: boolean;
+  executable?: string;
+  python_version?: string;
+  vera_ingest_version?: string;
+  protocol?: number;
+  plugin_api?: number;
+  pipelines?: PipelineDescriptor[];
+  load_errors?: string[];
+  error?: string;
 }
 
 /** Opaque JSON-compatible options owned by the selected ingest pipeline. */
@@ -225,6 +247,10 @@ export interface AppSettings {
    * Not persisted in settings.json.
    */
   has_hf_token?: boolean;
+  /** Opt-in interpreter used to discover and run extra ingest plugins. */
+  external_python?: ExternalPythonConfig | null;
+  /** Runtime-only probe of the configured external Python environment. */
+  external_python_status?: PythonEnvironmentProbe | null;
 }
 
 export interface CredentialResult {
