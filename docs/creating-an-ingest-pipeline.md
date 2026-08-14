@@ -382,6 +382,16 @@ vera inspect "notes.vera" --json
 vera validate "notes.vera" --json
 ```
 
+For a visual layout check against a PDF pipeline, use the contributor
+[`vera-lab`](packages/vera-lab.md) tool (workspace `dev` extra). It runs the
+pipeline without writing an archive and emits an HTML report with block/chunk
+overlays and layout lint:
+
+```bash
+vera-lab "manual.pdf" -o report.html --parser pymupdf
+vera-lab "manual.pdf" -o compare.html --parser pymupdf --parser docling
+```
+
 To judge whether a new pipeline (or a chunking change within one) actually
 retrieves better, run the same query set through `vera eval` against archives
 produced by each pipeline and compare hit rate / MRR — see

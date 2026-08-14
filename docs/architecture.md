@@ -11,10 +11,13 @@ vera-ingest ─────────┼──> vera-doc
 vera-cli ────────────┤
 vera-app ────────────┤
 vera-mcp ────────────┘
+vera-lab (dev only) ─┘
 ```
 
 No package may make `vera-doc` depend on extraction, a user interface, MCP,
-evaluation tooling, or a source-file format.
+evaluation tooling, or a source-file format. `vera-lab` is a contributor-only
+leaf (workspace `dev` extra); it is not shipped in releases or the packaged
+desktop sidecar.
 
 ### `vera-doc`
 
@@ -83,6 +86,14 @@ helpers. The optional `vera-cli[mcp]` extra installs it for `vera mcp`.
 providers, sessions, and application state. It depends on `vera-doc`,
 `vera-ingest`, and `vera-ingest-pymupdf` (including viewer helpers), not on
 `vera-cli`.
+
+### `vera-lab`
+
+`vera-lab` is a contributor layout lab. It depends on `vera-ingest` and
+PyMuPDF, runs a pipeline (or reads an archive) into a normalized view model,
+and writes a self-contained HTML report with page overlays, lint, and stats.
+Nothing in the release path depends on it. See
+[vera-lab](packages/vera-lab.md).
 
 ## Core Python API
 

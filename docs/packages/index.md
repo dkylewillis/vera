@@ -12,6 +12,7 @@ the package that owns the capability you need.
 | [vera-cli](vera-cli.md) | `vera-cli` | `vera` / `import vera_cli` | Shell workflows and retrieval evaluation |
 | [vera-mcp](vera-mcp.md) | `vera-mcp` | `vera mcp` / `import vera_mcp` | Exposing VERA retrieval to MCP clients |
 | [vera-app](vera-app.md) | `vera-app` | Desktop application | Interactive conversion, search, and grounded answers |
+| [vera-lab](vera-lab.md) | `vera-lab` (dev) | `vera-lab` / `import vera_lab` | Contributor HTML layout lab for ingest pipelines |
 
 ## Dependency direction
 

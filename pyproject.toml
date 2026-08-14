@@ -19,6 +19,7 @@ dev = [
   "pytest>=8",
   "reportlab>=4",
   "vera-mcp",
+  "vera-lab",
   "ruff>=0.8",
   "mypy>=1.13",
   "pre-commit>=4",
@@ -45,6 +46,7 @@ members = [
   "packages/vera-mcp",
   "packages/vera-cli",
   "packages/vera-app",
+  "packages/vera-lab",
 ]
 
 [tool.uv.sources]
@@ -55,6 +57,7 @@ vera-ingest-docling = { workspace = true }
 vera-mcp = { workspace = true }
 vera-cli = { workspace = true }
 vera-app = { workspace = true }
+vera-lab = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
@@ -89,6 +92,7 @@ known-first-party = [
   "vera_cli",
   "vera_mcp",
   "vera_app",
+  "vera_lab",
 ]
 
 [tool.mypy]
@@ -112,6 +116,7 @@ pythonpath = [
   "packages/vera-mcp/src",
   "packages/vera-cli/src",
   "packages/vera-app/src",
+  "packages/vera-lab/src",
   "tests",
 ]
 testpaths = [
@@ -123,6 +128,7 @@ testpaths = [
   "packages/vera-cli/tests",
   "packages/vera-mcp/tests",
   "packages/vera-app/tests",
+  "packages/vera-lab/tests",
 ]
 addopts = "-q"
 markers = [

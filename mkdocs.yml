@@ -141,6 +141,8 @@ nav:
       - Overview: packages/vera-ingest-pymupdf.md
   - vera-ingest-docling:
       - Overview: packages/vera-ingest-docling.md
+  - vera-lab:
+      - Overview: packages/vera-lab.md
   - vera-cli:
       - Overview: packages/vera-cli.md
       - Guides:

@@ -26,6 +26,7 @@ members = [
     "vera-ingest",
     "vera-ingest-docling",
     "vera-ingest-pymupdf",
+    "vera-lab",
     "vera-mcp",
     "vera-workspace",
 ]
@@ -4753,6 +4754,21 @@ requires-dist = [
 ]
 
 [[package]]
+name = "vera-lab"
+version = "0.3.0"
+source = { editable = "packages/vera-lab" }
+dependencies = [
+    { name = "pymupdf" },
+    { name = "vera-ingest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pymupdf", specifier = ">=1.23" },
+    { name = "vera-ingest", editable = "packages/vera-ingest" },
+]
+
+[[package]]
 name = "vera-mcp"
 version = "0.3.0"
 source = { editable = "packages/vera-mcp" }
@@ -4791,6 +4807,7 @@ dev = [
     { name = "pytest" },
     { name = "reportlab" },
     { name = "ruff" },
+    { name = "vera-lab" },
     { name = "vera-mcp" },
 ]
 docling = [
@@ -4832,6 +4849,7 @@ requires-dist = [
     { name = "vera-ingest", editable = "packages/vera-ingest" },
     { name = "vera-ingest-docling", marker = "extra == 'docling'", editable = "packages/vera-ingest-docling" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
+    { name = "vera-lab", marker = "extra == 'dev'", editable = "packages/vera-lab" },
     { name = "vera-mcp", marker = "extra == 'dev'", editable = "packages/vera-mcp" },
     { name = "vera-mcp", marker = "extra == 'mcp'", editable = "packages/vera-mcp" },
 ]

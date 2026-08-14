@@ -60,6 +60,7 @@ vera-ingest ─────────┼──> vera-doc
 vera-cli ────────────┤
 vera-app ────────────┤
 vera-mcp ────────────┘
+vera-lab (dev only) ─┘
 ```
 
 - Storage/search: `packages/vera-doc/src/vera_doc`
@@ -67,6 +68,7 @@ vera-mcp ────────────┘
 - Default PDF pipeline: `packages/vera-ingest-pymupdf/src/vera_ingest_pymupdf`
 - MCP: `packages/vera-mcp/src/vera_mcp`
 - CLI: `packages/vera-cli/src/vera_cli`
+- Ingest layout lab (dev): `packages/vera-lab/src/vera_lab`
 
 The current format spec is [docs/vera-spec-v0.2.md](docs/vera-spec-v0.2.md) —
 keep code and spec in sync. Details in

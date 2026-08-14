@@ -70,6 +70,13 @@ Owns the Electron/React desktop app and Python sidecar. Depends directly on
 `vera-doc`, `vera-ingest`, and `vera-ingest-pymupdf`; it does not use the CLI
 as a backend.
 
+## `vera-lab`
+
+Contributor layout lab (workspace `dev` extra only). Depends on `vera-ingest`
+and PyMuPDF. Writes a self-contained HTML report with block/chunk/figure
+overlays and layout lint. Not published as part of the release path and not a
+pipeline provider.
+
 ## Dependency direction
 
 ```text
@@ -78,6 +85,7 @@ vera-ingest-docling ──> vera-ingest ─┤
 vera-cli ─────────────────────────────┼──> vera-doc
 vera-app ─────────────────────────────┤
 vera-mcp ─────────────────────────────┘
+vera-lab (dev only) ──────────────────┘
 ```
 
 The uv workspace provides editable development links. Released packages use
