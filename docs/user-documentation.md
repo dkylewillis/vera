@@ -42,6 +42,8 @@ figures, and citation metadata in one portable `.vera` file.
 
 - [Repository architecture](architecture.md)
 - [Desktop app architecture](desktop-app-architecture.md)
+- [Additional source formats and visual grounding](multi-format-ingest.md) —
+  planned non-PDF ingest, plugin naming, and Markdown/PDF viewer surfaces
 - [Changelog](https://github.com/dkylewillis/vera/blob/main/CHANGELOG.md)
 - [Roadmap](https://github.com/dkylewillis/vera/blob/main/ROADMAP.md)
 

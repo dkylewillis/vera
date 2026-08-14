@@ -18,9 +18,9 @@ schema or normative behavior.
 The **0.3.0** tag ships the extensibility foundation below (pluggable ingest
 and embedders, strict unknown-provider errors, optional Docling, descriptor
 APIs). Unchecked items under Desktop application, Official embedding
-providers, Packaging and local models, and Future packaged-app plugin
-runtime are **follow-ups after the 0.3.0 tag** (0.3.1 or later). They are
-not blockers for 0.3.0.
+providers, Packaging and local models, Future packaged-app plugin runtime,
+and Additional source formats and visual grounding are **follow-ups after the 0.3.0 tag**
+(0.3.1 or later). They are not blockers for 0.3.0.
 
 ## VERA 0.2 — Maintenance
 
@@ -159,6 +159,52 @@ The long-term goal is an app-managed experience. Released VERA installations
 should not require users to locate Python, manage a virtual environment, or run
 `pip` manually.
 
+## Additional source formats and visual grounding
+
+Follow-ups after 0.3.0 (0.3.1 or later); not 0.3.0 blockers. Convert, batch
+discovery, and the desktop source viewer remain PDF-only until these land.
+Design notes: [Additional source formats and visual grounding](docs/multi-format-ingest.md).
+
+Package and application versions still do not change the `.vera` format.
+Locator shapes for Markdown, sheets, and slides belong in chunk
+`metadata_json` (and viewer attachments). They do not require a 0.2 schema
+bump.
+
+### Plugin identity
+
+- [ ] Keep ingest package and provider names tied to the engine
+  (`vera-ingest-docling` / `docling`), not the file type
+  (`vera-ingest-docling-pdf`).
+- [ ] Advertise supported types on `PipelineCapabilities.source_formats`
+  and use that list in convert, batch discovery, and file pickers instead of
+  hardcoding `.pdf`.
+- [ ] Grow formats inside the existing engine package (and optional extras
+  for heavy dependencies), not a new plugin per extension.
+- [ ] Keep `provider[:variant]` variants as processing strategies
+  (`docling:hybrid`), not as `docling:pdf` / `docling:docx`.
+
+### Grounding surfaces
+
+- [ ] Keep PDF visual grounding as page + bbox overlays on the stored
+  original PDF. Do not convert PDFs to Markdown in order to highlight them.
+- [ ] For flow documents (DOCX, HTML, Markdown, TXT), generate Markdown at
+  ingest, store that exact preview as a viewer attachment, and highlight it.
+  Keep `source_original` as the real source bytes.
+- [ ] Prefer block/heading anchors in the stored Markdown over line numbers
+  of generated text (line spans drift on reconvert).
+- [ ] Do not treat generated Markdown as the visual source of truth for
+  Excel or PowerPoint. Markdown excerpts may still be searchable.
+- [ ] Add a `kind` on region locators (`page_bbox`, `text_span`, later
+  `sheet_range`) in chunk metadata. Missing `kind` plus a bbox stays
+  `page_bbox` so existing archives keep working.
+- [ ] Dispatch the desktop viewer by source MIME: PDF overlay, stored
+  Markdown preview, or citation text when no overlay applies.
+
+### Later native locators
+
+- [ ] Sheet + A1 range (or row/column spans) for Excel and CSV.
+- [ ] Slide index + bbox for PowerPoint.
+
 ## Non-goals
 
 - Requiring a user-managed Python installation for normal desktop use.
@@ -166,4 +212,8 @@ should not require users to locate Python, manage a virtual environment, or run
 - Silently falling back to a different embedding model or ingest pipeline.
 - Bundling large machine-learning runtimes in the base installer without a
   clear opt-in and distribution plan.
+- Encoding the source file type in the ingest plugin package or provider
+  name.
+- Forcing every source format through PDF page points.
+- Bumping `format_version` for new ingest locator shapes.
 

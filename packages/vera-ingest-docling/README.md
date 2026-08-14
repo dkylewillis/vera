@@ -60,6 +60,9 @@ convert("manual.pdf", "manual.vera", parser="docling")
   forwarded; pass `--pipeline-option ocr_language=fr` (or another RapidOCR
   code) when you need a non-default language.
 - Torch model compilation is disabled so Windows does not need MSVC `cl.exe`.
+- Picture crops are stored as figure attachments and linked onto a nearby
+  same-page chunk so search `--figures` can return them. Docling's
+  HybridChunker omits pictures from chunk text.
 - On page-level memory errors (`bad_alloc`), VERA retries failed pages then
   falls back to `pypdfium2`; force that backend with
   `--pipeline-option pdf_backend=pypdfium2`. Conversion rejects only when

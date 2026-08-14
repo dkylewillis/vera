@@ -31,7 +31,7 @@ from vera_ingest import (
 )
 from vera_ingest.types import IngestChunk, IngestOptions, IngestRequest
 from vera_ingest_docling import create_pipeline
-from vera_ingest_docling.mapping import _item_text
+from vera_ingest_docling.mapping import _chunk_document, _item_text
 from vera_ingest_docling.pipeline import (
     DoclingHybridPipeline,
     WhitespaceTokenizer,
@@ -171,9 +171,9 @@ def test_map_docling_document_converts_coords_and_types():
     assert bottom == pytest.approx(92.0)
     assert any("detention ponds" in block.text for block in paragraphs)
     assert any("Figure 1" in block.text for block in captions)
-    if images:
-        assert images[0].image_bytes
-        assert images[0].image_ext == "png"
+    assert images
+    assert images[0].image_bytes
+    assert images[0].image_ext == "png"
 
 
 def test_whitespace_tokenizer_is_deterministic():
@@ -216,6 +216,7 @@ def test_build_converter_disables_torch_compile_and_keeps_default_image_scale():
     )
     pipeline_options = converter.format_to_options["pdf"].pipeline_options
     assert pipeline_options.images_scale == 1.0
+    assert pipeline_options.generate_picture_images is True
     assert pipeline_options.layout_options.engine_options.compile_model is False
 
 
@@ -319,6 +320,13 @@ def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, 
     assert any(chunk.heading_path for chunk in result.chunks)
     assert any(chunk.embedding_text for chunk in result.chunks)
     assert {block.block_id for block in result.blocks}
+    image_ids = {
+        block.block_id
+        for block in result.blocks
+        if block.block_type == "image" and block.image_bytes
+    }
+    assert image_ids
+    assert any(image_ids.intersection(chunk.block_ids) for chunk in result.chunks)
 
 
 def test_prepare_does_not_forward_pymupdf_overlap_dpi_to_docling():
@@ -467,6 +475,14 @@ def test_convert_uses_docling_pipeline_end_to_end(monkeypatch, tmp_path):
         assert info["parser_name"] == "docling"
         hits = document_archive.search("detention", mode="keyword", top_k=3)
         assert hits
+        from vera_ingest.viewer import figures, figures_for
+
+        stored = figures(document_archive)
+        assert stored
+        assert stored[0].get("caption")
+        caption_hits = document_archive.search("Figure 1", mode="keyword", top_k=3)
+        assert caption_hits
+        assert figures_for(document_archive, caption_hits[0])
 
 
 def _page_failed_error(zero_based_page: int, detail: str = "std::bad_alloc") -> ErrorItem:
@@ -1060,6 +1076,57 @@ def test_picture_item_does_not_stringify_caption_refs():
     assert "RefItem" not in text
     assert "#/texts/5" not in text
     assert text == ""
+
+
+def test_hybrid_chunks_link_picture_blocks_to_same_page_caption():
+    from vera_ingest_docling.options import DoclingOptions
+
+    document = _fixture_document()
+    _pages, blocks = map_docling_document(document)
+    images = [block for block in blocks if block.block_type == "image"]
+    assert images
+    assert images[0].image_bytes
+    chunks = _chunk_document(
+        document,
+        blocks,
+        DoclingOptions.from_mapping({"chunk_size": 100}),
+    )
+    image_ids = {block.block_id for block in images}
+    linked = {block_id for chunk in chunks for block_id in chunk.block_ids}
+    assert image_ids <= linked
+    caption_chunks = [chunk for chunk in chunks if "Figure 1" in chunk.text]
+    assert caption_chunks
+    assert image_ids.intersection(caption_chunks[0].block_ids)
+
+
+def test_uncaptioned_picture_is_linked_to_same_page_text_chunk():
+    from docling_core.types.doc import ImageRef
+
+    from vera_ingest_docling.options import DoclingOptions
+
+    document = DoclingDocument(name="uncaptioned")
+    document.add_page(page_no=1, size=Size(width=612.0, height=792.0))
+    document.add_text(
+        label=DocItemLabel.PARAGRAPH,
+        text="Nearby paragraph about detention ponds.",
+        prov=_prov(1, 72, 640, 500, 680),
+    )
+    image = Image.new("RGB", (32, 32), color=(20, 40, 60))
+    document.add_picture(
+        prov=_prov(1, 350, 400, 500, 500),
+        image=ImageRef.from_pil(image=image, dpi=72),
+    )
+    _pages, blocks = map_docling_document(document)
+    images = [block for block in blocks if block.block_type == "image"]
+    assert len(images) == 1
+    assert images[0].image_bytes
+    chunks = _chunk_document(
+        document,
+        blocks,
+        DoclingOptions.from_mapping({"chunk_size": 100}),
+    )
+    assert any(images[0].block_id in chunk.block_ids for chunk in chunks)
+    assert any("detention ponds" in chunk.text for chunk in chunks)
 
 
 @pytest.mark.docling_integration

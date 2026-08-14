@@ -49,6 +49,9 @@ The default Docling variant is `hybrid`. Unknown variants fail before parsing.
 ## Behavior
 
 - Parses PDFs with Docling's `DocumentConverter` (tables and picture crops on).
+  Cropped pictures are stored as figure attachments and linked onto a nearby
+  same-page chunk. Docling's HybridChunker omits pictures from chunk text
+  (empty image placeholder), so that linking is what makes `--figures` work.
 - Chunks with Docling `HybridChunker` and an explicit whitespace tokenizer so
   `chunk_size` maps to whitespace-split words without downloading a HuggingFace
   tokenizer.
@@ -114,5 +117,8 @@ Docling plugins in this milestone.
 - [Convert documents](../conversion.md)
 - [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md) — this
   package demonstrates layout mapping and failure recovery beyond the basics.
+- [Additional source formats and visual grounding](../multi-format-ingest.md) —
+  grow formats inside this engine package; do not split into
+  `vera-ingest-docling-pdf`.
 - [vera-ingest package](vera-ingest.md)
 - [ROADMAP](https://github.com/dkylewillis/vera/blob/main/ROADMAP.md)

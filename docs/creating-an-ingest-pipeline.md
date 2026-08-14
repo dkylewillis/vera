@@ -5,7 +5,10 @@ that shared conversion writes into a `.vera` archive. `vera-ingest-pymupdf`
 and `vera-ingest-docling` are both ordinary plugins built on this contract —
 nothing in `vera-ingest`, `vera-cli`, or `vera-app` special-cases either one.
 Write your own to support a new source format, a different parsing engine, or
-an experimental chunking strategy.
+an experimental chunking strategy. Name the package after the engine
+(`vera-ingest-example`), not the file type; advertise extensions on
+`PipelineCapabilities.source_formats`. Planned non-PDF ingest and Markdown
+grounding are in [Additional source formats and visual grounding](multi-format-ingest.md).
 
 Registry and descriptor APIs (`register_ingest_pipeline`,
 `register_ingest_pipeline_descriptor`, `PipelineDescriptor`, and related
@@ -48,6 +51,10 @@ opaque `pipeline_options` mapping your pipeline owns and validates itself.
 Shared conversion enforces a few invariants on the result before writing it:
 block and chunk IDs must be non-empty and unique, every chunk's `block_ids`
 must reference a real block, and every chunk's `text` must be non-empty.
+Image blocks with `image_bytes` are stored as figure attachments. Convert
+associates those attachments with search hits only through `chunk.block_ids`,
+so include each image block ID on a nearby same-page chunk or figures are
+saved but omitted from `--figures`.
 
 Parsers often emit `ParsedBlock` (the same layout fields without a stable
 `block_id`). Convert with `IngestBlock.from_parsed(block_id, block)` before
@@ -406,5 +413,7 @@ produced by each pipeline and compare hit rate / MRR — see
   pipeline plugins fit.
 - [Convert documents](conversion.md#pipeline-options) — the user-facing side
   of `--parser` and `--pipeline-option`.
+- [Additional source formats and visual grounding](multi-format-ingest.md) —
+  planned non-PDF ingest, `source_formats`, and Markdown/PDF viewer surfaces.
 - [`vera_ingest` API reference](reference/vera-ingest.md) — `IngestPipeline`,
   `IngestRequest`/`IngestResult`, registry, and descriptor types.

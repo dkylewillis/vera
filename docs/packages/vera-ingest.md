@@ -86,6 +86,8 @@ own default.
 - [Convert documents](../conversion.md) — OCR, chunking, embedding, and batch conversion.
 - [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md) — write and register
   a new pipeline provider.
+- [Additional source formats and visual grounding](../multi-format-ingest.md) —
+  planned non-PDF ingest, plugin naming, and Markdown/PDF viewer surfaces.
 - [Figures and regions](../figures-and-regions.md) — extracted visual metadata and
   [schema storage map](../figures-and-regions.md#storage-map-vera-02-schema).
 - [Conversion recipes](../examples.md) — single files, scans, and nested libraries.

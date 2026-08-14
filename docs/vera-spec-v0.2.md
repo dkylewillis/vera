@@ -134,7 +134,10 @@ JSON-compatible application data, including:
 ```
 
 These keys are conventional, not required. Readers MUST preserve unknown
-metadata.
+metadata. Additional ingest locators (for example a region `kind`, Markdown
+line spans, or sheet ranges) MAY appear on the same `regions` array or as
+other metadata keys. They MUST NOT require new tables or a `format_version`
+change.
 
 For the ingest-produced mapping of figures, tables, captions, layout blocks,
 and highlight regions onto these tables, see

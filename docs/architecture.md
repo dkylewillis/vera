@@ -48,7 +48,11 @@ core:
 
 PDF parsing and OCR live in plugin packages that register through
 `vera.ingest_pipelines`. It emits final `ChunkRecord` objects and writes them
-through `VeraDocument`. `vera-doc` never imports `vera_ingest`.
+through `VeraDocument`. `vera-doc` never imports `vera_ingest`. Plugins are
+named after the parsing engine (`pymupdf`, `docling`), not the file type;
+planned extra formats and Markdown grounding stay in ingest conventions
+(see [Additional source formats and visual grounding](multi-format-ingest.md))
+and do not change the 0.2 archive schema.
 
 ### `vera-ingest-pymupdf`
 

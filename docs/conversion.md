@@ -3,7 +3,10 @@
 `vera convert` turns PDFs into portable `.vera` archives. Conversion parses
 page layout, detects headings and figures, creates citation-ready chunks,
 computes embeddings, builds the FTS5 keyword index, and normally stores the
-original PDF.
+original PDF. Batch discovery and the desktop source viewer are PDF-only in
+this release. Planned DOCX/HTML/Markdown ingest and a stored-Markdown
+preview for visual grounding are in
+[Additional source formats and visual grounding](multi-format-ingest.md).
 
 ## Convert one PDF
 

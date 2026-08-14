@@ -196,3 +196,8 @@ See [MCP integration](mcp.md).
 - Tables represented as selectable text may be text blocks rather than image
   assets.
 - Regions identify source blocks, not individual words or characters.
+- Convert and the desktop source viewer are PDF-only today. Planned
+  Markdown previews for flow documents, typed region `kind` values, and
+  later sheet/slide locators are in
+  [Additional source formats and visual grounding](multi-format-ingest.md).
+  Those locators stay in chunk metadata; they do not change format 0.2.

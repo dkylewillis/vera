@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import io
 from collections import defaultdict
 from typing import Any
@@ -176,13 +177,54 @@ def _item_text(document: Any, item: Any, block_type: str) -> str:
             return str(getattr(item, "text", "") or "")
     if isinstance(item, PictureItem):
         # captions is List[RefItem], not text — do not stringify refs.
-        return str(getattr(item, "text", "") or getattr(item, "orig", "") or "")
+        text = str(getattr(item, "text", "") or getattr(item, "orig", "") or "")
+        if text:
+            return text
+        caption_text = getattr(item, "caption_text", None)
+        if callable(caption_text) and document is not None:
+            try:
+                return str(caption_text(document) or "")
+            except Exception:  # noqa: BLE001
+                return ""
+        return ""
     if block_type == "caption":
         return str(getattr(item, "text", "") or "")
     return str(getattr(item, "text", "") or getattr(item, "orig", "") or "")
 
 
+def _extension_from_mimetype(mime: str) -> str:
+    subtype = (mime or "image/png").split("/", 1)[-1].lower() or "png"
+    if subtype == "jpeg":
+        return "jpg"
+    if subtype in {"png", "jpg", "gif", "webp", "tiff", "bmp"}:
+        return subtype
+    return "png"
+
+
+def _picture_uri_bytes(item: Any) -> tuple[bytes | None, str]:
+    ref = getattr(item, "image", None)
+    if ref is None:
+        return None, ""
+    uri = getattr(ref, "uri", None)
+    if uri is None:
+        return None, ""
+    uri_str = str(uri)
+    marker = "base64,"
+    if marker not in uri_str:
+        return None, ""
+    try:
+        data = base64.b64decode(uri_str.split(marker, 1)[1])
+    except Exception:  # noqa: BLE001
+        return None, ""
+    if not data:
+        return None, ""
+    return data, _extension_from_mimetype(str(getattr(ref, "mimetype", "") or ""))
+
+
 def _picture_bytes(document: Any, item: Any) -> tuple[bytes | None, str]:
+    uri_bytes, uri_ext = _picture_uri_bytes(item)
+    if uri_bytes:
+        return uri_bytes, uri_ext
     get_image = getattr(item, "get_image", None)
     image = None
     if callable(get_image):
@@ -194,12 +236,14 @@ def _picture_bytes(document: Any, item: Any) -> tuple[bytes | None, str]:
             image = None
     if image is None:
         ref = getattr(item, "image", None)
-        pil = getattr(ref, "pil_image", None) if ref is not None else None
-        image = pil
+        image = getattr(ref, "pil_image", None) if ref is not None else None
     if image is None:
         return None, ""
     buffer = io.BytesIO()
     try:
+        mode = str(getattr(image, "mode", "") or "")
+        if mode and mode not in {"RGB", "RGBA", "L", "P"}:
+            image = image.convert("RGB")
         image.save(buffer, format="PNG")
     except Exception:  # noqa: BLE001
         return None, ""
@@ -347,4 +391,39 @@ def _chunk_document(
                 },
             )
         )
+    return _attach_figure_blocks(blocks, chunks)
+
+
+def _attach_figure_blocks(
+    blocks: list[IngestBlock],
+    chunks: list[IngestChunk],
+) -> list[IngestChunk]:
+    """Link image blocks onto HybridChunker output.
+
+    Docling's chunking serializer uses an empty image placeholder, so pictures
+    with no caption text are omitted from ``doc_items``. Convert only associates
+    figure attachments with search hits through ``chunk.block_ids``.
+    """
+    images = [block for block in blocks if block.block_type == "image" and block.image_bytes]
+    if not images or not chunks:
+        return chunks
+    linked = {block_id for chunk in chunks for block_id in chunk.block_ids}
+    caption_ids_by_page: dict[int, set[str]] = defaultdict(set)
+    for block in blocks:
+        if block.block_type == "caption":
+            caption_ids_by_page[block.page_number].add(block.block_id)
+
+    for image in images:
+        if image.block_id in linked:
+            continue
+        page = image.page_number
+        overlapping = [chunk for chunk in chunks if chunk.page_start <= page <= chunk.page_end]
+        if not overlapping:
+            continue
+        caption_ids = caption_ids_by_page.get(page, set())
+        preferred = [chunk for chunk in overlapping if caption_ids.intersection(chunk.block_ids)]
+        target = preferred[0] if preferred else overlapping[0]
+        if image.block_id not in target.block_ids:
+            target.block_ids.append(image.block_id)
+        linked.add(image.block_id)
     return chunks

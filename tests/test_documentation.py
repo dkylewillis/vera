@@ -366,6 +366,50 @@ def test_figures_storage_map_is_documented():
     ):
         assert marker in figures, f"storage map missing {marker}"
     assert "figures-and-regions.md#storage-map-vera-02-schema" in spec
+    assert "Additional ingest locators" in spec
+    assert "MUST NOT require new tables" in spec
+
+
+def test_multi_format_ingest_plan_is_documented():
+    plan = (DOCS / "multi-format-ingest.md").read_text(encoding="utf-8")
+    roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+    mkdocs = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+    ingest_guide = (DOCS / "creating-an-ingest-pipeline.md").read_text(encoding="utf-8")
+    figures = (DOCS / "figures-and-regions.md").read_text(encoding="utf-8")
+    conversion = (DOCS / "conversion.md").read_text(encoding="utf-8")
+    architecture = (DOCS / "architecture.md").read_text(encoding="utf-8")
+    ingest_pkg = (DOCS / "packages" / "vera-ingest.md").read_text(encoding="utf-8")
+    docling = (DOCS / "packages" / "vera-ingest-docling.md").read_text(encoding="utf-8")
+    index = (DOCS / "user-documentation.md").read_text(encoding="utf-8")
+
+    assert (DOCS / "multi-format-ingest.md").is_file()
+    assert "multi-format-ingest.md" in mkdocs
+    assert "## Additional source formats and visual grounding" in roadmap
+    assert "docs/multi-format-ingest.md" in roadmap
+    assert "vera-ingest-docling-pdf" in roadmap
+    assert "source_formats" in roadmap
+    assert "Do not convert PDFs to Markdown" in roadmap
+    assert "Bumping `format_version` for new ingest locator shapes" in roadmap
+
+    assert "Name ingest packages after the **engine**" in plan
+    assert "source_formats" in plan
+    assert "stored Markdown" in plan or "store that exact" in plan
+    assert "page_bbox" in plan
+    assert "text_span" in plan
+    assert "sheet_range" in plan
+    assert "Nothing here changes the `.vera` **0.2** schema" in plan
+    assert "Do not convert PDFs to Markdown" in plan
+
+    for document in (
+        ingest_guide,
+        figures,
+        conversion,
+        architecture,
+        ingest_pkg,
+        docling,
+        index,
+    ):
+        assert "multi-format-ingest.md" in document
 
 
 def test_release_0_3_versioning_and_install_pins():
