@@ -12,7 +12,8 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import type { AppSettings, ProviderProfile } from '../types';
+import type { AppSettings, ExternalPythonConfig, ProviderProfile, PythonEnvironmentProbe } from '../types';
+import { PythonEnvironmentManager } from './PythonEnvironmentManager';
 import {
   defaultEnabledModels,
   emptyProvider,
@@ -118,8 +119,16 @@ export function ProviderManager({
   activeModel,
   activeModeId,
   hasHfToken = false,
+  ingestPipeline,
+  externalPython,
+  pythonStatus,
+  pythonBusy = false,
   onPersist,
   onRefresh,
+  onExternalPythonChange,
+  onPickPython,
+  onValidatePython,
+  onRefreshPipelines,
   onClose,
 }: {
   providers: ProviderProfile[];
@@ -127,8 +136,16 @@ export function ProviderManager({
   activeModel: string;
   activeModeId: string;
   hasHfToken?: boolean;
+  ingestPipeline: string;
+  externalPython: ExternalPythonConfig;
+  pythonStatus: PythonEnvironmentProbe | null;
+  pythonBusy?: boolean;
   onPersist: (next: AppSettings) => Promise<AppSettings>;
   onRefresh: () => Promise<AppSettings>;
+  onExternalPythonChange: (next: ExternalPythonConfig) => void;
+  onPickPython: () => void;
+  onValidatePython: () => void;
+  onRefreshPipelines: () => void;
   onClose: () => void;
 }) {
   const [list, setList] = useState<ProviderProfile[]>(() => providers.map(withPresetModels));
@@ -191,6 +208,8 @@ export function ProviderManager({
       active_provider_id: activeProfile ? nextActiveId : '',
       active_model: nextActiveModel,
       active_mode_id: overrides?.active_mode_id ?? activeModeId,
+      ingest_pipeline: overrides?.ingest_pipeline ?? ingestPipeline,
+      external_python: overrides?.external_python ?? externalPython,
     };
   }
 
@@ -673,9 +692,9 @@ export function ProviderManager({
             {expandedKey === '__hf__' ? (
               <div className="providerItemBody">
                 <p className="providerItemDescription">
-                  Optional token for Docling layout models and other Hub downloads. Stored securely
-                  like provider API keys and passed to the sidecar as <code>HF_TOKEN</code>. Get one
-                  at huggingface.co/settings/tokens.
+                    Optional token for Hub downloads used by some ingest plugins and embedders.
+                    Stored securely like provider API keys and passed to the sidecar and plugin host
+                    as <code>HF_TOKEN</code>. Get one at huggingface.co/settings/tokens.
                 </p>
                 <div className="editorActions">
                   <button className="secondaryAction" onClick={() => void clearHfToken()} disabled={busy || !hfTokenStored}>
@@ -685,6 +704,15 @@ export function ProviderManager({
               </div>
             ) : null}
           </section>
+          <PythonEnvironmentManager
+            config={externalPython}
+            status={pythonStatus}
+            busy={busy || pythonBusy}
+            onConfigChange={onExternalPythonChange}
+            onPick={onPickPython}
+            onValidate={onValidatePython}
+            onRefresh={onRefreshPipelines}
+          />
         </div>
 
         <footer className="modalFooter">

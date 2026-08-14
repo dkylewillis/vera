@@ -7,6 +7,14 @@ PDF parsing, chunking, and conversion to `.vera` archives.
       members:
         - convert
         - batch_convert
+        - list_ingest_pipelines
+        - list_ingest_pipeline_descriptors
+        - describe_ingest_pipeline
+        - get_ingest_pipeline
+        - register_ingest_pipeline
+        - PipelineDescriptor
+        - UnknownIngestPipelineError
+        - PLUGIN_API_VERSION
         - Chunk
         - ParsedBlock
         - ParsedPage

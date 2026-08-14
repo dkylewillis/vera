@@ -56,6 +56,7 @@ def test_documentation_index_lists_user_guides():
         "examples.md",
         "troubleshooting.md",
         "conversion.md",
+        "creating-an-ingest-pipeline.md",
         "searching.md",
         "document-libraries.md",
         "figures-and-regions.md",
@@ -159,6 +160,11 @@ def test_hardening_json_contracts_are_documented():
     assert "Token-level `answer_delta`" in desktop_architecture
     assert "PyMuPDF parser" in desktop
     assert "local hashing embeddings" in desktop
+    assert "external Python environment" in desktop
+    assert "vera.ingest_pipelines" in desktop
+    assert "pip install -e" in desktop
+    assert "python -m vera_plugin_host" in desktop_architecture
+    assert "trusted" in desktop_architecture
     assert "Hugging Face" in desktop
     assert "HF_TOKEN" in desktop
     assert "Hugging Face" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")

@@ -49,12 +49,16 @@ convert(
 - **Chunking** produces page-bounded text records with citation metadata.
 - **Atomic conversion** validates a temporary archive before publishing it.
 
-The package currently supports the `pymupdf` parser. OCR is designed for
-scanned prose; it does not reconstruct complex scanned forms or tables.
+The package currently bundles the `pymupdf` parser. Additional parsers register
+as plugins under the `vera.ingest_pipelines` entry-point group; see
+[Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md).
+OCR is designed for scanned prose; it does not reconstruct complex scanned
+forms or tables.
 
 ## Documentation
 
 - [Convert documents](../conversion.md) — OCR, chunking, embedding, and batch conversion.
+- [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md) — entry points for extra parsers.
 - [Figures and regions](../figures-and-regions.md) — extracted visual metadata and
   [schema storage map](../figures-and-regions.md#storage-map-vera-02-schema).
 - [Conversion recipes](../examples.md) — single files, scans, and nested libraries.

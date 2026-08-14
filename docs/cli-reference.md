@@ -29,7 +29,7 @@ Convert one PDF or a directory of PDFs.
 Options:
 
 - `--model MODEL` (`hashing`)
-- `--parser PARSER` (`pymupdf`)
+- `--parser PARSER` (`pymupdf`; additional providers when ingest plugins are installed)
 - `--chunk-size N` (`500`)
 - `--overlap N` (`75`)
 - `--store-original VALUE` (`true`)

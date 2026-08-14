@@ -219,6 +219,7 @@ convert(
     "input.pdf",
     "output.vera",
     model="hashing",
+    parser="pymupdf",
     chunk_size=500,
     overlap=75,
     store_original=True,
@@ -227,7 +228,9 @@ convert(
 ```
 
 `vera-ingest` parses and chunks the source, creates `ChunkRecord` objects and
-optional attachments, then writes them through `VeraDocument`.
+optional attachments, then writes them through `VeraDocument`. Extra parsers
+register under `vera.ingest_pipelines`; see
+[Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md).
 
 ## Corpus and library indexes
 

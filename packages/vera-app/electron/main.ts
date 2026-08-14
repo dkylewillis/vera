@@ -1,15 +1,29 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, safeStorage, shell } from 'electron';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import { basename, delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
   AppSettings,
   CredentialResult,
+  ExternalPythonConfig,
+  PipelineDescriptor,
   ProviderProfile,
+  PythonEnvironmentProbe,
   Session,
 } from '../src/shared/contracts.js';
-import { parseSidecarJsonLine } from './sidecar-json.js';
+import { SIDECAR_ACTIONS } from '../src/shared/protocol.js';
+import { JsonLineProcess, type JsonLineEvent, type JsonLineResponse } from './json-line-process.js';
+import {
+  conversionRuntimeOwner,
+  fallbackBundledDescriptors,
+  mergePipelineDescriptors,
+  normalizeExternalPython,
+  normalizePipelineDescriptor,
+  parsePipelineProvider,
+  pluginHostSpawnCommand,
+  processOwnerFor,
+  probeFromPing,
+} from './ingest-runtime.js';
 
 interface FolderEntry {
   path: string;
@@ -29,29 +43,8 @@ interface FolderWatcher {
   watcher: FSWatcher;
 }
 
-interface SidecarRequest {
-  id?: string;
-  action: string;
-  [key: string]: unknown;
-}
-
 interface SidecarPayload {
   action: string;
-  [key: string]: unknown;
-}
-
-interface SidecarResponse {
-  id?: string;
-  ok: boolean;
-  result?: unknown;
-  error?: string;
-  traceback?: string;
-  provider_error_detail?: string;
-}
-
-interface SidecarEvent {
-  id: string;
-  event: string;
   [key: string]: unknown;
 }
 
@@ -64,7 +57,63 @@ const DEFAULT_SETTINGS: AppSettings = {
   active_provider_id: '',
   active_model: '',
   active_mode_id: '',
+  ingest_pipeline: 'pymupdf',
+  external_python: { enabled: false, executable: '' },
 };
+
+const PLUGIN_HOST_VALIDATE_TIMEOUT_MS = 20_000;
+
+function pluginHostPythonPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'python', 'plugin-host')
+    : join(process.cwd(), 'src');
+}
+
+function sidecarCommand() {
+  const env = { ...process.env };
+  applyHfTokenEnv(env);
+  const packagedSidecar = join(process.resourcesPath, 'python', 'sidecar', 'vera-sidecar.exe');
+  const executable = app.isPackaged ? packagedSidecar : process.env.VERA_APP_PYTHON || 'python';
+  const args = app.isPackaged ? [] : ['-m', 'vera_app.sidecar'];
+  if (!app.isPackaged) {
+    const sourcePaths = [
+      join(process.cwd(), 'src'),
+      join(process.cwd(), '..', 'vera-doc', 'src'),
+      join(process.cwd(), '..', 'vera-ingest', 'src'),
+    ];
+    env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
+  }
+  return { executable, args, cwd: process.cwd(), env };
+}
+
+let pluginWorkerExecutable = '';
+let pluginWorkerArtifacts = '';
+
+function pluginHostCommand() {
+  const settings = readSettings();
+  const executable = pluginWorkerExecutable || settings.external_python?.executable?.trim() || '';
+  if (!executable) {
+    throw new Error('Select a Python interpreter before using external ingest plugins.');
+  }
+  const env = { ...process.env };
+  applyHfTokenEnv(env);
+  const command = pluginHostSpawnCommand({
+    pythonPath: executable,
+    pluginHostRoot: pluginHostPythonPath(),
+    artifactsPath: pluginWorkerArtifacts || settings.external_python?.artifacts_path,
+    extraEnv: env,
+  });
+  return {
+    ...command,
+    cwd: app.getPath('userData'),
+  };
+}
+
+const sidecar = new JsonLineProcess('vera-sidecar', sidecarCommand);
+const pluginWorker = new JsonLineProcess('vera-plugin-host', pluginHostCommand);
+const requestOwners = new Map<string, 'core' | 'external'>();
+let bundledProviders = new Set<string>(['pymupdf']);
+let lastPythonProbe: PythonEnvironmentProbe | null = null;
 
 // Serve materialized source PDFs without shipping base64 through JSON IPC.
 // Must be registered before app.ready so fetch()/PDF.js can use the scheme.
@@ -110,155 +159,6 @@ function toSourceViewerResult(result: Record<string, unknown>): Record<string, u
     url: `vera-source://cache/${rel}`,
   };
 }
-
-class PythonSidecar {
-  private child: ChildProcessWithoutNullStreams | null = null;
-  private pending = new Map<string, {
-    child: ChildProcessWithoutNullStreams;
-    resolve: (value: SidecarResponse) => void;
-    reject: (reason?: unknown) => void;
-    onEvent?: (e: SidecarEvent) => void;
-  }>();
-  private nextId = 1;
-  private stdoutBuffer = '';
-
-  request(
-    payload: SidecarPayload,
-    onEvent?: (e: SidecarEvent) => void,
-    requestId?: string,
-  ): Promise<SidecarResponse> {
-    const child = this.ensureStarted();
-    const id = requestId || String(this.nextId++);
-    const message: SidecarRequest = { ...payload, id };
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { child, resolve, reject, onEvent });
-      child.stdin.write(`${JSON.stringify(message)}\n`, (error) => {
-        if (error) {
-          this.pending.delete(id);
-          reject(error);
-        }
-      });
-    });
-  }
-
-  stop(): void {
-    if (this.child) {
-      this.child.kill();
-      this.child = null;
-    }
-    this.rejectPending(new Error('VERA sidecar stopped'));
-  }
-
-  async cancelAnswer(requestId: string): Promise<{ cancelled: boolean }> {
-    const response = await this.request({ action: 'cancel', target_id: requestId });
-    const result = (response.result || {}) as { cancelled?: boolean };
-    return { cancelled: Boolean(result.cancelled) };
-  }
-
-  async skipConversion(requestId: string): Promise<{ skipped: boolean }> {
-    const response = await this.request({ action: 'skip', target_id: requestId });
-    const result = (response.result || {}) as { skipped?: boolean };
-    return { skipped: Boolean(result.skipped) };
-  }
-
-  cancelRequest(requestId: string): boolean {
-    const pending = this.pending.get(requestId);
-    if (!pending) return false;
-    this.pending.delete(requestId);
-    pending.reject(new Error('Request cancelled'));
-    pending.child.stdin.write(`${JSON.stringify({
-      id: null,
-      action: 'cancel',
-      target_id: requestId,
-    })}\n`);
-    return true;
-  }
-
-  /** Kill the sidecar so the next request respawns with updated env (e.g. HF_TOKEN). */
-  restart(): void {
-    const child = this.child;
-    if (!child) return;
-    this.child = null;
-    this.rejectPending(new Error('VERA sidecar restarted'), child);
-    child.kill();
-  }
-
-  private rejectPending(reason: Error, child?: ChildProcessWithoutNullStreams): void {
-    for (const [id, entry] of this.pending) {
-      if (child && entry.child !== child) continue;
-      this.pending.delete(id);
-      entry.reject(reason);
-    }
-  }
-
-  private ensureStarted(): ChildProcessWithoutNullStreams {
-    if (this.child) {
-      return this.child;
-    }
-
-    const env = { ...process.env };
-    applyHfTokenEnv(env);
-    const packagedSidecar = join(process.resourcesPath, 'python', 'sidecar', 'vera-sidecar.exe');
-    const executable = app.isPackaged ? packagedSidecar : process.env.VERA_APP_PYTHON || 'python';
-    const args = app.isPackaged ? [] : ['-m', 'vera_app.sidecar'];
-    if (!app.isPackaged) {
-      const sourcePaths = [
-        join(process.cwd(), 'src'),
-        join(process.cwd(), '..', 'vera-doc', 'src'),
-        join(process.cwd(), '..', 'vera-ingest', 'src'),
-      ];
-      env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
-    }
-
-    this.child = spawn(executable, args, {
-      cwd: process.cwd(),
-      env,
-    });
-
-    this.child.stdout.on('data', (chunk: Buffer) => this.handleStdout(chunk.toString('utf8')));
-    this.child.stderr.on('data', (chunk: Buffer) => console.error(`[vera-sidecar] ${chunk.toString('utf8')}`));
-    const child = this.child;
-    child.on('exit', () => {
-      if (this.child === child) this.child = null;
-      this.rejectPending(new Error('VERA sidecar exited'), child);
-    });
-
-    return this.child;
-  }
-
-  private handleStdout(data: string): void {
-    this.stdoutBuffer += data;
-    const lines = this.stdoutBuffer.split('\n');
-    this.stdoutBuffer = lines.pop() || '';
-    for (const line of lines) {
-      if (!line.trim()) {
-        continue;
-      }
-      const parsed = parseSidecarJsonLine(line);
-      if (!parsed.ok) {
-        console.error(`[vera-sidecar] Ignoring invalid stdout line (${parsed.error}): ${line}`);
-        continue;
-      }
-      const response = parsed.payload as unknown as SidecarResponse & { event?: string };
-      if (!response.id) {
-        continue;
-      }
-      const pending = this.pending.get(response.id);
-      if (!pending) {
-        continue;
-      }
-      // Intermediate event (no `ok` field — not a final response).
-      if ('event' in response && !('ok' in response)) {
-        pending.onEvent?.(response as unknown as SidecarEvent);
-        continue;
-      }
-      this.pending.delete(response.id);
-      pending.resolve(response as SidecarResponse);
-    }
-  }
-}
-
-const sidecar = new PythonSidecar();
 
 function settingsPath(): string {
   return join(app.getPath('userData'), 'settings.json');
@@ -377,6 +277,7 @@ function withRuntime(settings: AppSettings): AppSettings {
       has_api_key: Boolean(keys[credentialKey(profile.base_url)]),
     })),
     has_hf_token: Boolean(resolveHfToken()),
+    external_python_status: lastPythonProbe,
   };
 }
 
@@ -442,6 +343,10 @@ function readSettings(): AppSettings {
       active_provider_id: typeof raw.active_provider_id === 'string' ? raw.active_provider_id : '',
       active_model: activeModel,
       active_mode_id: typeof raw.active_mode_id === 'string' ? raw.active_mode_id : '',
+      ingest_pipeline: typeof raw.ingest_pipeline === 'string' && raw.ingest_pipeline.trim()
+        ? raw.ingest_pipeline.trim()
+        : 'pymupdf',
+      external_python: normalizeExternalPython(raw.external_python),
     };
     return withRuntime(merged);
   } catch {
@@ -458,7 +363,10 @@ function writeSettings(settings: AppSettings): AppSettings {
     active_provider_id: settings.active_provider_id || '',
     active_model: settings.active_model || '',
     active_mode_id: settings.active_mode_id || '',
+    ingest_pipeline: settings.ingest_pipeline?.trim() || 'pymupdf',
+    external_python: normalizeExternalPython(settings.external_python),
   };
+  syncPluginWorker(sanitized.external_python);
   const target = settingsPath();
   const temp = `${target}.tmp`;
   writeFileSync(temp, JSON.stringify(sanitized, null, 2), 'utf8');
@@ -502,6 +410,7 @@ function saveHfToken(token: string): CredentialResult {
   keys[HF_TOKEN_SECRET_KEY] = trimmed;
   writeApiKeys(keys);
   sidecar.restart();
+  pluginWorker.restart();
   return { ok: true, has_api_key: true };
 }
 
@@ -512,6 +421,7 @@ function clearHfToken(): CredentialResult {
     writeApiKeys(keys);
   }
   sidecar.restart();
+  pluginWorker.restart();
   return { ok: true, has_api_key: Boolean(environmentHfToken()) };
 }
 
@@ -648,6 +558,193 @@ async function trashWorkspaceFile(filePath: string, folderPath: string): Promise
     unlinkSync(filePath);
     return 'deleted';
   }
+}
+
+function syncPluginWorker(config: ExternalPythonConfig | null | undefined): void {
+  const executable = config?.enabled ? config.executable.trim() : '';
+  const artifacts = config?.enabled ? (config.artifacts_path || '').trim() : '';
+  pluginWorkerArtifacts = artifacts;
+  if (!executable) {
+    if (pluginWorker.running) pluginWorker.restart();
+    pluginWorkerExecutable = '';
+    return;
+  }
+  if (executable !== pluginWorkerExecutable) {
+    if (pluginWorker.running) pluginWorker.restart();
+    pluginWorkerExecutable = executable;
+  }
+}
+
+function ownerFor(requestId: string | undefined): JsonLineProcess {
+  return processOwnerFor(requestId, requestOwners) === 'external' ? pluginWorker : sidecar;
+}
+
+function descriptorsFromResult(result: unknown, source: 'bundled' | 'external'): PipelineDescriptor[] {
+  const pipelines = result && typeof result === 'object'
+    ? (result as { pipelines?: unknown }).pipelines
+    : undefined;
+  if (!Array.isArray(pipelines)) return source === 'bundled' ? fallbackBundledDescriptors() : [];
+  const normalized = pipelines
+    .map((item) => normalizePipelineDescriptor(item, source))
+    .filter((item): item is PipelineDescriptor => item !== null);
+  return source === 'bundled' && normalized.length === 0 ? fallbackBundledDescriptors() : normalized;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs / 1000}s`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function describeMergedPipelines(): Promise<JsonLineResponse> {
+  const core = await sidecar.request({ action: SIDECAR_ACTIONS.describeIngestPipelines });
+  const bundled = core.ok
+    ? descriptorsFromResult(core.result, 'bundled')
+    : fallbackBundledDescriptors();
+  bundledProviders = new Set(bundled.map((item) => parsePipelineProvider(item.provider || item.spec)));
+  let external: PipelineDescriptor[] = [];
+  const settings = readSettings();
+  if (settings.external_python?.enabled && settings.external_python.executable && lastPythonProbe?.ok) {
+    try {
+      const worker = await pluginWorker.request({ action: SIDECAR_ACTIONS.describeIngestPipelines });
+      if (worker.ok) {
+        external = descriptorsFromResult(worker.result, 'external');
+        const loadErrors = worker.result && typeof worker.result === 'object'
+          ? (worker.result as { load_errors?: unknown }).load_errors
+          : [];
+        lastPythonProbe = {
+          ...lastPythonProbe,
+          pipelines: external,
+          load_errors: Array.isArray(loadErrors)
+            ? loadErrors.filter((value): value is string => typeof value === 'string')
+            : lastPythonProbe.load_errors,
+        };
+      }
+    } catch (error) {
+      lastPythonProbe = {
+        ok: false,
+        executable: settings.external_python.executable,
+        error: error instanceof Error ? error.message : 'External plugin host failed',
+      };
+    }
+  }
+  const pipelines = mergePipelineDescriptors(bundled, external);
+  if (core.ok) {
+    return { ...core, result: { pipelines } };
+  }
+  return { id: core.id, ok: true, result: { pipelines } };
+}
+
+async function listMergedPipelines(): Promise<JsonLineResponse> {
+  const described = await describeMergedPipelines();
+  const pipelines = described.result && typeof described.result === 'object'
+    ? (described.result as { pipelines?: PipelineDescriptor[] }).pipelines ?? []
+    : [];
+  return {
+    ...described,
+    result: { pipelines: pipelines.map((item) => item.spec || item.provider) },
+  };
+}
+
+async function routeSidecarRequest(
+  request: SidecarPayload,
+  onEvent: (event: JsonLineEvent) => void,
+  requestId?: string,
+): Promise<JsonLineResponse> {
+  if (request.action === SIDECAR_ACTIONS.describeIngestPipelines) {
+    return describeMergedPipelines();
+  }
+  if (request.action === SIDECAR_ACTIONS.listIngestPipelines) {
+    return listMergedPipelines();
+  }
+  const settings = readSettings();
+  const parser = typeof request.parser === 'string' ? request.parser : 'pymupdf';
+  const owner = conversionRuntimeOwner(
+    request.action,
+    parser,
+    bundledProviders,
+    Boolean(settings.external_python?.enabled && lastPythonProbe?.ok),
+  );
+  const target = owner === 'external' ? pluginWorker : sidecar;
+  const id = requestId;
+  if (id) requestOwners.set(id, owner);
+  try {
+    return await target.request(request, onEvent, requestId);
+  } finally {
+    if (id) requestOwners.delete(id);
+  }
+}
+
+async function validatePythonEnvironment(
+  executable: string,
+  artifactsPath?: string,
+): Promise<PythonEnvironmentProbe> {
+  const resolved = executable.trim();
+  if (!resolved) {
+    lastPythonProbe = { ok: false, error: 'Choose a Python interpreter.' };
+    return lastPythonProbe;
+  }
+  if (!existsSync(resolved)) {
+    lastPythonProbe = { ok: false, executable: resolved, error: `Python interpreter not found: ${resolved}` };
+    return lastPythonProbe;
+  }
+  pluginWorkerExecutable = resolved;
+  pluginWorkerArtifacts = (artifactsPath || '').trim();
+  if (pluginWorker.running) pluginWorker.restart();
+  try {
+    const ping = await withTimeout(
+      pluginWorker.request({ action: SIDECAR_ACTIONS.ping }),
+      PLUGIN_HOST_VALIDATE_TIMEOUT_MS,
+      'Python environment probe',
+    );
+    if (!ping.ok) {
+      lastPythonProbe = {
+        ok: false,
+        executable: resolved,
+        error: ping.error || 'Plugin host ping failed',
+      };
+      return lastPythonProbe;
+    }
+    const pingResult = (ping.result || {}) as Record<string, unknown>;
+    const described = await pluginWorker.request({ action: SIDECAR_ACTIONS.describeIngestPipelines });
+    const pipelines = described.ok ? descriptorsFromResult(described.result, 'external') : [];
+    lastPythonProbe = probeFromPing(resolved, pingResult, pipelines);
+    if (described.ok && described.result && typeof described.result === 'object') {
+      const loadErrors = (described.result as { load_errors?: unknown }).load_errors;
+      if (Array.isArray(loadErrors)) {
+        lastPythonProbe.load_errors = loadErrors.filter((value): value is string => typeof value === 'string');
+      }
+    }
+    return lastPythonProbe;
+  } catch (error) {
+    lastPythonProbe = {
+      ok: false,
+      executable: resolved,
+      error: error instanceof Error ? error.message : 'Unable to start the plugin host',
+    };
+    pluginWorker.restart();
+    return lastPythonProbe;
+  }
+}
+
+async function pickPythonInterpreter(): Promise<string | null> {
+  const options: Electron.OpenDialogOptions = {
+    title: 'Select Python interpreter',
+    properties: ['openFile'],
+    filters: process.platform === 'win32'
+      ? [{ name: 'Python', extensions: ['exe'] }]
+      : undefined,
+  };
+  const result = await dialog.showOpenDialog(options);
+  return result.canceled ? null : result.filePaths[0] || null;
 }
 
 const folderWatchers = new Map<string, FolderWatcher>();
@@ -858,14 +955,14 @@ app.whenReady().then(() => {
   ipcMain.handle('vera:deleteSession', async (_event, id: string) => deleteSession(id));
   ipcMain.handle('vera:request', async (event, payload: SidecarPayload, requestId?: string) => {
     const sender = event.sender;
-    const onEvent = (e: SidecarEvent) => {
+    const onEvent = (e: JsonLineEvent) => {
       if (!sender.isDestroyed()) sender.send('vera:answerEvent', e);
     };
     const prepared = withModesDir(withStoredApiKey(payload));
     const request = prepared.action === 'source'
       ? { ...prepared, cache_dir: sourceCacheDir() }
       : prepared;
-    const response = await sidecar.request(request, onEvent, requestId);
+    const response = await routeSidecarRequest(request, onEvent, requestId);
     if (
       response.ok
       && request.action === 'source'
@@ -888,13 +985,28 @@ app.whenReady().then(() => {
     }
     return response;
   });
-  ipcMain.handle('vera:cancelAnswer', (_event, requestId: string) => sidecar.cancelAnswer(requestId));
-  ipcMain.handle('vera:cancelRequest', (_event, requestId: string) => sidecar.cancelRequest(requestId));
-  ipcMain.handle('vera:skipConversion', (_event, requestId: string) => sidecar.skipConversion(requestId));
+  ipcMain.handle('vera:cancelAnswer', (_event, requestId: string) => ownerFor(requestId).cancelAnswer(requestId));
+  ipcMain.handle('vera:cancelRequest', (_event, requestId: string) => ownerFor(requestId).cancelRequest(requestId));
+  ipcMain.handle('vera:skipConversion', (_event, requestId: string) => ownerFor(requestId).skipConversion(requestId));
   ipcMain.handle('vera:listModes', async () => sidecar.request({ action: 'list_modes', modes_dir: modesDir() }));
   ipcMain.handle('vera:openModesFolder', async () => shell.openPath(modesDir()));
   ipcMain.handle('vera:getSettings', async () => readSettings());
   ipcMain.handle('vera:saveSettings', async (_event, settings: AppSettings) => writeSettings(settings));
+  ipcMain.handle('vera:pickPythonInterpreter', async () => pickPythonInterpreter());
+  ipcMain.handle('vera:validatePythonEnvironment', async (_event, executable: string, artifactsPath?: string) => {
+    return validatePythonEnvironment(String(executable || ''), artifactsPath);
+  });
+  ipcMain.handle('vera:refreshExternalPipelines', async () => {
+    const settings = readSettings();
+    if (!settings.external_python?.enabled || !settings.external_python.executable) {
+      lastPythonProbe = { ok: false, error: 'External Python is not configured.' };
+      return lastPythonProbe;
+    }
+    return validatePythonEnvironment(
+      settings.external_python.executable,
+      settings.external_python.artifacts_path,
+    );
+  });
   ipcMain.handle('vera:saveApiKey', async (_event, providerId: string, apiKey: string) => saveApiKey(providerId, apiKey));
   ipcMain.handle('vera:clearApiKey', async (_event, providerId: string) => clearApiKey(providerId));
   ipcMain.handle('vera:saveHfToken', async (_event, token: string) => saveHfToken(token));
@@ -932,6 +1044,10 @@ app.whenReady().then(() => {
     const result = await dialog.showSaveDialog({ title: 'Save file' });
     return result.canceled ? null : result.filePath;
   });
+  const startupPython = readSettings().external_python;
+  if (startupPython?.enabled && startupPython.executable) {
+    void validatePythonEnvironment(startupPython.executable, startupPython.artifacts_path);
+  }
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -943,6 +1059,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   stopFolderWatchers();
   sidecar.stop();
+  pluginWorker.stop();
 });
 
 app.on('window-all-closed', () => {

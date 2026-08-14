@@ -48,6 +48,11 @@ import { backgroundTasksReducer, type BackgroundTask } from './lib/backgroundTas
 import { EMPTY_FIGURES, EMPTY_REGIONS } from './lib/constants';
 import { awaitConversionRequest } from './lib/conversion';
 import {
+  pipelineInstallHint,
+  pipelineSelectOptions,
+  presetOptionAvailable,
+} from './lib/convertPresets';
+import {
   convertDefaultsFromSelection,
   formatBox,
   formatPages,
@@ -59,7 +64,7 @@ import {
 import { figureCacheKey, mergeFigureData, sameSearchResult } from './lib/figures';
 import { syncCollapsedFolders } from './lib/explorer';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from './lib/providers';
-import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, ProviderProfile, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
+import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, ExternalPythonConfig, FigureResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, ProviderProfile, PythonEnvironmentProbe, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult, WorkspaceFolderResult } from './types';
 import './styles.css';
 
 type SideView = 'explorer' | 'chats' | 'convert';
@@ -185,6 +190,11 @@ function App() {
   const [modes, setModes] = useState<Mode[]>([]);
   const [activeModeId, setActiveModeId] = useState('');
   const [hasHfToken, setHasHfToken] = useState(false);
+  const [ingestPipeline, setIngestPipeline] = useState('pymupdf');
+  const [ingestPipelineDescriptors, setIngestPipelineDescriptors] = useState<PipelineDescriptor[]>([]);
+  const [externalPython, setExternalPython] = useState<ExternalPythonConfig>({ enabled: false, executable: '' });
+  const [pythonStatus, setPythonStatus] = useState<PythonEnvironmentProbe | null>(null);
+  const [pythonBusy, setPythonBusy] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
@@ -1621,31 +1631,118 @@ function App() {
     }
   }
 
-  async function persistSettings(next: AppSettings): Promise<AppSettings> {
-    const saved = await window.vera.saveSettings(next);
+  function applyLoadedSettings(saved: AppSettings) {
     setProviders(saved.providers);
     setActiveProviderId(saved.active_provider_id);
     setActiveModel(saved.active_model || '');
     setActiveModeId(saved.active_mode_id || '');
     setHasHfToken(Boolean(saved.has_hf_token));
+    setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
+    setExternalPython(saved.external_python || { enabled: false, executable: '' });
+    setPythonStatus(saved.external_python_status || null);
+  }
+
+  async function persistSettings(next: AppSettings): Promise<AppSettings> {
+    const saved = await window.vera.saveSettings({
+      ...next,
+      ingest_pipeline: next.ingest_pipeline ?? ingestPipeline,
+      external_python: next.external_python ?? externalPython,
+    });
+    applyLoadedSettings(saved);
     return saved;
   }
 
   async function refreshSettings(): Promise<AppSettings> {
     const saved = await window.vera.getSettings();
-    setProviders(saved.providers);
-    setActiveProviderId(saved.active_provider_id);
-    setActiveModel(saved.active_model || '');
-    setActiveModeId(saved.active_mode_id || '');
-    setHasHfToken(Boolean(saved.has_hf_token));
+    applyLoadedSettings(saved);
     return saved;
+  }
+
+  const pipelineOptionsForSelect = useMemo(
+    () => pipelineSelectOptions(ingestPipelineDescriptors),
+    [ingestPipelineDescriptors],
+  );
+  const activePipelineDescriptor = ingestPipelineDescriptors.find(
+    (item) => item.spec === ingestPipeline || item.provider === ingestPipeline,
+  );
+
+  async function saveIngestPipeline(next: string) {
+    setIngestPipeline(next);
+    await persistSettings({
+      providers,
+      active_provider_id: activeProviderId,
+      active_model: activeModel,
+      active_mode_id: activeModeId,
+      ingest_pipeline: next,
+      external_python: externalPython,
+    });
+  }
+
+  async function persistExternalPython(next: ExternalPythonConfig) {
+    setExternalPython(next);
+    await persistSettings({
+      providers,
+      active_provider_id: activeProviderId,
+      active_model: activeModel,
+      active_mode_id: activeModeId,
+      ingest_pipeline: ingestPipeline,
+      external_python: next,
+    });
+  }
+
+  async function reloadIngestPipelines() {
+    const response = await window.vera.request<{ pipelines: PipelineDescriptor[] }>({
+      action: 'describe_ingest_pipelines',
+    });
+    if (response.ok && response.result?.pipelines) {
+      setIngestPipelineDescriptors(response.result.pipelines);
+    }
+  }
+
+  async function pickPythonInterpreter() {
+    const selected = await window.vera.pickPythonInterpreter();
+    if (!selected) return;
+    await persistExternalPython({ ...externalPython, executable: selected, enabled: true });
+  }
+
+  async function validatePythonEnvironment() {
+    setPythonBusy(true);
+    try {
+      await persistExternalPython(externalPython);
+      const probe = await window.vera.validatePythonEnvironment(
+        externalPython.executable,
+        externalPython.artifacts_path,
+      );
+      setPythonStatus(probe);
+      if (probe.ok) {
+        await persistExternalPython({
+          ...externalPython,
+          enabled: true,
+          validated_at: Date.now(),
+        });
+        await reloadIngestPipelines();
+      }
+    } finally {
+      setPythonBusy(false);
+    }
+  }
+
+  async function refreshExternalPipelines() {
+    setPythonBusy(true);
+    try {
+      const probe = await window.vera.refreshExternalPipelines();
+      setPythonStatus(probe);
+      await reloadIngestPipelines();
+    } finally {
+      setPythonBusy(false);
+    }
   }
 
   async function selectActiveModel(providerId: string, model: string) {
     setModelPickerOpen(false);
     setActiveProviderId(providerId);
     setActiveModel(model);
-    await persistSettings({ providers, active_provider_id: providerId, active_model: model, active_mode_id: activeModeId });
+    await persistSettings({ providers, active_provider_id: providerId, active_model: model, active_mode_id: activeModeId, ingest_pipeline: ingestPipeline, external_python: externalPython });
   }
 
   async function refreshProviderModels(providerId: string) {
@@ -1922,7 +2019,7 @@ function App() {
             : { directory, recursive: batchRecursive }),
           overwrite: batchOverwrite,
           model: 'hashing',
-          parser: 'pymupdf',
+          parser: ingestPipeline || 'pymupdf',
           chunk_size: chunkSize,
           overlap,
           store_original: storeOriginal,
@@ -2146,11 +2243,31 @@ function App() {
     async function loadSettings() {
       const saved = await window.vera.getSettings();
       if (canceled) return;
-      setProviders(saved.providers);
-      setActiveProviderId(saved.active_provider_id);
-      setActiveModel(saved.active_model || '');
-      setActiveModeId(saved.active_mode_id || '');
-      setHasHfToken(Boolean(saved.has_hf_token));
+      applyLoadedSettings(saved);
+    }
+    async function loadIngestPipelines() {
+      const response = await window.vera.request<{ pipelines: PipelineDescriptor[] }>({
+        action: 'describe_ingest_pipelines',
+      });
+      if (canceled) return;
+      if (response.ok && response.result?.pipelines?.length) {
+        setIngestPipelineDescriptors(response.result.pipelines);
+        return;
+      }
+      const fallback = await window.vera.request<{ pipelines: string[] }>({
+        action: 'list_ingest_pipelines',
+      });
+      if (!canceled && fallback.ok) {
+        const pipelines = fallback.result?.pipelines?.length ? fallback.result.pipelines : ['pymupdf'];
+        setIngestPipelineDescriptors(pipelines.map((spec) => ({
+          provider: spec,
+          spec,
+          label: spec,
+          description: '',
+          installed: true,
+          source: spec === 'pymupdf' ? 'bundled' : 'external',
+        })));
+      }
     }
     async function loadSessions() {
       const saved = await window.vera.getSessions();
@@ -2200,6 +2317,7 @@ function App() {
       }
     }
     void loadSettings();
+    void loadIngestPipelines();
     void loadSessions();
     void loadFolders();
     return () => {
@@ -2682,7 +2800,38 @@ function App() {
                       <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Existing archives are skipped unless overwrite is enabled.</p>
                     </>
                   ) : null}
-                  <p className="sideMuted">Conversions use the PyMuPDF parser and local hashing embeddings.</p>
+                  <p className="sideMuted">
+                    {activePipelineDescriptor?.installed
+                      ? (activePipelineDescriptor.description || 'Pipeline ready for conversion.')
+                      : (pipelineInstallHint(ingestPipeline, ingestPipelineDescriptors)
+                        || 'Choose an ingest pipeline.')}
+                    {' '}Packaged releases keep PyMuPDF bundled; extra parsers run in a trusted external Python environment. Conversions use local hashing embeddings. Configure the interpreter under File → LLM Providers.
+                  </p>
+                  <label className="field">
+                    <span>Ingest pipeline</span>
+                    <select
+                      value={
+                        pipelineOptionsForSelect.some((option) => option.value === ingestPipeline)
+                          ? ingestPipeline
+                          : ingestPipeline || 'pymupdf'
+                      }
+                      onChange={(event) => void saveIngestPipeline(event.target.value)}
+                      disabled={conversionInProgress}
+                    >
+                      {pipelineOptionsForSelect.map((option) => {
+                        const available = presetOptionAvailable(
+                          option,
+                          ingestPipelineDescriptors.map((item) => item.provider),
+                        );
+                        const suffix = option.source === 'external' ? ' (external)' : '';
+                        return (
+                          <option key={option.value} value={option.value} disabled={!available}>
+                            {available ? `${option.label}${suffix}` : `${option.label} (not installed)`}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </label>
                   <div className="convertGrid">
                     <label className="miniField">
                       <span>Chunk Size</span>
@@ -3787,8 +3936,16 @@ function App() {
           activeModel={activeModel}
           activeModeId={activeModeId}
           hasHfToken={hasHfToken}
+          ingestPipeline={ingestPipeline}
+          externalPython={externalPython}
+          pythonStatus={pythonStatus}
+          pythonBusy={pythonBusy}
           onPersist={persistSettings}
           onRefresh={refreshSettings}
+          onExternalPythonChange={(next) => void persistExternalPython(next)}
+          onPickPython={() => void pickPythonInterpreter()}
+          onValidatePython={() => void validatePythonEnvironment()}
+          onRefreshPipelines={() => void refreshExternalPipelines()}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}

@@ -1177,3 +1177,17 @@ def test_list_models_parses_openai_and_ollama_shapes(monkeypatch):
 
     ollama_config = LlmConfig.from_request({"base_url": "http://localhost:11434/v1", "auth_type": "none"})
     assert llm_module.list_models(ollama_config) == ["llama3.1", "qwen2"]
+
+
+def test_sidecar_describes_bundled_pymupdf_pipeline():
+    listed = handle({"id": "list", "action": "list_ingest_pipelines"})
+    assert listed["ok"] is True
+    assert "pymupdf" in listed["result"]["pipelines"]
+
+    described = handle({"id": "desc", "action": "describe_ingest_pipelines"})
+    assert described["ok"] is True
+    specs = {item["spec"] for item in described["result"]["pipelines"]}
+    assert "pymupdf" in specs
+    pymupdf = next(item for item in described["result"]["pipelines"] if item["spec"] == "pymupdf")
+    assert pymupdf["installed"] is True
+    assert pymupdf["provider"] == "pymupdf"
