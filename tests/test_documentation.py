@@ -316,6 +316,16 @@ def test_hardening_json_contracts_are_documented():
     assert "## Reconvert with a different parser or embedding" in conversion
     assert "**Reconvert…**" in conversion
     assert "registers the default" in desktop_architecture and "pymupdf" in desktop_architecture
+    app_dev = (ROOT / "scripts" / "app-dev.js").read_text(encoding="utf-8")
+    assert "--extra" in app_dev and '"app"' in app_dev
+    assert "docling" not in app_dev
+    main_ts = (ROOT / "packages" / "vera-app" / "electron" / "main.ts").read_text(
+        encoding="utf-8"
+    )
+    assert "vera-ingest-pymupdf" in main_ts
+    assert "vera-ingest-docling" not in main_ts
+    assert "keepBundledDescriptors" in main_ts
+    assert "does not load" in desktop and "Docling" in desktop
     assert "copy-metadata" in (
         ROOT / "packages" / "vera-app" / "scripts" / "build-sidecar.cjs"
     ).read_text(encoding="utf-8")

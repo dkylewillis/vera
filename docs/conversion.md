@@ -315,9 +315,10 @@ Docling layout models run without `torch.compile` (so Windows does not need
 Visual Studio's `cl.exe`).
 
 First Docling conversion may download model artifacts. Set
-`DOCLING_ARTIFACTS_PATH` for a local cache. Packaged desktop releases do not
-bundle Docling; source-run apps can select installed pipelines in the Convert
-view. The Convert UI is schema-driven: the sidecar
+`DOCLING_ARTIFACTS_PATH` for a local cache. Desktop releases do not put
+Docling in the sidecar; select it in Convert after validating an external
+Python environment under **File > LLM Providers**. The Convert UI is
+schema-driven: the sidecar
 `describe_ingest_pipelines` action supplies descriptors, and
 `PipelineConfigForm` renders only the fields each pipeline advertises under a
 collapsed **Advanced pipeline options** section. For PyMuPDF, **OCR language**

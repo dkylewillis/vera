@@ -25,9 +25,9 @@ extra so RapidOCR and `onnxruntime` are installed for OCR. First conversion may
 download Docling model artifacts. Set `DOCLING_ARTIFACTS_PATH` to a local cache
 (or prefetch models offline) for air-gapped runs.
 
-This package is **not** bundled with the packaged desktop application. Source-run
-desktop conversions can use it when the optional package is installed in the
-sidecar Python environment.
+This package is **not** loaded into the desktop sidecar. Source-run and packaged
+conversions use it from a trusted external Python environment under
+**File > LLM Providers**.
 
 ## Usage
 

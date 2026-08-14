@@ -57,6 +57,10 @@ export function normalizePipelineDescriptor(
   };
 }
 
+export function keepBundledDescriptors(descriptors: PipelineDescriptor[]): PipelineDescriptor[] {
+  return descriptors.filter((item) => isBundledPipeline(item.spec || item.provider));
+}
+
 export function mergePipelineDescriptors(
   bundled: PipelineDescriptor[],
   external: PipelineDescriptor[],

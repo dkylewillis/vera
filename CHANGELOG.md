@@ -105,7 +105,10 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - `npm run app:dev` runs through `scripts/app-dev.js`, which picks `npm.cmd`
   on Windows and `npm` elsewhere before handing off to `uv run`, since `uv`
   does not resolve Windows shims on its own
-  ([astral-sh/uv#8770](https://github.com/astral-sh/uv/issues/8770)).
+  ([astral-sh/uv#8770](https://github.com/astral-sh/uv/issues/8770)). It
+  installs the `app` and `ml` extras only; Docling is not loaded into the
+  source-run sidecar. Extra ingest plugins use the same external Python
+  plugin host as packaged builds.
 - Fixed a blank-window crash on every launch: the sandboxed preload script's
   restricted `require` cannot load `protocol.ts`'s compiled ES module output
   (or a sibling JSON/CommonJS file by relative path), so `IPC_CHANNELS` threw

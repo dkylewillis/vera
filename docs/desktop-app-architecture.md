@@ -79,8 +79,8 @@ This keeps the app UI independent from Python internals while preserving a simpl
 
 ## External plugin host
 
-Packaged conversions keep search, indexing, Ask, and bundled PyMuPDF in the
-frozen sidecar. Extra ingest plugins run in a separate JSON-lines worker:
+Source-run and packaged conversions keep search, indexing, Ask, and bundled
+PyMuPDF in the sidecar. Extra ingest plugins run in a separate JSON-lines worker:
 
 ```bash
 python -m vera_plugin_host
@@ -298,6 +298,9 @@ npm run app:build
 npm run app:dist
 ```
 
+`npm run app:dev` starts Electron against the workspace sidecar without the
+Docling extra, matching packaged Convert: PyMuPDF stays in the sidecar, and
+extra ingest plugins use the external Python plugin host.
 `npm run app:dist` packages the Python sidecar through
 `packages/vera-app/scripts/build-sidecar.cjs`, which runs PyInstaller with the
 project virtualenv when it is available (honoring `VERA_SIDECAR_PYTHON`) and

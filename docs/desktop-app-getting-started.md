@@ -62,12 +62,11 @@ sidecar `describe_ingest_pipelines` action supplies descriptors, and
 a Tesseract OCR language dropdown of bundled/downloadable codes plus Custom
 for combinations such as `eng+spa`; Docling does not advertise overlap or
 DPI). These settings are independent of the Chat
-model and are persisted in app settings. `npm run app:dev` installs the `app`,
-`ml`, and `docling` extras into the workspace environment so both plugins are
-available for GUI testing. Packaged releases keep the bundled PyMuPDF
-pipeline in the frozen sidecar. Extra ingest plugins such as Docling are not
-frozen into the installer; configure a trusted external Python environment
-under **File > LLM Providers**, install plugins with
+model and are persisted in app settings. `npm run app:dev` installs the `app`
+and `ml` extras into the workspace environment. The source-run sidecar matches
+packaged releases: it keeps the bundled PyMuPDF pipeline and does not load
+Docling. Extra ingest plugins such as Docling run from a trusted external
+Python environment under **File > LLM Providers**. Install plugins with
 `python -m pip install vera-ingest-docling` or
 `python -m pip install -e <clone>`, then Validate / Refresh. An unavailable
 selection is disabled or fails with the resolver error. Docling's first conversion may download Hugging Face
@@ -170,10 +169,10 @@ npm run app:release
 This removes the existing `packages/vera-app/release` directory, rebuilds the
 app and Python sidecar, and writes an NSIS installer into that directory.
 
-## External Python plugins (packaged app)
+## External Python plugins
 
-The installer keeps search, Ask, indexing, and bundled PyMuPDF conversion in
-the frozen sidecar. To use extra ingest plugins:
+Source-run (`npm run app:dev`) and packaged builds keep search, Ask, indexing,
+and bundled PyMuPDF conversion in the sidecar. To use extra ingest plugins:
 
 1. Create a virtual environment with Python 3.10+ and install a compatible
    `vera-ingest` 0.3.x plus the plugin:

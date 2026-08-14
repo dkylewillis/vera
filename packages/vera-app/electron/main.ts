@@ -19,6 +19,7 @@ import { JsonLineProcess, type JsonLineEvent, type JsonLineResponse } from './js
 import {
   conversionRuntimeOwner,
   fallbackBundledDescriptors,
+  keepBundledDescriptors,
   mergePipelineDescriptors,
   normalizeExternalPython,
   normalizePipelineDescriptor,
@@ -29,7 +30,7 @@ import {
 } from './ingest-runtime.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
 
-/** Prefer the workspace uv venv so optional plugins (ml/docling) resolve in source-run. */
+/** Prefer the workspace uv venv so bundled sidecar packages resolve in source-run. */
 function resolveDevPython(): string {
   if (process.env.VERA_APP_PYTHON?.trim()) {
     return process.env.VERA_APP_PYTHON.trim();
@@ -320,7 +321,6 @@ class PythonSidecar {
         join(process.cwd(), '..', 'vera-doc', 'src'),
         join(process.cwd(), '..', 'vera-ingest', 'src'),
         join(process.cwd(), '..', 'vera-ingest-pymupdf', 'src'),
-        join(process.cwd(), '..', 'vera-ingest-docling', 'src'),
       ];
       env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
     }
@@ -458,9 +458,9 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
 
 async function describeMergedPipelines(): Promise<JsonLineResponse> {
   const core = await sidecar.request({ action: SIDECAR_ACTIONS.describeIngestPipelines });
-  const bundled = core.ok
-    ? descriptorsFromResult(core.result, 'bundled')
-    : fallbackBundledDescriptors();
+  const bundled = keepBundledDescriptors(
+    core.ok ? descriptorsFromResult(core.result, 'bundled') : fallbackBundledDescriptors(),
+  );
   bundledProviders = new Set(bundled.map((item) => parsePipelineProvider(item.provider || item.spec)));
   let external: PipelineDescriptor[] = [];
   const settings = readSettings();

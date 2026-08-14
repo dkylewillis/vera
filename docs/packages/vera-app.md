@@ -38,8 +38,8 @@ Download `VERA Setup <version>.exe` from the
 Search and conversion do not require a model-provider account. A provider is
 only required for generated Ask responses.
 
-Packaged conversions keep PyMuPDF in the frozen sidecar. Extra ingest plugins
-run from a trusted external Python environment configured under
+Source-run and packaged conversions keep PyMuPDF in the sidecar. Extra ingest
+plugins run from a trusted external Python environment configured under
 **File > LLM Providers**. Install plugins with `python -m pip install` or
 `python -m pip install -e <clone>`, then Validate / Refresh. See
 [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md) and
@@ -64,5 +64,5 @@ npm run app:dev
 
 The supported packaged target is currently Windows. Use the CLI
 `--pipeline-option` flags (or Convert-view pipeline settings) for
-provider-owned chunking and OCR controls. Packaged extra parsers need a
-validated external Python environment.
+provider-owned chunking and OCR controls. Extra parsers need a validated
+external Python environment in both `app:dev` and packaged builds.

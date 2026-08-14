@@ -105,12 +105,11 @@ fidelity compared with `docling_parse`.
 
 ## Desktop app
 
-Source-run desktop conversions can select installed pipelines in the Convert
-view when this package is present in the sidecar Python environment. Convert
-controls are schema-driven from Docling's pipeline descriptor
-(`describe_ingest_pipelines` / `PipelineConfigForm`), so overlap and OCR DPI
-controls are not shown. Packaged desktop releases do **not** install or bundle
-Docling plugins in this milestone.
+Source-run and packaged desktop conversions keep PyMuPDF in the sidecar. Select
+Docling in Convert after installing this package in a trusted external Python
+environment under **File > LLM Providers**. Convert controls are schema-driven
+from Docling's pipeline descriptor (`describe_ingest_pipelines` /
+`PipelineConfigForm`), so overlap and OCR DPI controls are not shown.
 
 ## See also
 

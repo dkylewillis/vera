@@ -3,6 +3,7 @@ import {
   BUNDLED_PIPELINE_PROVIDER,
   conversionRuntimeOwner,
   isBundledPipeline,
+  keepBundledDescriptors,
   mergePipelineDescriptors,
   normalizeExternalPython,
   parsePipelineProvider,
@@ -43,6 +44,12 @@ describe('ingest-runtime', () => {
     expect(parsePipelineProvider('docling:hybrid')).toBe('docling');
     expect(isBundledPipeline('pymupdf')).toBe(true);
     expect(isBundledPipeline('docling')).toBe(false);
+  });
+
+  it('drops optional sidecar plugins from the bundled set', () => {
+    expect(keepBundledDescriptors([pymupdf, docling]).map((item) => item.provider)).toEqual([
+      'pymupdf',
+    ]);
   });
 
   it('keeps bundled providers when merging duplicates', () => {
