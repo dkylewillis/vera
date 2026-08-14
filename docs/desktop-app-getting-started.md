@@ -226,7 +226,9 @@ Optional Hugging Face tokens and the **Model cache** field
 - **Validate fails for the external Python environment** — choose an absolute
   interpreter path that exists, install `vera-ingest` 0.3.x into that
   environment, then Validate again. A cold Docling/Torch import can take about
-  a minute; wait for Ready rather than assuming the probe hung.
+  a minute; the status stays on “Checking the Python environment…” until the
+  probe finishes. A timeout from an earlier attempt should not appear the
+  moment you click Validate.
 - **An extra parser is missing from Convert** — install it with
   `python -m pip install` or `python -m pip install -e <clone>` in the selected
   environment, then **Refresh plugins**. After a relaunch, wait for the

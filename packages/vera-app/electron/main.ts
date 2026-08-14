@@ -564,8 +564,10 @@ async function runPythonProbe(
   pluginWorkerArtifacts = artifacts;
   if (pluginWorker.running) pluginWorker.restart();
   try {
+    const pingRequest = pluginWorker.request({ action: SIDECAR_ACTIONS.ping });
+    void pingRequest.catch(() => undefined);
     const ping = await withTimeout(
-      pluginWorker.request({ action: SIDECAR_ACTIONS.ping }),
+      pingRequest,
       PLUGIN_HOST_VALIDATE_TIMEOUT_MS,
       'Python environment probe',
     );

@@ -43,7 +43,8 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   (`vera_plugin_host`) so extra ingest plugins installed with `pip` or
   `pip install -e` run without being frozen into the sidecar. A saved
   interpreter is re-probed on launch (up to two minutes) and Convert refreshes
-  when that probe succeeds.
+  when that probe succeeds. Validate does not show a previous timeout while a
+  new probe is still running.
 
 - Typed `Citation` on search hits (`result.citation`) plus configurable hybrid
   `semantic_weight` / `keyword_weight` on `VeraDocument.search()`.
