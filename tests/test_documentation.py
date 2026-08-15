@@ -331,7 +331,12 @@ def test_hardening_json_contracts_are_documented():
     )
     assert "vera-ingest-pymupdf" in main_ts
     assert "vera-ingest-docling" not in main_ts
-    assert "keepBundledDescriptors" in main_ts
+    assert "configurePluginRuntime" in main_ts
+    runtime_py = (ROOT / "packages" / "vera-app" / "src" / "vera_app" / "runtime.py").read_text(
+        encoding="utf-8"
+    )
+    assert "keep_bundled_descriptors" in runtime_py
+    assert "keepBundledDescriptors" not in main_ts
     assert "does not load" in desktop and "Docling" in desktop
     assert "copy-metadata" in (
         ROOT / "packages" / "vera-app" / "scripts" / "build-sidecar.cjs"

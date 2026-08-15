@@ -30,7 +30,7 @@ export function PythonEnvironmentManager({
   onPick: () => void;
   onValidate: () => void;
   onRefresh: () => void;
-  onSecretsChange?: () => Promise<void> | void;
+  onSecretsChange?: () => Promise<unknown> | void;
 }) {
   const executable = config.executable;
   const credentialNames = credentialEnvNames(status);

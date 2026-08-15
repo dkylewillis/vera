@@ -88,7 +88,7 @@ describe('createConversionController', () => {
       ok: false,
       missing_credential_env: 'OPENAI_API_KEY',
       detail: 'missing key',
-    }));
+    })) as ConversionHost['call'];
     const controller = createConversionController(() => host({
       convertMode: 'selected',
       embeddingModel: 'openai:text-embedding-3-small',

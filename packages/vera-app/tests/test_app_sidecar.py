@@ -399,7 +399,7 @@ def test_search_action_can_be_cancelled_while_in_flight(monkeypatch):
         if len(responses) >= 3:
             all_responses.set()
 
-    monkeypatch.setattr(sidecar, "_search", fake_search)
+    monkeypatch.setattr(sidecar, "_search_report", fake_search)
     monkeypatch.setattr(sidecar, "_write_response", capture_response)
     monkeypatch.setattr(sidecar.sys, "stdin", stdin)
 
@@ -847,11 +847,7 @@ def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):
 
     convert_mod = importlib.import_module("vera_app.convert")
     monkeypatch.setattr(convert_mod, "convert", fake_convert)
-    monkeypatch.setattr(
-        convert_mod,
-        "list_embedding_providers",
-        lambda: ["hashing", "openai"],
-    )
+    monkeypatch.setattr(convert_mod, "require_ready_embedder", lambda model: None)
 
     converted = handle(
         {
@@ -879,11 +875,8 @@ def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):
 
     assert converted["ok"] is True
     assert captured["model"] == "openai:text-embedding-3-small"
-    assert providers == {
-        "id": "embedding-providers",
-        "ok": True,
-        "result": {"providers": ["hashing", "openai"]},
-    }
+    assert providers["ok"] is True
+    assert "hashing" in providers["result"]["providers"]
     assert described["ok"] is True
     assert "providers" in described["result"]
     assert isinstance(described["result"]["providers"], list)

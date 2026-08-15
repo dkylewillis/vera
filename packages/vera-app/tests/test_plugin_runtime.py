@@ -102,6 +102,10 @@ class _FakeHost:
     def __init__(self, dimension: int = 8):
         self.dimension = dimension
         self.calls: list[dict] = []
+        self.stopped = False
+
+    def stop(self) -> None:
+        self.stopped = True
 
     def request(self, payload, timeout=None, cancel=None):
         self.calls.append({"payload": payload, "timeout": timeout, "cancel": cancel})
