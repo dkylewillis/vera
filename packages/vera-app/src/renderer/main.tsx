@@ -25,9 +25,10 @@ import { ExplorerPanel } from './components/ExplorerPanel';
 import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexModal';
 import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { ModelManager, ProviderManager } from './components/ProviderManagers';
+import { embedderAsPipelineDescriptor } from './components/EmbedderConfigForm';
 import { mergePipelineFieldValues } from './components/PipelineConfigForm';
 import { VeraIcon } from './components/VeraIcon';
-import { useAppBootstrap, loadIngestPipelineDescriptors } from './hooks/useAppBootstrap';
+import { useAppBootstrap, loadEmbeddingDescriptors, loadIngestPipelineDescriptors } from './hooks/useAppBootstrap';
 import { useConversion } from './hooks/useConversion';
 import { useSearch } from './hooks/useSearch';
 import { useSidecarCall } from './hooks/useSidecarCall';
@@ -57,11 +58,12 @@ import {
   syncCollapsedFolders,
   type ExplorerFileFilter,
 } from './lib/explorer';
+import { embeddingProviderFromSpec } from './lib/convertPresets';
 import { libraryQueryScope } from './lib/search';
 import { hydrateSessionTurns, stripTrace, traceKey } from './lib/sessions';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS } from './lib/providers';
 import { SIDECAR_ACTIONS } from '../shared/protocol';
-import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, ExportResult, ExternalPythonConfig, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, PythonEnvironmentProbe, SearchResult, Session, SessionTurn, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
+import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, EmbedderDescriptor, ExportResult, ExternalPythonConfig, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, PythonEnvironmentProbe, SearchResult, Session, SessionTurn, SkippedSemanticModelGroup, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
 import './styles.css';
 
 // In-memory store for LLM traces. Traces are large (full prompt/response dumps),
@@ -115,11 +117,15 @@ function App() {
   const [activeModeId, setActiveModeId] = useState('');
   const [embeddingModel, setEmbeddingModel] = useState('hashing');
   const [embeddingProviders, setEmbeddingProviders] = useState<string[]>([]);
+  const [embeddingDescriptors, setEmbeddingDescriptors] = useState<EmbedderDescriptor[]>([]);
   const [ingestPipeline, setIngestPipeline] = useState('pymupdf');
   const [ingestPipelineDescriptors, setIngestPipelineDescriptors] = useState<PipelineDescriptor[]>([]);
   const [ingestPipelineConfigs, setIngestPipelineConfigs] = useState<Record<string, PipelineOptions>>({});
+  const [embedderConfigs, setEmbedderConfigs] = useState<Record<string, PipelineOptions>>({});
   const [pipelineOptions, setPipelineOptions] = useState<PipelineOptions>({});
+  const [embedderOptions, setEmbedderOptions] = useState<PipelineOptions>({});
   const [hasHfToken, setHasHfToken] = useState(false);
+  const [hasEnvSecrets, setHasEnvSecrets] = useState<Record<string, boolean>>({});
   const [externalPython, setExternalPython] = useState<ExternalPythonConfig>({ enabled: false, executable: '' });
   const [pythonStatus, setPythonStatus] = useState<PythonEnvironmentProbe | null>(null);
   const [pythonBusy, setPythonBusy] = useState(false);
@@ -165,6 +171,7 @@ function App() {
   const [pageNumber, setPageNumber] = useState(1);
   const [pageResult, setPageResult] = useState<PageResult | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [skippedSemanticModelGroups, setSkippedSemanticModelGroups] = useState<SkippedSemanticModelGroup[]>([]);
   const [selected, setSelected] = useState<SearchResult | null>(null);
   const [citationJumpVersion, setCitationJumpVersion] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
@@ -445,6 +452,7 @@ function App() {
     embeddingModel,
     ingestPipeline,
     pipelineOptions,
+    embedderOptions,
     explorerSelection,
     activeLibraryPath,
     conversionInProgress,
@@ -513,6 +521,7 @@ function App() {
     setErrorMessage,
     setSubmittedSearchQuery,
     setResults,
+    setSkippedSemanticModelGroups,
     setSelected,
     setCenterView,
     setCitationJumpVersion,
@@ -1384,7 +1393,9 @@ function App() {
     setEmbeddingModel(saved.embedding_model || 'hashing');
     setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
+    setEmbedderConfigs(saved.embedder_configs || {});
     setHasHfToken(Boolean(saved.has_hf_token));
+    setHasEnvSecrets(saved.has_env_secrets || {});
     setExternalPython(saved.external_python || { enabled: false, executable: '' });
     // Probe status is runtime-only. Saving settings used to copy a stale
     // timeout from a previous launch probe into the Validate UI.
@@ -1400,7 +1411,9 @@ function App() {
     setEmbeddingModel(saved.embedding_model || 'hashing');
     setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
+    setEmbedderConfigs(saved.embedder_configs || {});
     setHasHfToken(Boolean(saved.has_hf_token));
+    setHasEnvSecrets(saved.has_env_secrets || {});
     setExternalPython(saved.external_python || { enabled: false, executable: '' });
     setPythonStatus(saved.external_python_status || null);
     return saved;
@@ -1415,6 +1428,7 @@ function App() {
       embedding_model: embeddingModel,
       ingest_pipeline: ingestPipeline,
       ingest_pipeline_configs: ingestPipelineConfigs,
+      embedder_configs: embedderConfigs,
       external_python: externalPython,
       ...overrides,
     };
@@ -1458,6 +1472,17 @@ function App() {
     await persistSettings(settingsSnapshot({ ingest_pipeline_configs: nextConfigs }));
   }
 
+  async function saveEmbedderOptions(nextOptions: PipelineOptions) {
+    const provider = embeddingProviderFromSpec(embeddingModel);
+    setEmbedderOptions(nextOptions);
+    const nextConfigs = {
+      ...embedderConfigs,
+      [provider]: nextOptions,
+    };
+    setEmbedderConfigs(nextConfigs);
+    await persistSettings(settingsSnapshot({ embedder_configs: nextConfigs }));
+  }
+
   async function persistExternalPython(next: ExternalPythonConfig) {
     setExternalPython(next);
     await persistSettings(settingsSnapshot({ external_python: next }));
@@ -1465,6 +1490,12 @@ function App() {
 
   async function reloadIngestPipelines() {
     setIngestPipelineDescriptors(await loadIngestPipelineDescriptors());
+  }
+
+  async function reloadEmbeddingDescriptors() {
+    const descriptors = await loadEmbeddingDescriptors();
+    setEmbeddingDescriptors(descriptors);
+    setEmbeddingProviders(descriptors.map((item) => item.provider));
   }
 
   async function pickPythonInterpreter() {
@@ -1489,6 +1520,7 @@ function App() {
           validated_at: Date.now(),
         });
         await reloadIngestPipelines();
+        await reloadEmbeddingDescriptors();
       }
     } finally {
       setPythonBusy(false);
@@ -1501,6 +1533,7 @@ function App() {
       const probe = await window.vera.refreshExternalPipelines();
       setPythonStatus(probe);
       await reloadIngestPipelines();
+      await reloadEmbeddingDescriptors();
     } finally {
       setPythonBusy(false);
     }
@@ -1635,6 +1668,7 @@ function App() {
   useEffect(() => window.vera.onPythonEnvironment((probe) => {
     setPythonStatus(probe);
     void reloadIngestPipelines();
+    void reloadEmbeddingDescriptors();
   }), []);
 
   const folderPathsKey = folders.map((folder) => folder.path).join('\n');
@@ -1659,11 +1693,14 @@ function App() {
       setEmbeddingModel(saved.embedding_model || 'hashing');
       setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
       setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
+      setEmbedderConfigs(saved.embedder_configs || {});
       setHasHfToken(Boolean(saved.has_hf_token));
+      setHasEnvSecrets(saved.has_env_secrets || {});
       setExternalPython(saved.external_python || { enabled: false, executable: '' });
       setPythonStatus(saved.external_python_status || null);
     },
     setEmbeddingProviders,
+    setEmbeddingDescriptors,
     setIngestPipelineDescriptors,
     setSessions,
     loadFolders,
@@ -1684,6 +1721,16 @@ function App() {
       ingestPipelineConfigs[ingestPipeline],
     ));
   }, [ingestPipelineDescriptors, ingestPipeline, ingestPipelineConfigs]);
+
+  useEffect(() => {
+    if (!embeddingDescriptors.length) return;
+    const provider = embeddingProviderFromSpec(embeddingModel);
+    const descriptor = embeddingDescriptors.find((item) => item.provider === provider) ?? null;
+    setEmbedderOptions(mergePipelineFieldValues(
+      embedderAsPipelineDescriptor(descriptor),
+      embedderConfigs[provider],
+    ));
+  }, [embeddingDescriptors, embeddingModel, embedderConfigs]);
 
   const loadModes = React.useCallback(async () => {
     const response = await window.vera.listModes();
@@ -1890,6 +1937,8 @@ function App() {
                   storeOriginal={storeOriginal}
                   embeddingModel={embeddingModel}
                   embeddingProviders={embeddingProviders}
+                  embeddingDescriptors={embeddingDescriptors}
+                  embedderOptions={embedderOptions}
                   ingestPipeline={ingestPipeline}
                   ingestPipelineDescriptors={ingestPipelineDescriptors}
                   pipelineOptions={pipelineOptions}
@@ -1911,6 +1960,7 @@ function App() {
                   onStoreOriginalChange={setStoreOriginal}
                   onEmbeddingModelChange={setEmbeddingModel}
                   onSaveEmbeddingModel={(model) => { void saveEmbeddingModel(model); }}
+                  onSaveEmbedderOptions={(next) => { void saveEmbedderOptions(next); }}
                   onSaveIngestPipeline={(pipeline) => { void saveIngestPipeline(pipeline); }}
                   onSavePipelineOptions={(next) => { void savePipelineOptions(next); }}
                   onChoosePdfs={() => { void choosePdfs(); }}
@@ -1979,6 +2029,7 @@ function App() {
             topK={topK}
             contextChunks={contextChunks}
             includeFigures={includeFigures}
+            skippedSemanticModelGroups={skippedSemanticModelGroups}
             selectedFilesCount={selectedFiles.length}
             scopeLabel={
               selectedFiles.length > 0
@@ -2357,7 +2408,9 @@ function App() {
           embeddingModel={embeddingModel}
           ingestPipeline={ingestPipeline}
           ingestPipelineConfigs={ingestPipelineConfigs}
+          embedderConfigs={embedderConfigs}
           hasHfToken={hasHfToken}
+          hasEnvSecrets={hasEnvSecrets}
           externalPython={externalPython}
           pythonStatus={pythonStatus}
           pythonBusy={pythonBusy}

@@ -1,5 +1,5 @@
 import { SIDECAR_ACTIONS } from '../../shared/protocol';
-import type { LibraryIndexStatus } from '../types';
+import type { LibraryIndexStatus, SearchReport, SearchResult, SkippedSemanticModelGroup } from '../types';
 
 export function libraryQueryScope(
   activeLibraryPath: string,
@@ -36,5 +36,23 @@ export function buildSearchPayload(options: {
     include_regions: true,
     include_figures: options.includeFigures,
     include_figure_data: false,
+  };
+}
+
+export function unwrapSearchReport(result: SearchReport | SearchResult[] | null | undefined): {
+  results: SearchResult[];
+  skippedSemanticModelGroups: SkippedSemanticModelGroup[];
+} {
+  if (Array.isArray(result)) {
+    return { results: result, skippedSemanticModelGroups: [] };
+  }
+  if (!result || typeof result !== 'object') {
+    return { results: [], skippedSemanticModelGroups: [] };
+  }
+  return {
+    results: Array.isArray(result.results) ? result.results : [],
+    skippedSemanticModelGroups: Array.isArray(result.skipped_semantic_model_groups)
+      ? result.skipped_semantic_model_groups
+      : [],
   };
 }

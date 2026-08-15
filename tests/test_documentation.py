@@ -291,6 +291,10 @@ def test_hardening_json_contracts_are_documented():
     assert "python -m vera_plugin_host" in desktop_architecture
     assert "re-probed on launch" in desktop_architecture
     assert "trusted" in desktop_architecture
+    assert "sidecar" in desktop_architecture and "configure_plugin_runtime" in desktop_architecture
+    assert "embedder_info" in desktop_architecture
+    assert "credential_env" in desktop_architecture
+    assert "skipped_semantic_model_groups" in desktop_architecture
     assert "python/plugin-host/vera_plugin_host" in (
         ROOT / "packages" / "vera-app" / "package.json"
     ).read_text(encoding="utf-8")

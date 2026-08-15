@@ -15,6 +15,7 @@ describe('CenterSearchView', () => {
         topK={10}
         contextChunks={0}
         includeFigures={false}
+        skippedSemanticModelGroups={[]}
         selectedFilesCount={0}
         scopeLabel="No search scope"
         hasSearchableScope={false}

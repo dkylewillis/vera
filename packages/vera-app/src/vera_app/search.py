@@ -11,7 +11,7 @@ from vera_doc.corpus import VeraCorpus
 from vera_ingest.viewer import figure_data_url, figures, result_payload
 
 
-def search(request: Request, cancel: CancellationToken | None = None) -> list[dict[str, Any]]:
+def search_report(request: Request, cancel: CancellationToken | None = None) -> dict[str, Any]:
     if cancel:
         cancel.raise_if_cancelled()
     target = resolve_target(request)
@@ -46,9 +46,14 @@ def search(request: Request, cancel: CancellationToken | None = None) -> list[di
             if scoped_file and not entry.get("file"):
                 entry["file"] = scoped_file
             payload.append(entry)
-        return payload
+        skipped = list(getattr(target, "skipped_semantic_model_groups", []) or [])
+        return {"results": payload, "skipped_semantic_model_groups": skipped}
     finally:
         target.close()
+
+
+def search(request: Request, cancel: CancellationToken | None = None) -> list[dict[str, Any]]:
+    return search_report(request, cancel=cancel)["results"]
 
 
 def figure_data(request: Request) -> list[dict[str, Any]]:

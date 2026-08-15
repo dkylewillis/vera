@@ -44,6 +44,7 @@ export type ConversionHost = {
   embeddingModel: string;
   ingestPipeline: string;
   pipelineOptions: PipelineOptions;
+  embedderOptions: PipelineOptions;
   explorerSelection: ExplorerSelection | null;
   activeLibraryPath: string;
   conversionInProgress: boolean;
@@ -388,6 +389,24 @@ export function createConversionController(getHost: () => ConversionHost) {
     host.setConversionError(null);
     host.setBatchConvertResult(null);
     host.setReconvertNotice(null);
+    const preflight = await host.call<{
+      ok: boolean;
+      detail?: string;
+      missing_credential_env?: string;
+    }>(
+      { action: SIDECAR_ACTIONS.preflightEmbedder, model: host.embeddingModel },
+      'Checking embedder',
+    );
+    if (!preflight) return;
+    if (!preflight.ok) {
+      const missing = preflight.missing_credential_env?.trim();
+      host.setConversionError(
+        missing
+          ? `Embedding provider is not ready. Save ${missing} under File → LLM Providers.`
+          : (preflight.detail || 'Embedding provider is not ready.'),
+      );
+      return;
+    }
     const conversionRequestId = crypto.randomUUID();
     conversionRequestIdRef.current = conversionRequestId;
     host.dispatchBackgroundTask({
@@ -417,6 +436,7 @@ export function createConversionController(getHost: () => ConversionHost) {
             ingestPipeline: host.ingestPipeline,
             storeOriginal: host.storeOriginal,
             pipelineOptions: host.pipelineOptions,
+            embedderOptions: host.embedderOptions,
           }),
           conversionRequestId,
         ),

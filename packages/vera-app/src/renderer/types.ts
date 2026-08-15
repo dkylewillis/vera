@@ -18,6 +18,7 @@ export type {
   ExternalPythonConfig,
   FigureResult,
   JsonValue,
+  EmbedderDescriptor,
   PipelineCapabilities,
   PipelineDescriptor,
   PipelineFieldChoice,
@@ -27,8 +28,10 @@ export type {
   ProviderProfile,
   PythonEnvironmentProbe,
   RegionResult,
+  SearchReport,
   SearchResult,
   Session,
+  SkippedSemanticModelGroup,
   SessionTurn,
   StreamEvent,
   TraceMessage,
@@ -61,6 +64,8 @@ export interface VeraApi {
   clearApiKey(providerId: string): Promise<CredentialResult>;
   saveHfToken(token: string): Promise<CredentialResult>;
   clearHfToken(): Promise<CredentialResult>;
+  saveEnvSecret(name: string, value: string): Promise<CredentialResult>;
+  clearEnvSecret(name: string): Promise<CredentialResult>;
   getSessions(): Promise<Session[]>;
   saveSession(session: Session): Promise<Session[]>;
   deleteSession(id: string): Promise<Session[]>;

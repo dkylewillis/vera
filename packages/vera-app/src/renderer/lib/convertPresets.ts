@@ -1,6 +1,6 @@
 /** Convert-view presets for embedding models and optional pipeline install hints. */
 
-import type { PipelineDescriptor } from '../../shared/contracts';
+import type { EmbedderDescriptor, PipelineDescriptor } from '../../shared/contracts';
 
 export type ConvertPresetOption = {
   value: string;
@@ -39,6 +39,39 @@ export function isKnownEmbeddingPreset(model: string): boolean {
 
 export function embeddingSelectValue(model: string): string {
   return isKnownEmbeddingPreset(model) ? model.trim() : CUSTOM_EMBEDDING_VALUE;
+}
+
+export function embeddingProviderFromSpec(model: string): string {
+  const raw = model.trim();
+  if (!raw || raw === 'hashing' || /^vera-hashing-\d+$/.test(raw)) return 'hashing';
+  if (raw === 'all-MiniLM-L6-v2' || raw.startsWith('sentence-transformers')) {
+    return 'sentence-transformers';
+  }
+  if (raw.includes(':')) return raw.split(':', 1)[0]?.trim().toLowerCase() || raw.toLowerCase();
+  return raw.toLowerCase();
+}
+
+export function embeddingSelectOptions(
+  descriptors: EmbedderDescriptor[],
+): ConvertPresetOption[] {
+  const installed = descriptors.map((descriptor) => ({
+    value: descriptor.default_model_id
+      ? `${descriptor.provider}:${descriptor.default_model_id}`
+      : descriptor.provider,
+    label: descriptor.label || descriptor.provider,
+    source: descriptor.source,
+    requiresProvider: descriptor.provider,
+  }));
+  const known = new Set(descriptors.map((item) => item.provider));
+  const presets = EMBEDDING_MODEL_PRESETS.filter((preset) => {
+    const provider = preset.requiresProvider || embeddingProviderFromSpec(preset.value);
+    return !known.has(provider) || preset.value === 'hashing';
+  });
+  const extra = installed.filter((option) => {
+    const provider = option.requiresProvider || embeddingProviderFromSpec(option.value);
+    return provider !== 'hashing' && provider !== 'sentence-transformers';
+  });
+  return [...presets, ...extra];
 }
 
 export function presetOptionAvailable(

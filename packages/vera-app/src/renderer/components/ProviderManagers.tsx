@@ -122,7 +122,9 @@ export function ProviderManager({
   embeddingModel,
   ingestPipeline,
   ingestPipelineConfigs,
+  embedderConfigs,
   hasHfToken = false,
+  hasEnvSecrets = {},
   externalPython,
   pythonStatus,
   pythonBusy = false,
@@ -141,7 +143,9 @@ export function ProviderManager({
   embeddingModel: string;
   ingestPipeline: string;
   ingestPipelineConfigs: AppSettings['ingest_pipeline_configs'];
+  embedderConfigs: AppSettings['embedder_configs'];
   hasHfToken?: boolean;
+  hasEnvSecrets?: Record<string, boolean>;
   externalPython: ExternalPythonConfig;
   pythonStatus: PythonEnvironmentProbe | null;
   pythonBusy?: boolean;
@@ -216,6 +220,7 @@ export function ProviderManager({
       embedding_model: overrides?.embedding_model ?? embeddingModel,
       ingest_pipeline: overrides?.ingest_pipeline ?? ingestPipeline,
       ingest_pipeline_configs: overrides?.ingest_pipeline_configs ?? ingestPipelineConfigs,
+      embedder_configs: overrides?.embedder_configs ?? embedderConfigs,
       external_python: overrides?.external_python ?? externalPython,
     };
   }
@@ -715,10 +720,12 @@ export function ProviderManager({
             config={externalPython}
             status={pythonStatus}
             busy={busy || pythonBusy}
+            hasEnvSecrets={hasEnvSecrets}
             onConfigChange={onExternalPythonChange}
             onPick={onPickPython}
             onValidate={onValidatePython}
             onRefresh={onRefreshPipelines}
+            onSecretsChange={onRefresh}
           />
         </div>
 

@@ -22,6 +22,13 @@ from vera_doc import VeraDocument
 from vera_ingest import convert
 
 
+def _search_hits(response):
+    result = response["result"]
+    if isinstance(result, dict) and "results" in result:
+        return result["results"]
+    return result
+
+
 def _llm_payload():
     return {
         "provider": "openai_compatible",
@@ -109,7 +116,9 @@ def test_index_actions_and_recursive_folder_search(nested_app_library):
         }
     )
     assert fallback["ok"] is True
-    assert fallback["result"][0]["file"].endswith("water.vera")
+    assert "results" in fallback["result"]
+    assert "skipped_semantic_model_groups" in fallback["result"]
+    assert _search_hits(fallback)[0]["file"].endswith("water.vera")
 
     built = handle(
         {
@@ -162,7 +171,7 @@ def test_index_actions_and_recursive_folder_search(nested_app_library):
         }
     )
     assert indexed["ok"] is True
-    assert indexed["result"][0]["file"].endswith("roadway.vera")
+    assert _search_hits(indexed)[0]["file"].endswith("roadway.vera")
 
     water_path = nested_app_library / "utilities" / "water.vera"
     narrowed = handle(
@@ -176,7 +185,7 @@ def test_index_actions_and_recursive_folder_search(nested_app_library):
         }
     )
     assert narrowed["ok"] is True
-    assert narrowed["result"][0]["file"] == str(water_path)
+    assert _search_hits(narrowed)[0]["file"] == str(water_path)
 
     bridge = nested_app_library / "transportation" / "bridges" / "bridge.vera"
     bridge.parent.mkdir(parents=True)
@@ -256,7 +265,7 @@ def test_search_defers_figure_bytes_until_requested(tmp_path):
     )
 
     assert searched["ok"] is True
-    figures = searched["result"][0]["figures"]
+    figures = _search_hits(searched)[0]["figures"]
     assert figures
     assert "data_url" not in figures[0]
 
@@ -510,7 +519,7 @@ def test_single_file_scope_still_stamps_source_path(tmp_path):
     )
 
     assert response["ok"] is True
-    assert response["result"][0]["file"] == str(out)
+    assert _search_hits(response)[0]["file"] == str(out)
 
 
 def test_batch_convert_supports_recursive_discovery_and_default_names(tmp_path):

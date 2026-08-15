@@ -61,6 +61,40 @@ describe('PythonEnvironmentManager', () => {
     expect(html).toContain('docling');
   });
 
+  it('lists discovered embedders and credential env fields', () => {
+    const status: PythonEnvironmentProbe = {
+      ok: true,
+      python_version: '3.12.3',
+      vera_ingest_version: '0.3.0',
+      vera_doc_version: '0.3.0',
+      embedders: [{
+        provider: 'openai',
+        label: 'OpenAI',
+        description: '',
+        installed: true,
+        fields: [],
+        source: 'external',
+        capabilities: { credential_env: 'OPENAI_API_KEY', requires_api_key: true },
+      }],
+    };
+    const html = renderToStaticMarkup(
+      <PythonEnvironmentManager
+        config={config}
+        status={status}
+        busy={false}
+        hasEnvSecrets={{ OPENAI_API_KEY: true }}
+        onConfigChange={() => undefined}
+        onPick={() => undefined}
+        onValidate={() => undefined}
+        onRefresh={() => undefined}
+      />,
+    );
+    expect(html).toContain('openai');
+    expect(html).toContain('OPENAI_API_KEY');
+    expect(html).toContain('Saved');
+    expect(html).toContain('embedding plugins');
+  });
+
   it('renders compatibility errors', () => {
     const html = renderToStaticMarkup(
       <PythonEnvironmentManager

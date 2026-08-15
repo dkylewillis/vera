@@ -94,6 +94,17 @@ export interface SearchResult {
   file?: string;
 }
 
+export interface SkippedSemanticModelGroup {
+  model_name: string;
+  dimension: number;
+  error: string;
+}
+
+export interface SearchReport {
+  results: SearchResult[];
+  skipped_semantic_model_groups?: SkippedSemanticModelGroup[];
+}
+
 export interface ChatCitationResult {
   id: string;
   label: string;
@@ -195,6 +206,28 @@ export interface PipelineCapabilities {
 
 export type PipelineRuntimeSource = 'bundled' | 'external';
 
+export interface EmbedderCapabilities {
+  requires_network?: boolean;
+  requires_api_key?: boolean;
+  credential_env?: string;
+  local_model?: boolean;
+  configurable_dimension?: boolean;
+  supports_model_listing?: boolean;
+}
+
+export interface EmbedderDescriptor {
+  provider: string;
+  label: string;
+  description: string;
+  installed: boolean;
+  default_model_id?: string;
+  example_specs?: string[];
+  capabilities?: EmbedderCapabilities;
+  fields: PipelineFieldDescriptor[];
+  notes?: string[];
+  source?: PipelineRuntimeSource;
+}
+
 export interface PipelineDescriptor {
   provider: string;
   variant: string;
@@ -220,9 +253,11 @@ export interface PythonEnvironmentProbe {
   executable?: string;
   python_version?: string;
   vera_ingest_version?: string;
+  vera_doc_version?: string;
   protocol?: number;
   plugin_api?: number;
   pipelines?: PipelineDescriptor[];
+  embedders?: EmbedderDescriptor[];
   load_errors?: string[];
   error?: string;
 }
@@ -241,12 +276,16 @@ export interface AppSettings {
   ingest_pipeline: string;
   /** Per-pipeline Convert settings keyed by pipeline spec. */
   ingest_pipeline_configs: Record<string, PipelineOptions>;
+  /** Per-provider Convert embedder options keyed by provider name. */
+  embedder_configs?: Record<string, PipelineOptions>;
   /**
    * Runtime-only: true when a Hugging Face token is available from secure
    * storage or the process environment (`HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN`).
    * Not persisted in settings.json.
    */
   has_hf_token?: boolean;
+  /** Runtime-only: env var names that have a stored embedder/plugin secret. */
+  has_env_secrets?: Record<string, boolean>;
   /** Opt-in interpreter used to discover and run extra ingest plugins. */
   external_python?: ExternalPythonConfig | null;
   /** Runtime-only probe of the configured external Python environment. */

@@ -293,9 +293,13 @@ vera convert "input.pdf" --parser docling:hybrid
 
 Unknown pipeline names fail before parsing with an install-the-plugin message;
 VERA never silently falls back to PyMuPDF. The packaged desktop app can run
-extra pipelines from a trusted external Python environment after
-`python -m pip install` or `python -m pip install -e <clone>` and Validate
-under **File > LLM Providers**. Later launches re-probe that saved interpreter.
+extra pipelines and embedding providers from a trusted external Python
+environment after `python -m pip install` or `python -m pip install -e <clone>`
+and Validate under **File > LLM Providers**. Later launches re-probe that saved
+interpreter. Convert lists extra embedders as `(external)`, persists
+`embedder_options` / `embedder_configs`, and gates conversion on
+`preflight_embedder` so an archive is never written with a model Search cannot
+resolve. Embedder `credential_env` secrets stay in secure storage, not Options.
 On Docling memory errors
 (`bad_alloc`), VERA retries failed pages with a fresh converter and falls back
 to the `pypdfium2` PDF backend when needed; conversion rejects only when that

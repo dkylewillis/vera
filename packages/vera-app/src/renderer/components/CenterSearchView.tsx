@@ -1,6 +1,6 @@
 import { Search } from 'lucide-react';
 import { fileName, formatPages } from '../lib/formatting';
-import type { SearchResult } from '../types';
+import type { SearchResult, SkippedSemanticModelGroup } from '../types';
 
 export function CenterSearchView({
   submittedSearchQuery,
@@ -11,6 +11,7 @@ export function CenterSearchView({
   topK,
   contextChunks,
   includeFigures,
+  skippedSemanticModelGroups = [],
   selectedFilesCount,
   scopeLabel,
   hasSearchableScope,
@@ -33,6 +34,7 @@ export function CenterSearchView({
   topK: number;
   contextChunks: number;
   includeFigures: boolean;
+  skippedSemanticModelGroups?: SkippedSemanticModelGroup[];
   selectedFilesCount: number;
   scopeLabel: string;
   hasSearchableScope: boolean;
@@ -56,6 +58,14 @@ export function CenterSearchView({
           </article>
           <article className="chatMessage assistantMessage searchResponse">
             <span>{results.length} result{results.length === 1 ? '' : 's'}</span>
+            {skippedSemanticModelGroups.length > 0 ? (
+              <p className="searchSkippedWarning" role="status">
+                Semantic search skipped {skippedSemanticModelGroups.length} model
+                group{skippedSemanticModelGroups.length === 1 ? '' : 's'} because
+                the embedder is unavailable. Keyword matches still appear. Check
+                File → LLM Providers if you expected semantic hits.
+              </p>
+            ) : null}
             {results.length > 0 ? (
               <div className="centerSearchResults">
                 {results.map((result, index) => (

@@ -6,11 +6,13 @@ import {
   Square,
   X,
 } from 'lucide-react';
+import { EmbedderConfigForm } from './EmbedderConfigForm';
 import { PipelineConfigForm } from './PipelineConfigForm';
 import { OcrLanguagePackManager } from './OcrLanguagePackManager';
 import {
   CUSTOM_EMBEDDING_VALUE,
   EMBEDDING_MODEL_PRESETS,
+  embeddingProviderFromSpec,
   embeddingSelectValue,
   pipelineInstallHint,
   pipelineSelectOptions,
@@ -19,6 +21,7 @@ import {
 import { convertDefaultsFromSelection, type ExplorerSelection } from '../lib/formatting';
 import type {
   BatchConvertResult,
+  EmbedderDescriptor,
   PipelineDescriptor,
   PipelineOptions,
 } from '../types';
@@ -32,6 +35,8 @@ export function ConvertPanel({
   storeOriginal,
   embeddingModel,
   embeddingProviders,
+  embeddingDescriptors,
+  embedderOptions,
   ingestPipeline,
   ingestPipelineDescriptors,
   pipelineOptions,
@@ -53,6 +58,7 @@ export function ConvertPanel({
   onStoreOriginalChange,
   onEmbeddingModelChange,
   onSaveEmbeddingModel,
+  onSaveEmbedderOptions,
   onSaveIngestPipeline,
   onSavePipelineOptions,
   onChoosePdfs,
@@ -70,6 +76,8 @@ export function ConvertPanel({
   storeOriginal: boolean;
   embeddingModel: string;
   embeddingProviders: string[];
+  embeddingDescriptors: EmbedderDescriptor[];
+  embedderOptions: PipelineOptions;
   ingestPipeline: string;
   ingestPipelineDescriptors: PipelineDescriptor[];
   pipelineOptions: PipelineOptions;
@@ -91,6 +99,7 @@ export function ConvertPanel({
   onStoreOriginalChange: (value: boolean) => void;
   onEmbeddingModelChange: (value: string) => void;
   onSaveEmbeddingModel: (model: string) => void;
+  onSaveEmbedderOptions: (next: PipelineOptions) => void;
   onSaveIngestPipeline: (pipeline: string) => void;
   onSavePipelineOptions: (next: PipelineOptions) => void;
   onChoosePdfs: () => void;
@@ -102,6 +111,10 @@ export function ConvertPanel({
 }) {
   const activePipelineDescriptor = ingestPipelineDescriptors.find(
     (item) => item.spec === ingestPipeline || item.provider === ingestPipeline,
+  ) ?? null;
+  const activeEmbedderProvider = embeddingProviderFromSpec(embeddingModel);
+  const activeEmbedderDescriptor = embeddingDescriptors.find(
+    (item) => item.provider === activeEmbedderProvider,
   ) ?? null;
   const pipelineOptionsForSelect = pipelineSelectOptions(ingestPipelineDescriptors);
   const installedPipelineProviders = ingestPipelineDescriptors.map((item) => item.provider);
@@ -257,6 +270,19 @@ export function ConvertPanel({
               </option>
             );
           })}
+          {embeddingDescriptors
+            .filter((item) => item.provider !== 'hashing' && item.provider !== 'sentence-transformers')
+            .map((item) => {
+              const spec = item.default_model_id
+                ? `${item.provider}:${item.default_model_id}`
+                : item.provider;
+              const suffix = item.source === 'external' ? ' (external)' : '';
+              return (
+                <option key={item.provider} value={spec}>
+                  {item.label || spec}{suffix}
+                </option>
+              );
+            })}
           <option value={CUSTOM_EMBEDDING_VALUE}>Custom provider:model-id…</option>
         </select>
       </label>
@@ -275,17 +301,25 @@ export function ConvertPanel({
             <option value="hashing" />
             <option value="hashing:vera-hashing-384" />
             <option value="sentence-transformers:all-MiniLM-L6-v2" />
+            {embeddingDescriptors.map((item) => (
+              <option
+                key={item.provider}
+                value={item.default_model_id ? `${item.provider}:${item.default_model_id}` : `${item.provider}:`}
+              />
+            ))}
             {embeddingProviders.map((provider) => (
-              <option key={provider} value={`${provider}:`} />
+              <option key={`name-${provider}`} value={`${provider}:`} />
             ))}
           </datalist>
         </label>
       ) : null}
       <p className="sideMuted">
-        {embeddingProviders.includes('sentence-transformers')
-          ? 'Sentence Transformers is available. The conversion embedding model is independent of Chat.'
-          : <>Sentence Transformers is not installed. From the repo root run <code>uv sync --extra ml</code> and restart the app.</>}
-        {' '}Custom specs are saved when the field loses focus.
+        {activeEmbedderDescriptor?.source === 'external'
+          ? 'This embedder runs in the trusted external Python environment under File → LLM Providers.'
+          : embeddingProviders.includes('sentence-transformers')
+            ? 'Sentence Transformers is available. The conversion embedding model is independent of Chat.'
+            : <>Sentence Transformers is not installed. From the repo root run <code>uv sync --extra ml</code> and restart the app, or install a plugin in the external Python environment.</>}
+        {' '}Custom specs are saved when the field loses focus. Extra embedders appear as (external) after Validate / Refresh.
       </p>
       <label className="miniCheck">
         <input type="checkbox" checked={storeOriginal} onChange={(event) => onStoreOriginalChange(event.target.checked)} />
@@ -303,6 +337,16 @@ export function ConvertPanel({
           values={pipelineOptions}
           disabled={convertLocked}
           onChange={(next) => { void onSavePipelineOptions(next); }}
+        />
+        <p className="sideMuted">
+          Controls advertised by the selected embedding provider
+          {activeEmbedderDescriptor?.provider ? ` (${activeEmbedderDescriptor.provider})` : ''}.
+        </p>
+        <EmbedderConfigForm
+          descriptor={activeEmbedderDescriptor}
+          values={embedderOptions}
+          disabled={convertLocked}
+          onChange={(next) => { void onSaveEmbedderOptions(next); }}
         />
         {activePipelineDescriptor?.capabilities?.ocr_engine === 'tesseract' ? (
           <OcrLanguagePackManager
