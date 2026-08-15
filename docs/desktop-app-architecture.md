@@ -104,6 +104,31 @@ import often exceeds 40s. Convert lists extra parsers and embedders as
 `(external)` and gates conversion on `preflight_embedder`. Search reports
 `skipped_semantic_model_groups` when an external embedder is unavailable.
 
+### Convert routing
+
+Electron talks only to the sidecar. The sidecar owns one `vera_plugin_host`
+child, launched with the user-selected interpreter after
+`configure_plugin_runtime`.
+
+```mermaid
+flowchart LR
+  Electron --> sidecar
+  sidecar --> host["vera_plugin_host"]
+```
+
+Which process runs convert depends on the parser, not the embedder:
+
+- Extra parser (for example Docling) — the sidecar forwards `convert` /
+  `batch_convert` to the host. The host has `vera-doc`, so bundled embedders
+  still work there.
+- Bundled `pymupdf` plus an external embedder — convert stays in the sidecar.
+  Embeddings go to the same host over `embed` / `embedder_info`.
+
+Search, Ask, and indexing stay in the sidecar either way. When an archive was
+built with an external embedder, the sidecar uses a registry proxy into that
+host. If the host or credential is missing, Search still returns keyword hits
+and reports `skipped_semantic_model_groups`.
+
 ## Active Libraries and Collection Indexes
 
 Opening a workspace folder activates it as the default Search and Ask scope

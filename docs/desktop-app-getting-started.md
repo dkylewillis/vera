@@ -180,9 +180,11 @@ plugins:
    ```bash
    python -m venv C:\venvs\vera-plugins
    C:\venvs\vera-plugins\Scripts\python.exe -m pip install vera-ingest vera-ingest-docling
+   C:\venvs\vera-plugins\Scripts\python.exe -m pip install vera-your-embedder
    python -m pip install -e C:\src\my-vera-plugin
    ```
-   Adding a clone to `PYTHONPATH` without installing it is not enough.
+   Adding a clone to `PYTHONPATH` without installing it is not enough. Install
+   embedder plugins in the same environment as extra parsers.
 2. In VERA, open **File > LLM Providers**, enable **External Python plugins**,
    choose that environment's `python.exe`, and click **Validate** once.
 3. Convert lists extra parsers and embedders as `(external)`. Bundled
@@ -205,6 +207,8 @@ Hugging Face tokens, embedder `credential_env` secrets, and the **Model cache**
 field (`DOCLING_ARTIFACTS_PATH`) are forwarded to the plugin host. See
 [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md) and
 [Creating an embedding provider](creating-an-embedding-provider.md).
+Which process runs convert versus embed is in
+[Convert routing](desktop-app-architecture.md#convert-routing).
 
 ## Common startup problems
 
