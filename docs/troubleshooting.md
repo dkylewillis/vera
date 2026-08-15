@@ -188,17 +188,23 @@ vera convert "input.pdf" --parser docling
 Unknown names fail before parsing and never fall back to another pipeline.
 
 The desktop app can also run extra parsers and embedders from a trusted
-external Python environment in both `app:dev` and packaged builds. Install
-them with `python -m pip install` or `python -m pip install -e <clone>` in
-that environment, then Validate under **File > LLM Providers**. After a
+external Python environment in both `app:dev` and packaged builds. Use a
+dedicated venv, not the workspace `.venv` (`python -m pip` is often missing
+there). Install with `python -m pip install` or `python -m pip install -e
+<clone>` in that environment. If pip reports no `vera-ingest>=0.3.0` on PyPI,
+install checkout `packages/vera-doc` then `packages/vera-ingest` before the
+plugin. Then Validate under **File > Settings → Python plugins**. After a
 relaunch VERA re-probes that saved interpreter; wait for Convert to refresh
 before treating a plugin as missing. Raw `PYTHONPATH` folders are not
 discovered. If Search reports skipped semantic model groups, the convert-time
-embedder is not available in the current sidecar or plugin host.
+embedder is not available in the current sidecar or plugin host. A Docling
+convert that fails with `No module named 'sentence_transformers'` needs
+`sentence-transformers` installed in the **plugin** venv; the sidecar copy
+is not shared.
 
 If Hugging Face Hub downloads warn about unauthenticated requests or hit rate
 limits, set `HF_TOKEN` (see `.env.example`) or save a token under **File >
-LLM Providers → Hugging Face** in the desktop app.
+Settings → Hugging Face** in the desktop app.
 
 ## Figures are missing or have no caption
 

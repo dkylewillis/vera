@@ -402,7 +402,7 @@ export function createConversionController(getHost: () => ConversionHost) {
       const missing = preflight.missing_credential_env?.trim();
       host.setConversionError(
         missing
-          ? `Embedding provider is not ready. Save ${missing} under File → LLM Providers.`
+          ? `Embedding provider is not ready. Save ${missing} under File → Settings → Python plugins.`
           : (preflight.detail || 'Embedding provider is not ready.'),
       );
       return;

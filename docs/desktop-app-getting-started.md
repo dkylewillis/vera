@@ -66,11 +66,12 @@ model and are persisted in app settings. `npm run app:dev` installs the `app`
 and `ml` extras into the workspace environment. The source-run sidecar matches
 packaged releases: it keeps the bundled PyMuPDF pipeline and does not load
 Docling. Extra ingest plugins such as Docling run from a trusted external
-Python environment under **File > LLM Providers**. Install plugins with
+Python environment under **File > Settings → Python plugins**. Use a dedicated
+venv (not the workspace `.venv`). Install plugins with
 `python -m pip install vera-ingest-docling` or
-`python -m pip install -e <clone>`, then Validate / Refresh. An unavailable
+`python -m pip install -e <clone>` after `vera-ingest` 0.3.x, then Validate / Refresh. An unavailable
 selection is disabled or fails with the resolver error. Docling's first conversion may download Hugging Face
-models; save an optional token under **File > LLM Providers → Hugging Face**
+models; save an optional token under **File > Settings → Hugging Face**
 (or set `HF_TOKEN` in the environment / a local `.env` from `.env.example`) to
 raise Hub rate limits. Conversion progress and the current filename appear in
 the footer status bar, so progress remains visible when you switch away from
@@ -172,24 +173,56 @@ app and Python sidecar, and writes an NSIS installer into that directory.
 ## External Python plugins
 
 Source-run (`npm run app:dev`) and packaged builds keep search, Ask, indexing,
-and bundled PyMuPDF conversion in the sidecar. To use extra ingest or embedding
-plugins:
+and bundled PyMuPDF conversion in the sidecar. Extra ingest and embedding
+plugins run in a separate `vera_plugin_host` worker. Use a **dedicated virtual environment**
+for that worker — not the workspace `.venv` that
+`app:dev` uses. The workspace env is uv-managed (often has no `pip` module),
+is synced without the `docling` extra, and a later `uv sync` without
+`--extra docling` can remove plugin packages.
 
-1. Create a virtual environment with Python 3.10+ and install a compatible
-   `vera-ingest` 0.3.x plus the plugin:
+The two processes do not share site-packages. Install every dependency the
+worker will import into the plugin interpreter.
+
+1. Create a virtual environment with Python 3.10+ (a stdlib venv, so `pip`
+   is available):
    ```bash
    python -m venv C:\venvs\vera-plugins
-   C:\venvs\vera-plugins\Scripts\python.exe -m pip install vera-ingest vera-ingest-docling
-   C:\venvs\vera-plugins\Scripts\python.exe -m pip install vera-your-embedder
-   python -m pip install -e C:\src\my-vera-plugin
    ```
-   Adding a clone to `PYTHONPATH` without installing it is not enough. Install
-   embedder plugins in the same environment as extra parsers.
-2. In VERA, open **File > LLM Providers**, enable **External Python plugins**,
+2. Install `vera-doc` and `vera-ingest` **0.3.x** plus the plugin. When those
+   versions are on PyPI:
+   ```bash
+   C:\venvs\vera-plugins\Scripts\python.exe -m pip install "vera-ingest>=0.3.0" "vera-ingest-docling>=0.3.0"
+   C:\venvs\vera-plugins\Scripts\python.exe -m pip install vera-your-embedder
+   C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\my-vera-plugin
+   ```
+   From a repository checkout (required while 0.3.x is not on PyPI; pip only
+   sees `vera-ingest` 0.2.x there), install the local packages in order:
+   ```bash
+   C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\vera\packages\vera-doc
+   C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\vera\packages\vera-ingest
+   C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\vera\packages\vera-ingest-docling
+   ```
+   The last command pulls `docling[rapidocr]` and `docling_core` from PyPI.
+   Adding a clone to `PYTHONPATH` without installing it is not enough.
+3. If you will convert with **Docling plus Sentence Transformers**, also
+   install the embedder in **this** environment. Convert follows the parser:
+   a Docling convert (parse and embed) runs entirely in the plugin host, so
+   `No module named 'sentence_transformers'` means the plugin venv is missing
+   it. The sidecar copy from `--extra ml` is not visible to the host.
+   ```bash
+   C:\venvs\vera-plugins\Scripts\python.exe -m pip install "sentence-transformers>=2.7"
+   ```
+   A pymupdf convert embeds in the sidecar instead; `app:dev` already has
+   Sentence Transformers there. Bundled `hashing` works in both processes
+   without an extra install. Install other embedder plugins in the same
+   environment as extra parsers.
+4. In VERA, open **File > Settings → Python plugins**, enable the external Python environment,
    choose that environment's `python.exe`, and click **Validate** once.
-3. Convert lists extra parsers and embedders as `(external)`. Bundled
+5. Convert lists extra parsers and embedders as `(external)`. Bundled
    `pymupdf`, `hashing`, and `sentence-transformers` win when a plugin repeats
-   those names. After installing or updating plugins, click **Refresh plugins**.
+   those names — the sidecar will not proxy its Sentence Transformers into the
+   host, or the host's copy back into a pymupdf convert. After installing or
+   updating plugins, click **Refresh plugins**.
    Embedder `credential_env` secrets are saved under the same settings page and
    forwarded to the sidecar and plugin host. Convert calls `preflight_embedder`
    before writing an archive.

@@ -104,7 +104,7 @@ describe('createConversionController', () => {
       'Checking embedder',
     );
     expect(setConversionError).toHaveBeenCalledWith(
-      'Embedding provider is not ready. Save OPENAI_API_KEY under File → LLM Providers.',
+      'Embedding provider is not ready. Save OPENAI_API_KEY under File → Settings → Python plugins.',
     );
     expect(dispatchBackgroundTask).not.toHaveBeenCalled();
   });

@@ -26,7 +26,7 @@ export const EMBEDDING_MODEL_PRESETS: ConvertPresetOption[] = [
 export const PIPELINE_INSTALL_HINTS: Record<string, { label: string; hint: string }> = {
   docling: {
     label: 'docling — HybridChunker',
-    hint: 'Install it in the configured Python environment with `python -m pip install vera-ingest-docling`, or clone the plugin and run `python -m pip install -e <folder>`, then Validate / Refresh under File → LLM Providers.',
+    hint: 'Install it in the configured Python environment with `python -m pip install vera-ingest-docling`, or clone the plugin and run `python -m pip install -e <folder>`, then Validate / Refresh under File → Settings → Python plugins.',
   },
 };
 
@@ -85,17 +85,18 @@ export function presetOptionAvailable(
 export function pipelineSelectOptions(
   descriptors: PipelineDescriptor[],
 ): ConvertPresetOption[] {
-  const installed = descriptors.map((descriptor) => ({
+  const ready = descriptors.filter((descriptor) => descriptor.installed);
+  const installed = ready.map((descriptor) => ({
     value: descriptor.spec,
     label: descriptor.label || descriptor.spec,
     source: descriptor.source,
   }));
   const known = new Set([
     ...installed.map((option) => option.value),
-    ...descriptors.map((item) => item.provider),
+    ...ready.map((item) => item.provider),
   ]);
   const missingHints = Object.entries(PIPELINE_INSTALL_HINTS)
-    .filter(([provider]) => !known.has(provider) && !descriptors.some((item) => item.provider === provider))
+    .filter(([provider]) => !known.has(provider) && !ready.some((item) => item.provider === provider))
     .map(([provider, meta]) => ({
       value: provider,
       label: meta.label,

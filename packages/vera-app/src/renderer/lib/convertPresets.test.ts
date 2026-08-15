@@ -109,6 +109,19 @@ describe('convertPresets', () => {
     expect(withoutDocling[1]?.requiresProvider).toBe('docling');
   });
 
+  it('treats a discovered but uninstalled Docling descriptor as a missing hint', () => {
+    const options = pipelineSelectOptions([
+      pymupdfDescriptor,
+      { ...doclingDescriptor, installed: false },
+    ]);
+    expect(options.map((option) => option.value)).toEqual(['pymupdf', 'docling']);
+    expect(options[1]?.requiresProvider).toBe('docling');
+    expect(pipelineInstallHint('docling', [
+      pymupdfDescriptor,
+      { ...doclingDescriptor, installed: false },
+    ])).toContain('python -m pip install vera-ingest-docling');
+  });
+
   it('preserves bundled vs external source on installed options', () => {
     const options = pipelineSelectOptions([
       { ...pymupdfDescriptor, source: 'bundled' },

@@ -54,14 +54,19 @@ Archives store `model_name`, dimension, and normalization — not your
 
 Use `preflight_embedder("openai:text-embedding-3-small")` to check that a
 required credential env var is present without loading model weights. The
-desktop app stores those secrets separately (File → LLM Providers) and
+desktop app stores those secrets separately (File → Settings → Python plugins) and
 forwards them to the sidecar-owned plugin host. Options fields must stay
 non-secret.
 
 Install the package in the same trusted external Python environment used for
 extra ingest plugins (`python -m pip install` or `python -m pip install -e
 <clone>`), then Validate / Refresh. Convert lists the provider as `(external)`.
-Bundled `hashing` and `sentence-transformers` win on duplicate names.
+Use a dedicated plugin venv, not the workspace `.venv`. While 0.3.x is not
+on PyPI, install checkout `vera-doc` / `vera-ingest` first so the plugin's
+`vera-ingest>=0.3.0` requirement resolves. Bundled `hashing` and
+`sentence-transformers` win on duplicate names: the sidecar will not proxy
+its Sentence Transformers into a Docling convert, so install
+`sentence-transformers` in the plugin venv when the parser is external.
 
 ## Minimal example (DIY hosted provider)
 

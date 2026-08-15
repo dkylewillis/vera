@@ -114,7 +114,7 @@ export function AppShell({
               </nav>
               <div className="sidePanelActions">
                 {headerActions}
-                <button className="ghostIcon" onClick={onOpenSettings} title="LLM Providers" aria-label="LLM Providers"><Settings size={15} /></button>
+                <button className="ghostIcon" onClick={onOpenSettings} title="Settings" aria-label="Settings"><Settings size={15} /></button>
               </div>
             </>
           ) : null}

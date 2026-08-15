@@ -330,7 +330,11 @@ across repeated calls, for example in a REPL.
 A `PipelineDescriptor` (returned by `describe_pipeline`/`create_descriptor`)
 is what lets generic code — `vera convert`'s help text, the desktop app's
 `PipelineConfigForm`, `vera inspect` — describe your pipeline's settings
-without knowing anything provider-specific:
+without knowing anything provider-specific. Keep the package import and
+`create_descriptor` free of optional runtime libraries so discovery can
+advertise the pipeline without importing optional runtime dependencies.
+`vera-ingest-docling` sets `installed=False` when `docling` / `docling_core`
+are missing, so Convert shows the install hint instead of a plugin load error.
 
 - `capabilities` (`PipelineCapabilities`) tells clients which legacy CLI
   aliases apply. `field_keys()` from your `fields` tuple determines which of
@@ -396,15 +400,24 @@ vera-lab "manual.pdf" -o compare.html --parser pymupdf --parser docling
 
 Source-run and packaged builds keep bundled PyMuPDF in the sidecar. Extra
 ingest and embedding plugins run in a shipped `vera_plugin_host` worker that
-the sidecar launches with a user-selected Python interpreter:
+the sidecar launches with a user-selected Python interpreter. Use a dedicated venv
+for that worker, not the workspace `.venv`.
 
-1. Create a venv and install `vera-ingest` 0.3.x plus your plugin
-   (`python -m pip install …` or `python -m pip install -e <clone>`).
-2. In VERA, open **File > LLM Providers**, enable **External Python plugins**,
+1. Create a stdlib venv (`python -m venv C:\venvs\vera-plugins`) so `pip` is
+   available. Install `vera-doc` and `vera-ingest` 0.3.x plus your plugin
+   (`python -m pip install …` or `python -m pip install -e <clone>`). While
+   0.3.x is not on PyPI, install the checkout packages in order
+   (`packages/vera-doc`, `packages/vera-ingest`, then your plugin, for
+   example `packages/vera-ingest-docling`).
+2. Install every import the worker will need in **that** interpreter. A
+   Docling convert embeds in the plugin host, so Sentence Transformers must
+   be installed there (`pip install "sentence-transformers>=2.7"`) or use
+   `hashing`. The sidecar's `--extra ml` copy is not visible to the host.
+3. In VERA, open **File > Settings → Python plugins**, enable the external Python environment,
    choose that environment's interpreter, and **Validate** once. Later launches
    re-probe that saved interpreter and refresh Convert; first discovery can
    take about a minute when Docling/Torch imports are cold.
-3. Convert lists extra providers as `(external)`. Bundled `pymupdf` wins on
+4. Convert lists extra providers as `(external)`. Bundled `pymupdf` wins on
    duplicate names. Treat the interpreter as trusted code; raw `PYTHONPATH`
    folders are not discovered.
 

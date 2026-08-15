@@ -142,8 +142,9 @@ commands write or replace local files and require normal user authorization:
   is bundled in `vera-ingest-pymupdf`;
   other languages require installed Tesseract language data.
   The packaged desktop app can also run extra ingest plugins from a trusted
-  user-selected Python environment after `python -m pip install` or
-  `python -m pip install -e <clone>`; see the desktop getting-started guide.
+  dedicated plugin venv (not the workspace `.venv`) after `python -m pip
+  install` or `python -m pip install -e <clone>` of `vera-ingest` 0.3.x plus
+  the plugin; see the desktop getting-started guide.
 - `convert --overwrite` replaces existing batch outputs.
 - `index build` and `index update` write `.vera-index/`.
 - `export` writes the embedded source document.

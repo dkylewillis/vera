@@ -24,15 +24,15 @@ Download `VERA Setup <version>.exe` from the
    right-click a folder and choose **Convert PDFs…**. Expand
    **Advanced pipeline options** for schema-driven settings from
    `describe_ingest_pipelines` / `PipelineConfigForm`. Extra parsers appear
-   after you validate an external Python environment under **File > LLM
-   Providers**. Extra embedders appear the same way, with `(external)` badges
+   after you validate an external Python environment under **File > Settings
+   → Python plugins**. Extra embedders appear the same way, with `(external)` badges
    and descriptor-driven **Advanced pipeline options**. Right-click a `.vera`
    archive and choose **Reconvert…** to replace it with a different ingest
    pipeline or embedding model.
 2. Use **File > Open Folder** to activate a document library.
 3. Open **Search** for fully local hybrid retrieval.
-4. To use **Ask**, configure a provider under **File > LLM Providers**.
-5. Optional: save a Hugging Face token under **File > LLM Providers → Hugging
+4. To use **Ask**, configure a provider under **File > Settings → LLM Providers**.
+5. Optional: save a Hugging Face token under **File > Settings → Hugging
    Face** (or set `HF_TOKEN`) for Hub model downloads used by some converters
    and embedders.
 6. Select a citation in an answer to inspect the highlighted source passage.
@@ -42,10 +42,12 @@ only required for generated Ask responses.
 
 Source-run and packaged conversions keep PyMuPDF in the sidecar. Extra ingest
 and embedding plugins run from a trusted external Python environment
-configured under **File > LLM Providers**. The sidecar owns the plugin host;
+configured under **File > Settings → Python plugins**. The sidecar owns the plugin host;
 Electron does not talk to that worker directly. Install plugins with
-`python -m pip install` or `python -m pip install -e <clone>`, then Validate /
-Refresh. Later launches re-probe the saved interpreter. See
+`python -m pip install` or `python -m pip install -e <clone>` in a dedicated
+plugin venv (not the workspace `.venv`), then Validate / Refresh. While 0.3.x
+is not on PyPI, install checkout `vera-doc` and `vera-ingest` first. Later
+launches re-probe the saved interpreter. See
 [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md),
 [Creating an embedding provider](../creating-an-embedding-provider.md), and
 [Desktop app architecture](../desktop-app-architecture.md).

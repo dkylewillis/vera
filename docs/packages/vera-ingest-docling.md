@@ -10,16 +10,28 @@ group.
 python -m pip install "vera-ingest-docling>=0.3.0"
 ```
 
-From a repository checkout:
+From a repository checkout, `uv sync --extra docling` adds it to the
+workspace `.venv` (CLI and tests). The desktop plugin host should use a
+**separate** venv; install the checkout packages into that interpreter:
 
 ```bash
-uv sync --extra docling
+python -m venv C:\venvs\vera-plugins
+C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\vera\packages\vera-doc
+C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\vera\packages\vera-ingest
+C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\vera\packages\vera-ingest-docling
+# optional, if Convert will use Sentence Transformers with Docling:
+C:\venvs\vera-plugins\Scripts\python.exe -m pip install "sentence-transformers>=2.7"
 ```
+
+Then point **File > Settings → Python plugins** at that `python.exe` and
+Validate. See [External Python plugins](../desktop-app-getting-started.md#external-python-plugins).
 
 The package pins Docling to the current supported minor range with the
 `rapidocr` extra (RapidOCR + `onnxruntime`) and pulls a larger machine-learning
 stack (including Torch). Do not add it to base VERA installs unless you need
-layout-aware Docling conversion.
+layout-aware Docling conversion. Descriptor discovery does not import Docling;
+if `docling` or `docling_core` is missing, Convert lists the pipeline as not
+installed instead of failing plugin load.
 
 ## First-run models
 
@@ -107,7 +119,10 @@ fidelity compared with `docling_parse`.
 
 Source-run and packaged desktop conversions keep PyMuPDF in the sidecar. Select
 Docling in Convert after installing this package in a trusted external Python
-environment under **File > LLM Providers**. Convert controls are schema-driven
+environment under **File > Settings → Python plugins**. Do not point that
+setting at the workspace `.venv`. A Docling convert embeds in the plugin
+host, so install `sentence-transformers` there if you select that model.
+Convert controls are schema-driven
 from Docling's pipeline descriptor (`describe_ingest_pipelines` /
 `PipelineConfigForm`), so overlap and OCR DPI controls are not shown.
 

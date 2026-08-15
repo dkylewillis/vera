@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from importlib.util import find_spec
 from typing import Any, ClassVar
 
 from vera_ingest.descriptors import (
@@ -104,6 +105,11 @@ def _remap_tesseract_default_ocr_language(value: Any) -> Any:
     return "+".join(remapped) if remapped else "en"
 
 
+def _docling_runtime_available() -> bool:
+    """True when the Docling packages needed for conversion are importable."""
+    return find_spec("docling") is not None and find_spec("docling_core") is not None
+
+
 def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
     """Return GUI/CLI metadata without loading Docling or Torch."""
     normalized = (variant or "hybrid").strip().lower()
@@ -120,6 +126,7 @@ def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
             "Optional Docling DocumentConverter + HybridChunker ingest pipeline "
             "with RapidOCR support."
         ),
+        installed=_docling_runtime_available(),
         capabilities=PipelineCapabilities(
             chunk_unit="tokens",
             overlap_supported=False,

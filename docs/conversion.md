@@ -294,8 +294,10 @@ vera convert "input.pdf" --parser docling:hybrid
 Unknown pipeline names fail before parsing with an install-the-plugin message;
 VERA never silently falls back to PyMuPDF. The packaged desktop app can run
 extra pipelines and embedding providers from a trusted external Python
-environment after `python -m pip install` or `python -m pip install -e <clone>`
-and Validate under **File > LLM Providers**. Later launches re-probe that saved
+environment (a dedicated venv, not the workspace `.venv`) after
+`python -m pip install` or `python -m pip install -e <clone>`
+and Validate under **File > Settings → Python plugins**. While 0.3.x is not
+on PyPI, install checkout `vera-doc` and `vera-ingest` first. Later launches re-probe that saved
 interpreter. Convert lists extra embedders as `(external)`, persists
 `embedder_options` / `embedder_configs`, and gates conversion on
 `preflight_embedder` so an archive is never written with a model Search cannot
@@ -322,7 +324,7 @@ Visual Studio's `cl.exe`).
 First Docling conversion may download model artifacts. Set
 `DOCLING_ARTIFACTS_PATH` for a local cache. Desktop releases do not put
 Docling in the sidecar; select it in Convert after validating an external
-Python environment under **File > LLM Providers**. The Convert UI is
+Python environment under **File > Settings → Python plugins**. The Convert UI is
 schema-driven: the sidecar
 `describe_ingest_pipelines` action supplies descriptors, and
 `PipelineConfigForm` renders only the fields each pipeline advertises under a

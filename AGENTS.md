@@ -196,7 +196,7 @@ non-obvious caveats for this environment; standard commands live in the sections
   blocked without a provider/API key. For fully offline testing use the left-sidebar **Search**
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
   **Convert PDF** view. Convert keeps the bundled PyMuPDF pipeline in the sidecar; extra ingest
-  plugins require a validated external Python environment under **File > LLM Providers**. Ask is
+  plugins require a validated external Python environment under **File > Settings → Python plugins**. Ask is
   blocked without a provider/API key.
 - MCP server (optional): `uv run --extra mcp vera mcp` (long-running stdio; no `--json`).
 - There are no PDFs in the repo; generate one with the `reportlab` dev dependency when you need

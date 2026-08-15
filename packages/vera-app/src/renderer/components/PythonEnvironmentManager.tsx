@@ -34,6 +34,8 @@ export function PythonEnvironmentManager({
 }) {
   const executable = config.executable;
   const credentialNames = credentialEnvNames(status);
+  const readyPipelines = (status?.pipelines || []).filter((item) => item.installed !== false);
+  const readyEmbedders = (status?.embedders || []).filter((item) => item.installed !== false);
   const [secretInputs, setSecretInputs] = useState<Record<string, string>>({});
   const [secretBusy, setSecretBusy] = useState('');
 
@@ -65,7 +67,6 @@ export function PythonEnvironmentManager({
 
   return (
     <section className="pythonEnvManager">
-      <h3>External Python plugins</h3>
       <p className="providerItemDescription">
         Advanced / trusted plugins. The selected interpreter can run arbitrary local code
         with your permissions. Install plugins with
@@ -130,13 +131,13 @@ export function PythonEnvironmentManager({
                   {status.vera_doc_version ? ` · vera-doc ${status.vera_doc_version}` : ''}
                 </span>
                 <span>
-                  {(status.pipelines || []).length
-                    ? `Parsers: ${(status.pipelines || []).map((item) => item.spec || item.provider).join(', ')}`
+                  {readyPipelines.length
+                    ? `Parsers: ${readyPipelines.map((item) => item.spec || item.provider).join(', ')}`
                     : 'No extra ingest plugins found in this environment.'}
                 </span>
                 <span>
-                  {(status.embedders || []).length
-                    ? `Embedders: ${(status.embedders || []).map((item) => item.provider).join(', ')}`
+                  {readyEmbedders.length
+                    ? `Embedders: ${readyEmbedders.map((item) => item.provider).join(', ')}`
                     : 'No extra embedding plugins found in this environment.'}
                 </span>
               </>

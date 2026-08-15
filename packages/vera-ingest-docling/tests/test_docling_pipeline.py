@@ -242,6 +242,7 @@ def test_docling_options_ignore_pymupdf_only_keys_and_reject_unknown():
         DoclingOptions.from_mapping({"pdf_backend": "ghostscript"})
 
     descriptor = describe_pipeline()
+    assert descriptor.installed is True
     assert {field.key for field in descriptor.fields} == {
         "chunk_size",
         "ocr_mode",

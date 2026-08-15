@@ -1013,7 +1013,7 @@ function configureMenu(): void {
         },
         { type: 'separator' },
         {
-          label: 'LLM Providers...',
+          label: 'Settings...',
           accelerator: 'CmdOrCtrl+,',
           click: () => sendOpenSettings(),
         },

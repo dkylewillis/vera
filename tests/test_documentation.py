@@ -298,6 +298,9 @@ def test_hardening_json_contracts_are_documented():
     assert "### Convert routing" in desktop_architecture
     assert "`pymupdf` plus an external embedder" in desktop_architecture
     assert "vera-your-embedder" in desktop
+    assert "dedicated virtual environment" in desktop
+    assert "not the workspace `.venv`" in desktop
+    assert "No module named 'sentence_transformers'" in desktop
     assert "desktop-app-architecture.md#convert-routing" in desktop
     assert "python/plugin-host/vera_plugin_host" in (
         ROOT / "packages" / "vera-app" / "package.json"
@@ -352,7 +355,9 @@ def test_hardening_json_contracts_are_documented():
     assert "provider:model-id" in desktop
     assert "Hugging Face" in desktop
     assert "HF_TOKEN" in desktop
+    assert "File > Settings" in desktop
     assert "Hugging Face" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
+    assert "File > Settings" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
     assert "Advanced pipeline options" in (DOCS / "packages" / "vera-app.md").read_text(
         encoding="utf-8"
     )
@@ -367,6 +372,9 @@ def test_hardening_json_contracts_are_documented():
     assert "register_ingest_pipeline" in python_api
     assert "register_embedder" in python_api
     assert "may change before 1.0" in ingest_guide
+    assert "without importing optional runtime" in ingest_guide
+    assert "dedicated venv" in ingest_guide
+    assert "sentence-transformers" in ingest_guide
     assert "may change before 1.0" in guide
     assert "not bundled" in guide
     ingest_pkg = (DOCS / "packages" / "vera-ingest.md").read_text(encoding="utf-8")

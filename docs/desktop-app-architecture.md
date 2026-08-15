@@ -119,10 +119,14 @@ flowchart LR
 Which process runs convert depends on the parser, not the embedder:
 
 - Extra parser (for example Docling) — the sidecar forwards `convert` /
-  `batch_convert` to the host. The host has `vera-doc`, so bundled embedders
-  still work there.
+  `batch_convert` to the host. The host has `vera-doc`, so `hashing` works
+  there. `sentence-transformers` is registered as a bundled sidecar provider,
+  so the host's copy is not proxied the other way; install it in the plugin
+  venv when Docling will embed with that model.
 - Bundled `pymupdf` plus an external embedder — convert stays in the sidecar.
-  Embeddings go to the same host over `embed` / `embedder_info`.
+  Embeddings go to the same host over `embed` / `embedder_info`. The sidecar
+  still uses its own Sentence Transformers for pymupdf converts
+  (`app:dev --extra ml`); a host-only install does not satisfy that path.
 
 Search, Ask, and indexing stay in the sidecar either way. When an archive was
 built with an external embedder, the sidecar uses a registry proxy into that

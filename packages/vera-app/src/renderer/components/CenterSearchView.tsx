@@ -63,7 +63,7 @@ export function CenterSearchView({
                 Semantic search skipped {skippedSemanticModelGroups.length} model
                 group{skippedSemanticModelGroups.length === 1 ? '' : 's'} because
                 the embedder is unavailable. Keyword matches still appear. Check
-                File → LLM Providers if you expected semantic hits.
+                File → Settings → Python plugins if you expected semantic hits.
               </p>
             ) : null}
             {results.length > 0 ? (

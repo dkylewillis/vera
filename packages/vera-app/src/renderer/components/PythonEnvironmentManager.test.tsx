@@ -61,6 +61,37 @@ describe('PythonEnvironmentManager', () => {
     expect(html).toContain('docling');
   });
 
+  it('omits discovered pipelines that are not installed', () => {
+    const html = renderToStaticMarkup(
+      <PythonEnvironmentManager
+        config={config}
+        status={{
+          ok: true,
+          python_version: '3.13.1',
+          vera_ingest_version: '0.3.0',
+          pipelines: [{
+            provider: 'docling',
+            variant: 'hybrid',
+            spec: 'docling',
+            label: 'docling',
+            description: '',
+            installed: false,
+            capabilities: {},
+            fields: [],
+            source: 'external',
+          }],
+        }}
+        busy={false}
+        onConfigChange={() => undefined}
+        onPick={() => undefined}
+        onValidate={() => undefined}
+        onRefresh={() => undefined}
+      />,
+    );
+    expect(html).toContain('No extra ingest plugins found');
+    expect(html).not.toContain('Parsers: docling');
+  });
+
   it('lists discovered embedders and credential env fields', () => {
     const status: PythonEnvironmentProbe = {
       ok: true,

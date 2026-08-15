@@ -6,10 +6,12 @@ import {
   ChevronUp,
   KeyRound,
   ListChecks,
+  MessageSquareText,
   Plus,
   RefreshCw,
   Search,
   Settings,
+  Terminal,
   Trash2,
   X,
 } from 'lucide-react';
@@ -114,7 +116,35 @@ type ProviderRowInfo = {
   profile: ProviderProfile | null;
 };
 
-export function ProviderManager({
+export type SettingsSectionId = 'providers' | 'huggingface' | 'python';
+
+const SETTINGS_SECTIONS: {
+  id: SettingsSectionId;
+  label: string;
+  description: string;
+  icon: typeof Settings;
+}[] = [
+  {
+    id: 'providers',
+    label: 'LLM Providers',
+    description: 'Hosted, local, and custom models used by Chat and Ask.',
+    icon: MessageSquareText,
+  },
+  {
+    id: 'huggingface',
+    label: 'Hugging Face',
+    description: 'Optional Hub token for ingest plugins and embedders that download models.',
+    icon: KeyRound,
+  },
+  {
+    id: 'python',
+    label: 'Python plugins',
+    description: 'Trusted external environment for extra ingest and embedding plugins.',
+    icon: Terminal,
+  },
+];
+
+export function SettingsModal({
   providers,
   activeProviderId,
   activeModel,
@@ -128,6 +158,7 @@ export function ProviderManager({
   externalPython,
   pythonStatus,
   pythonBusy = false,
+  initialSection = 'providers',
   onPersist,
   onRefresh,
   onExternalPythonChange,
@@ -149,6 +180,7 @@ export function ProviderManager({
   externalPython: ExternalPythonConfig;
   pythonStatus: PythonEnvironmentProbe | null;
   pythonBusy?: boolean;
+  initialSection?: SettingsSectionId;
   onPersist: (next: AppSettings) => Promise<AppSettings>;
   onRefresh: () => Promise<AppSettings>;
   onExternalPythonChange: (next: ExternalPythonConfig) => void;
@@ -157,6 +189,7 @@ export function ProviderManager({
   onRefreshPipelines: () => void;
   onClose: () => void;
 }) {
+  const [section, setSection] = useState<SettingsSectionId>(initialSection);
   const [list, setList] = useState<ProviderProfile[]>(() => providers.map(withPresetModels));
   const [activeId, setActiveId] = useState(activeProviderId);
   const [activeModelLocal, setActiveModelLocal] = useState(activeModel);
@@ -599,134 +632,179 @@ export function ProviderManager({
     );
   }
 
+  function renderProviderRow(row: ProviderRowInfo) {
+    const profile = row.profile;
+    const expanded = expandedKey === row.key;
+    const authType = profile?.auth_type ?? row.preset?.value.auth_type ?? 'none';
+    const hasKey = Boolean(profile?.has_api_key);
+    const keyValue = keyInputs[row.key] ?? '';
+    const configured = Boolean(profile && (profile.models.length || hasKey));
+    return (
+      <section key={row.key} className={expanded ? 'providerItem expanded' : 'providerItem'}>
+        <div className="providerItemHead">
+          <button type="button" className="providerItemToggle" onClick={() => toggleExpanded(row.key)}>
+            <span className={configured ? 'providerDot configured' : 'providerDot'} />
+            <span className="providerItemName">{row.label}</span>
+            {profile && profile.id === activeId ? <em className="activeTag">Active</em> : null}
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+          <div className="providerItemSide">
+            {authType === 'api_key' ? (
+              hasKey && !keyValue ? (
+                <span className="connectedTag"><CheckCircle2 size={13} />Key saved</span>
+              ) : (
+                <div className="providerKeyInline">
+                  <input
+                    type="password"
+                    value={keyValue}
+                    onChange={(event) => setKeyInputs((prev) => ({ ...prev, [row.key]: event.target.value }))}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void saveKey(row);
+                      }
+                    }}
+                    placeholder={`Paste ${row.label} key`}
+                    autoComplete="off"
+                    disabled={busy}
+                  />
+                  {keyValue.trim() ? (
+                    <button type="button" className="secondaryAction compactAction" onClick={() => void saveKey(row)} disabled={busy}>
+                      <KeyRound size={13} />Save
+                    </button>
+                  ) : null}
+                </div>
+              )
+            ) : (
+              <span className="providerItemHint">{profile?.base_url || row.preset?.value.base_url || ''}</span>
+            )}
+          </div>
+        </div>
+        {expanded ? renderExpandedBody(row) : null}
+      </section>
+    );
+  }
+
+  function renderProviderGroup(title: string, groupRows: ProviderRowInfo[]) {
+    if (!groupRows.length) return null;
+    return (
+      <div className="settingsGroup">
+        <h4 className="settingsGroupLabel">{title}</h4>
+        {groupRows.map(renderProviderRow)}
+      </div>
+    );
+  }
+
+  const activeSection = SETTINGS_SECTIONS.find((entry) => entry.id === section) ?? SETTINGS_SECTIONS[0];
+
   return (
     <div className="modalBackdrop" onClick={onClose}>
-      <div className="modal providerModal" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="modal settingsModal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+        onClick={(event) => event.stopPropagation()}
+      >
         <header className="modalHeader">
-          <h2><Settings size={18} />LLM Providers</h2>
+          <h2 id="settings-title"><Settings size={18} />Settings</h2>
           <button className="iconAction" onClick={onClose} aria-label="Close"><X size={18} /></button>
         </header>
 
-        <div className="providerStack">
-          {rows.map((row) => {
-            const profile = row.profile;
-            const expanded = expandedKey === row.key;
-            const authType = profile?.auth_type ?? row.preset?.value.auth_type ?? 'none';
-            const hasKey = Boolean(profile?.has_api_key);
-            const keyValue = keyInputs[row.key] ?? '';
-            const configured = Boolean(profile && (profile.models.length || hasKey));
-            return (
-              <section key={row.key} className={expanded ? 'providerItem expanded' : 'providerItem'}>
-                <div className="providerItemHead">
-                  <button type="button" className="providerItemToggle" onClick={() => toggleExpanded(row.key)}>
-                    <span className={configured ? 'providerDot configured' : 'providerDot'} />
-                    <span className="providerItemName">{row.label}</span>
-                    {profile && profile.id === activeId ? <em className="activeTag">Active</em> : null}
-                    {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </button>
-                  <div className="providerItemSide">
-                    {authType === 'api_key' ? (
-                      hasKey && !keyValue ? (
-                        <span className="connectedTag"><CheckCircle2 size={13} />Key saved</span>
-                      ) : (
-                        <div className="providerKeyInline">
-                          <input
-                            type="password"
-                            value={keyValue}
-                            onChange={(event) => setKeyInputs((prev) => ({ ...prev, [row.key]: event.target.value }))}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter') {
-                                event.preventDefault();
-                                void saveKey(row);
-                              }
-                            }}
-                            placeholder={`Paste ${row.label} key`}
-                            autoComplete="off"
-                            disabled={busy}
-                          />
-                          {keyValue.trim() ? (
-                            <button type="button" className="secondaryAction compactAction" onClick={() => void saveKey(row)} disabled={busy}>
-                              <KeyRound size={13} />Save
-                            </button>
-                          ) : null}
-                        </div>
-                      )
-                    ) : (
-                      <span className="providerItemHint">{profile?.base_url || row.preset?.value.base_url || ''}</span>
-                    )}
-                  </div>
-                </div>
-                {expanded ? renderExpandedBody(row) : null}
-              </section>
-            );
-          })}
+        <div className="settingsLayout">
+          <nav className="settingsNav" aria-label="Settings sections">
+            {SETTINGS_SECTIONS.map((entry) => {
+              const Icon = entry.icon;
+              const active = section === entry.id;
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  className={active ? 'settingsNavButton active' : 'settingsNavButton'}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={() => setSection(entry.id)}
+                >
+                  <Icon size={15} />
+                  {entry.label}
+                </button>
+              );
+            })}
+          </nav>
 
-          <button type="button" className="providerAddCustom" onClick={addCustomProvider} disabled={busy}>
-            <Plus size={14} />Local / custom endpoint
-            <small>Point VERA at any OpenAI-compatible endpoint (vLLM, llama.cpp, etc.)</small>
-          </button>
+          <div className="settingsContent">
+            <header className="settingsSectionHead">
+              <h3>{activeSection.label}</h3>
+              <p>{activeSection.description}</p>
+            </header>
 
-          <section className={expandedKey === '__hf__' ? 'providerItem expanded' : 'providerItem'}>
-            <div className="providerItemHead">
-              <button type="button" className="providerItemToggle" onClick={() => toggleExpanded('__hf__')}>
-                <span className={hfTokenStored ? 'providerDot configured' : 'providerDot'} />
-                <span className="providerItemName">Hugging Face</span>
-                {expandedKey === '__hf__' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-              <div className="providerItemSide">
-                {hfTokenStored && !hfTokenInput ? (
-                  <span className="connectedTag"><CheckCircle2 size={13} />Token saved</span>
-                ) : (
-                  <div className="providerKeyInline">
-                    <input
-                      type="password"
-                      value={hfTokenInput}
-                      onChange={(event) => setHfTokenInput(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.preventDefault();
-                          void saveHfToken();
-                        }
-                      }}
-                      placeholder="Paste Hugging Face token"
-                      autoComplete="off"
-                      disabled={busy}
-                    />
-                    {hfTokenInput.trim() ? (
-                      <button type="button" className="secondaryAction compactAction" onClick={() => void saveHfToken()} disabled={busy}>
-                        <KeyRound size={13} />Save
-                      </button>
-                    ) : null}
-                  </div>
-                )}
+            {section === 'providers' ? (
+              <div className="providerStack">
+                {renderProviderGroup('Hosted', rows.filter((row) => row.kind === 'hosted'))}
+                {renderProviderGroup('Local', rows.filter((row) => row.kind === 'local'))}
+                {renderProviderGroup('Custom', rows.filter((row) => row.kind === 'custom'))}
+                <button type="button" className="providerAddCustom" onClick={addCustomProvider} disabled={busy}>
+                  <Plus size={14} />Local / custom endpoint
+                  <small>Point VERA at any OpenAI-compatible endpoint (vLLM, llama.cpp, etc.)</small>
+                </button>
               </div>
-            </div>
-            {expandedKey === '__hf__' ? (
-              <div className="providerItemBody">
+            ) : null}
+
+            {section === 'huggingface' ? (
+              <div className="settingsForm">
                 <p className="providerItemDescription">
-                  Optional token for Hub downloads used by some ingest plugins and embedders.
                   Stored securely like provider API keys and passed to the sidecar and plugin host
                   as <code>HF_TOKEN</code>. Get one at huggingface.co/settings/tokens.
                 </p>
-                <div className="editorActions">
-                  <button className="secondaryAction" onClick={() => void clearHfToken()} disabled={busy || !hfTokenStored}>
-                    <Trash2 size={16} />Clear token
-                  </button>
-                </div>
+                <label className="field">
+                  <span>Access token</span>
+                  {hfTokenStored && !hfTokenInput ? (
+                    <div className="editorActions">
+                      <span className="connectedTag"><CheckCircle2 size={13} />Token saved</span>
+                      <button className="secondaryAction compactAction" onClick={() => void clearHfToken()} disabled={busy}>
+                        <Trash2 size={13} />Clear token
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="pathInput">
+                      <input
+                        type="password"
+                        value={hfTokenInput}
+                        onChange={(event) => setHfTokenInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            void saveHfToken();
+                          }
+                        }}
+                        placeholder="Paste Hugging Face token"
+                        autoComplete="off"
+                        disabled={busy}
+                      />
+                      {hfTokenInput.trim() ? (
+                        <button type="button" className="secondaryAction compactAction" onClick={() => void saveHfToken()} disabled={busy}>
+                          <KeyRound size={13} />Save
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
+                </label>
               </div>
             ) : null}
-          </section>
-          <PythonEnvironmentManager
-            config={externalPython}
-            status={pythonStatus}
-            busy={busy || pythonBusy}
-            hasEnvSecrets={hasEnvSecrets}
-            onConfigChange={onExternalPythonChange}
-            onPick={onPickPython}
-            onValidate={onValidatePython}
-            onRefresh={onRefreshPipelines}
-            onSecretsChange={onRefresh}
-          />
+
+            {section === 'python' ? (
+              <PythonEnvironmentManager
+                config={externalPython}
+                status={pythonStatus}
+                busy={busy || pythonBusy}
+                hasEnvSecrets={hasEnvSecrets}
+                onConfigChange={onExternalPythonChange}
+                onPick={onPickPython}
+                onValidate={onValidatePython}
+                onRefresh={onRefreshPipelines}
+                onSecretsChange={onRefresh}
+              />
+            ) : null}
+          </div>
         </div>
 
         <footer className="modalFooter">

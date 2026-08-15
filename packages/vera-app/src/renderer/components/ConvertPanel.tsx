@@ -117,7 +117,9 @@ export function ConvertPanel({
     (item) => item.provider === activeEmbedderProvider,
   ) ?? null;
   const pipelineOptionsForSelect = pipelineSelectOptions(ingestPipelineDescriptors);
-  const installedPipelineProviders = ingestPipelineDescriptors.map((item) => item.provider);
+  const installedPipelineProviders = ingestPipelineDescriptors
+    .filter((item) => item.installed)
+    .map((item) => item.provider);
 
   return (
     <div className="convertView">
@@ -244,7 +246,7 @@ export function ConvertPanel({
           ? (activePipelineDescriptor.description || 'Pipeline ready for conversion.')
           : (pipelineInstallHint(ingestPipeline, ingestPipelineDescriptors)
             || 'Choose an ingest pipeline.')}
-        {' '}Packaged releases keep PyMuPDF bundled; extra parsers run in a trusted external Python environment under File → LLM Providers.
+        {' '}Packaged releases keep PyMuPDF bundled; extra parsers run in a trusted external Python environment under File → Settings → Python plugins.
       </p>
       <label className="field">
         <span>Embedding model</span>
@@ -315,7 +317,7 @@ export function ConvertPanel({
       ) : null}
       <p className="sideMuted">
         {activeEmbedderDescriptor?.source === 'external'
-          ? 'This embedder runs in the trusted external Python environment under File → LLM Providers.'
+          ? 'This embedder runs in the trusted external Python environment under File → Settings → Python plugins.'
           : embeddingProviders.includes('sentence-transformers')
             ? 'Sentence Transformers is available. The conversion embedding model is independent of Chat.'
             : <>Sentence Transformers is not installed. From the repo root run <code>uv sync --extra ml</code> and restart the app, or install a plugin in the external Python environment.</>}

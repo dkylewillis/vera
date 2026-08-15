@@ -24,7 +24,7 @@ import { DocumentInfoPanel } from './components/DocumentInfoPanel';
 import { ExplorerPanel } from './components/ExplorerPanel';
 import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexModal';
 import { PdfSourceViewer } from './components/PdfSourceViewer';
-import { ModelManager, ProviderManager } from './components/ProviderManagers';
+import { ModelManager, SettingsModal } from './components/ProviderManagers';
 import { embedderAsPipelineDescriptor } from './components/EmbedderConfigForm';
 import { mergePipelineFieldValues } from './components/PipelineConfigForm';
 import { VeraIcon } from './components/VeraIcon';
@@ -2400,7 +2400,7 @@ function App() {
         />
       ) : null}
       {settingsOpen ? (
-        <ProviderManager
+        <SettingsModal
           providers={providers}
           activeProviderId={activeProviderId}
           activeModel={activeModel}

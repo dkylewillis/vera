@@ -435,7 +435,8 @@ filters, corpus search, and embedding configuration.
 VERA also includes a desktop application for Windows: PDF conversion from the
 Explorer context menu, library search with highlighted citations, and an
 optional LLM provider connection for grounded question answering over
-documents. Packaged conversions use the bundled PyMuPDF pipeline; extra ingest
+documents. Configure chat providers, a Hugging Face token, and extra Python
+plugins under **File > Settings**. Packaged conversions use the bundled PyMuPDF pipeline; extra ingest
 and embedding plugins can run from a trusted external Python environment. It is built on the
 same packages described above. Download it from
 [GitHub Releases](https://github.com/dkylewillis/vera/releases/latest) and see

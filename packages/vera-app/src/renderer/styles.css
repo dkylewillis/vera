@@ -4022,9 +4022,102 @@ input.viewerPageInput:focus {
   box-shadow: var(--shadow-lg);
 }
 
-.providerModal {
-  width: min(720px, 100%);
-  max-height: min(700px, 92vh);
+.providerModal,
+.settingsModal {
+  width: min(880px, 100%);
+  height: min(720px, 92vh);
+  max-height: min(720px, 92vh);
+}
+
+.settingsLayout {
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+.settingsNav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 10px;
+  overflow: auto;
+  background: var(--bg-surface-2);
+  border-right: 1px solid var(--border);
+}
+
+.settingsNavButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settingsNavButton svg {
+  flex: none;
+}
+
+.settingsNavButton:hover {
+  color: var(--text-strong);
+  background: var(--bg-surface-3);
+}
+
+.settingsNavButton.active {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.settingsContent {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 18px 18px;
+}
+
+.settingsSectionHead {
+  margin-bottom: 14px;
+}
+
+.settingsSectionHead h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.settingsSectionHead p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.settingsGroup + .settingsGroup {
+  margin-top: 10px;
+}
+
+.settingsGroupLabel {
+  margin: 0;
+  padding: 4px 6px 6px;
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.settingsForm {
+  display: grid;
+  gap: 14px;
+  max-width: 520px;
 }
 
 .modelManagerModal {
@@ -4197,12 +4290,9 @@ input.viewerPageInput:focus {
 }
 
 .providerStack {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
   display: flex;
   flex-direction: column;
-  padding: 6px 18px 14px;
+  min-height: 0;
 }
 
 .providerItem {
@@ -4210,7 +4300,7 @@ input.viewerPageInput:focus {
 }
 
 .providerItem.expanded {
-  margin: 4px -6px;
+  margin: 4px 0;
   background: var(--bg-surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -4295,15 +4385,7 @@ input.viewerPageInput:focus {
 .pythonEnvManager {
   display: grid;
   gap: 10px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
-
-.pythonEnvManager h3 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 650;
+  max-width: 560px;
 }
 
 .pythonEnvStatus {

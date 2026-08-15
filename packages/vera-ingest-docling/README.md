@@ -14,11 +14,15 @@ for embeddings.
 python -m pip install "vera-ingest-docling>=0.3.0"
 ```
 
-From a repository checkout with uv:
+From a repository checkout with uv (workspace `.venv` for CLI/tests):
 
 ```bash
 uv sync --extra docling
 ```
+
+For the desktop plugin host, use a dedicated venv and install the checkout
+packages there — see
+[External Python plugins](https://dkylewillis.github.io/vera/desktop-app-getting-started/#external-python-plugins).
 
 Python 3.10 or newer is required. The package depends on Docling's `rapidocr`
 extra so RapidOCR and `onnxruntime` are installed for OCR. First conversion may
@@ -27,7 +31,7 @@ download Docling model artifacts. Set `DOCLING_ARTIFACTS_PATH` to a local cache
 
 This package is **not** loaded into the desktop sidecar. Source-run and packaged
 conversions use it from a trusted external Python environment under
-**File > LLM Providers**.
+**File > Settings → Python plugins**.
 
 ## Usage
 
