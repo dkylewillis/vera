@@ -38,6 +38,13 @@ def explicit_convert_aliases(request: Request) -> dict[str, Any]:
     return {key: caster(request[key]) for key, caster in _CONVERT_ALIAS_CASTERS if key in request}
 
 
+def require_ready_embedder(model: str) -> None:
+    """Refuse conversion when the selected embedder cannot be resolved later."""
+    result = preflight_embedder(model)
+    if not result.ok:
+        raise ValueError(result.detail or "Embedding provider is not ready")
+
+
 def handle_convert(
     request: Request,
     write_event: WriteEvent | None = None,
@@ -61,6 +68,7 @@ def handle_convert(
     embedder_options = (
         dict(raw_embedder_options) if isinstance(raw_embedder_options, dict) else None
     )
+    require_ready_embedder(str(request.get("model", "hashing")))
     output = convert(
         input_path,
         str(request["output"]),
@@ -127,6 +135,7 @@ def handle_batch_convert(
         )
     if cancel:
         cancel.raise_if_interrupted()
+    require_ready_embedder(str(request.get("model", "hashing")))
 
     return batch_convert(
         None if paths is not None else str(directory),

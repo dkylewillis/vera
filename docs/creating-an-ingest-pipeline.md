@@ -395,8 +395,8 @@ vera-lab "manual.pdf" -o compare.html --parser pymupdf --parser docling
 ## Desktop app plugins
 
 Source-run and packaged builds keep bundled PyMuPDF in the sidecar. Extra
-plugins run in a shipped `vera_plugin_host` worker launched with a
-user-selected Python interpreter:
+ingest and embedding plugins run in a shipped `vera_plugin_host` worker that
+the sidecar launches with a user-selected Python interpreter:
 
 1. Create a venv and install `vera-ingest` 0.3.x plus your plugin
    (`python -m pip install …` or `python -m pip install -e <clone>`).

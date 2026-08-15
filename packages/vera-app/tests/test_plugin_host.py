@@ -33,10 +33,13 @@ def test_plugin_host_ping_reports_versions():
     assert response["ok"] is True
     result = response["result"]
     assert result["protocol"] == PROTOCOL_VERSION
+    assert result["protocol"] == 2
     assert result["plugin_api"] == 1
     assert "pymupdf" in result["pipelines"]
+    assert "hashing" in result["embedders"]
     assert result["python_executable"]
     assert result["vera_ingest_version"].startswith("0.3.")
+    assert result["vera_doc_version"]
 
 
 def test_plugin_host_describes_registered_plugin():
@@ -201,12 +204,37 @@ def test_plugin_host_stdio_ping_roundtrip():
         line = proc.stdout.readline()
         payload = json.loads(line)
         assert payload["ok"] is True
-        assert payload["result"]["protocol"] == 1
+        assert payload["result"]["protocol"] == 2
         assert "pymupdf" in payload["result"]["pipelines"]
+        assert "hashing" in payload["result"]["embedders"]
     finally:
         proc.stdin.close()
         proc.terminate()
         proc.wait(timeout=5)
+
+
+def test_plugin_host_embed_and_info_use_hashing():
+    info = handle({"id": "info", "action": "embedder_info", "model": "hashing"})
+    assert info["ok"] is True, info
+    assert info["result"]["dimension"] > 0
+    embed = handle(
+        {
+            "id": "embed",
+            "action": "embed",
+            "model": "hashing",
+            "texts": ["stormwater detention"],
+        }
+    )
+    assert embed["ok"] is True, embed
+    assert len(embed["result"]["vectors"]) == 1
+    assert embed["result"]["dimension"] == info["result"]["dimension"]
+
+
+def test_plugin_host_describe_embedding_providers():
+    response = handle({"id": "desc", "action": "describe_embedding_providers"})
+    assert response["ok"] is True
+    providers = {item["provider"] for item in response["result"]["providers"]}
+    assert "hashing" in providers
 
 
 def test_plugin_host_stdio_malformed_request():

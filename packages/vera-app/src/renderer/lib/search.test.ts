@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SIDECAR_ACTIONS } from '../../shared/protocol';
-import { buildSearchPayload, libraryQueryScope } from './search';
+import { buildSearchPayload, libraryQueryScope, unwrapSearchReport } from './search';
 
 describe('libraryQueryScope', () => {
   it('omits recursive options when files are selected or no library is active', () => {
@@ -48,5 +48,35 @@ describe('buildSearchPayload', () => {
       include_figures: true,
       include_figure_data: false,
     });
+  });
+});
+
+describe('unwrapSearchReport', () => {
+  it('reads results and skipped semantic groups from the sidecar report', () => {
+    const first = {
+      chunk_id: 'chunk-1',
+      score: 1,
+      text: 'hit',
+      page_start: 1,
+      page_end: 1,
+      heading_path: null,
+      source_filename: 'manual.pdf',
+      document_id: 'document-1',
+    };
+    expect(unwrapSearchReport({
+      results: [first],
+      skipped_semantic_model_groups: [
+        { model_name: 'openai:text-embedding-3-small', dimension: 1536, error: 'missing key' },
+      ],
+    })).toEqual({
+      results: [first],
+      skippedSemanticModelGroups: [
+        { model_name: 'openai:text-embedding-3-small', dimension: 1536, error: 'missing key' },
+      ],
+    });
+  });
+
+  it('accepts a legacy list payload', () => {
+    expect(unwrapSearchReport([])).toEqual({ results: [], skippedSemanticModelGroups: [] });
   });
 });

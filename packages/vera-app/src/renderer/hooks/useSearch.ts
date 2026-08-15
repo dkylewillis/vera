@@ -2,13 +2,15 @@ import { useRef, type Dispatch, type SetStateAction } from 'react';
 import type { CenterView } from '../components/AppShell';
 import type { SidecarCall } from './useSidecarCall';
 import { figureCacheKey, hydrateFiguresFromCache, mergeFigureData, sameSearchResult } from '../lib/figures';
-import { buildSearchPayload } from '../lib/search';
+import { buildSearchPayload, unwrapSearchReport } from '../lib/search';
 import { SIDECAR_ACTIONS } from '../../shared/protocol';
 import type {
   ChatCitationResult,
   FigureResult,
   LibraryIndexStatus,
+  SearchReport,
   SearchResult,
+  SkippedSemanticModelGroup,
   SourceDocumentResult,
 } from '../types';
 
@@ -35,6 +37,7 @@ export type SearchHost = {
   setErrorMessage: (message: string | null) => void;
   setSubmittedSearchQuery: Dispatch<SetStateAction<string>>;
   setResults: Dispatch<SetStateAction<SearchResult[]>>;
+  setSkippedSemanticModelGroups: Dispatch<SetStateAction<SkippedSemanticModelGroup[]>>;
   setSelected: Dispatch<SetStateAction<SearchResult | null>>;
   setCenterView: Dispatch<SetStateAction<CenterView>>;
   setCitationJumpVersion: Dispatch<SetStateAction<number>>;
@@ -119,7 +122,7 @@ export function createSearchController(getHost: () => SearchHost) {
       return;
     }
     if (await host.promptForIndexBeforeQuery()) return;
-    const result = await host.call<SearchResult[]>(
+    const report = await host.call<SearchReport>(
       buildSearchPayload({
         searchScopePath: host.searchScopePath,
         selectedFiles: host.selectedFiles,
@@ -133,11 +136,13 @@ export function createSearchController(getHost: () => SearchHost) {
       }),
       'Searching',
     );
-    if (result) {
+    if (report) {
+      const { results, skippedSemanticModelGroups } = unwrapSearchReport(report);
       host.setSubmittedSearchQuery(host.searchQuery.trim());
-      host.setResults(result);
-      if (result[0]) {
-        selectSearchResult(result[0]);
+      host.setResults(results);
+      host.setSkippedSemanticModelGroups(skippedSemanticModelGroups);
+      if (results[0]) {
+        selectSearchResult(results[0]);
       } else {
         host.setSelected(null);
       }

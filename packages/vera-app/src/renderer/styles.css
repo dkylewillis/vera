@@ -1803,6 +1803,13 @@ select option {
   font-size: 13px;
 }
 
+.searchSkippedWarning {
+  margin: 8px 0 0;
+  color: var(--danger, #b45309);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
 .searchComposerWrap {
   display: grid;
   width: 100%;

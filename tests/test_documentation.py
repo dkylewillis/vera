@@ -291,6 +291,14 @@ def test_hardening_json_contracts_are_documented():
     assert "python -m vera_plugin_host" in desktop_architecture
     assert "re-probed on launch" in desktop_architecture
     assert "trusted" in desktop_architecture
+    assert "sidecar" in desktop_architecture and "configure_plugin_runtime" in desktop_architecture
+    assert "embedder_info" in desktop_architecture
+    assert "credential_env" in desktop_architecture
+    assert "skipped_semantic_model_groups" in desktop_architecture
+    assert "### Convert routing" in desktop_architecture
+    assert "`pymupdf` plus an external embedder" in desktop_architecture
+    assert "vera-your-embedder" in desktop
+    assert "desktop-app-architecture.md#convert-routing" in desktop
     assert "python/plugin-host/vera_plugin_host" in (
         ROOT / "packages" / "vera-app" / "package.json"
     ).read_text(encoding="utf-8")
@@ -322,12 +330,15 @@ def test_hardening_json_contracts_are_documented():
     app_dev = (ROOT / "scripts" / "app-dev.js").read_text(encoding="utf-8")
     assert "--extra" in app_dev and '"app"' in app_dev
     assert "docling" not in app_dev
-    main_ts = (ROOT / "packages" / "vera-app" / "electron" / "main.ts").read_text(
-        encoding="utf-8"
-    )
+    main_ts = (ROOT / "packages" / "vera-app" / "electron" / "main.ts").read_text(encoding="utf-8")
     assert "vera-ingest-pymupdf" in main_ts
     assert "vera-ingest-docling" not in main_ts
-    assert "keepBundledDescriptors" in main_ts
+    assert "configurePluginRuntime" in main_ts
+    runtime_py = (ROOT / "packages" / "vera-app" / "src" / "vera_app" / "runtime.py").read_text(
+        encoding="utf-8"
+    )
+    assert "keep_bundled_descriptors" in runtime_py
+    assert "keepBundledDescriptors" not in main_ts
     assert "does not load" in desktop and "Docling" in desktop
     assert "copy-metadata" in (
         ROOT / "packages" / "vera-app" / "scripts" / "build-sidecar.cjs"

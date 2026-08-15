@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import sys
 import threading
@@ -10,6 +11,14 @@ from collections.abc import Callable
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
+from vera_doc import (
+    get_embedder,
+    list_embedding_models,
+    list_embedding_provider_descriptors,
+    list_embedding_providers,
+    preflight_embedder,
+)
+from vera_doc.embeddings import serialize_vector
 from vera_ingest import batch_convert, convert
 from vera_ingest.pipeline import (
     PLUGIN_API_VERSION,
@@ -20,10 +29,11 @@ from vera_ingest.pipeline import (
 
 from .cancellation import CancellationToken, CancelledError, SkipCurrentError
 
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 Request = dict[str, Any]
 Response = dict[str, Any]
 Handler = Callable[..., Any]
+_THREADED_ACTIONS = {"convert", "batch_convert", "embed", "embedder_info"}
 
 _CONVERT_ALIAS_CASTERS = (
     ("chunk_size", int),
@@ -42,6 +52,13 @@ def _ingest_version() -> str:
         return "unknown"
 
 
+def _doc_version() -> str:
+    try:
+        return version("vera-doc")
+    except PackageNotFoundError:
+        return "unknown"
+
+
 def handle_ping(_request: Request) -> dict[str, Any]:
     return {
         "status": "ok",
@@ -50,7 +67,9 @@ def handle_ping(_request: Request) -> dict[str, Any]:
         "python": sys.version.split()[0],
         "python_executable": sys.executable,
         "vera_ingest_version": _ingest_version(),
+        "vera_doc_version": _doc_version(),
         "pipelines": list_ingest_pipelines(),
+        "embedders": list_embedding_providers(),
         "load_errors": list_ingest_pipeline_load_errors(),
     }
 
@@ -87,6 +106,12 @@ def _convert_kwargs(request: Request) -> dict[str, Any]:
     return kwargs
 
 
+def _require_ready_embedder(model: str) -> None:
+    result = preflight_embedder(model)
+    if not result.ok:
+        raise ValueError(result.detail or "Embedding provider is not ready")
+
+
 def handle_convert(
     request: Request,
     write_event: Callable[[dict[str, Any]], None] | None = None,
@@ -102,11 +127,13 @@ def handle_convert(
                 "input": input_path,
             }
         )
+    kwargs = _convert_kwargs(request)
+    _require_ready_embedder(str(kwargs.get("model") or "hashing"))
     output = convert(
         input_path,
         str(request["output"]),
         cancel=cancel,
-        **_convert_kwargs(request),
+        **kwargs,
     )
     if write_event:
         write_event(
@@ -164,6 +191,8 @@ def handle_batch_convert(
     if cancel:
         cancel.raise_if_interrupted()
 
+    kwargs = _convert_kwargs(request)
+    _require_ready_embedder(str(kwargs.get("model") or "hashing"))
     return batch_convert(
         None if paths is not None else str(directory),
         paths=paths,
@@ -171,14 +200,92 @@ def handle_batch_convert(
         overwrite=bool(request.get("overwrite", False)),
         progress=report_progress,
         cancel=cancel,
-        **_convert_kwargs(request),
+        **kwargs,
     )
+
+
+def handle_list_embedding_providers(_request: Request) -> dict[str, Any]:
+    return {"providers": list_embedding_providers()}
+
+
+def handle_describe_embedding_providers(_request: Request) -> dict[str, Any]:
+    return {
+        "providers": [item.as_dict() for item in list_embedding_provider_descriptors()],
+    }
+
+
+def handle_list_embedding_models(request: Request) -> dict[str, Any]:
+    provider = str(request.get("provider") or "").strip()
+    if not provider:
+        raise ValueError("provider is required")
+    return {
+        "provider": provider,
+        "models": [item.as_dict() for item in list_embedding_models(provider)],
+    }
+
+
+def handle_preflight_embedder(request: Request) -> dict[str, Any]:
+    model = str(request.get("model") or "hashing")
+    return preflight_embedder(model).as_dict()
+
+
+def _embedder_from_request(request: Request) -> Any:
+    raw_options = request.get("embedder_options")
+    options = dict(raw_options) if isinstance(raw_options, dict) else None
+    return get_embedder(str(request.get("model") or "hashing"), embedder_options=options)
+
+
+def handle_embedder_info(
+    request: Request,
+    write_event: Callable[[dict[str, Any]], None] | None = None,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
+    if cancel:
+        cancel.raise_if_cancelled()
+    embedder = _embedder_from_request(request)
+    if cancel:
+        cancel.raise_if_cancelled()
+    return {
+        "model_name": str(getattr(embedder, "model_name", "")),
+        "dimension": int(embedder.dimension),
+        "normalization": str(getattr(embedder, "normalization", "unknown") or "unknown"),
+    }
+
+
+def handle_embed(
+    request: Request,
+    write_event: Callable[[dict[str, Any]], None] | None = None,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
+    if cancel:
+        cancel.raise_if_cancelled()
+    raw_texts = request.get("texts")
+    if not isinstance(raw_texts, list) or not raw_texts:
+        raise ValueError("texts must be a non-empty list")
+    texts = [str(item) for item in raw_texts]
+    embedder = _embedder_from_request(request)
+    if cancel:
+        cancel.raise_if_cancelled()
+    vectors = embedder.embed(texts)
+    encoded = [base64.b64encode(serialize_vector(vector)).decode("ascii") for vector in vectors]
+    return {
+        "vectors": encoded,
+        "model_name": str(getattr(embedder, "model_name", "")),
+        "dimension": int(embedder.dimension),
+        "normalization": str(getattr(embedder, "normalization", "unknown") or "unknown"),
+    }
 
 
 HANDLERS: dict[str, Handler] = {
     "ping": handle_ping,
     "list_ingest_pipelines": handle_list_ingest_pipelines,
     "describe_ingest_pipelines": handle_describe_ingest_pipelines,
+    "list_embedding_providers": handle_list_embedding_providers,
+    "describe_embedding_providers": handle_describe_embedding_providers,
+    "list_embedding_models": handle_list_embedding_models,
+    "preflight_embedder": handle_preflight_embedder,
+    "embedder_info": handle_embedder_info,
+    "embed": handle_embed,
     "convert": handle_convert,
     "batch_convert": handle_batch_convert,
 }
@@ -198,6 +305,8 @@ def _cancelled_error_message(action: str, exc: BaseException | None = None) -> s
         return str(exc)
     if action in {"convert", "batch_convert"}:
         return "Conversion cancelled"
+    if action in {"embed", "embedder_info"}:
+        return "Embedding cancelled"
     return "Request cancelled"
 
 
@@ -207,7 +316,7 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
     try:
         if action not in HANDLERS:
             raise ValueError(f"Unknown action: {action}")
-        if action in {"convert", "batch_convert"}:
+        if action in _THREADED_ACTIONS:
 
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
@@ -292,7 +401,7 @@ def main() -> int:
                     "ok": True,
                     "result": {"target_id": target_id, "skipped": bool(cancel)},
                 }
-            elif action in {"convert", "batch_convert"}:
+            elif action in _THREADED_ACTIONS:
                 request_id = str(request.get("id") or "")
                 if not request_id:
                     response = {

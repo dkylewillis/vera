@@ -1,6 +1,6 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { SIDECAR_ACTIONS } from '../../shared/protocol';
-import type { AppSettings, PipelineDescriptor, Session } from '../types';
+import type { AppSettings, EmbedderDescriptor, PipelineDescriptor, Session } from '../types';
 
 export function fallbackPipelineDescriptors(pipelines: string[]): PipelineDescriptor[] {
   return pipelines.map((spec) => ({
@@ -15,6 +15,13 @@ export function fallbackPipelineDescriptors(pipelines: string[]): PipelineDescri
     notes: [],
     source: spec === 'pymupdf' ? 'bundled' : 'external',
   }));
+}
+
+export async function loadEmbeddingDescriptors(): Promise<EmbedderDescriptor[]> {
+  const described = await window.vera.request<{ providers: EmbedderDescriptor[] }>({
+    action: SIDECAR_ACTIONS.describeEmbeddingProviders,
+  });
+  return described.ok ? described.result?.providers ?? [] : [];
 }
 
 export async function loadIngestPipelineDescriptors(): Promise<PipelineDescriptor[]> {
@@ -36,6 +43,7 @@ export async function loadIngestPipelineDescriptors(): Promise<PipelineDescripto
 export function useAppBootstrap(options: {
   applySettings: (saved: AppSettings) => void;
   setEmbeddingProviders: Dispatch<SetStateAction<string[]>>;
+  setEmbeddingDescriptors: Dispatch<SetStateAction<EmbedderDescriptor[]>>;
   setIngestPipelineDescriptors: Dispatch<SetStateAction<PipelineDescriptor[]>>;
   setSessions: Dispatch<SetStateAction<Session[]>>;
   loadFolders: (isCanceled: () => boolean) => Promise<void>;
@@ -51,6 +59,16 @@ export function useAppBootstrap(options: {
       optionsRef.current.applySettings(saved);
     }
     async function loadEmbeddingProviders() {
+      const described = await window.vera.request<{ providers: EmbedderDescriptor[] }>({
+        action: SIDECAR_ACTIONS.describeEmbeddingProviders,
+      });
+      if (!canceled && described.ok && described.result?.providers?.length) {
+        optionsRef.current.setEmbeddingDescriptors(described.result.providers);
+        optionsRef.current.setEmbeddingProviders(
+          described.result.providers.map((item) => item.provider),
+        );
+        return;
+      }
       const response = await window.vera.request<{ providers: string[] }>({
         action: SIDECAR_ACTIONS.listEmbeddingProviders,
       });

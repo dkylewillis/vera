@@ -25,6 +25,7 @@ function host(overrides: Partial<SearchHost> = {}): SearchHost {
     setErrorMessage: () => undefined,
     setSubmittedSearchQuery: () => undefined,
     setResults: () => undefined,
+    setSkippedSemanticModelGroups: () => undefined,
     setSelected: () => undefined,
     setCenterView: () => undefined,
     setCitationJumpVersion: () => undefined,
@@ -66,14 +67,19 @@ describe('createSearchController', () => {
       document_id: 'document-1',
       file: 'C:\\lib\\manual.vera',
     };
-    const call = vi.fn(async () => [first]) as SearchHost['call'];
+    const call = vi.fn(async () => ({
+      results: [first],
+      skipped_semantic_model_groups: [{ model_name: 'openai:text-embedding-3-small', dimension: 1536, error: 'missing key' }],
+    })) as SearchHost['call'];
     const setResults = vi.fn();
+    const setSkippedSemanticModelGroups = vi.fn();
     const setSelected = vi.fn();
     const setCenterView = vi.fn();
     const loadSourceDocument = vi.fn(async () => undefined);
     const controller = createSearchController(() => host({
       call,
       setResults,
+      setSkippedSemanticModelGroups,
       setSelected,
       setCenterView,
       loadSourceDocument,
@@ -93,6 +99,9 @@ describe('createSearchController', () => {
       'Searching',
     );
     expect(setResults).toHaveBeenCalledWith([first]);
+    expect(setSkippedSemanticModelGroups).toHaveBeenCalledWith([
+      { model_name: 'openai:text-embedding-3-small', dimension: 1536, error: 'missing key' },
+    ]);
     expect(setSelected).toHaveBeenCalledWith(first);
     expect(setCenterView).toHaveBeenCalledWith('search');
     expect(loadSourceDocument).toHaveBeenCalledWith('C:\\lib\\manual.vera', false, 1);

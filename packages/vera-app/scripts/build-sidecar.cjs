@@ -23,6 +23,17 @@ const pyinstallerArgs = [
   "vera-ingest",
   "--hidden-import",
   "vera_ingest_pymupdf",
+  // Keep optional ML stacks out of the freeze even when the build venv has
+  // `--extra ml`. Sentence Transformers is imported lazily and must not land
+  // in packaged sidecars.
+  "--exclude-module",
+  "torch",
+  "--exclude-module",
+  "torchgen",
+  "--exclude-module",
+  "sentence_transformers",
+  "--exclude-module",
+  "transformers",
   "--name",
   "vera-sidecar",
   "--distpath",

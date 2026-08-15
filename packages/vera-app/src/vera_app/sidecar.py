@@ -18,6 +18,7 @@ ensure_pymupdf_pipeline_registered()
 
 from vera_app import convert as convert_handlers
 from vera_app import library as library_handlers
+from vera_app import plugin_runtime
 from vera_app.cancellation import CancellationToken, CancelledError, SkipCurrentError
 from vera_app.chat import answer as _answer
 from vera_app.chat import list_llm_models as _list_models
@@ -28,7 +29,7 @@ from vera_app.inspect import validate as _validate
 from vera_app.llm import ProviderHttpError
 from vera_app.protocol import SIDECAR_ACTIONS
 from vera_app.search import figure_data as _figure_data
-from vera_app.search import search as _search
+from vera_app.search import search_report as _search_report
 from vera_app.source import export as _export
 from vera_app.source import source as _source
 from vera_app.types import Handler, Request, Response
@@ -40,21 +41,25 @@ HANDLERS: dict[str, Handler] = {
     "index_status": library_handlers.index_status,
     "index_build": library_handlers.index_build,
     "index_update": library_handlers.index_update,
-    "search": _search,
+    "search": _search_report,
     "figure_data": _figure_data,
     "answer": _answer,
-    "convert": convert_handlers.handle_convert,
-    "batch_convert": convert_handlers.handle_batch_convert,
+    "convert": plugin_runtime.wrap_convert(convert_handlers.handle_convert, "convert"),
+    "batch_convert": plugin_runtime.wrap_convert(
+        convert_handlers.handle_batch_convert, "batch_convert"
+    ),
     "export": _export,
     "source": _source,
     "page": _page,
     "list_models": _list_models,
-    "list_embedding_providers": convert_handlers.handle_list_embedding_providers,
-    "describe_embedding_providers": convert_handlers.handle_describe_embedding_providers,
+    "list_embedding_providers": lambda request: plugin_runtime.list_merged_embedder_names(),
+    "describe_embedding_providers": lambda request: plugin_runtime.describe_merged_embedders(),
     "list_embedding_models": convert_handlers.handle_list_embedding_models,
     "preflight_embedder": convert_handlers.handle_preflight_embedder,
-    "list_ingest_pipelines": convert_handlers.handle_list_ingest_pipelines,
-    "describe_ingest_pipelines": convert_handlers.handle_describe_ingest_pipelines,
+    "list_ingest_pipelines": lambda request: plugin_runtime.list_merged_pipelines(),
+    "describe_ingest_pipelines": lambda request: plugin_runtime.describe_merged_pipelines(),
+    "configure_plugin_runtime": plugin_runtime.handle_configure_plugin_runtime,
+    "plugin_runtime_status": plugin_runtime.handle_plugin_runtime_status,
     "ocr_languages_list": convert_handlers.handle_ocr_languages_list,
     "ocr_languages_download": convert_handlers.handle_ocr_languages_download,
     "list_modes": _list_modes,
@@ -126,7 +131,8 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
 
             result = _inspect(request, write_event=_emit, cancel=cancel)
         elif action == "search":
-            result = _search(request, cancel=cancel)
+            with plugin_runtime.bind_request_cancel(cancel):
+                result = _search_report(request, cancel=cancel)
         elif action in {"index_build", "index_update"}:
 
             def _emit(data: dict[str, Any]) -> None:
@@ -237,6 +243,7 @@ def main() -> int:
                 "list_models",
                 "figure_data",
                 "export",
+                "configure_plugin_runtime",
             }:
                 request_id = str(request.get("id") or "")
                 if not request_id:

@@ -53,7 +53,15 @@ Archives store `model_name`, dimension, and normalization — not your
   separately; Options fields must stay non-secret.
 
 Use `preflight_embedder("openai:text-embedding-3-small")` to check that a
-required credential env var is present without loading model weights.
+required credential env var is present without loading model weights. The
+desktop app stores those secrets separately (File → LLM Providers) and
+forwards them to the sidecar-owned plugin host. Options fields must stay
+non-secret.
+
+Install the package in the same trusted external Python environment used for
+extra ingest plugins (`python -m pip install` or `python -m pip install -e
+<clone>`), then Validate / Refresh. Convert lists the provider as `(external)`.
+Bundled `hashing` and `sentence-transformers` win on duplicate names.
 
 ## Minimal example (DIY hosted provider)
 

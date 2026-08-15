@@ -60,6 +60,7 @@ describe('buildBatchConvertPayload', () => {
       ingestPipeline: 'pymupdf',
       storeOriginal: true,
       pipelineOptions: { ocr: 'auto' },
+      embedderOptions: { dimension: 256 },
     })).toEqual({
       action: SIDECAR_ACTIONS.batchConvert,
       paths: ['C:\\docs\\a.pdf'],
@@ -68,6 +69,7 @@ describe('buildBatchConvertPayload', () => {
       parser: 'pymupdf',
       store_original: true,
       pipeline_options: { ocr: 'auto' },
+      embedder_options: { dimension: 256 },
     });
   });
 

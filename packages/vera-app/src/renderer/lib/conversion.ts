@@ -60,6 +60,7 @@ export function buildBatchConvertPayload(options: {
   ingestPipeline: string;
   storeOriginal: boolean;
   pipelineOptions: PipelineOptions;
+  embedderOptions?: PipelineOptions;
 }): Record<string, unknown> {
   return {
     action: SIDECAR_ACTIONS.batchConvert,
@@ -71,6 +72,9 @@ export function buildBatchConvertPayload(options: {
     parser: options.ingestPipeline,
     store_original: options.storeOriginal,
     pipeline_options: options.pipelineOptions,
+    ...(options.embedderOptions && Object.keys(options.embedderOptions).length
+      ? { embedder_options: options.embedderOptions }
+      : {}),
   };
 }
 

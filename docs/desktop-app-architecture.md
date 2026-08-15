@@ -80,22 +80,54 @@ This keeps the app UI independent from Python internals while preserving a simpl
 ## External plugin host
 
 Source-run and packaged conversions keep search, indexing, Ask, and bundled
-PyMuPDF in the sidecar. Extra ingest plugins run in a separate JSON-lines worker:
+PyMuPDF in the sidecar. Extra ingest and embedding plugins run in a separate
+JSON-lines worker owned by the sidecar:
 
 ```bash
 python -m vera_plugin_host
 ```
 
-Electron ships the `vera_plugin_host` package as an extra resource and launches
-it with a user-selected interpreter (`shell: false`). `PYTHONPATH` is limited
-to that worker package so plugins come from the selected environment after
-`pip install` or `pip install -e`. Duplicate provider names keep the bundled
-sidecar implementation. The worker speaks `ping`, `list_ingest_pipelines`,
-`describe_ingest_pipelines`, `convert`, `batch_convert`, `cancel`, and `skip`.
-Treat the selected interpreter as trusted code. Hugging Face tokens and
-`DOCLING_ARTIFACTS_PATH` are forwarded to the worker. A saved interpreter is
-re-probed on launch; Convert refreshes when that probe succeeds. The probe
-allows up to two minutes because a cold Docling/Torch import often exceeds 40s.
+Electron ships the `vera_plugin_host` package as an extra resource. The sidecar
+launches that worker with a user-selected interpreter after
+`configure_plugin_runtime`. `PYTHONPATH` is limited to that worker package so
+plugins come from the selected environment after `pip install` or
+`pip install -e`. Duplicate provider names keep the bundled sidecar
+implementation. The worker speaks `ping`, `list_ingest_pipelines`,
+`describe_ingest_pipelines`, `list_embedding_providers`,
+`describe_embedding_providers`, `list_embedding_models`, `preflight_embedder`,
+`embedder_info`, `embed`, `convert`, `batch_convert`, `cancel`, and `skip`.
+Treat the selected interpreter as trusted code. Hugging Face tokens, embedder
+`credential_env` secrets, and `DOCLING_ARTIFACTS_PATH` are forwarded to the
+worker. A saved interpreter is re-probed on launch; Convert refreshes when that
+probe succeeds. The probe allows up to two minutes because a cold Docling/Torch
+import often exceeds 40s. Convert lists extra parsers and embedders as
+`(external)` and gates conversion on `preflight_embedder`. Search reports
+`skipped_semantic_model_groups` when an external embedder is unavailable.
+
+### Convert routing
+
+Electron talks only to the sidecar. The sidecar owns one `vera_plugin_host`
+child, launched with the user-selected interpreter after
+`configure_plugin_runtime`.
+
+```mermaid
+flowchart LR
+  Electron --> sidecar
+  sidecar --> host["vera_plugin_host"]
+```
+
+Which process runs convert depends on the parser, not the embedder:
+
+- Extra parser (for example Docling) — the sidecar forwards `convert` /
+  `batch_convert` to the host. The host has `vera-doc`, so bundled embedders
+  still work there.
+- Bundled `pymupdf` plus an external embedder — convert stays in the sidecar.
+  Embeddings go to the same host over `embed` / `embedder_info`.
+
+Search, Ask, and indexing stay in the sidecar either way. When an archive was
+built with an external embedder, the sidecar uses a registry proxy into that
+host. If the host or credential is missing, Search still returns keyword hits
+and reports `skipped_semantic_model_groups`.
 
 ## Active Libraries and Collection Indexes
 
@@ -302,7 +334,7 @@ npm run app:dist
 
 `npm run app:dev` starts Electron against the workspace sidecar without the
 Docling extra, matching packaged Convert: PyMuPDF stays in the sidecar, and
-extra ingest plugins use the external Python plugin host.
+extra ingest and embedding plugins use the sidecar-owned Python plugin host.
 `npm run app:dist` packages the Python sidecar through
 `packages/vera-app/scripts/build-sidecar.cjs`, which runs PyInstaller with the
 project virtualenv when it is available (honoring `VERA_SIDECAR_PYTHON`) and

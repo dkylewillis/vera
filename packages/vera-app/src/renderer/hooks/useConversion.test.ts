@@ -12,6 +12,7 @@ function host(overrides: Partial<ConversionHost> = {}): ConversionHost {
     embeddingModel: 'hashing',
     ingestPipeline: 'pymupdf',
     pipelineOptions: {},
+    embedderOptions: {},
     explorerSelection: null,
     activeLibraryPath: '',
     conversionInProgress: false,
@@ -78,5 +79,33 @@ describe('createConversionController', () => {
     expect(setBatchDirectory).toHaveBeenCalledWith('C:\\library');
     expect(setConvertMode).toHaveBeenCalledWith('batch');
     expect(setSideView).toHaveBeenCalledWith('convert');
+  });
+
+  it('blocks convert when embedder preflight fails', async () => {
+    const setConversionError = vi.fn();
+    const dispatchBackgroundTask = vi.fn();
+    const call = vi.fn(async () => ({
+      ok: false,
+      missing_credential_env: 'OPENAI_API_KEY',
+      detail: 'missing key',
+    })) as ConversionHost['call'];
+    const controller = createConversionController(() => host({
+      convertMode: 'selected',
+      embeddingModel: 'openai:text-embedding-3-small',
+      call,
+      setConversionError,
+      dispatchBackgroundTask,
+    }));
+
+    await controller.batchConvertPdfs({ paths: ['C:\\docs\\a.pdf'] });
+
+    expect(call).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'preflight_embedder', model: 'openai:text-embedding-3-small' }),
+      'Checking embedder',
+    );
+    expect(setConversionError).toHaveBeenCalledWith(
+      'Embedding provider is not ready. Save OPENAI_API_KEY under File → LLM Providers.',
+    );
+    expect(dispatchBackgroundTask).not.toHaveBeenCalled();
   });
 });

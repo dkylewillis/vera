@@ -172,21 +172,27 @@ app and Python sidecar, and writes an NSIS installer into that directory.
 ## External Python plugins
 
 Source-run (`npm run app:dev`) and packaged builds keep search, Ask, indexing,
-and bundled PyMuPDF conversion in the sidecar. To use extra ingest plugins:
+and bundled PyMuPDF conversion in the sidecar. To use extra ingest or embedding
+plugins:
 
 1. Create a virtual environment with Python 3.10+ and install a compatible
    `vera-ingest` 0.3.x plus the plugin:
    ```bash
    python -m venv C:\venvs\vera-plugins
    C:\venvs\vera-plugins\Scripts\python.exe -m pip install vera-ingest vera-ingest-docling
+   C:\venvs\vera-plugins\Scripts\python.exe -m pip install vera-your-embedder
    python -m pip install -e C:\src\my-vera-plugin
    ```
-   Adding a clone to `PYTHONPATH` without installing it is not enough.
+   Adding a clone to `PYTHONPATH` without installing it is not enough. Install
+   embedder plugins in the same environment as extra parsers.
 2. In VERA, open **File > LLM Providers**, enable **External Python plugins**,
    choose that environment's `python.exe`, and click **Validate** once.
-3. Convert lists extra providers as `(external)`. Bundled `pymupdf` wins when a
-   plugin repeats that name. After installing or updating plugins, click
-   **Refresh plugins**.
+3. Convert lists extra parsers and embedders as `(external)`. Bundled
+   `pymupdf`, `hashing`, and `sentence-transformers` win when a plugin repeats
+   those names. After installing or updating plugins, click **Refresh plugins**.
+   Embedder `credential_env` secrets are saved under the same settings page and
+   forwarded to the sidecar and plugin host. Convert calls `preflight_embedder`
+   before writing an archive.
 
 On later launches VERA re-probes the saved interpreter in the background and
 refreshes Convert when that probe succeeds. You do not need to Validate after
@@ -195,10 +201,14 @@ imports are cold; Convert may show Docling as not installed until that probe
 finishes.
 
 The selected environment must provide `vera-ingest` 0.3.x (plugin API version
-1). Plugins register under the `vera.ingest_pipelines` entry-point group.
-Optional Hugging Face tokens and the **Model cache** field
-(`DOCLING_ARTIFACTS_PATH`) are forwarded to the plugin host. See
-[Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md).
+1) and a compatible `vera-doc`. Ingest plugins register under
+`vera.ingest_pipelines`; embedders register under `vera.embedders`. Optional
+Hugging Face tokens, embedder `credential_env` secrets, and the **Model cache**
+field (`DOCLING_ARTIFACTS_PATH`) are forwarded to the plugin host. See
+[Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md) and
+[Creating an embedding provider](creating-an-embedding-provider.md).
+Which process runs convert versus embed is in
+[Convert routing](desktop-app-architecture.md#convert-routing).
 
 ## Common startup problems
 
@@ -228,11 +238,13 @@ Optional Hugging Face tokens and the **Model cache** field
   a minute; the status stays on “Checking the Python environment…” until the
   probe finishes. A timeout from an earlier attempt should not appear the
   moment you click Validate.
-- **An extra parser is missing from Convert** — install it with
+- **An extra parser or embedder is missing from Convert** — install it with
   `python -m pip install` or `python -m pip install -e <clone>` in the selected
   environment, then **Refresh plugins**. After a relaunch, wait for the
-  automatic re-probe before treating the parser as missing. Raw `PYTHONPATH`
-  folders are not discovered.
+  automatic re-probe before treating the plugin as missing. Raw `PYTHONPATH`
+  folders are not discovered. If Search warns that semantic groups were
+  skipped, the embedder used at convert time is not available in the current
+  sidecar or plugin host.
 
 ## Provider request errors
 

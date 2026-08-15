@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { PipelineDescriptor } from '../../shared/contracts';
 import {
   CUSTOM_EMBEDDING_VALUE,
+  embeddingProviderFromSpec,
+  embeddingSelectOptions,
   embeddingSelectValue,
   isKnownEmbeddingPreset,
   pipelineInstallHint,
@@ -51,6 +53,35 @@ describe('convertPresets', () => {
     expect(isKnownEmbeddingPreset('hashing')).toBe(true);
     expect(isKnownEmbeddingPreset('sentence-transformers:all-MiniLM-L6-v2')).toBe(true);
     expect(isKnownEmbeddingPreset('openai:text-embedding-3-small')).toBe(false);
+  });
+
+  it('parses provider names from embedding specs', () => {
+    expect(embeddingProviderFromSpec('hashing')).toBe('hashing');
+    expect(embeddingProviderFromSpec('sentence-transformers:all-MiniLM-L6-v2')).toBe('sentence-transformers');
+    expect(embeddingProviderFromSpec('openai:text-embedding-3-small')).toBe('openai');
+  });
+
+  it('adds external embedder options after bundled presets', () => {
+    const options = embeddingSelectOptions([
+      {
+        provider: 'hashing',
+        label: 'hashing',
+        description: '',
+        installed: true,
+        fields: [],
+        source: 'bundled',
+      },
+      {
+        provider: 'openai',
+        label: 'OpenAI',
+        description: '',
+        installed: true,
+        default_model_id: 'text-embedding-3-small',
+        fields: [],
+        source: 'external',
+      },
+    ]);
+    expect(options.some((item) => item.value === 'openai:text-embedding-3-small' && item.source === 'external')).toBe(true);
   });
 
   it('maps unknown models to the custom select value', () => {

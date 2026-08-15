@@ -11,6 +11,8 @@ export const IPC_CHANNELS = {
   clearApiKey: 'vera:clearApiKey',
   saveHfToken: 'vera:saveHfToken',
   clearHfToken: 'vera:clearHfToken',
+  saveEnvSecret: 'vera:saveEnvSecret',
+  clearEnvSecret: 'vera:clearEnvSecret',
   getSessions: 'vera:getSessions',
   saveSession: 'vera:saveSession',
   deleteSession: 'vera:deleteSession',
@@ -63,6 +65,8 @@ export const SIDECAR_ACTIONS = {
   ocrLanguagesList: 'ocr_languages_list',
   ocrLanguagesDownload: 'ocr_languages_download',
   listModes: 'list_modes',
+  configurePluginRuntime: 'configure_plugin_runtime',
+  pluginRuntimeStatus: 'plugin_runtime_status',
   cancel: 'cancel',
   skip: 'skip',
 } as const;
@@ -87,7 +91,7 @@ export const STREAM_EVENTS = [
 export type StreamEventName = (typeof STREAM_EVENTS)[number];
 
 /** JSON-lines protocol spoken by the shipped `vera_plugin_host` worker. */
-export const PLUGIN_HOST_PROTOCOL = 1;
+export const PLUGIN_HOST_PROTOCOL = 2;
 /** `vera_ingest.pipeline.PLUGIN_API_VERSION` expected by this app. */
 export const PLUGIN_API_VERSION = 1;
 export const COMPATIBLE_INGEST_MAJOR = 0;

@@ -58,16 +58,14 @@ and Additional source formats and visual grounding are **follow-ups after the 0.
   secrets in Options) and expose `preflight_embedder`.
 - [x] Advertise model presets via `vera.embedder_models` /
   `list_embedding_models`.
-- [ ] Add conversion-time provider and credential preflight checks in the
-  Convert UI (sidecar `preflight_embedder` is ready). Follow-up after
-  0.3.0; not a 0.3.0 blocker.
-- [ ] Improve model selection UI with provider-specific model discovery
-  (sidecar `list_embedding_models` is ready). Follow-up after 0.3.0; not a
-  0.3.0 blocker.
-- [ ] Drive Convert UI embedding forms from descriptors (like
-  `PipelineConfigForm`). Follow-up after 0.3.0; not a 0.3.0 blocker.
-- [ ] Store hosted embedding-provider credentials securely in the desktop
-  app. Follow-up after 0.3.0; not a 0.3.0 blocker.
+- [x] Add conversion-time provider and credential preflight checks in the
+  Convert UI (sidecar `preflight_embedder`).
+- [x] Improve model selection UI with provider-specific model discovery
+  (`list_embedding_models` plus `(external)` embedder options).
+- [x] Drive Convert UI embedding forms from descriptors
+  (`EmbedderConfigForm` over `PipelineConfigForm`).
+- [x] Store hosted embedding-provider credentials securely in the desktop
+  app (`credential_env` via encrypted env secrets).
 
 ### Official embedding providers
 
@@ -147,7 +145,7 @@ environment. The items below remain for an app-managed plugin store.
 
 - [x] Create a plugin runtime separate from the frozen desktop sidecar for
   ingest pipelines.
-- [ ] Extend that runtime to embedding providers.
+- [x] Extend that runtime to embedding providers.
 - [ ] Decide how Docling/Torch/model artifacts are distributed without
   bloating the base installer.
 - [ ] Let users install, update, enable, disable, and remove plugins from the
