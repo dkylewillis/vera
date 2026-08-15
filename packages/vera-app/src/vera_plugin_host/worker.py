@@ -267,10 +267,7 @@ def handle_embed(
     if cancel:
         cancel.raise_if_cancelled()
     vectors = embedder.embed(texts)
-    encoded = [
-        base64.b64encode(serialize_vector(vector)).decode("ascii")
-        for vector in vectors
-    ]
+    encoded = [base64.b64encode(serialize_vector(vector)).decode("ascii") for vector in vectors]
     return {
         "vectors": encoded,
         "model_name": str(getattr(embedder, "model_name", "")),

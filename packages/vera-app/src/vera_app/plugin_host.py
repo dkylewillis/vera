@@ -95,7 +95,12 @@ class PluginHost:
         request_id = request_id or uuid.uuid4().hex
         message = {**payload, "id": request_id}
         done = threading.Event()
-        slot: dict[str, Any] = {"event": done, "on_event": on_event, "response": None, "error": None}
+        slot: dict[str, Any] = {
+            "event": done,
+            "on_event": on_event,
+            "response": None,
+            "error": None,
+        }
         with self._lock:
             self._pending[request_id] = slot
         try:
@@ -112,8 +117,16 @@ class PluginHost:
         while True:
             if cancel and cancel.cancelled:
                 self._send_control("cancel", request_id)
-                raise CancelledError("Embedding cancelled" if payload.get("action") in {"embed", "embedder_info"} else "Request cancelled")
-            if cancel and cancel.skip_requested and payload.get("action") in {"convert", "batch_convert"}:
+                raise CancelledError(
+                    "Embedding cancelled"
+                    if payload.get("action") in {"embed", "embedder_info"}
+                    else "Request cancelled"
+                )
+            if (
+                cancel
+                and cancel.skip_requested
+                and payload.get("action") in {"convert", "batch_convert"}
+            ):
                 self._send_control("skip", request_id)
             if done.wait(timeout=0.05):
                 break
@@ -143,7 +156,10 @@ class PluginHost:
         if proc is None or proc.stdin is None or proc.stdin.closed:
             return
         try:
-            proc.stdin.write(json.dumps({"id": uuid.uuid4().hex, "action": action, "target_id": target_id}) + "\n")
+            proc.stdin.write(
+                json.dumps({"id": uuid.uuid4().hex, "action": action, "target_id": target_id})
+                + "\n"
+            )
             proc.stdin.flush()
         except Exception:
             return

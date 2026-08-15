@@ -217,12 +217,14 @@ def test_plugin_host_embed_and_info_use_hashing():
     info = handle({"id": "info", "action": "embedder_info", "model": "hashing"})
     assert info["ok"] is True, info
     assert info["result"]["dimension"] > 0
-    embed = handle({
-        "id": "embed",
-        "action": "embed",
-        "model": "hashing",
-        "texts": ["stormwater detention"],
-    })
+    embed = handle(
+        {
+            "id": "embed",
+            "action": "embed",
+            "model": "hashing",
+            "texts": ["stormwater detention"],
+        }
+    )
     assert embed["ok"] is True, embed
     assert len(embed["result"]["vectors"]) == 1
     assert embed["result"]["dimension"] == info["result"]["dimension"]

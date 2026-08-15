@@ -26,7 +26,6 @@ from vera_doc import (
     register_embedder_descriptor,
     register_embedder_models,
 )
-from vera_doc.embeddings import unregister_embedder
 from vera_doc.embedder_descriptors import (
     EmbedderCapabilities,
     EmbedderDescriptor,
@@ -34,6 +33,7 @@ from vera_doc.embedder_descriptors import (
     EmbedderFieldChoice,
     EmbeddingModelInfo,
 )
+from vera_doc.embeddings import unregister_embedder
 from vera_ingest import list_ingest_pipeline_descriptors
 
 _host = PluginHost()
@@ -124,7 +124,7 @@ def configure(request: Request) -> dict[str, Any]:
 def describe_merged_pipelines() -> dict[str, Any]:
     local = [item.as_dict() for item in list_ingest_pipeline_descriptors()]
     bundled = keep_bundled_descriptors(local) or fallback_bundled_descriptors()
-    global _bundled_pipelines
+    global _bundled_pipelines, _probe
     _bundled_pipelines = {
         str(item.get("provider") or "pymupdf").strip().lower() for item in bundled
     }
@@ -150,8 +150,7 @@ def list_merged_pipelines() -> dict[str, Any]:
     described = describe_merged_pipelines()
     return {
         "pipelines": [
-            str(item.get("spec") or item.get("provider"))
-            for item in described.get("pipelines", [])
+            str(item.get("spec") or item.get("provider")) for item in described.get("pipelines", [])
         ]
     }
 
@@ -220,7 +219,9 @@ def _register_external_embedders(embedders: list[dict[str, Any]]) -> None:
             spec = f"{_provider}:{model_id}" if model_id else _provider
             return RemoteEmbedder(_host, spec, embedder_options=config)
 
-        def descriptor_factory(*, _descriptor: EmbedderDescriptor = descriptor) -> EmbedderDescriptor:
+        def descriptor_factory(
+            *, _descriptor: EmbedderDescriptor = descriptor
+        ) -> EmbedderDescriptor:
             return _descriptor
 
         def model_factory(
@@ -269,7 +270,10 @@ def _descriptor_from_mapping(raw: dict[str, Any]) -> EmbedderDescriptor:
         if not isinstance(item, dict) or not item.get("key"):
             continue
         choices = tuple(
-            EmbedderFieldChoice(value=str(choice.get("value")), label=str(choice.get("label") or choice.get("value")))
+            EmbedderFieldChoice(
+                value=str(choice.get("value")),
+                label=str(choice.get("label") or choice.get("value")),
+            )
             for choice in item.get("choices") or []
             if isinstance(choice, dict) and choice.get("value") is not None
         )

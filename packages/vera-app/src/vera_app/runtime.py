@@ -88,7 +88,9 @@ def normalize_pipeline_descriptor(
         "description": str(raw.get("description") or ""),
         "installed": raw.get("installed") is not False,
         "capabilities": dict(capabilities) if isinstance(capabilities, Mapping) else {},
-        "fields": [item for item in fields if isinstance(item, Mapping)] if isinstance(fields, list) else [],
+        "fields": [item for item in fields if isinstance(item, Mapping)]
+        if isinstance(fields, list)
+        else [],
         "notes": [str(item) for item in notes] if isinstance(notes, list) else [],
         "source": source,
     }
@@ -110,13 +112,17 @@ def merge_pipeline_descriptors(
     merged: list[dict[str, Any]] = []
     seen: set[str] = set()
     for descriptor in bundled:
-        key = str(descriptor.get("provider") or parse_pipeline_provider(str(descriptor.get("spec") or "")))
+        key = str(
+            descriptor.get("provider") or parse_pipeline_provider(str(descriptor.get("spec") or ""))
+        )
         if key in seen:
             continue
         seen.add(key)
         merged.append({**dict(descriptor), "source": "bundled"})
     for descriptor in external:
-        key = str(descriptor.get("provider") or parse_pipeline_provider(str(descriptor.get("spec") or "")))
+        key = str(
+            descriptor.get("provider") or parse_pipeline_provider(str(descriptor.get("spec") or ""))
+        )
         if key in seen:
             continue
         seen.add(key)
@@ -187,7 +193,9 @@ def probe_from_ping(
             else None
         ),
         "protocol": payload.get("protocol") if isinstance(payload.get("protocol"), int) else None,
-        "plugin_api": payload.get("plugin_api") if isinstance(payload.get("plugin_api"), int) else None,
+        "plugin_api": payload.get("plugin_api")
+        if isinstance(payload.get("plugin_api"), int)
+        else None,
         "pipelines": pipelines or [],
         "embedders": embedders or [],
         "load_errors": (

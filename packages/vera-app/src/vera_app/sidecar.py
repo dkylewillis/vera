@@ -18,6 +18,7 @@ ensure_pymupdf_pipeline_registered()
 
 from vera_app import convert as convert_handlers
 from vera_app import library as library_handlers
+from vera_app import plugin_runtime
 from vera_app.cancellation import CancellationToken, CancelledError, SkipCurrentError
 from vera_app.chat import answer as _answer
 from vera_app.chat import list_llm_models as _list_models
@@ -27,9 +28,7 @@ from vera_app.inspect import page as _page
 from vera_app.inspect import validate as _validate
 from vera_app.llm import ProviderHttpError
 from vera_app.protocol import SIDECAR_ACTIONS
-from vera_app import plugin_runtime
 from vera_app.search import figure_data as _figure_data
-from vera_app.search import search as _search
 from vera_app.search import search_report as _search_report
 from vera_app.source import export as _export
 from vera_app.source import source as _source

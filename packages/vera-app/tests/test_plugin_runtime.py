@@ -31,16 +31,23 @@ def test_runtime_parses_providers_and_routes_external():
 
 
 def test_runtime_rejects_protocol_1_and_accepts_protocol_2():
-    assert plugin_host_compatibility_error({
-        "protocol": 1,
-        "plugin_api": 1,
-        "vera_ingest_version": "0.3.0",
-    })
-    assert plugin_host_compatibility_error({
-        "protocol": PLUGIN_HOST_PROTOCOL,
-        "plugin_api": 1,
-        "vera_ingest_version": "0.3.0",
-    }) is None
+    assert plugin_host_compatibility_error(
+        {
+            "protocol": 1,
+            "plugin_api": 1,
+            "vera_ingest_version": "0.3.0",
+        }
+    )
+    assert (
+        plugin_host_compatibility_error(
+            {
+                "protocol": PLUGIN_HOST_PROTOCOL,
+                "plugin_api": 1,
+                "vera_ingest_version": "0.3.0",
+            }
+        )
+        is None
+    )
 
 
 def test_runtime_merges_bundled_over_external_duplicates():
@@ -111,12 +118,18 @@ class _FakeHost:
         self.calls.append({"payload": payload, "timeout": timeout, "cancel": cancel})
         action = payload["action"]
         if action == "embedder_info":
-            return {"model_name": payload["model"], "dimension": self.dimension, "normalization": "l2"}
+            return {
+                "model_name": payload["model"],
+                "dimension": self.dimension,
+                "normalization": "l2",
+            }
         if action == "embed":
             texts = payload["texts"]
             return {
                 "vectors": [
-                    base64.b64encode(serialize_vector(np.ones(self.dimension, dtype=np.float32))).decode("ascii")
+                    base64.b64encode(
+                        serialize_vector(np.ones(self.dimension, dtype=np.float32))
+                    ).decode("ascii")
                     for _ in texts
                 ],
                 "dimension": self.dimension,
@@ -126,7 +139,9 @@ class _FakeHost:
 
 def test_remote_embedder_resolves_dimension_and_caches_query_vectors():
     host = _FakeHost(dimension=4)
-    embedder = RemoteEmbedder(host, "openai:text-embedding-3-small", embedder_options={"batch_size": 8})
+    embedder = RemoteEmbedder(
+        host, "openai:text-embedding-3-small", embedder_options={"batch_size": 8}
+    )
     assert embedder.dimension == 4
     first = embedder.embed(["detention pond"])
     second = embedder.embed(["detention pond"])
@@ -147,24 +162,26 @@ def test_register_external_embedders_keeps_bundled_names(monkeypatch):
 
     monkeypatch.setattr(plugin_runtime, "_host", fake)
     monkeypatch.setattr(plugin_runtime, "_models_for_provider", fake_models)
-    plugin_runtime._register_external_embedders([
-        {
-            "provider": "hashing",
-            "label": "external hashing",
-            "description": "",
-            "installed": True,
-            "fields": [],
-        },
-        {
-            "provider": "openai",
-            "label": "OpenAI",
-            "description": "",
-            "installed": True,
-            "default_model_id": "text-embedding-3-small",
-            "capabilities": {"requires_api_key": True, "credential_env": "OPENAI_API_KEY"},
-            "fields": [],
-        },
-    ])
+    plugin_runtime._register_external_embedders(
+        [
+            {
+                "provider": "hashing",
+                "label": "external hashing",
+                "description": "",
+                "installed": True,
+                "fields": [],
+            },
+            {
+                "provider": "openai",
+                "label": "OpenAI",
+                "description": "",
+                "installed": True,
+                "default_model_id": "text-embedding-3-small",
+                "capabilities": {"requires_api_key": True, "credential_env": "OPENAI_API_KEY"},
+                "fields": [],
+            },
+        ]
+    )
     try:
         assert "hashing" not in plugin_runtime._registered_embedders
         assert "openai" in plugin_runtime._registered_embedders
@@ -174,6 +191,46 @@ def test_register_external_embedders_keeps_bundled_names(monkeypatch):
         assert sources["openai"] == "external"
     finally:
         plugin_runtime._teardown()
+
+
+def test_describe_merged_pipelines_updates_module_probe(monkeypatch):
+    class _DescribeHost:
+        def __init__(self) -> None:
+            self.fail = False
+
+        def request(self, payload, timeout=None, cancel=None):
+            if self.fail:
+                raise PluginHostError("host down")
+            return {
+                "pipelines": [
+                    {
+                        "provider": "docling",
+                        "variant": "",
+                        "spec": "docling",
+                        "label": "docling",
+                        "description": "",
+                        "installed": True,
+                        "capabilities": {},
+                        "fields": [],
+                        "notes": [],
+                    }
+                ],
+                "load_errors": ["vera_openai: missing OPENAI_API_KEY"],
+            }
+
+    host = _DescribeHost()
+    plugin_runtime._probe = {"ok": True, "executable": "/venv/bin/python"}
+    monkeypatch.setattr(plugin_runtime, "_host", host)
+    monkeypatch.setattr(plugin_runtime, "ready", lambda: True)
+    described = plugin_runtime.describe_merged_pipelines()
+    assert any(item.get("provider") == "docling" for item in described["pipelines"])
+    assert plugin_runtime._probe["load_errors"] == ["vera_openai: missing OPENAI_API_KEY"]
+
+    host.fail = True
+    plugin_runtime.describe_merged_pipelines()
+    assert plugin_runtime._probe["ok"] is False
+    assert plugin_runtime._probe["executable"] == "/venv/bin/python"
+    assert "host down" in plugin_runtime._probe["error"]
 
 
 def test_wrap_convert_routes_external_parser(monkeypatch):
@@ -189,7 +246,9 @@ def test_wrap_convert_routes_external_parser(monkeypatch):
     monkeypatch.setattr(
         plugin_runtime,
         "forward_convert",
-        lambda action, request, write_event=None, cancel=None: forwarded.append((action, request)) or {"output": "host"},
+        lambda action, request, write_event=None, cancel=None: (
+            forwarded.append((action, request)) or {"output": "host"}
+        ),
     )
     handler = plugin_runtime.wrap_convert(local, "convert")
     assert handler({"parser": "pymupdf", "input": "a.pdf"}) == {"output": "local"}
