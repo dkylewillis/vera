@@ -67,9 +67,7 @@ def _take_overflow_windows(
     return windows, buffer
 
 
-def chunk_pages(
-    pages: list[ParsedPage], chunk_size: int = 500, overlap: int = 75
-) -> list[Chunk]:
+def chunk_pages(pages: list[ParsedPage], chunk_size: int = 500, overlap: int = 75) -> list[Chunk]:
     """Sliding-window chunker over ``ParsedPage.text`` (whitespace-split words).
 
     Public helper for custom pipelines that only have page text. First-party

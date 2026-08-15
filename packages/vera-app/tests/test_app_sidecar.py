@@ -716,8 +716,16 @@ def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):
 
 def test_sidecar_default_ocr_language_is_not_forwarded_to_docling(monkeypatch):
     pytest.importorskip("vera_ingest_docling")
-    from vera_ingest import prepare_pipeline_options
+    from vera_ingest import (
+        prepare_pipeline_options,
+        register_ingest_pipeline,
+        register_ingest_pipeline_descriptor,
+    )
+    from vera_ingest_docling import create_descriptor, create_pipeline
     from vera_ingest_docling.options import DoclingOptions
+
+    register_ingest_pipeline("docling", create_pipeline, replace=True)
+    register_ingest_pipeline_descriptor("docling", create_descriptor, replace=True)
 
     captured = {}
 

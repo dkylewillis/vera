@@ -432,8 +432,16 @@ def test_cli_ocr_languages_download_forwards_to_helper(monkeypatch, capsys):
 
 def test_cli_default_ocr_language_is_not_forwarded_to_docling():
     pytest.importorskip("vera_ingest_docling")
-    from vera_ingest import prepare_pipeline_options
+    from vera_ingest import (
+        prepare_pipeline_options,
+        register_ingest_pipeline,
+        register_ingest_pipeline_descriptor,
+    )
+    from vera_ingest_docling import create_descriptor, create_pipeline
     from vera_ingest_docling.options import DoclingOptions
+
+    register_ingest_pipeline("docling", create_pipeline, replace=True)
+    register_ingest_pipeline_descriptor("docling", create_descriptor, replace=True)
 
     args = build_parser().parse_args(["convert", "scan.pdf", "--parser", "docling"])
     assert args.ocr_language is None
@@ -546,7 +554,6 @@ def test_str_to_bool_rejects_unknown_tokens():
         str_to_bool("random")
     with pytest.raises(ValueError, match="invalid boolean"):
         str_to_bool("maybe")
-
 
 
 def test_cli_rejects_unknown_store_original():

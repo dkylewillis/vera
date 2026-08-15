@@ -67,9 +67,7 @@ def pymupdf_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
     )
     return IngestResult(
         pages=pages,
-        blocks=[
-            IngestBlock.from_parsed(block_id, block) for block_id, block in block_records
-        ],
+        blocks=[IngestBlock.from_parsed(block_id, block) for block_id, block in block_records],
         chunks=[
             IngestChunk(
                 chunk_id=f"chunk_{index:06d}",

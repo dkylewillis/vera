@@ -169,6 +169,8 @@ def test_reads_batch_chunk_ids_below_the_sql_variable_limit(tmp_path: Path) -> N
     ids = [f"chunk_{index:04d}" for index in range(1200)]
     with VeraDocument.create(path) as database:
         database.add([ChunkRecord(id=chunk_id, text=f"Section {chunk_id}") for chunk_id in ids])
+        if not hasattr(database._conn, "setlimit"):
+            pytest.skip("sqlite3.Connection.setlimit requires Python 3.11+")
         database._conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 999)
         assert [record.id for record in database.get()] == ids
         assert [record.id for record in database.get(ids)] == ids
