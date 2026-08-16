@@ -80,6 +80,10 @@ Every result contains:
 - `source_filename`
 - `document_id`
 
+In Python these citation fields also appear on `result.citation`. CLI, MCP, and
+desktop JSON flatten the same keys onto the result object — there is no nested
+`citation` field in those payloads.
+
 Scores rank results within a search. They are not probabilities or confidence
 values, and scores from different queries or modes should not be compared as
 though they share one scale.

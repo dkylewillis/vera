@@ -140,7 +140,8 @@ commands write or replace local files and require normal user authorization:
   `--ocr-language`, and `--ocr-dpi` remain compatibility aliases (Docling does
   not receive overlap/DPI or the Tesseract `--ocr-language` alias). English OCR
   is bundled in `vera-ingest-pymupdf`;
-  other languages require installed Tesseract language data.
+  other languages use `vera ocr-languages download`, `--ocr-allow-download`,
+  or a manual `TESSDATA_PREFIX` install.
   The packaged desktop app can also run extra ingest plugins from a trusted
   dedicated plugin venv (not the workspace `.venv`) after `python -m pip
   install` or `python -m pip install -e <clone>` of `vera-ingest` 0.3.x plus

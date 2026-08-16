@@ -7,6 +7,7 @@ inward toward the storage and search engine:
 
 ```text
 vera-ingest-pymupdf ─┐
+vera-ingest-docling ─┤
 vera-ingest ─────────┼──> vera-doc
 vera-cli ────────────┤
 vera-app ────────────┤
@@ -67,6 +68,14 @@ and do not change the 0.2 archive schema.
 - mapping pages, regions, figures, and provenance to chunk metadata.
 
 `vera-cli` and `vera-app` depend on it so conversion works out of the box.
+
+### `vera-ingest-docling`
+
+`vera-ingest-docling` is an optional plugin that registers `docling` /
+`docling:hybrid`. It is not part of the base install or the packaged desktop
+sidecar. Extra ingest plugins in the desktop app run through a validated
+external Python environment. See
+[vera-ingest-docling](packages/vera-ingest-docling.md).
 
 ### `vera-cli`
 

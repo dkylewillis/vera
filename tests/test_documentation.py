@@ -175,6 +175,8 @@ def test_documented_cli_examples_parse():
         ["validate", "output.vera", "--json"],
         ["export", "output.vera", "exports", "--json"],
         ["eval", "output.vera", "queries.json", "--mode", "all", "--top-k", "5", "--json"],
+        ["ocr-languages", "list", "--json"],
+        ["ocr-languages", "download", "fra", "--json"],
         ["mcp"],
     ]
     for argv in examples:
@@ -536,3 +538,42 @@ def test_agents_and_skill_document_convert_json_on_failure():
     skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
     assert "failed `convert`" in agents
     assert "failed `convert`" in skill
+
+
+def test_operational_docs_cover_recent_public_interfaces():
+    """Keep troubleshooting and API guides aligned with convert/search/lab code."""
+    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
+    getting_started = (DOCS / "getting-started.md").read_text(encoding="utf-8")
+    examples = (DOCS / "examples.md").read_text(encoding="utf-8")
+    conversion = (DOCS / "conversion.md").read_text(encoding="utf-8")
+    searching = (DOCS / "searching.md").read_text(encoding="utf-8")
+    python_api = (DOCS / "python-api.md").read_text(encoding="utf-8")
+    cli_reference = CLI_REFERENCE.read_text(encoding="utf-8")
+    lab = (DOCS / "packages" / "vera-lab.md").read_text(encoding="utf-8")
+    packages_index = (DOCS / "packages" / "index.md").read_text(encoding="utf-8")
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
+
+    assert "falls back to hashing" not in troubleshooting
+    assert "UnknownEmbeddingModelError" in troubleshooting
+    assert "skipped_semantic_model_groups" in troubleshooting
+    assert "vera ocr-languages" in troubleshooting
+    assert "VERA_TESSDATA_CACHE" in troubleshooting
+    assert "Original source document is not stored" in troubleshooting
+    assert "`--parser` is ignored for `.vera` inputs" in troubleshooting
+
+    assert "vera ocr-languages" in getting_started
+    assert "vera ocr-languages" in examples
+    assert "vera ocr-languages list" in conversion
+    assert "ocr-languages download" in cli_reference
+    assert "exits 2" in cli_reference
+
+    assert "result.citation" in searching
+    assert "no nested" in searching and "`citation`" in searching
+    assert "`format_metadata()`" in python_api
+    assert "`iter_raw_chunks()`" in python_api
+
+    assert "--store-original false" in lab
+    assert "vera-lab (dev only)" in packages_index
+    assert "ocr-languages list" in agents
+    assert "ocr-languages download" in skill

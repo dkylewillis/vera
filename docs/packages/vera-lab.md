@@ -39,14 +39,28 @@ Useful flags:
 
 | Flag | Purpose |
 |------|---------|
-| `--parser SPEC` | Ingest pipeline `provider[:variant]` (repeat to compare) |
-| `--pipeline-option KEY=VALUE` | Provider-owned settings (repeatable) |
+| `--parser SPEC` | Ingest pipeline `provider[:variant]` (repeat to compare). Ignored for `.vera` archives. Default: `pymupdf` |
+| `--pipeline-option KEY=VALUE` | Provider-owned settings (repeatable; live PDF mode only) |
+| `-o` / `--output` | HTML path (default: `vera-lab-report.html`) |
 | `--dpi N` | Page rasterization DPI (default 96) |
 | `--pages 1-5,8` | Page selection |
 | `--max-pages N` | Cap rasterized pages (default 25) |
 
 Open the HTML file in a browser. Use the Blocks / Chunks / Figures checkboxes
-and click an overlay or list row to inspect details.
+and click an overlay or list row to inspect details. Success prints the output
+path; failures print `vera-lab: ...` to stderr and exit 1.
+
+## Constraints
+
+- Live PDF mode runs the selected pipeline only. It does not compute embeddings
+  or write a `.vera` archive.
+- Archive mode requires an embedded source PDF. Archives created with
+  `--store-original false` fail with "Original source document is not stored
+  in this archive".
+- `--parser` is ignored for `.vera` inputs. Compare two pipelines by passing
+  a PDF and repeating `--parser`.
+- Rasterization stops at `--max-pages` (default 25) unless `--pages` names a
+  smaller set. Large manuals need an explicit page range.
 
 ## What the lint checks
 
