@@ -71,7 +71,9 @@ configuring the system. Other
 selected languages either require `--ocr-allow-download` (or the
 `ocr_download` pipeline option) to fetch curated language data into a local
 cache, or a manually installed `.traineddata` file with `TESSDATA_PREFIX`
-set. Codes match Tesseract's language list (for example `spa`, not `es`).
+set. Preview the registry and cache with `vera ocr-languages list` and fetch
+packs ahead of time with `vera ocr-languages download fra`. Codes match
+Tesseract's language list (for example `spa`, not `es`).
 OCR failures name the page and language and preserve any existing destination.
 
 OCR text is stored as ordinary paragraph blocks with page bounding boxes, so

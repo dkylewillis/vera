@@ -62,8 +62,9 @@ match.
 
 ## A neural-model archive fails to search
 
-Archives record the embedding model used during conversion. Install the
-optional machine-learning dependency:
+Archives record the embedding model used during conversion. Search must load
+that same provider to embed the query. Install the optional machine-learning
+dependency when the archive used Sentence Transformers:
 
 ```bash
 python -m pip install "vera-doc[ml]"
@@ -72,9 +73,15 @@ python -m pip install "vera-doc[ml]"
 The required Sentence Transformers model may also need to be available in the
 runtime environment. The default hashing model does not require this extra.
 
-An unrecognized model name falls back to hashing but is retained in
-archive metadata. If a custom name was used accidentally, reconvert with
-`--model hashing` or a supported Sentence Transformers name.
+Unknown model or provider names raise `UnknownEmbeddingModelError` at convert
+time and never create hashing vectors under a different name. If a custom name
+was used accidentally, reconvert with `--model hashing` or a supported
+`provider:model-id` spec.
+
+An archive already written with a model that is not installed in the current
+environment cannot be searched semantically until that provider is available.
+Indexed directory search still returns keyword hits and reports the omitted
+group in `skipped_semantic_model_groups`.
 
 ## Validation fails because the original is missing
 
@@ -157,10 +164,23 @@ vera convert "scan.pdf" "scan.vera" \
   --pipeline-option ocr_dpi=300
 ```
 
-If an English error says the bundled model is missing, reinstall VERA. Languages
-other than `eng` are not bundled: install the requested `.traineddata` file and
-set `TESSDATA_PREFIX` to its containing directory. `--ocr-language` accepts
-Tesseract language codes such as `deu` or `eng+spa`.
+If an English error says the bundled model is missing, reinstall VERA.
+
+Languages other than `eng` are not bundled. Prefer the curated download
+workflow:
+
+```bash
+vera ocr-languages list --json
+vera ocr-languages download fra --json
+vera convert "scan.pdf" "scan.vera" --ocr-language fra
+```
+
+`--ocr-allow-download` fetches the same checksum-verified registry during
+convert. Override the cache with `VERA_TESSDATA_CACHE` (default
+`~/.cache/vera/tessdata` on Linux, `%LOCALAPPDATA%\vera\tessdata` on Windows).
+Codes outside the registry still need a manually installed `.traineddata` file
+and `TESSDATA_PREFIX`. `--ocr-language` accepts Tesseract codes such as `deu`
+or `eng+spa`.
 
 An OCR pass can still produce no searchable text when the scan is blank,
 low-resolution, handwritten, or mostly diagrams. VERA's selective OCR targets
@@ -228,12 +248,38 @@ file on later opens instead of extracting and re-hashing the embedded
 original. If the load still exceeds five minutes, cancel it from the viewer
 close control and keep the matching PDF beside the archive.
 
+## Search skips a semantic model group
+
+Indexed hybrid or semantic search can return keyword hits while omitting one
+embedding space. Inspect `skipped_semantic_model_groups` in the JSON report
+(or the `Warning: skipped semantic model group` lines in text output). Each
+entry names the model, indexed dimension, and load or dimension error.
+
+Install the missing provider in the process that embeds the query (CLI
+environment, desktop sidecar, or validated plugin host). Keyword results from
+the same search remain usable.
+
+## vera-lab cannot open an archive
+
+`vera-lab` is a contributor tool (workspace `dev` extra), not part of the
+shipped CLI. Archive mode rasterizes the embedded source PDF. Archives created
+with `--store-original false` fail with "Original source document is not stored
+in this archive". Reconvert with the default `--store-original true`, or run
+the lab against the source PDF instead.
+
+`--parser` is ignored for `.vera` inputs; it only selects live pipelines when
+the source is a PDF. Live mode does not write embeddings or an archive.
+Success prints the HTML path; failures print `vera-lab: ...` to stderr and
+exit 1.
+
 ## JSON parsing fails on a nonzero exit
 
 Check the command:
 
 - `validate`, `index status`, `eval`, and failed `export` can return structured
   JSON with exit status 1;
+- `ocr-languages download` returns structured JSON with exit status 2 for an
+  unknown or unregistered code;
 - most path, dependency, and runtime failures write unstructured errors to
   stderr.
 

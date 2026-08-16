@@ -204,7 +204,9 @@ Do not assume nonzero output is unstructured:
 - `validate` returns a report when the archive is invalid;
 - `index status` returns a report when the index is stale or missing;
 - `eval` returns a report when a query misses;
-- `export` returns an error object when no source is stored.
+- `export` returns an error object when no source is stored;
+- `ocr-languages download` returns `{"ok": false, "error": "..."}` and exits 2
+  for an unknown or unregistered code.
 
 Other path, dependency, and runtime failures generally write an unstructured
 error or traceback to stderr. Check the exit status and command-specific

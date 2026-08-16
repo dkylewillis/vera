@@ -33,6 +33,11 @@ vera-lab manual.vera -o archive.html
 Open the HTML file in a browser. Toggle Blocks / Chunks / Figures layers and
 click overlays to inspect details.
 
+Constraints: live mode does not write embeddings or an archive; archive mode
+needs an embedded source PDF (`--store-original` defaults to true);
+`--parser` is ignored for `.vera` inputs. Success prints the HTML path and
+exit 0; failures print `vera-lab: ...` to stderr and exit 1.
+
 ## API
 
 ```python

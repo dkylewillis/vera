@@ -56,6 +56,7 @@ point inward at the storage engine:
 
 ```text
 vera-ingest-pymupdf ─┐
+vera-ingest-docling ─┤
 vera-ingest ─────────┼──> vera-doc
 vera-cli ────────────┤
 vera-app ────────────┤
@@ -66,6 +67,7 @@ vera-lab (dev only) ─┘
 - Storage/search: `packages/vera-doc/src/vera_doc`
 - Ingest core: `packages/vera-ingest/src/vera_ingest`
 - Default PDF pipeline: `packages/vera-ingest-pymupdf/src/vera_ingest_pymupdf`
+- Optional Docling pipeline: `packages/vera-ingest-docling/src/vera_ingest_docling`
 - MCP: `packages/vera-mcp/src/vera_mcp`
 - CLI: `packages/vera-cli/src/vera_cli`
 - Ingest layout lab (dev): `packages/vera-lab/src/vera_lab`

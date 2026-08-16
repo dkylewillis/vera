@@ -23,7 +23,16 @@ vera search "scanned-manual.vera" "emergency shutdown procedure" --json --region
 ```
 
 Use `--ocr force` only when automatic detection misses a scanned page.
-English language data is bundled; other selected languages must be installed.
+English language data is bundled. For another Tesseract language:
+
+```bash
+vera ocr-languages list fra --json
+vera ocr-languages download fra --json
+vera convert "scanned-manual.pdf" "scanned-manual.vera" --ocr-language fra
+```
+
+`--ocr-allow-download` fetches the same curated pack during convert. Codes
+outside the registry still need a manual `TESSDATA_PREFIX` install.
 
 ## Get JSON with surrounding context
 

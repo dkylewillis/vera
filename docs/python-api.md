@@ -204,6 +204,24 @@ dimension, archive byte size, record counts, and integrity results are
 available through `inspect()` and `validate()`. Ingest-created archives also
 expose parser, chunking, and OCR diagnostics through their metadata.
 
+Library indexing uses two bulk-read helpers that avoid constructing
+`ChunkRecord` objects and do not load attachments:
+
+```python
+with VeraDocument.open("manual.vera") as document:
+    header = document.format_metadata()
+    for row in document.iter_raw_chunks():
+        chunk_id = row["chunk_id"]
+        text = row["text"]
+        model_name = row["model_name"]
+        dimension = row["model_dimension"]
+        vector = row["vector"]
+```
+
+`format_metadata()` returns the `vera_metadata` key/value header. Each
+`iter_raw_chunks()` row includes `chunk_id`, `text`, `metadata_json`,
+`model_name`, `model_dimension`, and raw `vector` bytes.
+
 ## PDF extraction
 
 Conversion is not part of `vera-doc`:

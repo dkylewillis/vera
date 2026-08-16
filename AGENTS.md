@@ -55,6 +55,10 @@ vera convert manual.pdf manual.vera --json
 
 # Batch-convert a nested PDF library beside its source files
 vera convert ./proposals --recursive --json
+
+# List or fetch curated Tesseract OCR language data (non-English)
+vera ocr-languages list --json
+vera ocr-languages download fra --json
 ```
 
 Conversion selectively OCRs image-based low-text pages through the default

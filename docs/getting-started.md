@@ -92,9 +92,10 @@ VERA validates the completed archive before publishing it. Image-based pages
 with little or no native text are OCR-processed locally by default via
 `vera-ingest-pymupdf`. English language data is bundled, so default OCR works
 offline without another installation. Selecting another language with
-`--ocr-language` requires its Tesseract data. Use `--ocr off` to disable
-recognition or `--ocr force` to process every page. A failed conversion does
-not replace an existing destination.
+`--ocr-language` requires its Tesseract data — list or fetch curated packs
+with `vera ocr-languages`, or pass `--ocr-allow-download` during convert. Use
+`--ocr off` to disable recognition or `--ocr force` to process every page. A
+failed conversion does not replace an existing destination.
 
 ## Inspect and validate
 

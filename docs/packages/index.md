@@ -21,7 +21,8 @@ vera-ingest-pymupdf ──> vera-ingest ─┐
 vera-ingest-docling ──> vera-ingest ─┤
 vera-cli ─────────────────────────────┼──> vera-doc
 vera-app ─────────────────────────────┤
-vera-mcp ─────────────────────────────┘
+vera-mcp ─────────────────────────────┤
+vera-lab (dev only) ──────────────────┘
 ```
 
 `vera-doc` is the storage and retrieval foundation. The other packages compose
