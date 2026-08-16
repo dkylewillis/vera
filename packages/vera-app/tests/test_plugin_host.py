@@ -258,3 +258,45 @@ def test_plugin_host_stdio_malformed_request():
         proc.stdin.close()
         proc.terminate()
         proc.wait(timeout=5)
+
+
+def test_plugin_host_embed_rejects_empty_or_missing_texts():
+    empty = handle({"id": "embed", "action": "embed", "model": "hashing", "texts": []})
+    assert empty["ok"] is False
+    assert "texts" in empty["error"]
+    missing = handle({"id": "embed", "action": "embed", "model": "hashing"})
+    assert missing["ok"] is False
+    assert "texts" in missing["error"]
+
+
+def test_plugin_host_list_embedding_models_requires_provider():
+    missing = handle({"id": "models", "action": "list_embedding_models"})
+    assert missing["ok"] is False
+    assert "provider is required" in missing["error"]
+    hashing = handle({"id": "models", "action": "list_embedding_models", "provider": "hashing"})
+    assert hashing["ok"] is True, hashing
+    assert hashing["result"]["provider"] == "hashing"
+    assert hashing["result"]["models"]
+
+
+def test_plugin_host_preflight_hashing():
+    response = handle({"id": "pf", "action": "preflight_embedder", "model": "hashing"})
+    assert response["ok"] is True, response
+    assert response["result"]["ok"] is True
+
+
+def test_plugin_host_embed_honors_cancel():
+    cancel = CancellationToken()
+    cancel.cancel()
+    response = handle(
+        {
+            "id": "embed",
+            "action": "embed",
+            "model": "hashing",
+            "texts": ["stormwater detention"],
+        },
+        cancel=cancel,
+    )
+    assert response["ok"] is False
+    assert response.get("cancelled") is True
+    assert "Embedding cancelled" in response["error"]

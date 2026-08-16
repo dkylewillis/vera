@@ -28,3 +28,22 @@ class TestRanking:
     def test_reciprocal_rank_fusion_prefers_shared_ranks(self):
         fused = reciprocal_rank_fusion([["a", "b"], ["b", "c"]])
         assert [item for item, _ in fused][0] == "b"
+
+    def test_normalize_scores_empty_and_constant(self):
+        assert normalize_scores({}) == {}
+        assert normalize_scores({"a": 3.0, "b": 3.0}) == {"a": 1.0, "b": 1.0}
+
+    def test_combine_hybrid_scores_includes_disjoint_ids(self):
+        combined = combine_hybrid_scores({"a": 1.0}, {"b": 1.0})
+        assert set(combined) == {"a", "b"}
+        assert combined["a"] == pytest.approx(0.5)
+        assert combined["b"] == pytest.approx(0.5)
+
+    def test_combine_hybrid_scores_rejects_non_positive_weights(self):
+        with pytest.raises(ValueError, match="positive"):
+            combine_hybrid_scores({"a": 1.0}, {"a": 1.0}, semantic_weight=0.0, keyword_weight=0.0)
+
+    def test_reciprocal_rank_fusion_empty_and_stable_tie_break(self):
+        assert reciprocal_rank_fusion([]) == []
+        fused = reciprocal_rank_fusion([["b", "a"], ["a", "b"]])
+        assert [item for item, _ in fused] == ["a", "b"]

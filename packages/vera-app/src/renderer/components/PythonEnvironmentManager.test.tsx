@@ -156,4 +156,32 @@ describe('PythonEnvironmentManager', () => {
     expect(html).toContain('Checking the Python environment');
     expect(html).not.toContain('timed out');
   });
+
+  it('omits discovered embedders that are not installed', () => {
+    const html = renderToStaticMarkup(
+      <PythonEnvironmentManager
+        config={config}
+        status={{
+          ok: true,
+          python_version: '3.12.3',
+          vera_ingest_version: '0.3.0',
+          embedders: [{
+            provider: 'openai',
+            label: 'OpenAI',
+            description: '',
+            installed: false,
+            fields: [],
+            source: 'external',
+          }],
+        }}
+        busy={false}
+        onConfigChange={() => undefined}
+        onPick={() => undefined}
+        onValidate={() => undefined}
+        onRefresh={() => undefined}
+      />,
+    );
+    expect(html).toContain('No extra embedding plugins found');
+    expect(html).not.toContain('Embedders: openai');
+  });
 });
