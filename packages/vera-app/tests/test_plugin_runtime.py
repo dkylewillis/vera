@@ -302,9 +302,7 @@ def test_plugin_host_client_ping_and_embed():
 
 
 def test_runtime_rejects_missing_and_incompatible_ingest_versions():
-    missing = plugin_host_compatibility_error(
-        {"protocol": PLUGIN_HOST_PROTOCOL, "plugin_api": 1}
-    )
+    missing = plugin_host_compatibility_error({"protocol": PLUGIN_HOST_PROTOCOL, "plugin_api": 1})
     assert missing is not None
     assert "vera-ingest version" in missing
     wrong_minor = plugin_host_compatibility_error(
@@ -327,7 +325,9 @@ def test_descriptors_from_result_falls_back_for_bundled_and_skips_junk():
     assert bundled[0]["source"] == "bundled"
     assert descriptors_from_result(None, "external") == []
     assert descriptors_from_result({"pipelines": [None, "x", {}]}, "external") == []
-    assert normalize_pipeline_descriptor({"provider": "Docling"}, "external")["provider"] == "docling"
+    assert (
+        normalize_pipeline_descriptor({"provider": "Docling"}, "external")["provider"] == "docling"
+    )
     assert normalize_pipeline_descriptor({}, "external") is None
 
 
@@ -426,9 +426,7 @@ class _ScriptedHost:
         raise PluginHostError(f"unexpected {action}")
 
 
-def test_configure_disabled_or_incomplete_does_not_start_host(
-    isolated_plugin_runtime, monkeypatch
-):
+def test_configure_disabled_or_incomplete_does_not_start_host(isolated_plugin_runtime, monkeypatch):
     host = _ScriptedHost()
     monkeypatch.setattr(plugin_runtime, "_host", host)
     disabled = plugin_runtime.configure({"enabled": False, "executable": "/venv/bin/python"})
