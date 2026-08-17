@@ -79,7 +79,11 @@ the Convert view. Right-click a folder in Explorer and choose **Convert PDFs…*
 to open directory conversion for that folder. To rebuild an existing archive with a different ingest
 pipeline or embedding model, right-click the `.vera` file in Explorer and
 choose **Reconvert…**; Convert opens immediately with a preparing status while
-the archive is read, then prefills the current settings and turns overwrite on.
+the archive is read, then prefills the current pipeline, embedding, and OCR
+settings and turns overwrite on. If inspect fails and no sibling PDF is
+listed, Reconvert does not export an embedded original and shows **Could not
+read archive metadata**. Place the matching `.pdf` next to the archive, or
+export the original from Document Info once the archive is readable.
 In Explorer, click a file to select it, Ctrl/Cmd+click to add or remove it, and
 Shift+click to select a range. The checkbox next to a file adds or removes that
 row from the same list — unchecking it deselects it, and the highlight and the
@@ -135,8 +139,10 @@ rather than treating the folder as unindexed.
 
 Parent and empty folders can also be activated as libraries. Nested `.vera`
 files are discovered recursively when there is no saved index configuration.
-A folder with no `.vera` files remains active and watched; Search and Ask
-report that nothing is searchable until archives are present.
+Explorer lists `.vera` and `.pdf` files up to 32 directory levels below a
+library root (the root itself is depth 0). Deeper files are omitted from the
+tree. A folder with no `.vera` files remains active and watched; Search and
+Ask report that nothing is searchable until archives are present.
 
 ## Check or build the app
 

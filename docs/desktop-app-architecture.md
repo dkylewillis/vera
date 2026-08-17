@@ -22,19 +22,22 @@ Tauri remains a possible future optimization if app size becomes the dominant co
 
 ```text
 packages/
-  vera-doc/   # Python document engine and importable `vera_doc` package
-  vera-cli/   # terminal interface over vera-doc
-  vera-app/   # Electron desktop app plus Python sidecar
+  vera-doc/               # Python document engine (`vera_doc`)
+  vera-ingest/            # conversion registry and archive writer
+  vera-ingest-pymupdf/    # default PDF pipeline
+  vera-ingest-docling/    # Advanced layout pipeline
+  vera-cli/               # terminal interface
+  vera-app/               # Electron desktop app plus Python sidecar
 ```
 
 Dependency direction stays one-way:
 
 ```text
-vera-cli -> vera-doc
-vera-app -> vera-doc
+vera-cli -> vera-ingest-pymupdf -> vera-ingest -> vera-doc
+vera-app -> vera-ingest-pymupdf / vera-ingest-docling -> vera-ingest -> vera-doc
 ```
 
-`vera-app` should not shell out to `vera-cli` for normal product behavior. The CLI is a user interface; the app backend should call `vera-doc` directly.
+`vera-app` should not shell out to `vera-cli` for normal product behavior. The CLI is a user interface; the app backend should call `vera-doc` and ingest packages directly.
 
 ## Sidecar Protocol
 
@@ -192,9 +195,11 @@ the source pane; right-clicking a PDF also offers **Convert PDF** /
 **Convert PDFs** for the current selection (one or more files). Right-clicking a
 `.vera` archive offers **Reconvert…**, which opens Convert immediately with a
 preparing status (and footer activity) while the sibling PDF or embedded
-original is resolved. Overwrite is enabled and the archive's current parser and
-embedding are prefilled so they can be changed before replacing the archive. A
-second Reconvert click is ignored until that preparation finishes. The same menus can be opened from the keyboard with
+original is resolved. Overwrite is enabled and the archive's current parser,
+embedding, and OCR options are prefilled so they can be changed before replacing
+the archive. Reconvert skips exporting an embedded original when inspect fails
+and no sibling PDF is listed (**Could not read archive metadata**). A second
+Reconvert click is ignored until that preparation finishes. The same menus can be opened from the keyboard with
 Shift+F10 or the Menu key, support arrow key navigation, and close with
 Escape. Show-in-folder opens a library directory in the OS file manager, or
 reveals a selected `.vera`/`.pdf` file in its parent folder. Explorer restores
@@ -210,7 +215,9 @@ background; after completion, a warning badge opens the report when archives
 were skipped. Choosing **Search anyway** never blocks retrieval: the sidecar
 performs recursive fan-out search and the app keeps a slower-search banner
 visible. Watcher events and completed directory conversions update badges but
-never start a build automatically. Double-clicking a library folder activates
+never start a build automatically. Explorer walks 32 directory levels below a
+library root (`LIST_FOLDER_MAX_DEPTH`; the root itself is depth 0) and omits
+deeper `.vera` / `.pdf` files from the listing. Double-clicking a library folder activates
 it and opens its Library Info view, clearing any document preview while leaving
 the library available as the Search/Ask scope.
 
