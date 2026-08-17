@@ -17,7 +17,7 @@ export const EMBEDDING_MODEL_PRESETS: ConvertPresetOption[] = [
   },
   {
     value: 'sentence-transformers:all-MiniLM-L6-v2',
-    label: 'sentence-transformers:all-MiniLM-L6-v2',
+    label: 'Local semantic (MiniLM)',
     requiresProvider: 'sentence-transformers',
   },
 ];

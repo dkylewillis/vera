@@ -8,7 +8,8 @@ The Convert view is schema-driven: the sidecar `describe_ingest_pipelines`
 action returns pipeline descriptors, and `PipelineConfigForm` renders only the
 fields each pipeline advertises (so Docling omits overlap/DPI while PyMuPDF
 shows them). Source-run and packaged builds use one sidecar interpreter with
-PyMuPDF, Docling (**Advanced layout (slower)**), and hashing.
+PyMuPDF, Docling (**Advanced layout (slower)**), hashing, and Local semantic
+(MiniLM).
 
 See the [vera-app documentation](https://dkylewillis.github.io/vera/packages/vera-app/)
 for installation, user workflows, and architecture.

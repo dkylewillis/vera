@@ -315,9 +315,9 @@ export function ConvertPanel({
       ) : null}
       <p className="sideMuted">
         {embeddingProviders.includes('sentence-transformers')
-          ? 'Sentence Transformers is available. The conversion embedding model is independent of Chat.'
+          ? 'Local semantic (MiniLM) is bundled in the desktop app with weights in the installer, so first use does not download. Hashing stays the default. The conversion embedding model is independent of Chat.'
           : <>Sentence Transformers is not installed. From the repo root run <code>uv sync --extra ml</code> and restart the app. Hosted embedders ship in a later 0.3.1 release.</>}
-        {' '}Custom specs are saved when the field loses focus. The packaged app defaults to hashing.
+        {' '}Custom specs are saved when the field loses focus.
       </p>
       <label className="miniCheck">
         <input type="checkbox" checked={storeOriginal} onChange={(event) => onStoreOriginalChange(event.target.checked)} />

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PipelineDescriptor } from '../../shared/contracts';
 import {
   CUSTOM_EMBEDDING_VALUE,
+  EMBEDDING_MODEL_PRESETS,
   embeddingProviderFromSpec,
   embeddingSelectOptions,
   embeddingSelectValue,
@@ -52,6 +53,8 @@ describe('convertPresets', () => {
   it('treats hashing and MiniLM specs as known presets', () => {
     expect(isKnownEmbeddingPreset('hashing')).toBe(true);
     expect(isKnownEmbeddingPreset('sentence-transformers:all-MiniLM-L6-v2')).toBe(true);
+    expect(EMBEDDING_MODEL_PRESETS.find((item) => item.value === 'sentence-transformers:all-MiniLM-L6-v2')?.label)
+      .toBe('Local semantic (MiniLM)');
     expect(isKnownEmbeddingPreset('openai:text-embedding-3-small')).toBe(false);
   });
 
