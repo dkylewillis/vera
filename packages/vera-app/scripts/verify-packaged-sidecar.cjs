@@ -13,14 +13,46 @@ if (!fs.existsSync(sidecarPath)) {
   process.exit(1);
 }
 
+function minilmCandidates(sidecarExe) {
+  const sidecarDir = path.dirname(sidecarExe);
+  return [
+    path.join(sidecarDir, "sentence_transformers_models", "all-MiniLM-L6-v2"),
+    path.join(sidecarDir, "_internal", "sentence_transformers_models", "all-MiniLM-L6-v2"),
+  ];
+}
+
+function findBundledMinilm(sidecarExe) {
+  const required = ["config.json", "modules.json", "model.safetensors", "tokenizer.json"];
+  for (const candidate of minilmCandidates(sidecarExe)) {
+    if (required.every((name) => fs.existsSync(path.join(candidate, name)))) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+const minilmPath = findBundledMinilm(sidecarPath);
+if (!minilmPath) {
+  console.error(
+    "Packaged sidecar is missing vendored MiniLM weights. Looked in:\n  "
+      + minilmCandidates(sidecarPath).join("\n  "),
+  );
+  process.exit(1);
+}
+
 const child = spawn(sidecarPath, [], {
   cwd: path.dirname(sidecarPath),
   stdio: ["pipe", "pipe", "inherit"],
   windowsHide: true,
+  env: {
+    ...process.env,
+    VERA_SENTENCE_TRANSFORMERS_HOME: path.dirname(minilmPath),
+  },
 });
 
 let buffer = "";
 let settled = false;
+const pending = new Map();
 
 function finish(code, message) {
   if (settled) return;
@@ -31,7 +63,7 @@ function finish(code, message) {
 }
 
 const timer = setTimeout(() => {
-  finish(1, "Timed out waiting for describe_ingest_pipelines");
+  finish(1, "Timed out waiting for packaged sidecar describe checks");
 }, 60_000);
 
 child.on("error", (error) => {
@@ -46,6 +78,13 @@ child.on("exit", (code) => {
   }
 });
 
+function send(id, action) {
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    child.stdin.write(`${JSON.stringify({ id, action })}\n`);
+  });
+}
+
 child.stdout.setEncoding("utf8");
 child.stdout.on("data", (chunk) => {
   buffer += chunk;
@@ -59,24 +98,46 @@ child.stdout.on("data", (chunk) => {
     } catch {
       continue;
     }
-    if (payload.id !== "describe-1") continue;
-    clearTimeout(timer);
-    if (!payload.ok) {
-      finish(1, payload.error || "describe_ingest_pipelines failed");
-      return;
-    }
-    const providers = (payload.result?.pipelines || []).map((item) => item.provider || item.spec);
-    const missing = ["pymupdf", "docling"].filter((name) => !providers.includes(name));
-    if (missing.length) {
-      finish(1, `Sidecar omitted ingest providers: ${missing.join(", ")} (got ${providers.join(", ") || "none"})`);
-      return;
-    }
-    console.log(JSON.stringify({
-      sidecar: sidecarPath,
-      providers,
-    }, null, 2));
-    finish(0);
+    const waiter = pending.get(payload.id);
+    if (!waiter) continue;
+    pending.delete(payload.id);
+    waiter.resolve(payload);
   }
 });
 
-child.stdin.write(`${JSON.stringify({ id: "describe-1", action: "describe_ingest_pipelines" })}\n`);
+(async () => {
+  const pipelines = await send("describe-1", "describe_ingest_pipelines");
+  if (!pipelines.ok) {
+    finish(1, pipelines.error || "describe_ingest_pipelines failed");
+    return;
+  }
+  const providers = (pipelines.result?.pipelines || []).map((item) => item.provider || item.spec);
+  const missingPipelines = ["pymupdf", "docling"].filter((name) => !providers.includes(name));
+  if (missingPipelines.length) {
+    finish(1, `Sidecar omitted ingest providers: ${missingPipelines.join(", ")} (got ${providers.join(", ") || "none"})`);
+    return;
+  }
+
+  const embedders = await send("describe-2", "describe_embedding_providers");
+  if (!embedders.ok) {
+    finish(1, embedders.error || "describe_embedding_providers failed");
+    return;
+  }
+  const embedderNames = (embedders.result?.providers || []).map((item) => item.provider);
+  if (!embedderNames.includes("sentence-transformers")) {
+    finish(1, `Sidecar omitted sentence-transformers (got ${embedderNames.join(", ") || "none"})`);
+    return;
+  }
+
+  console.log(JSON.stringify({
+    sidecar: sidecarPath,
+    providers,
+    embedders: embedderNames,
+    minilm: minilmPath,
+  }, null, 2));
+  clearTimeout(timer);
+  finish(0);
+})().catch((error) => {
+  clearTimeout(timer);
+  finish(1, error instanceof Error ? error.message : String(error));
+});

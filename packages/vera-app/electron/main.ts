@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, safeStorage, shell } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
-import { basename, delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
   AppSettings,
@@ -182,6 +182,18 @@ function packagedSidecarExecutable(): string {
   return join(dir, fallback);
 }
 
+function sentenceTransformersHome(): string | undefined {
+  const fromEnv = process.env.VERA_SENTENCE_TRANSFORMERS_HOME?.trim();
+  if (fromEnv && existsSync(fromEnv)) return fromEnv;
+  if (!app.isPackaged) return fromEnv || undefined;
+  const sidecarDir = dirname(packagedSidecarExecutable());
+  const candidates = [
+    join(sidecarDir, 'sentence_transformers_models'),
+    join(sidecarDir, '_internal', 'sentence_transformers_models'),
+  ];
+  return candidates.find((candidate) => existsSync(candidate));
+}
+
 class PythonSidecar {
   private child: ChildProcessWithoutNullStreams | null = null;
   private pending = new Map<string, {
@@ -294,6 +306,8 @@ class PythonSidecar {
     applyEmbedderSecretEnv(env);
     env.DOCLING_ARTIFACTS_PATH = (env.DOCLING_ARTIFACTS_PATH || '').trim() || doclingArtifactsPath();
     mkdirSync(env.DOCLING_ARTIFACTS_PATH, { recursive: true });
+    const minilmHome = sentenceTransformersHome();
+    if (minilmHome) env.VERA_SENTENCE_TRANSFORMERS_HOME = minilmHome;
     const executable = app.isPackaged ? packagedSidecarExecutable() : resolveDevPython();
     const args = app.isPackaged ? [] : ['-m', 'vera_app.sidecar'];
     if (!app.isPackaged) {

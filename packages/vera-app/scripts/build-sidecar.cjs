@@ -5,6 +5,8 @@ const path = require("path");
 const appDir = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(appDir, "..", "..");
 const tessdata = path.join(repoRoot, "packages", "vera-ingest-pymupdf", "src", "vera_ingest_pymupdf", "tessdata");
+const minilmDir = path.join(appDir, "build", "minilm", "all-MiniLM-L6-v2");
+const vendorMinilm = path.join(appDir, "scripts", "vendor_minilm.py");
 const entry = path.join("src", "vera_app", "sidecar.py");
 const hooksDir = path.join(appDir, "scripts", "hooks");
 const workpath = path.join(appDir, "build", "pyinstaller");
@@ -17,6 +19,8 @@ const pyinstallerArgs = [
   "--onedir",
   "--add-data",
   `${tessdata}${path.delimiter}vera_ingest_pymupdf/tessdata`,
+  "--add-data",
+  `${minilmDir}${path.delimiter}sentence_transformers_models/all-MiniLM-L6-v2`,
   "--additional-hooks-dir",
   hooksDir,
   // Keep dist-info so importlib.metadata can still see vera.ingest_pipelines
@@ -27,10 +31,14 @@ const pyinstallerArgs = [
   "vera-ingest",
   "--copy-metadata",
   "vera-ingest-docling",
+  "--copy-metadata",
+  "sentence-transformers",
   "--hidden-import",
   "vera_ingest_pymupdf",
   "--hidden-import",
   "vera_ingest_docling",
+  "--hidden-import",
+  "sentence_transformers",
   "--collect-all",
   "docling",
   "--collect-all",
@@ -43,9 +51,7 @@ const pyinstallerArgs = [
   "pypdfium2",
   "--collect-all",
   "torch",
-  // Sentence Transformers is a separate embedder decision and must not land
-  // in packaged sidecars even when the build venv has `--extra ml`.
-  "--exclude-module",
+  "--collect-all",
   "sentence_transformers",
   "--name",
   "vera-sidecar",
@@ -80,6 +86,7 @@ const CRITICAL_MISSING_PREFIXES = [
   "onnxruntime",
   "torch",
   "pypdfium2",
+  "sentence_transformers",
 ];
 
 function venvPython() {
@@ -140,6 +147,41 @@ if (!fs.existsSync(tessdata)) {
 }
 
 const python = venvPython();
+
+function vendorMinilmWeights(pythonBin) {
+  console.log(`Vendoring MiniLM weights into ${minilmDir}`);
+  const result = spawnSync(pythonBin, [vendorMinilm, "--dest", minilmDir], {
+    cwd: repoRoot,
+    stdio: "inherit",
+    shell: false,
+    env,
+  });
+  if ((result.status ?? 1) !== 0) {
+    console.error("Failed to vendor all-MiniLM-L6-v2 weights for the sidecar freeze.");
+    process.exit(result.status ?? 1);
+  }
+  const required = ["config.json", "modules.json", "model.safetensors", "tokenizer.json"];
+  const missing = required.filter((name) => !fs.existsSync(path.join(minilmDir, name)));
+  if (missing.length) {
+    console.error(`MiniLM snapshot is incomplete in ${minilmDir}: missing ${missing.join(", ")}`);
+    process.exit(1);
+  }
+}
+
+if (python) {
+  vendorMinilmWeights(python);
+} else {
+  const uvVendor = spawnSync(
+    "uv",
+    ["run", "--project", repoRoot, "--extra", "ml", "python", vendorMinilm, "--dest", minilmDir],
+    { cwd: repoRoot, stdio: "inherit", shell: false, env },
+  );
+  if ((uvVendor.status ?? 1) !== 0) {
+    console.error("Failed to vendor all-MiniLM-L6-v2 weights for the sidecar freeze.");
+    process.exit(uvVendor.status ?? 1);
+  }
+}
+
 let result;
 if (python && hasPyInstaller(python)) {
   // Preferred: the project virtualenv directly. Avoids `uv run`, which installs
@@ -157,6 +199,8 @@ if (python && hasPyInstaller(python)) {
     "sidecar",
     "--extra",
     "docling",
+    "--extra",
+    "ml",
     "python",
     ...pyinstallerArgs,
   ];

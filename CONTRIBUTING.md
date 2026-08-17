@@ -38,7 +38,7 @@ Windows packaged-sidecar release gate (optional locally; CI runs it on `v*`
 tags):
 
 ```bash
-uv sync --extra app --extra sidecar --extra docling
+uv sync --extra app --extra sidecar --extra docling --extra ml
 npm --prefix packages/vera-app run build:sidecar
 node packages/vera-app/scripts/verify-packaged-sidecar.cjs
 ```

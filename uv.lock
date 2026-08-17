@@ -4653,6 +4653,7 @@ name = "vera-app"
 version = "0.3.0"
 source = { editable = "packages/vera-app" }
 dependencies = [
+    { name = "sentence-transformers" },
     { name = "vera-doc" },
     { name = "vera-ingest" },
     { name = "vera-ingest-docling" },
@@ -4661,6 +4662,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "sentence-transformers", specifier = ">=2.7" },
     { name = "vera-doc", editable = "packages/vera-doc" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
     { name = "vera-ingest-docling", editable = "packages/vera-ingest-docling" },
