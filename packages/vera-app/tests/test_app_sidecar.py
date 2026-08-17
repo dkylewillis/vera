@@ -714,6 +714,17 @@ def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):
     assert "ocr_language" not in captured["batch"]
 
 
+def test_sidecar_describe_includes_docling_when_package_importable():
+    pytest.importorskip("vera_ingest_docling")
+    described = handle({"id": "desc-docling", "action": "describe_ingest_pipelines"})
+    assert described["ok"] is True
+    providers = [item["provider"] for item in described["result"]["pipelines"]]
+    assert "pymupdf" in providers
+    assert "docling" in providers
+    docling = next(item for item in described["result"]["pipelines"] if item["provider"] == "docling")
+    assert "slower" in docling["label"].lower()
+
+
 def test_sidecar_default_ocr_language_is_not_forwarded_to_docling(monkeypatch):
     pytest.importorskip("vera_ingest_docling")
     from vera_ingest import (

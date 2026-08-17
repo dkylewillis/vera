@@ -121,10 +121,11 @@ def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
         provider="docling",
         variant="hybrid",
         spec="docling",
-        label="docling — HybridChunker",
+        label="Advanced layout (slower)",
         description=(
-            "Optional Docling DocumentConverter + HybridChunker ingest pipeline "
-            "with RapidOCR support."
+            "Docling DocumentConverter + HybridChunker with RapidOCR. Slower than "
+            "PyMuPDF; better tables, layout, and scanned pages. First use may "
+            "download model artifacts into DOCLING_ARTIFACTS_PATH."
         ),
         installed=_docling_runtime_available(),
         capabilities=PipelineCapabilities(
@@ -138,8 +139,8 @@ def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
         notes=(
             "Overlap is not applied by Docling HybridChunker.",
             "OCR language uses RapidOCR-native codes, not Tesseract's — 'en', not 'eng'.",
-            "First conversion may download Docling model artifacts; set DOCLING_ARTIFACTS_PATH for offline caches.",
+            "First conversion may download Docling model artifacts; the desktop app caches them under userData.",
             "On memory errors (bad_alloc), VERA retries failed pages then falls back to pypdfium2 automatically.",
-            "Install with: uv sync --extra docling",
+            "CLI install: pip install \"vera-cli[docling]>=0.3.0\" or uv sync --extra docling",
         ),
     )

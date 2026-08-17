@@ -17,6 +17,8 @@ const result = spawnSync(
     "app",
     "--extra",
     "ml",
+    "--extra",
+    "docling",
     npmBin,
     "--prefix",
     "packages/vera-app",

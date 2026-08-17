@@ -1,0 +1,47 @@
+name: Packaged sidecar release gate
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  windows-sidecar:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/vera-app/package-lock.json
+
+      - name: Sync sidecar build environment
+        run: uv sync --extra app --extra sidecar --extra docling
+
+      - name: Install app dependencies
+        run: npm --prefix packages/vera-app install
+
+      - name: Build frozen sidecar
+        env:
+          VERA_APP_PYTHON: ${{ github.workspace }}/.venv/Scripts/python.exe
+        run: npm --prefix packages/vera-app run build:sidecar
+
+      - name: Describe bundled ingest pipelines
+        run: node packages/vera-app/scripts/verify-packaged-sidecar.cjs
+
+      - name: Record sidecar size
+        shell: pwsh
+        run: |
+          $sidecar = Get-Item packages/vera-app/build/sidecar/vera-sidecar
+          $bytes = (Get-ChildItem $sidecar.FullName -Recurse -File | Measure-Object Length -Sum).Sum
+          Write-Output ("unpacked_sidecar_bytes=" + $bytes)

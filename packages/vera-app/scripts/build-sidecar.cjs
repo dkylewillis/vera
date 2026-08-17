@@ -6,6 +6,8 @@ const appDir = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(appDir, "..", "..");
 const tessdata = path.join(repoRoot, "packages", "vera-ingest-pymupdf", "src", "vera_ingest_pymupdf", "tessdata");
 const entry = path.join("src", "vera_app", "sidecar.py");
+const hooksDir = path.join(appDir, "scripts", "hooks");
+const workpath = path.join(appDir, "build", "pyinstaller");
 
 const pyinstallerArgs = [
   "-m",
@@ -15,25 +17,36 @@ const pyinstallerArgs = [
   "--onedir",
   "--add-data",
   `${tessdata}${path.delimiter}vera_ingest_pymupdf/tessdata`,
+  "--additional-hooks-dir",
+  hooksDir,
   // Keep dist-info so importlib.metadata can still see vera.ingest_pipelines
   // when the freeze does not rely solely on import-time registration.
   "--copy-metadata",
   "vera-ingest-pymupdf",
   "--copy-metadata",
   "vera-ingest",
+  "--copy-metadata",
+  "vera-ingest-docling",
   "--hidden-import",
   "vera_ingest_pymupdf",
-  // Keep optional ML stacks out of the freeze even when the build venv has
-  // `--extra ml`. Sentence Transformers is imported lazily and must not land
-  // in packaged sidecars.
-  "--exclude-module",
+  "--hidden-import",
+  "vera_ingest_docling",
+  "--collect-all",
+  "docling",
+  "--collect-all",
+  "docling_core",
+  "--collect-all",
+  "rapidocr",
+  "--collect-all",
+  "onnxruntime",
+  "--collect-all",
+  "pypdfium2",
+  "--collect-all",
   "torch",
-  "--exclude-module",
-  "torchgen",
+  // Sentence Transformers is a separate embedder decision and must not land
+  // in packaged sidecars even when the build venv has `--extra ml`.
   "--exclude-module",
   "sentence_transformers",
-  "--exclude-module",
-  "transformers",
   "--name",
   "vera-sidecar",
   "--distpath",
@@ -51,11 +64,23 @@ const sourcePaths = [
   path.join(repoRoot, "packages", "vera-doc", "src"),
   path.join(repoRoot, "packages", "vera-ingest", "src"),
   path.join(repoRoot, "packages", "vera-ingest-pymupdf", "src"),
+  path.join(repoRoot, "packages", "vera-ingest-docling", "src"),
 ];
 const env = {
   ...process.env,
   PYTHONPATH: [...sourcePaths, process.env.PYTHONPATH || ""].filter(Boolean).join(path.delimiter),
 };
+
+const CRITICAL_MISSING_PREFIXES = [
+  "vera_ingest_docling",
+  "vera_ingest_pymupdf",
+  "docling",
+  "docling_core",
+  "rapidocr",
+  "onnxruntime",
+  "torch",
+  "pypdfium2",
+];
 
 function venvPython() {
   const configured = process.env.VERA_SIDECAR_PYTHON || process.env.VERA_APP_PYTHON;
@@ -77,6 +102,38 @@ function run(command, args, label) {
   return spawnSync(command, args, { cwd: appDir, stdio: "inherit", shell: false, env });
 }
 
+function warnFilePath() {
+  return path.join(workpath, "warn-vera-sidecar.txt");
+}
+
+function missingModuleName(line) {
+  const match = line.match(/missing module named ['"]?([A-Za-z0-9_.]+)/i);
+  return match ? match[1] : null;
+}
+
+function isCriticalMissing(moduleName) {
+  return CRITICAL_MISSING_PREFIXES.includes(moduleName);
+}
+
+function failOnCriticalMissingImports() {
+  const warnPath = warnFilePath();
+  if (!fs.existsSync(warnPath)) {
+    console.error(`PyInstaller warning file missing: ${warnPath}`);
+    process.exit(1);
+  }
+  const critical = fs
+    .readFileSync(warnPath, "utf8")
+    .split(/\r?\n/)
+    .map((line) => missingModuleName(line))
+    .filter((name) => name && isCriticalMissing(name));
+  const unique = [...new Set(critical)].sort();
+  if (unique.length) {
+    console.error("Sidecar freeze is missing required imports:\n  " + unique.join("\n  "));
+    console.error(`See ${warnPath}`);
+    process.exit(1);
+  }
+}
+
 if (!fs.existsSync(tessdata)) {
   console.error(`Missing bundled OCR data: ${tessdata}`);
   process.exit(1);
@@ -90,7 +147,19 @@ if (python && hasPyInstaller(python)) {
   // rewrites their PE resources.
   result = run(python, pyinstallerArgs, python);
 } else {
-  const uvArgs = ["run", "--project", repoRoot, "--extra", "app", "--extra", "sidecar", "python", ...pyinstallerArgs];
+  const uvArgs = [
+    "run",
+    "--project",
+    repoRoot,
+    "--extra",
+    "app",
+    "--extra",
+    "sidecar",
+    "--extra",
+    "docling",
+    "python",
+    ...pyinstallerArgs,
+  ];
   result = run("uv", uvArgs, "uv run");
   if (result.error || (result.status ?? 1) !== 0) {
     console.error(
@@ -102,4 +171,9 @@ if (python && hasPyInstaller(python)) {
   }
 }
 
-process.exit(result.status ?? 1);
+if ((result.status ?? 1) !== 0) {
+  process.exit(result.status ?? 1);
+}
+
+failOnCriticalMissingImports();
+process.exit(0);
