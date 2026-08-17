@@ -11,20 +11,15 @@ python -m pip install "vera-ingest-docling>=0.3.0"
 ```
 
 From a repository checkout, `uv sync --extra docling` adds it to the
-workspace `.venv` (CLI and tests). The desktop plugin host should use a
-**separate** venv; install the checkout packages into that interpreter:
+workspace `.venv` (CLI, tests, and `app:dev`). Non-desktop users can also:
 
 ```bash
-python -m venv C:\venvs\vera-plugins
-C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\vera\packages\vera-doc
-C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\vera\packages\vera-ingest
-C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\vera\packages\vera-ingest-docling
-# optional, if Convert will use Sentence Transformers with Docling:
-C:\venvs\vera-plugins\Scripts\python.exe -m pip install "sentence-transformers>=2.7"
+pip install "vera-cli[docling]>=0.3.0"
 ```
 
-Then point **File > Settings → Python plugins** at that `python.exe` and
-Validate. See [External Python plugins](../desktop-app-getting-started.md#external-python-plugins).
+The packaged Windows app already freezes this pipeline into the sidecar.
+Sentence Transformers is a separate extra (`uv sync --extra ml`) and is not
+bundled in the installer.
 
 The package pins Docling to the current supported minor range with the
 `rapidocr` extra (RapidOCR + `onnxruntime`) and pulls a larger machine-learning
@@ -117,12 +112,9 @@ fidelity compared with `docling_parse`.
 
 ## Desktop app
 
-Source-run and packaged desktop conversions keep PyMuPDF in the sidecar. Select
-Docling in Convert after installing this package in a trusted external Python
-environment under **File > Settings → Python plugins**. Do not point that
-setting at the workspace `.venv`. A Docling convert embeds in the plugin
-host, so install `sentence-transformers` there if you select that model.
-Convert controls are schema-driven
+Source-run and packaged desktop conversions list Docling as **Advanced layout
+(slower)** beside PyMuPDF. First conversion may download model artifacts into
+the app-owned `DOCLING_ARTIFACTS_PATH` cache. Convert controls are schema-driven
 from Docling's pipeline descriptor (`describe_ingest_pipelines` /
 `PipelineConfigForm`), so overlap and OCR DPI controls are not shown.
 

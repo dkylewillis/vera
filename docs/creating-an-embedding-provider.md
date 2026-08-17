@@ -53,20 +53,14 @@ Archives store `model_name`, dimension, and normalization — not your
   separately; Options fields must stay non-secret.
 
 Use `preflight_embedder("openai:text-embedding-3-small")` to check that a
-required credential env var is present without loading model weights. The
-desktop app stores those secrets separately (File → Settings → Python plugins) and
-forwards them to the sidecar-owned plugin host. Options fields must stay
-non-secret.
+required credential env var is present without loading model weights. Official
+hosted embedding packages (OpenAI, Voyage, Ollama) and their Settings UI are
+0.3.1 follow-ups. Options fields must stay non-secret.
 
-Install the package in the same trusted external Python environment used for
-extra ingest plugins (`python -m pip install` or `python -m pip install -e
-<clone>`), then Validate / Refresh. Convert lists the provider as `(external)`.
-Use a dedicated plugin venv, not the workspace `.venv`. While 0.3.x is not
-on PyPI, install checkout `vera-doc` / `vera-ingest` first so the plugin's
-`vera-ingest>=0.3.0` requirement resolves. Bundled `hashing` and
-`sentence-transformers` win on duplicate names: the sidecar will not proxy
-its Sentence Transformers into a Docling convert, so install
-`sentence-transformers` in the plugin venv when the parser is external.
+Install the package in the same environment as VERA (`python -m pip install`
+or `python -m pip install -e <clone>`), then restart the app. Bundled
+`hashing` wins on duplicate names. Sentence Transformers is the workspace
+`ml` extra and is not frozen into the Windows sidecar.
 
 ## Minimal example (DIY hosted provider)
 

@@ -8,7 +8,7 @@ guide. Agents working in this repository should also read [AGENTS.md](AGENTS.md)
 Python 3.10+, dependencies managed with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv sync --extra dev --extra ml --extra app --extra mcp
+uv sync --extra dev --extra ml --extra app --extra mcp --extra docling
 ```
 
 The desktop app also needs Node.js 22+:
@@ -33,6 +33,15 @@ npm --prefix packages/vera-app run test:unit
 Retrieval quality is tracked with `vera eval` against the query sets in
 [examples](examples). Do not regress the baselines in the README when search
 behavior changes.
+
+Windows packaged-sidecar release gate (optional locally; CI runs it on `v*`
+tags):
+
+```bash
+uv sync --extra app --extra sidecar --extra docling
+npm --prefix packages/vera-app run build:sidecar
+node packages/vera-app/scripts/verify-packaged-sidecar.cjs
+```
 
 ## Formatting and blame
 

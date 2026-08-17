@@ -282,11 +282,13 @@ desktop app):
 vera convert "input.pdf" --parser pymupdf
 ```
 
-Install the optional Docling plugin for layout-aware HybridChunker output.
-The plugin depends on Docling's `rapidocr` extra so RapidOCR and
+Install the official Docling extra for layout-aware HybridChunker output.
+The package depends on Docling's `rapidocr` extra so RapidOCR and
 `onnxruntime` are available for OCR:
 
 ```bash
+pip install "vera-cli[docling]>=0.3.0"
+# or from a checkout:
 uv sync --extra docling
 # or: python -m pip install vera-ingest-docling
 vera convert "input.pdf" --parser docling
@@ -294,16 +296,13 @@ vera convert "input.pdf" --parser docling:hybrid
 ```
 
 Unknown pipeline names fail before parsing with an install-the-plugin message;
-VERA never silently falls back to PyMuPDF. The packaged desktop app can run
-extra pipelines and embedding providers from a trusted external Python
-environment (a dedicated venv, not the workspace `.venv`) after
-`python -m pip install` or `python -m pip install -e <clone>`
-and Validate under **File > Settings → Python plugins**. While 0.3.x is not
-on PyPI, install checkout `vera-doc` and `vera-ingest` first. Later launches re-probe that saved
-interpreter. Convert lists extra embedders as `(external)`, persists
-`embedder_options` / `embedder_configs`, and gates conversion on
-`preflight_embedder` so an archive is never written with a model Search cannot
-resolve. Embedder `credential_env` secrets stay in secure storage, not Options.
+VERA never silently falls back to PyMuPDF. The packaged desktop app bundles
+PyMuPDF and Docling in one sidecar. Extra pip plugins install into the same
+environment (`python -m pip install` or `python -m pip install -e <clone>`).
+Convert persists `embedder_options` / `embedder_configs` and gates conversion
+on `preflight_embedder` so an archive is never written with a model Search
+cannot resolve. Embedder `credential_env` secrets stay in the environment, not
+Options. Hosted embedding providers follow in 0.3.1.
 On Docling memory errors
 (`bad_alloc`), VERA retries failed pages with a fresh converter and falls back
 to the `pypdfium2` PDF backend when needed; conversion rejects only when that
@@ -324,9 +323,9 @@ Docling layout models run without `torch.compile` (so Windows does not need
 Visual Studio's `cl.exe`).
 
 First Docling conversion may download model artifacts. Set
-`DOCLING_ARTIFACTS_PATH` for a local cache. Desktop releases do not put
-Docling in the sidecar; select it in Convert after validating an external
-Python environment under **File > Settings → Python plugins**. The Convert UI is
+`DOCLING_ARTIFACTS_PATH` for a local cache; the desktop app uses an
+app-owned directory under Electron `userData`. Select **Advanced layout
+(slower)** in Convert. The Convert UI is
 schema-driven: the sidecar
 `describe_ingest_pipelines` action supplies descriptors, and
 `PipelineConfigForm` renders only the fields each pipeline advertises under a

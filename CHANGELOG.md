@@ -23,10 +23,11 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Pipeline descriptors for discovery and schema-driven UI:
   `describe_ingest_pipelines`, typed pipeline options, and the desktop
   Convert view's `PipelineConfigForm` / **Advanced pipeline options**.
-- Optional Docling plugin (`vera-ingest-docling`) registering
+- Official Docling converter (`vera-ingest-docling`) registering
   `docling` / `docling:hybrid`, with HybridChunker, RapidOCR, first-run
   model-download notes, and `pdf_backend` recovery on page-level memory
-  errors.
+  errors. The desktop sidecar and `vera-cli[docling]` extra both expose it;
+  Convert labels it **Advanced layout (slower)**.
 - Pluggable embedding providers through the `vera.embedders` entry-point
   group and `register_embedder()`. Model specs use `provider:model-id`
   (existing aliases still work).
@@ -39,19 +40,15 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   Options).
 - Desktop Convert view: persist the selected embedding model separately from
   Chat; show installed provider suggestions; hashing and MiniLM presets.
-- Packaged desktop app: opt-in external Python plugin runtime
-  (`vera_plugin_host`) so extra ingest and embedding plugins installed with
-  `pip` or `pip install -e` run without being frozen into the sidecar. The
-  sidecar owns the plugin host; Electron no longer talks to that worker
-  directly. Convert lists extra embedders as `(external)`, drives
-  `EmbedderConfigForm` from descriptors, persists `embedder_configs`, stores
-  `credential_env` secrets securely, and gates conversion on
-  `preflight_embedder`. Search reports `skipped_semantic_model_groups` when an
-  external embedder is unavailable. Packaged sidecar builds exclude `torch`,
-  `sentence_transformers`, and `transformers`. A saved interpreter is
-  re-probed on launch (up to two minutes) and Convert refreshes when that
-  probe succeeds. Validate does not show a previous timeout while a new probe
-  is still running.
+- Packaged desktop app: one frozen sidecar with PyMuPDF, Docling (Torch,
+  RapidOCR, ONNX Runtime), and hashing. There is no Settings → Python plugins
+  page and no `vera_plugin_host`. Docling model artifacts download on first
+  use into an app-owned `DOCLING_ARTIFACTS_PATH` cache. Convert drives
+  `EmbedderConfigForm` from descriptors, persists `embedder_configs`, and
+  gates conversion on `preflight_embedder`. Search reports
+  `skipped_semantic_model_groups` when a query embedder is unavailable.
+  Packaged sidecar builds exclude `sentence_transformers`. Hosted embedding
+  providers (OpenAI, Voyage, Ollama) follow in 0.3.1.
 
 - Typed `Citation` on search hits (`result.citation`) plus configurable hybrid
   `semantic_weight` / `keyword_weight` on `VeraDocument.search()`.
@@ -116,9 +113,8 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   on Windows and `npm` elsewhere before handing off to `uv run`, since `uv`
   does not resolve Windows shims on its own
   ([astral-sh/uv#8770](https://github.com/astral-sh/uv/issues/8770)). It
-  installs the `app` and `ml` extras only; Docling is not loaded into the
-  source-run sidecar. Extra ingest plugins use the same external Python
-  plugin host as packaged builds.
+  installs the `app`, `ml`, and `docling` extras so source-run Convert
+  matches the packaged sidecar (PyMuPDF + Docling + hashing).
 - Fixed a blank-window crash on every launch: the sandboxed preload script's
   restricted `require` cannot load `protocol.ts`'s compiled ES module output
   (or a sibling JSON/CommonJS file by relative path), so `IPC_CHANNELS` threw
@@ -143,5 +139,5 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Clamp chunk overlap below `chunk_size` so carry never overruns.
 - Consume the skip flag; do not leak it into pipeline options.
 
-Hosted embedding providers and Convert UI embedder preflight/forms are
-follow-ups after this tag. See [ROADMAP.md](ROADMAP.md).
+Hosted embedding providers (OpenAI, Voyage, Ollama) follow in 0.3.1. See
+[ROADMAP.md](ROADMAP.md).

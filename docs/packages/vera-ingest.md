@@ -9,8 +9,8 @@ PDF parsing and OCR live in provider plugins that register through the
 `vera.ingest_pipelines` entry-point group. The default
 [`vera-ingest-pymupdf`](vera-ingest-pymupdf.md) package provides the `pymupdf`
 pipeline; [`vera-ingest-docling`](vera-ingest-docling.md) provides Docling's
-hybrid chunker. The packaged desktop app can run extra plugins from a trusted
-external Python environment.
+hybrid chunker. Extra plugins are pip packages in the same environment as
+the CLI or desktop sidecar.
 
 Pipelines return a normalized `IngestResult`. Shared `convert()` writes
 validated archives through one atomic path and emits ready-made `ChunkRecord`

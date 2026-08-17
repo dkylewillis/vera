@@ -92,7 +92,7 @@ vera convert "input.pdf" --store-original false
 ```
 
 is searchable but does not contain the source PDF. The current validator
-reports this as an issue, and export is unavailable. Reconvert with the default
+reports this as a **warning**, and export is unavailable. Reconvert with the default
 `--store-original true` if source preservation is required.
 
 ## Export reports that no source is stored
@@ -198,29 +198,25 @@ default provider is `pymupdf` (from `vera-ingest-pymupdf`):
 vera convert "input.pdf" --parser pymupdf
 ```
 
-For Docling, install the optional plugin first:
+For Docling, install the official extra (CLI) or use Advanced layout in the
+desktop app (already bundled):
 
 ```bash
+pip install "vera-cli[docling]>=0.3.0"
+# or from a checkout:
 uv sync --extra docling
 vera convert "input.pdf" --parser docling
 ```
 
 Unknown names fail before parsing and never fall back to another pipeline.
 
-The desktop app can also run extra parsers and embedders from a trusted
-external Python environment in both `app:dev` and packaged builds. Use a
-dedicated venv, not the workspace `.venv` (`python -m pip` is often missing
-there). Install with `python -m pip install` or `python -m pip install -e
-<clone>` in that environment. If pip reports no `vera-ingest>=0.3.0` on PyPI,
-install checkout `packages/vera-doc` then `packages/vera-ingest` before the
-plugin. Then Validate under **File > Settings → Python plugins**. After a
-relaunch VERA re-probes that saved interpreter; wait for Convert to refresh
-before treating a plugin as missing. Raw `PYTHONPATH` folders are not
-discovered. If Search reports skipped semantic model groups, the convert-time
-embedder is not available in the current sidecar or plugin host. A Docling
-convert that fails with `No module named 'sentence_transformers'` needs
-`sentence-transformers` installed in the **plugin** venv; the sidecar copy
-is not shared.
+The desktop app uses one sidecar interpreter. Install extra pip plugins into
+the same environment (`python -m pip install` or `python -m pip install -e
+<clone>`), then restart the app. Raw `PYTHONPATH` folders are not discovered.
+If Search reports skipped semantic model groups, the convert-time embedder is
+not available in this sidecar. Hosted embedders are a 0.3.1 follow-up. A
+Docling convert that fails with `No module named 'sentence_transformers'`
+needs `uv sync --extra ml` in the environment that runs the sidecar.
 
 If Hugging Face Hub downloads warn about unauthenticated requests or hit rate
 limits, set `HF_TOKEN` (see `.env.example`) or save a token under **File >
@@ -256,8 +252,9 @@ embedding space. Inspect `skipped_semantic_model_groups` in the JSON report
 entry names the model, indexed dimension, and load or dimension error.
 
 Install the missing provider in the process that embeds the query (CLI
-environment, desktop sidecar, or validated plugin host). Keyword results from
-the same search remain usable.
+environment or desktop sidecar). Keyword results from
+the same search remain usable. Hosted embedding providers are not included
+until 0.3.1.
 
 ## vera-lab cannot open an archive
 

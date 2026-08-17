@@ -132,7 +132,8 @@ commands write or replace local files and require normal user authorization:
 
 - `convert` creates a validated `.vera` archive and publishes it atomically;
   `--parser` selects an installed ingest pipeline (`pymupdf` by default from
-  `vera-ingest-pymupdf`; `docling` when `vera-ingest-docling` is installed);
+  `vera-ingest-pymupdf`; `docling` when `vera-cli[docling]` or
+  `vera-ingest-docling` is installed);
   image-based low-text pages use selective local OCR by default. Use
   `--ocr off` only when explicitly requested, or `--ocr force` when automatic
   detection misses a scan. Prefer `--pipeline-option KEY=VALUE` for
@@ -142,10 +143,9 @@ commands write or replace local files and require normal user authorization:
   is bundled in `vera-ingest-pymupdf`;
   other languages use `vera ocr-languages download`, `--ocr-allow-download`,
   or a manual `TESSDATA_PREFIX` install.
-  The packaged desktop app can also run extra ingest plugins from a trusted
-  dedicated plugin venv (not the workspace `.venv`) after `python -m pip
-  install` or `python -m pip install -e <clone>` of `vera-ingest` 0.3.x plus
-  the plugin; see the desktop getting-started guide.
+  Extra ingest plugins are pip packages in the same environment
+  (`python -m pip install` or `python -m pip install -e <clone>`). The
+  packaged desktop app already includes Docling as Advanced layout.
 - `convert --overwrite` replaces existing batch outputs.
 - `index build` and `index update` write `.vera-index/`.
 - `export` writes the embedded source document.
