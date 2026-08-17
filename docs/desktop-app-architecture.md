@@ -88,14 +88,17 @@ flowchart LR
   sidecar --> pymupdf
   sidecar --> docling
   sidecar --> hashing
+  sidecar --> minilm["MiniLM"]
 ```
 
 The sidecar registers the default `pymupdf` pipeline and, when
 `vera-ingest-docling` is importable, the `docling` pipeline. Source-run
 `PYTHONPATH` includes `vera-ingest-docling/src`. Packaged Windows builds freeze
-PyMuPDF, Docling, Torch, RapidOCR, ONNX Runtime, and `pypdfium2` into one
-sidecar and keep `sentence_transformers` excluded. Hugging Face tokens and
-`DOCLING_ARTIFACTS_PATH` (an app-owned cache under Electron `userData`) are
+PyMuPDF, Docling, Torch, RapidOCR, ONNX Runtime, `pypdfium2`, and
+`sentence_transformers` into one sidecar, and vendor `all-MiniLM-L6-v2`
+weights in the installer. Hugging Face tokens,
+`DOCLING_ARTIFACTS_PATH` (an app-owned cache under Electron `userData`), and
+`VERA_SENTENCE_TRANSFORMERS_HOME` (the bundled MiniLM snapshot) are
 forwarded on spawn. Convert gates conversion on `preflight_embedder`. Search
 reports `skipped_semantic_model_groups` when a query embedder is unavailable.
 `list_embedding_models` and `credential_env` remain part of the descriptor

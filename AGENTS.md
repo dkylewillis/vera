@@ -208,7 +208,9 @@ non-obvious caveats for this environment; standard commands live in the sections
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
   **Convert PDF** view. Convert lists PyMuPDF (default) and **Advanced layout (slower)** /
   Docling in the same sidecar. First Docling use may download models into
-  `DOCLING_ARTIFACTS_PATH` under the app userData cache. Ask is
+  `DOCLING_ARTIFACTS_PATH` under the app userData cache. The packaged
+  Windows sidecar also freezes Sentence Transformers and vendors
+  `all-MiniLM-L6-v2` weights (`VERA_SENTENCE_TRANSFORMERS_HOME`). Ask is
   blocked without a provider/API key.
 - MCP server (optional): `uv run --extra mcp vera mcp` (long-running stdio; no `--json`).
 - There are no PDFs in the repo; generate one with the `reportlab` dev dependency when you need

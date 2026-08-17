@@ -60,7 +60,8 @@ hosted embedding packages (OpenAI, Voyage, Ollama) and their Settings UI are
 Install the package in the same environment as VERA (`python -m pip install`
 or `python -m pip install -e <clone>`), then restart the app. Bundled
 `hashing` wins on duplicate names. Sentence Transformers is the workspace
-`ml` extra and is not frozen into the Windows sidecar.
+`ml` extra for CLI and source-run installs. The Windows installer freezes
+`sentence_transformers` and vendors `all-MiniLM-L6-v2` weights.
 
 ## Minimal example (DIY hosted provider)
 

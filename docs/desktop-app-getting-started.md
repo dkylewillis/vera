@@ -65,7 +65,7 @@ DPI). These settings are independent of the Chat
 model and are persisted in app settings. `npm run app:dev` installs the `app`,
 `ml`, and `docling` extras into the workspace environment. The source-run
 sidecar matches packaged releases: one Python process with PyMuPDF, Docling,
-and hashing. Plugins are ordinary pip packages in **the same environment**
+hashing, and Sentence Transformers MiniLM. Plugins are ordinary pip packages in **the same environment**
 (`vera.ingest_pipelines` / `vera.embedders`); CLI users can
 `pip install "vera-cli[docling]>=0.3.0"` or `pip install -e <clone>` after
 `vera-ingest` 0.3.x. An unavailable selection is disabled or fails with the
@@ -178,7 +178,9 @@ the sidecar. Extra converters are pip packages in that environment, not a
 second interpreter.
 
 The packaged Windows installer freezes PyMuPDF, Docling (Torch, RapidOCR, ONNX
-Runtime), and hashing into `vera-sidecar.exe`. Docling model artifacts are
+Runtime), hashing, and Sentence Transformers into `vera-sidecar.exe`. MiniLM
+(`all-MiniLM-L6-v2`) weights ship inside Setup.exe, so **Local semantic
+(MiniLM)** does not download on first use. Docling model artifacts are
 **not** inside Setup.exe; the first Advanced layout conversion downloads them
 into the app-owned cache (`DOCLING_ARTIFACTS_PATH` under Electron `userData`)
 and reuses that cache later. Hosted embedding providers (OpenAI, Voyage,
@@ -195,10 +197,10 @@ python -m pip install -e packages/vera-ingest-docling
 
 Ingest plugins register under `vera.ingest_pipelines`; embedders register
 under `vera.embedders`. Convert calls `preflight_embedder` before writing an
-archive. Sentence Transformers is available in `app:dev` via `--extra ml` and
-is not frozen into the Windows sidecar. A missing
-`sentence_transformers` module means that extra is not installed in this
-environment — run `uv sync --extra ml` and restart the app. See
+archive. Sentence Transformers is frozen into the Windows sidecar with
+vendored MiniLM weights. Source-run `app:dev` installs it via `--extra ml`. A
+missing `sentence_transformers` module in a checkout means that extra is not
+installed — run `uv sync --extra ml` and restart the app. See
 [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md) and
 [Creating an embedding provider](creating-an-embedding-provider.md).
 Convert and embed always run in-process in the sidecar; see

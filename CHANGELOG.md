@@ -41,14 +41,15 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Desktop Convert view: persist the selected embedding model separately from
   Chat; show installed provider suggestions; hashing and MiniLM presets.
 - Packaged desktop app: one frozen sidecar with PyMuPDF, Docling (Torch,
-  RapidOCR, ONNX Runtime), and hashing. There is no Settings → Python plugins
-  page and no `vera_plugin_host`. Docling model artifacts download on first
-  use into an app-owned `DOCLING_ARTIFACTS_PATH` cache. Convert drives
+  RapidOCR, ONNX Runtime), hashing, and Sentence Transformers. MiniLM
+  (`all-MiniLM-L6-v2`) weights ship in the installer, so Local semantic
+  conversion does not download on first use. There is no Settings → Python
+  plugins page and no `vera_plugin_host`. Docling model artifacts download on
+  first use into an app-owned `DOCLING_ARTIFACTS_PATH` cache. Convert drives
   `EmbedderConfigForm` from descriptors, persists `embedder_configs`, and
   gates conversion on `preflight_embedder`. Search reports
   `skipped_semantic_model_groups` when a query embedder is unavailable.
-  Packaged sidecar builds exclude `sentence_transformers`. Hosted embedding
-  providers (OpenAI, Voyage, Ollama) follow in 0.3.1.
+  Hosted embedding providers (OpenAI, Voyage, Ollama) follow in 0.3.1.
 
 - Typed `Citation` on search hits (`result.citation`) plus configurable hybrid
   `semantic_weight` / `keyword_weight` on `VeraDocument.search()`.
@@ -114,7 +115,7 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   does not resolve Windows shims on its own
   ([astral-sh/uv#8770](https://github.com/astral-sh/uv/issues/8770)). It
   installs the `app`, `ml`, and `docling` extras so source-run Convert
-  matches the packaged sidecar (PyMuPDF + Docling + hashing).
+  matches the packaged sidecar (PyMuPDF + Docling + hashing + MiniLM).
 - Fixed a blank-window crash on every launch: the sandboxed preload script's
   restricted `require` cannot load `protocol.ts`'s compiled ES module output
   (or a sibling JSON/CommonJS file by relative path), so `IPC_CHANNELS` threw

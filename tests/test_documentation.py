@@ -298,8 +298,13 @@ def test_hardening_json_contracts_are_documented():
     assert "credential_env" in desktop_architecture
     assert "skipped_semantic_model_groups" in desktop_architecture
     assert "## Convert in one sidecar" in desktop_architecture
+    assert "VERA_SENTENCE_TRANSFORMERS_HOME" in desktop_architecture
+    assert "all-MiniLM-L6-v2" in desktop_architecture
     assert "one interpreter" in desktop
     assert "sentence_transformers" in desktop
+    assert "is not frozen into the Windows sidecar" not in desktop
+    assert "MiniLM" in desktop
+    assert "weights" in desktop
     assert "desktop-app-architecture.md#convert-in-one-sidecar" in desktop
     assert "python/plugin-host/vera_plugin_host" not in (
         ROOT / "packages" / "vera-app" / "package.json"
@@ -337,10 +342,18 @@ def test_hardening_json_contracts_are_documented():
     assert "vera-ingest-docling" in main_ts
     assert "configurePluginRuntime" not in main_ts
     assert "DOCLING_ARTIFACTS_PATH" in main_ts
+    assert "VERA_SENTENCE_TRANSFORMERS_HOME" in main_ts
     assert not (ROOT / "packages" / "vera-app" / "src" / "vera_app" / "runtime.py").is_file()
     assert "Docling" in desktop
-    assert "copy-metadata" in (
+    sidecar_build = (
         ROOT / "packages" / "vera-app" / "scripts" / "build-sidecar.cjs"
+    ).read_text(encoding="utf-8")
+    assert "copy-metadata" in sidecar_build
+    assert "vendor_minilm.py" in sidecar_build
+    assert "sentence_transformers" in sidecar_build
+    assert "--exclude-module" not in sidecar_build
+    assert "sentence-transformers" in (
+        ROOT / "packages" / "vera-app" / "pyproject.toml"
     ).read_text(encoding="utf-8")
     assert "ensure_registered" in (
         ROOT / "packages" / "vera-ingest-pymupdf" / "src" / "vera_ingest_pymupdf" / "__init__.py"

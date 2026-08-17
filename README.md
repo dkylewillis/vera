@@ -337,7 +337,8 @@ vera convert manual.pdf --model hashing --embedder-option dimension=256    # pro
 
 Built-in providers are `hashing` (deterministic lexical hashing; no extra
 dependencies or network access) and `sentence-transformers` (local neural
-embeddings via the `ml` extra). Third-party providers register through the
+embeddings via the `ml` extra; the Windows installer also freezes this
+provider and vendors `all-MiniLM-L6-v2` weights). Third-party providers register through the
 `vera.embedders` entry-point group or `register_embedder()`, and can advertise
 option schemas, model presets, and required credential environment variables
 so hosts can preflight them without storing secrets in configuration. Unknown

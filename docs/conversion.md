@@ -162,13 +162,19 @@ python -m pip install "vera-cli>=0.3.0" "vera-doc[ml]>=0.3.0"
 vera convert "input.pdf" --model sentence-transformers:all-MiniLM-L6-v2
 ```
 
+The packaged Windows app already includes Sentence Transformers and vendors
+`all-MiniLM-L6-v2` weights in the installer (Convert label **Local semantic
+(MiniLM)**), so that model does not download on first desktop use. CLI and
+source-run installs still use the `ml` extra and may download other model ids
+from the Hub on first resolve.
+
 Legacy slash-form names such as `sentence-transformers/all-MiniLM-L6-v2` and the
 bare alias `all-MiniLM-L6-v2` still work.
 
 The model name, vector dimension, and stored-vector normalization policy are
 recorded in the archive. Both built-in embedders use L2 normalization. Search
-uses the recorded model, so the `ml` extra must also be installed on machines
-that search an archive created with a Sentence Transformers model.
+uses the recorded model, so CLI machines that search a MiniLM archive still
+need the `ml` extra. The packaged desktop sidecar already has it.
 
 Prefer `provider:model-id` specs. An unrecognized provider or model raises an
 error at convert time instead of silently falling back to hashing. Third-party

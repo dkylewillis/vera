@@ -25,7 +25,9 @@ Download `VERA Setup <version>.exe` from the
    **Advanced pipeline options** for schema-driven settings from
    `describe_ingest_pipelines` / `PipelineConfigForm`. Convert lists PyMuPDF
    (default) and **Advanced layout (slower)** / Docling from the same sidecar.
-   Hosted embedders are a 0.3.1 follow-up. Right-click a `.vera`
+   Convert embedding presets are hashing (default) and **Local semantic
+   (MiniLM)**; MiniLM weights ship in the Windows installer. Hosted embedders
+   are a 0.3.1 follow-up. Right-click a `.vera`
    archive and choose **Reconvert…** to replace it with a different ingest
    pipeline or embedding model.
 2. Use **File > Open Folder** to activate a document library.
@@ -39,8 +41,9 @@ Download `VERA Setup <version>.exe` from the
 Search and conversion do not require a model-provider account. A provider is
 only required for generated Ask responses.
 
-Source-run and packaged conversions use one sidecar interpreter with PyMuPDF
-and Docling. Extra ingest and embedding plugins are pip packages in that
+Source-run and packaged conversions use one sidecar interpreter with PyMuPDF,
+Docling, hashing, and Sentence Transformers MiniLM. Extra ingest and embedding
+plugins are pip packages in that
 same environment (`python -m pip install` or `python -m pip install -e
 <clone>`). See
 [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md),
@@ -67,4 +70,4 @@ npm run app:dev
 The supported packaged target is currently Windows. Use the CLI
 `--pipeline-option` flags (or Convert-view pipeline settings) for
 provider-owned chunking and OCR controls. Packaged and `app:dev` Convert both
-report `pymupdf` and `docling`.
+report `pymupdf` and `docling`, plus hashing and MiniLM embedders.

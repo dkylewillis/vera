@@ -82,17 +82,17 @@ already in 0.3.0.
   via provider `Options` + descriptors (built-ins advertise dimension /
   device / batch_size; hosted plugins follow the same pattern; secrets use
   `credential_env`).
-- [ ] Document which providers are bundled with each desktop release.
+- [x] Document which providers are bundled with each desktop release
+  (hashing + MiniLM in the Windows sidecar; hosted embedders in 0.3.1).
 
 ### Packaging and local models
 
-Follow-ups after 0.3.0 (0.3.1 or later); not 0.3.0 blockers.
-
-- [ ] Bundle lightweight official providers with the released application.
-- [ ] Decide how optional local neural runtimes and models are distributed
-  without substantially increasing the base installer.
-- [ ] Verify provider availability in packaged sidecar builds.
+- [x] Bundle Sentence Transformers and vendor `all-MiniLM-L6-v2` weights in
+  the Windows installer (no first-use Hub download for that model).
+- [x] Verify MiniLM files and `sentence-transformers` in packaged sidecar
+  describe checks.
 - [ ] Add release tests that convert and search with every bundled provider.
+  Follow-up after 0.3.0; not a 0.3.0 blocker.
 
 ## VERA 0.3 — Extensible ingestion pipelines
 

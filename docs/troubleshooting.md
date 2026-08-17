@@ -71,7 +71,9 @@ python -m pip install "vera-doc[ml]"
 ```
 
 The required Sentence Transformers model may also need to be available in the
-runtime environment. The default hashing model does not require this extra.
+runtime environment. The packaged desktop app already includes
+`sentence_transformers` and `all-MiniLM-L6-v2` weights. The default hashing
+model does not require this extra.
 
 Unknown model or provider names raise `UnknownEmbeddingModelError` at convert
 time and never create hashing vectors under a different name. If a custom name
@@ -215,8 +217,10 @@ the same environment (`python -m pip install` or `python -m pip install -e
 <clone>`), then restart the app. Raw `PYTHONPATH` folders are not discovered.
 If Search reports skipped semantic model groups, the convert-time embedder is
 not available in this sidecar. Hosted embedders are a 0.3.1 follow-up. A
-Docling convert that fails with `No module named 'sentence_transformers'`
-needs `uv sync --extra ml` in the environment that runs the sidecar.
+A source-run or CLI convert that fails with
+`No module named 'sentence_transformers'` needs `uv sync --extra ml` in the
+environment that runs VERA. The packaged Windows sidecar already includes
+that module and MiniLM weights.
 
 If Hugging Face Hub downloads warn about unauthenticated requests or hit rate
 limits, set `HF_TOKEN` (see `.env.example`) or save a token under **File >

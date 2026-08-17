@@ -406,8 +406,9 @@ embedding plugins are pip packages in **the same environment**.
    checkout, `uv sync --extra app --extra docling` already includes official
    converters.
 2. Install every import the sidecar will need in that interpreter. Sentence
-   Transformers (`sentence-transformers`) is the `ml` extra
-   (`uv sync --extra ml`); hashing needs no extra install.
+   Transformers (`sentence-transformers`) is the `ml` extra for CLI and
+   source-run (`uv sync --extra ml`). The packaged desktop app already
+   freezes it and vendors MiniLM weights; hashing needs no extra install.
 3. Restart the desktop app so Convert reloads `describe_ingest_pipelines`.
    Bundled `pymupdf` and `docling` win on duplicate names. Raw `PYTHONPATH`
    folders are not discovered.
