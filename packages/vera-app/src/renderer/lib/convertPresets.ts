@@ -17,7 +17,7 @@ export const EMBEDDING_MODEL_PRESETS: ConvertPresetOption[] = [
   },
   {
     value: 'sentence-transformers:all-MiniLM-L6-v2',
-    label: 'sentence-transformers:all-MiniLM-L6-v2',
+    label: 'Local semantic (MiniLM)',
     requiresProvider: 'sentence-transformers',
   },
 ];
@@ -25,8 +25,8 @@ export const EMBEDDING_MODEL_PRESETS: ConvertPresetOption[] = [
 /** Optional pipelines that should appear disabled with an install hint when missing. */
 export const PIPELINE_INSTALL_HINTS: Record<string, { label: string; hint: string }> = {
   docling: {
-    label: 'docling — HybridChunker',
-    hint: 'Install it in the configured Python environment with `python -m pip install vera-ingest-docling`, or clone the plugin and run `python -m pip install -e <folder>`, then Validate / Refresh under File → Settings → Python plugins.',
+    label: 'Advanced layout (slower)',
+    hint: 'Docling is bundled in the desktop app. For CLI use, install it with `pip install "vera-cli[docling]>=0.3.0"` or `uv sync --extra docling`.',
   },
 };
 

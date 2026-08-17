@@ -77,61 +77,32 @@ this protocol directly.
 
 This keeps the app UI independent from Python internals while preserving a simple local development loop.
 
-## External plugin host
+## Convert in one sidecar
 
-Source-run and packaged conversions keep search, indexing, Ask, and bundled
-PyMuPDF in the sidecar. Extra ingest and embedding plugins run in a separate
-JSON-lines worker owned by the sidecar:
-
-```bash
-python -m vera_plugin_host
-```
-
-Electron ships the `vera_plugin_host` package as an extra resource. The sidecar
-launches that worker with a user-selected interpreter after
-`configure_plugin_runtime`. `PYTHONPATH` is limited to that worker package so
-plugins come from the selected environment after `pip install` or
-`pip install -e`. Duplicate provider names keep the bundled sidecar
-implementation. The worker speaks `ping`, `list_ingest_pipelines`,
-`describe_ingest_pipelines`, `list_embedding_providers`,
-`describe_embedding_providers`, `list_embedding_models`, `preflight_embedder`,
-`embedder_info`, `embed`, `convert`, `batch_convert`, `cancel`, and `skip`.
-Treat the selected interpreter as trusted code. Hugging Face tokens, embedder
-`credential_env` secrets, and `DOCLING_ARTIFACTS_PATH` are forwarded to the
-worker. A saved interpreter is re-probed on launch; Convert refreshes when that
-probe succeeds. The probe allows up to two minutes because a cold Docling/Torch
-import often exceeds 40s. Convert lists extra parsers and embedders as
-`(external)` and gates conversion on `preflight_embedder`. Search reports
-`skipped_semantic_model_groups` when an external embedder is unavailable.
-
-### Convert routing
-
-Electron talks only to the sidecar. The sidecar owns one `vera_plugin_host`
-child, launched with the user-selected interpreter after
-`configure_plugin_runtime`.
+Electron talks only to the sidecar. Convert, batch convert, pipeline describe,
+and embedder describe run in-process in that one interpreter.
 
 ```mermaid
 flowchart LR
-  Electron --> sidecar
-  sidecar --> host["vera_plugin_host"]
+  Electron --> sidecar["vera-sidecar"]
+  sidecar --> pymupdf
+  sidecar --> docling
+  sidecar --> hashing
+  sidecar --> minilm["MiniLM"]
 ```
 
-Which process runs convert depends on the parser, not the embedder:
-
-- Extra parser (for example Docling) — the sidecar forwards `convert` /
-  `batch_convert` to the host. The host has `vera-doc`, so `hashing` works
-  there. `sentence-transformers` is registered as a bundled sidecar provider,
-  so the host's copy is not proxied the other way; install it in the plugin
-  venv when Docling will embed with that model.
-- Bundled `pymupdf` plus an external embedder — convert stays in the sidecar.
-  Embeddings go to the same host over `embed` / `embedder_info`. The sidecar
-  still uses its own Sentence Transformers for pymupdf converts
-  (`app:dev --extra ml`); a host-only install does not satisfy that path.
-
-Search, Ask, and indexing stay in the sidecar either way. When an archive was
-built with an external embedder, the sidecar uses a registry proxy into that
-host. If the host or credential is missing, Search still returns keyword hits
-and reports `skipped_semantic_model_groups`.
+The sidecar registers the default `pymupdf` pipeline and, when
+`vera-ingest-docling` is importable, the `docling` pipeline. Source-run
+`PYTHONPATH` includes `vera-ingest-docling/src`. Packaged Windows builds freeze
+PyMuPDF, Docling, Torch, RapidOCR, ONNX Runtime, `pypdfium2`, and
+`sentence_transformers` into one sidecar, and vendor `all-MiniLM-L6-v2`
+weights in the installer. Hugging Face tokens,
+`DOCLING_ARTIFACTS_PATH` (an app-owned cache under Electron `userData`), and
+`VERA_SENTENCE_TRANSFORMERS_HOME` (the bundled MiniLM snapshot) are
+forwarded on spawn. Convert gates conversion on `preflight_embedder`. Search
+reports `skipped_semantic_model_groups` when a query embedder is unavailable.
+`list_embedding_models` and `credential_env` remain part of the descriptor
+contract so hosted providers can land in 0.3.1 without a protocol change.
 
 ## Active Libraries and Collection Indexes
 
@@ -295,7 +266,9 @@ before they are skipped; malformed outputs are reported separately, and
 overwrite must be selected explicitly. Conversion uses selective
 PyMuPDF/Tesseract OCR (via `vera-ingest-pymupdf`) for image-based low-text
 pages with English language data bundled into that package and the packaged
-sidecar. It publishes a validated
+sidecar. Advanced layout (Docling) is the slower path for tables, complex
+layout, and scanned pages; first use may download model artifacts into the
+app cache. It publishes a validated
 temporary sibling atomically, preserves an existing destination after failure,
 and rejects PDFs with no searchable text after OCR with an OCR-specific
 message. Sidecar `convert` and `batch_convert` requests accept optional
@@ -336,19 +309,20 @@ npm run app:build
 npm run app:dist
 ```
 
-`npm run app:dev` starts Electron against the workspace sidecar without the
-Docling extra, matching packaged Convert: PyMuPDF stays in the sidecar, and
-extra ingest and embedding plugins use the sidecar-owned Python plugin host.
-`npm run app:dist` packages the Python sidecar through
-`packages/vera-app/scripts/build-sidecar.cjs`, which runs PyInstaller with the
-project virtualenv when it is available (honoring `VERA_SIDECAR_PYTHON`) and
-otherwise falls back to `uv run --extra app --extra sidecar`. Bundled Tesseract
+`npm run app:dev` starts Electron against the workspace sidecar with the
+`app`, `ml`, and `docling` extras, matching packaged Convert: PyMuPDF and
+Docling both run in the same sidecar. `npm run app:dist` packages the Python
+sidecar through `packages/vera-app/scripts/build-sidecar.cjs`, which runs
+PyInstaller with the project virtualenv when it is available (honoring
+`VERA_SIDECAR_PYTHON`) and otherwise falls back to
+`uv run --extra app --extra sidecar --extra docling`. Bundled Tesseract
 English data is passed as an absolute path so the build works from any
-directory. The build also copies `vera-ingest-pymupdf` package metadata and the
-sidecar registers the default `pymupdf` pipeline on import so Convert works in
-frozen builds where `importlib.metadata` entry points are otherwise empty.
-The plugin host source is copied as an extra resource to
-`python/plugin-host/vera_plugin_host` and is not frozen into the sidecar.
+directory. The build also copies `vera-ingest-pymupdf` and
+`vera-ingest-docling` package metadata and the sidecar registers the default
+`pymupdf` pipeline and Docling on import so Convert works in frozen builds
+where `importlib.metadata` entry points are otherwise empty. After a freeze,
+`node packages/vera-app/scripts/verify-packaged-sidecar.cjs` asserts
+`describe_ingest_pipelines` reports both providers.
 
 From the repo root:
 
@@ -402,7 +376,6 @@ export controls alongside the PDF.
 
 ## Near-Term App Work
 
-- Replace the extractive cited draft in `answer` with configurable LLM provider calls that preserve citation ids.
+- Hosted embedding providers (OpenAI, Voyage, Ollama) and their credentials UI.
 - Add recent document shortcuts.
-- Add richer conversion progress events from the sidecar.
-- Add settings for provider configuration and app defaults.
+- Add richer conversion progress events from the sidecar for first-use Docling downloads.

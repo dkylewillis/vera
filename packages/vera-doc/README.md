@@ -425,7 +425,7 @@ Built-in model specs resolve through `get_embedder()`:
 | Spec | Provider |
 |------|----------|
 | `hashing` / `vera-hashing-384` / `hashing:vera-hashing-384` | Built-in hashing embedder |
-| `sentence-transformers:all-MiniLM-L6-v2` | Sentence Transformers (`ml` extra) |
+| `sentence-transformers:all-MiniLM-L6-v2` | Sentence Transformers (`ml` extra; Windows installer vendors these weights) |
 | `sentence-transformers/all-MiniLM-L6-v2` | Legacy alias for the same model |
 | `all-MiniLM-L6-v2` | Legacy alias for the same model |
 

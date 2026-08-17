@@ -53,25 +53,25 @@ Open a PDF from the app's Convert view to create a `.vera` archive, or use the
 native File menu to open an existing archive or document library.
 Desktop conversions default to the PyMuPDF ingest pipeline and the
 offline `hashing` embedder. The Convert view exposes dropdowns for
-`ingest_pipeline` (including Docling when installed) and embedding model
-presets such as `sentence-transformers:all-MiniLM-L6-v2`, plus a custom
-`provider:model-id` field. Chunking and OCR controls are schema-driven: the
-sidecar `describe_ingest_pipelines` action supplies descriptors, and
+`ingest_pipeline` (PyMuPDF plus **Advanced layout (slower)** / Docling) and
+embedding model presets such as `sentence-transformers:all-MiniLM-L6-v2`, plus
+a custom `provider:model-id` field. Chunking and OCR controls are schema-driven:
+the sidecar `describe_ingest_pipelines` action supplies descriptors, and
 `PipelineConfigForm` renders only advertised fields under a collapsed
 **Advanced pipeline options** section (PyMuPDF includes overlap, OCR DPI, and
 a Tesseract OCR language dropdown of bundled/downloadable codes plus Custom
 for combinations such as `eng+spa`; Docling does not advertise overlap or
 DPI). These settings are independent of the Chat
-model and are persisted in app settings. `npm run app:dev` installs the `app`
-and `ml` extras into the workspace environment. The source-run sidecar matches
-packaged releases: it keeps the bundled PyMuPDF pipeline and does not load
-Docling. Extra ingest plugins such as Docling run from a trusted external
-Python environment under **File > Settings → Python plugins**. Use a dedicated
-venv (not the workspace `.venv`). Install plugins with
-`python -m pip install vera-ingest-docling` or
-`python -m pip install -e <clone>` after `vera-ingest` 0.3.x, then Validate / Refresh. An unavailable
-selection is disabled or fails with the resolver error. Docling's first conversion may download Hugging Face
-models; save an optional token under **File > Settings → Hugging Face**
+model and are persisted in app settings. `npm run app:dev` installs the `app`,
+`ml`, and `docling` extras into the workspace environment. The source-run
+sidecar matches packaged releases: one Python process with PyMuPDF, Docling,
+hashing, and Sentence Transformers MiniLM. Plugins are ordinary pip packages in **the same environment**
+(`vera.ingest_pipelines` / `vera.embedders`); CLI users can
+`pip install "vera-cli[docling]>=0.3.0"` or `pip install -e <clone>` after
+`vera-ingest` 0.3.x. An unavailable selection is disabled or fails with the
+resolver error. Docling's first conversion may download Hugging Face
+models into the app-owned cache under Electron `userData`
+(`DOCLING_ARTIFACTS_PATH`); save an optional token under **File > Settings → Hugging Face**
 (or set `HF_TOKEN` in the environment / a local `.env` from `.env.example`) to
 raise Hub rate limits. Conversion progress and the current filename appear in
 the footer status bar, so progress remains visible when you switch away from
@@ -170,78 +170,41 @@ npm run app:release
 This removes the existing `packages/vera-app/release` directory, rebuilds the
 app and Python sidecar, and writes an NSIS installer into that directory.
 
-## External Python plugins
+## Plugins in the same environment
 
-Source-run (`npm run app:dev`) and packaged builds keep search, Ask, indexing,
-and bundled PyMuPDF conversion in the sidecar. Extra ingest and embedding
-plugins run in a separate `vera_plugin_host` worker. Use a **dedicated virtual environment**
-for that worker — not the workspace `.venv` that
-`app:dev` uses. The workspace env is uv-managed (often has no `pip` module),
-is synced without the `docling` extra, and a later `uv sync` without
-`--extra docling` can remove plugin packages.
+Source-run (`npm run app:dev`) and packaged builds use **one interpreter**.
+Search, Ask, indexing, PyMuPDF conversion, and Docling conversion all run in
+the sidecar. Extra converters are pip packages in that environment, not a
+second interpreter.
 
-The two processes do not share site-packages. Install every dependency the
-worker will import into the plugin interpreter.
+The packaged Windows installer freezes PyMuPDF, Docling (Torch, RapidOCR, ONNX
+Runtime), hashing, and Sentence Transformers into `vera-sidecar.exe`. MiniLM
+(`all-MiniLM-L6-v2`) weights ship inside Setup.exe, so **Local semantic
+(MiniLM)** does not download on first use. Docling model artifacts are
+**not** inside Setup.exe; the first Advanced layout conversion downloads them
+into the app-owned cache (`DOCLING_ARTIFACTS_PATH` under Electron `userData`)
+and reuses that cache later. Hosted embedding providers (OpenAI, Voyage,
+Ollama) are a 0.3.1 follow-up.
 
-1. Create a virtual environment with Python 3.10+ (a stdlib venv, so `pip`
-   is available):
-   ```bash
-   python -m venv C:\venvs\vera-plugins
-   ```
-2. Install `vera-doc` and `vera-ingest` **0.3.x** plus the plugin. When those
-   versions are on PyPI:
-   ```bash
-   C:\venvs\vera-plugins\Scripts\python.exe -m pip install "vera-ingest>=0.3.0" "vera-ingest-docling>=0.3.0"
-   C:\venvs\vera-plugins\Scripts\python.exe -m pip install vera-your-embedder
-   C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\my-vera-plugin
-   ```
-   From a repository checkout (required while 0.3.x is not on PyPI; pip only
-   sees `vera-ingest` 0.2.x there), install the local packages in order:
-   ```bash
-   C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\vera\packages\vera-doc
-   C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\vera\packages\vera-ingest
-   C:\venvs\vera-plugins\Scripts\python.exe -m pip install -e C:\src\vera\packages\vera-ingest-docling
-   ```
-   The last command pulls `docling[rapidocr]` and `docling_core` from PyPI.
-   Adding a clone to `PYTHONPATH` without installing it is not enough.
-3. If you will convert with **Docling plus Sentence Transformers**, also
-   install the embedder in **this** environment. Convert follows the parser:
-   a Docling convert (parse and embed) runs entirely in the plugin host, so
-   `No module named 'sentence_transformers'` means the plugin venv is missing
-   it. The sidecar copy from `--extra ml` is not visible to the host.
-   ```bash
-   C:\venvs\vera-plugins\Scripts\python.exe -m pip install "sentence-transformers>=2.7"
-   ```
-   A pymupdf convert embeds in the sidecar instead; `app:dev` already has
-   Sentence Transformers there. Bundled `hashing` works in both processes
-   without an extra install. Install other embedder plugins in the same
-   environment as extra parsers.
-4. In VERA, open **File > Settings → Python plugins**, enable the external Python environment,
-   choose that environment's `python.exe`, and click **Validate** once.
-5. Convert lists extra parsers and embedders as `(external)`. Bundled
-   `pymupdf`, `hashing`, and `sentence-transformers` win when a plugin repeats
-   those names — the sidecar will not proxy its Sentence Transformers into the
-   host, or the host's copy back into a pymupdf convert. After installing or
-   updating plugins, click **Refresh plugins**.
-   Embedder `credential_env` secrets are saved under the same settings page and
-   forwarded to the sidecar and plugin host. Convert calls `preflight_embedder`
-   before writing an archive.
+CLI and `app:dev` users install the same packages into the VERA environment:
 
-On later launches VERA re-probes the saved interpreter in the background and
-refreshes Convert when that probe succeeds. You do not need to Validate after
-every launch. First discovery can take about a minute when Docling or Torch
-imports are cold; Convert may show Docling as not installed until that probe
-finishes.
+```bash
+pip install "vera-cli[docling]>=0.3.0"
+# or from a checkout:
+uv sync --extra app --extra ml --extra docling
+python -m pip install -e packages/vera-ingest-docling
+```
 
-The selected environment must provide `vera-ingest` 0.3.x (plugin API version
-1) and a compatible `vera-doc`. Ingest plugins register under
-`vera.ingest_pipelines`; embedders register under `vera.embedders`. Optional
-Hugging Face tokens, embedder `credential_env` secrets, and the **Model cache**
-field (`DOCLING_ARTIFACTS_PATH`) are forwarded to the plugin host. See
+Ingest plugins register under `vera.ingest_pipelines`; embedders register
+under `vera.embedders`. Convert calls `preflight_embedder` before writing an
+archive. Sentence Transformers is frozen into the Windows sidecar with
+vendored MiniLM weights. Source-run `app:dev` installs it via `--extra ml`. A
+missing `sentence_transformers` module in a checkout means that extra is not
+installed — run `uv sync --extra ml` and restart the app. See
 [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md) and
 [Creating an embedding provider](creating-an-embedding-provider.md).
-Which process runs convert versus embed is in
-[Convert routing](desktop-app-architecture.md#convert-routing).
+Convert and embed always run in-process in the sidecar; see
+[Convert in one sidecar](desktop-app-architecture.md#convert-in-one-sidecar).
 
 ## Common startup problems
 
@@ -265,19 +228,19 @@ Which process runs convert versus embed is in
 
   Set `VERA_SIDECAR_PYTHON` to use a different interpreter, or exclude the
   repository and `%TEMP%` from real-time scanning, then retry.
-- **Validate fails for the external Python environment** — choose an absolute
-  interpreter path that exists, install `vera-ingest` 0.3.x into that
-  environment, then Validate again. A cold Docling/Torch import can take about
-  a minute; the status stays on “Checking the Python environment…” until the
-  probe finishes. A timeout from an earlier attempt should not appear the
-  moment you click Validate.
-- **An extra parser or embedder is missing from Convert** — install it with
-  `python -m pip install` or `python -m pip install -e <clone>` in the selected
-  environment, then **Refresh plugins**. After a relaunch, wait for the
-  automatic re-probe before treating the plugin as missing. Raw `PYTHONPATH`
+- **Docling is missing from Convert in `app:dev`** — sync the workspace with
+  the `docling` extra (`uv sync --extra app --extra docling`) and restart the
+  app. Packaged builds already include Advanced layout.
+- **First Docling conversion is slow or downloads models** — expected. Layout
+  artifacts land in the app cache under `userData` and are reused. Save
+  `HF_TOKEN` under **File > Settings → Hugging Face** if Hub rate limits
+  appear.
+- **An extra parser or embedder is missing from Convert** — install it into
+  the same environment the sidecar uses (`python -m pip install` or
+  `python -m pip install -e <clone>`), then restart the app. Raw `PYTHONPATH`
   folders are not discovered. If Search warns that semantic groups were
-  skipped, the embedder used at convert time is not available in the current
-  sidecar or plugin host.
+  skipped, the embedder used at convert time is not available in this
+  sidecar. Hosted embedders are not included until 0.3.1.
 
 ## Provider request errors
 

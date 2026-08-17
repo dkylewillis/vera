@@ -11,12 +11,10 @@ import {
   RefreshCw,
   Search,
   Settings,
-  Terminal,
   Trash2,
   X,
 } from 'lucide-react';
-import type { AppSettings, ExternalPythonConfig, ProviderProfile, PythonEnvironmentProbe } from '../types';
-import { PythonEnvironmentManager } from './PythonEnvironmentManager';
+import type { AppSettings, ProviderProfile } from '../types';
 import {
   defaultEnabledModels,
   emptyProvider,
@@ -116,7 +114,7 @@ type ProviderRowInfo = {
   profile: ProviderProfile | null;
 };
 
-export type SettingsSectionId = 'providers' | 'huggingface' | 'python';
+export type SettingsSectionId = 'providers' | 'huggingface';
 
 const SETTINGS_SECTIONS: {
   id: SettingsSectionId;
@@ -133,14 +131,8 @@ const SETTINGS_SECTIONS: {
   {
     id: 'huggingface',
     label: 'Hugging Face',
-    description: 'Optional Hub token for ingest plugins and embedders that download models.',
+    description: 'Optional Hub token for Docling model downloads and other Hugging Face Hub access.',
     icon: KeyRound,
-  },
-  {
-    id: 'python',
-    label: 'Python plugins',
-    description: 'Trusted external environment for extra ingest and embedding plugins.',
-    icon: Terminal,
   },
 ];
 
@@ -154,17 +146,9 @@ export function SettingsModal({
   ingestPipelineConfigs,
   embedderConfigs,
   hasHfToken = false,
-  hasEnvSecrets = {},
-  externalPython,
-  pythonStatus,
-  pythonBusy = false,
   initialSection = 'providers',
   onPersist,
   onRefresh,
-  onExternalPythonChange,
-  onPickPython,
-  onValidatePython,
-  onRefreshPipelines,
   onClose,
 }: {
   providers: ProviderProfile[];
@@ -176,17 +160,9 @@ export function SettingsModal({
   ingestPipelineConfigs: AppSettings['ingest_pipeline_configs'];
   embedderConfigs: AppSettings['embedder_configs'];
   hasHfToken?: boolean;
-  hasEnvSecrets?: Record<string, boolean>;
-  externalPython: ExternalPythonConfig;
-  pythonStatus: PythonEnvironmentProbe | null;
-  pythonBusy?: boolean;
   initialSection?: SettingsSectionId;
   onPersist: (next: AppSettings) => Promise<AppSettings>;
   onRefresh: () => Promise<AppSettings>;
-  onExternalPythonChange: (next: ExternalPythonConfig) => void;
-  onPickPython: () => void;
-  onValidatePython: () => void;
-  onRefreshPipelines: () => void;
   onClose: () => void;
 }) {
   const [section, setSection] = useState<SettingsSectionId>(initialSection);
@@ -254,7 +230,6 @@ export function SettingsModal({
       ingest_pipeline: overrides?.ingest_pipeline ?? ingestPipeline,
       ingest_pipeline_configs: overrides?.ingest_pipeline_configs ?? ingestPipelineConfigs,
       embedder_configs: overrides?.embedder_configs ?? embedderConfigs,
-      external_python: overrides?.external_python ?? externalPython,
     };
   }
 
@@ -752,8 +727,9 @@ export function SettingsModal({
             {section === 'huggingface' ? (
               <div className="settingsForm">
                 <p className="providerItemDescription">
-                  Stored securely like provider API keys and passed to the sidecar and plugin host
-                  as <code>HF_TOKEN</code>. Get one at huggingface.co/settings/tokens.
+                  Stored securely like provider API keys and passed to the sidecar as{' '}
+                  <code>HF_TOKEN</code>. Docling uses this token when it downloads layout models
+                  into the app-owned cache on first conversion. Get one at huggingface.co/settings/tokens.
                 </p>
                 <label className="field">
                   <span>Access token</span>
@@ -789,20 +765,6 @@ export function SettingsModal({
                   )}
                 </label>
               </div>
-            ) : null}
-
-            {section === 'python' ? (
-              <PythonEnvironmentManager
-                config={externalPython}
-                status={pythonStatus}
-                busy={busy || pythonBusy}
-                hasEnvSecrets={hasEnvSecrets}
-                onConfigChange={onExternalPythonChange}
-                onPick={onPickPython}
-                onValidate={onValidatePython}
-                onRefresh={onRefreshPipelines}
-                onSecretsChange={onRefresh}
-              />
             ) : null}
           </div>
         </div>

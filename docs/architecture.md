@@ -71,10 +71,11 @@ and do not change the 0.2 archive schema.
 
 ### `vera-ingest-docling`
 
-`vera-ingest-docling` is an optional plugin that registers `docling` /
-`docling:hybrid`. It is not part of the base install or the packaged desktop
-sidecar. Extra ingest plugins in the desktop app run through a validated
-external Python environment. See
+`vera-ingest-docling` is the official Docling pipeline that registers
+`docling` / `docling:hybrid`. CLI users install it with
+`pip install "vera-cli[docling]>=0.3.0"` or `uv sync --extra docling`. The
+packaged desktop sidecar freezes it beside PyMuPDF. Extra ingest plugins are
+ordinary pip packages in the same environment. See
 [vera-ingest-docling](packages/vera-ingest-docling.md).
 
 ### `vera-cli`
@@ -93,11 +94,10 @@ helpers. The optional `vera-cli[mcp]` extra installs it for `vera mcp`.
 
 `vera-app` owns the Electron/React desktop application, Python sidecar, LLM
 providers, sessions, and application state. It depends on `vera-doc`,
-`vera-ingest`, and `vera-ingest-pymupdf` (including viewer helpers), not on
-`vera-cli`. Packaged conversions keep the frozen sidecar for search, Ask, and
-bundled PyMuPDF. Extra ingest and embedding plugins run in a shipped
-`vera_plugin_host` worker that the sidecar launches with a user-selected
-Python interpreter.
+`vera-ingest`, `vera-ingest-pymupdf`, and `vera-ingest-docling` (including
+viewer helpers), not on `vera-cli`. Packaged conversions keep one frozen
+sidecar for search, Ask, PyMuPDF, and Docling. Extra ingest and embedding
+plugins are pip packages in that same environment.
 
 ### `vera-lab`
 

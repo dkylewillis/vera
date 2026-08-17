@@ -1,4 +1,4 @@
-import type { AppSettings, PythonEnvironmentProbe, Session, StreamEvent } from '../src/shared/contracts.js';
+import type { AppSettings, Session, StreamEvent } from '../src/shared/contracts.js';
 import type { IPC_CHANNELS as IpcChannels } from '../src/shared/protocol.js';
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -42,10 +42,6 @@ const IPC_CHANNELS: typeof IpcChannels = {
   openSettings: 'vera:openSettings',
   folderChanged: 'vera:folderChanged',
   answerEvent: 'vera:answerEvent',
-  pickPythonInterpreter: 'vera:pickPythonInterpreter',
-  validatePythonEnvironment: 'vera:validatePythonEnvironment',
-  refreshExternalPipelines: 'vera:refreshExternalPipelines',
-  pythonEnvironment: 'vera:pythonEnvironment',
 };
 
 contextBridge.exposeInMainWorld('vera', {
@@ -57,11 +53,6 @@ contextBridge.exposeInMainWorld('vera', {
   skipConversion: (requestId: string) => ipcRenderer.invoke(IPC_CHANNELS.skipConversion, requestId),
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getSettings),
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke(IPC_CHANNELS.saveSettings, settings),
-  pickPythonInterpreter: () => ipcRenderer.invoke(IPC_CHANNELS.pickPythonInterpreter),
-  validatePythonEnvironment: (executable: string, artifactsPath?: string) => (
-    ipcRenderer.invoke(IPC_CHANNELS.validatePythonEnvironment, executable, artifactsPath)
-  ),
-  refreshExternalPipelines: () => ipcRenderer.invoke(IPC_CHANNELS.refreshExternalPipelines),
   saveApiKey: (providerId: string, apiKey: string) => ipcRenderer.invoke(IPC_CHANNELS.saveApiKey, providerId, apiKey),
   clearApiKey: (providerId: string) => ipcRenderer.invoke(IPC_CHANNELS.clearApiKey, providerId),
   saveHfToken: (token: string) => ipcRenderer.invoke(IPC_CHANNELS.saveHfToken, token),
@@ -101,10 +92,5 @@ contextBridge.exposeInMainWorld('vera', {
     const listener = (_event: unknown, data: StreamEvent) => callback(data);
     ipcRenderer.on(IPC_CHANNELS.answerEvent, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.answerEvent, listener);
-  },
-  onPythonEnvironment: (callback: (probe: PythonEnvironmentProbe) => void) => {
-    const listener = (_event: unknown, probe: PythonEnvironmentProbe) => callback(probe);
-    ipcRenderer.on(IPC_CHANNELS.pythonEnvironment, listener);
-    return () => ipcRenderer.removeListener(IPC_CHANNELS.pythonEnvironment, listener);
   },
 });

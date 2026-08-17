@@ -56,10 +56,11 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 - Configurable augmentation that combines system/app instructions, retrieved context, and user prompt
 - Optional domain-specific response templates
 
-### 6. LLM Integrations
-- Connect to one or more LLM providers
+### 6. LLM Ask
+- Connect to one or more LLM providers under **File > Settings**
 - Select model by task profile (speed, quality, cost)
-- Stream responses and preserve grounded citation links
+- Stream grounded answers with citation links
+- Search remains fully local when no provider is configured
 
 ### 7. External Tool Connectivity
 - Integrate useful supporting tools (search, APIs, data sources, utilities)
@@ -71,7 +72,7 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 1. User asks a question
 2. App retrieves relevant context from `.vera`
 3. App composes prompt with instructions + context + user input
-4. App returns a grounded cited draft, or passes the composed prompt to a configured LLM provider
+4. App returns a grounded cited answer from the configured LLM provider, or Search-only results when no provider is set
 5. Citation clicks open the Source Document viewer and highlight the supporting region
 
 ## Why `.vera` Matters in This App
@@ -111,8 +112,11 @@ This lets the app deliver faster, more consistent, and more explainable answers 
 
 ## Future Enhancements
 
+Libraries (folder-scoped Search/Ask with persistent collection indexes) and
+LLM Ask are already shipped. Remaining product follow-ups:
+
+- Hosted embedding providers (OpenAI, Voyage, Ollama) in 0.3.1
 - Advanced reranking and confidence scoring
-- Multi-document `.vera` collections
 - Evaluation dashboard for groundedness and retrieval quality
 - Role-based governance and audit trails
 - Stronger tool orchestration and approval policies

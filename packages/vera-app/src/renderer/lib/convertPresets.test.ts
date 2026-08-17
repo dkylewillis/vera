@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PipelineDescriptor } from '../../shared/contracts';
 import {
   CUSTOM_EMBEDDING_VALUE,
+  EMBEDDING_MODEL_PRESETS,
   embeddingProviderFromSpec,
   embeddingSelectOptions,
   embeddingSelectValue,
@@ -33,8 +34,8 @@ const doclingDescriptor: PipelineDescriptor = {
   provider: 'docling',
   variant: 'hybrid',
   spec: 'docling',
-  label: 'docling — HybridChunker',
-  description: 'Docling HybridChunker',
+  label: 'Advanced layout (slower)',
+  description: 'Docling HybridChunker. Slower than PyMuPDF; better tables, layout, and scanned pages.',
   installed: true,
   capabilities: { overlap_supported: false },
   fields: [
@@ -52,6 +53,8 @@ describe('convertPresets', () => {
   it('treats hashing and MiniLM specs as known presets', () => {
     expect(isKnownEmbeddingPreset('hashing')).toBe(true);
     expect(isKnownEmbeddingPreset('sentence-transformers:all-MiniLM-L6-v2')).toBe(true);
+    expect(EMBEDDING_MODEL_PRESETS.find((item) => item.value === 'sentence-transformers:all-MiniLM-L6-v2')?.label)
+      .toBe('Local semantic (MiniLM)');
     expect(isKnownEmbeddingPreset('openai:text-embedding-3-small')).toBe(false);
   });
 
@@ -119,21 +122,21 @@ describe('convertPresets', () => {
     expect(pipelineInstallHint('docling', [
       pymupdfDescriptor,
       { ...doclingDescriptor, installed: false },
-    ])).toContain('python -m pip install vera-ingest-docling');
+    ])).toContain('vera-cli[docling]');
   });
 
-  it('preserves bundled vs external source on installed options', () => {
+  it('preserves bundled source on installed options', () => {
     const options = pipelineSelectOptions([
       { ...pymupdfDescriptor, source: 'bundled' },
-      { ...doclingDescriptor, source: 'external' },
+      { ...doclingDescriptor, source: 'bundled' },
     ]);
     expect(options[0]?.source).toBe('bundled');
-    expect(options[1]?.source).toBe('external');
+    expect(options[1]?.source).toBe('bundled');
   });
 
   it('returns install hints for missing optional pipelines', () => {
-    expect(pipelineInstallHint('docling', [pymupdfDescriptor])).toContain('python -m pip install vera-ingest-docling');
-    expect(pipelineInstallHint('docling', [pymupdfDescriptor])).toContain('pip install -e');
+    expect(pipelineInstallHint('docling', [pymupdfDescriptor])).toContain('vera-cli[docling]');
+    expect(pipelineInstallHint('docling', [pymupdfDescriptor])).toContain('uv sync --extra docling');
     expect(pipelineInstallHint('pymupdf', [pymupdfDescriptor])).toBe('Default PDF ingest pipeline');
   });
 });

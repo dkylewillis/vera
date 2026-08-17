@@ -1,21 +1,18 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, safeStorage, shell } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
-import { basename, delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
   AppSettings,
-  ExternalPythonConfig,
   PipelineOptions,
   CredentialResult,
   ProviderProfile,
-  PythonEnvironmentProbe,
   Session,
 } from '../src/shared/contracts.js';
 import { IPC_CHANNELS, SIDECAR_ACTIONS } from '../src/shared/protocol.js';
 import { listFolderEntries } from './folder-listing.js';
-import { type JsonLineEvent, type JsonLineResponse } from './json-line-process.js';
-import { normalizeExternalPython } from './ingest-runtime.js';
+import { type JsonLineEvent } from './json-line-process.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
 
 /** Prefer the workspace uv venv so bundled sidecar packages resolve in source-run. */
@@ -96,13 +93,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   ingest_pipeline: 'pymupdf',
   ingest_pipeline_configs: {},
   embedder_configs: {},
-  external_python: { enabled: false, executable: '' },
 };
-
-let lastPythonProbe: PythonEnvironmentProbe | null = null;
-let pythonProbeTask: Promise<PythonEnvironmentProbe> | null = null;
-let sidecarGeneration = 0;
-let configuredSidecarGeneration = -1;
 
 function isJsonPrimitive(value: unknown): value is string | number | boolean | null {
   return value === null
@@ -189,6 +180,18 @@ function packagedSidecarExecutable(): string {
   const preferredPath = join(dir, preferred);
   if (existsSync(preferredPath)) return preferredPath;
   return join(dir, fallback);
+}
+
+function sentenceTransformersHome(): string | undefined {
+  const fromEnv = process.env.VERA_SENTENCE_TRANSFORMERS_HOME?.trim();
+  if (fromEnv && existsSync(fromEnv)) return fromEnv;
+  if (!app.isPackaged) return fromEnv || undefined;
+  const sidecarDir = dirname(packagedSidecarExecutable());
+  const candidates = [
+    join(sidecarDir, 'sentence_transformers_models'),
+    join(sidecarDir, '_internal', 'sentence_transformers_models'),
+  ];
+  return candidates.find((candidate) => existsSync(candidate));
 }
 
 class PythonSidecar {
@@ -281,7 +284,6 @@ class PythonSidecar {
     const child = this.child;
     if (!child) return;
     this.child = null;
-    sidecarGeneration += 1;
     this.rejectPending(new Error(reason), child);
     child.kill();
   }
@@ -302,6 +304,10 @@ class PythonSidecar {
     const env = { ...process.env };
     applyHfTokenEnv(env);
     applyEmbedderSecretEnv(env);
+    env.DOCLING_ARTIFACTS_PATH = (env.DOCLING_ARTIFACTS_PATH || '').trim() || doclingArtifactsPath();
+    mkdirSync(env.DOCLING_ARTIFACTS_PATH, { recursive: true });
+    const minilmHome = sentenceTransformersHome();
+    if (minilmHome) env.VERA_SENTENCE_TRANSFORMERS_HOME = minilmHome;
     const executable = app.isPackaged ? packagedSidecarExecutable() : resolveDevPython();
     const args = app.isPackaged ? [] : ['-m', 'vera_app.sidecar'];
     if (!app.isPackaged) {
@@ -310,6 +316,7 @@ class PythonSidecar {
         join(process.cwd(), '..', 'vera-doc', 'src'),
         join(process.cwd(), '..', 'vera-ingest', 'src'),
         join(process.cwd(), '..', 'vera-ingest-pymupdf', 'src'),
+        join(process.cwd(), '..', 'vera-ingest-docling', 'src'),
       ];
       env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
     }
@@ -372,130 +379,8 @@ class PythonSidecar {
 
 const sidecar = new PythonSidecar();
 
-function pluginHostPythonPath(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'python', 'plugin-host')
-    : join(process.cwd(), 'src');
-}
-
-function broadcastPythonEnvironment(probe: PythonEnvironmentProbe): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.pythonEnvironment, probe);
-  }
-}
-
-function setPythonProbe(probe: PythonEnvironmentProbe): PythonEnvironmentProbe {
-  lastPythonProbe = probe;
-  broadcastPythonEnvironment(probe);
-  return probe;
-}
-
-function pluginRuntimeExtraEnv(): Record<string, string> {
-  const env: Record<string, string> = {};
-  applyHfTokenEnv(env);
-  applyEmbedderSecretEnv(env);
-  return env;
-}
-
-async function configurePluginRuntime(config: ExternalPythonConfig | null | undefined): Promise<PythonEnvironmentProbe> {
-  const enabled = Boolean(config?.enabled && config.executable?.trim());
-  const executable = config?.executable?.trim() || '';
-  const artifacts = (config?.artifacts_path || '').trim();
-  if (enabled && executable && !existsSync(executable)) {
-    configuredSidecarGeneration = sidecarGeneration;
-    return setPythonProbe({
-      ok: false,
-      executable,
-      error: `Python interpreter not found: ${executable}`,
-    });
-  }
-  const response = await sidecar.request({
-    action: SIDECAR_ACTIONS.configurePluginRuntime,
-    enabled,
-    executable,
-    artifacts_path: artifacts,
-    plugin_host_root: pluginHostPythonPath(),
-    extra_env: pluginRuntimeExtraEnv(),
-  });
-  configuredSidecarGeneration = sidecarGeneration;
-  if (!response.ok) {
-    return setPythonProbe({
-      ok: false,
-      executable: executable || undefined,
-      error: response.error || 'Plugin runtime configuration failed',
-    });
-  }
-  const result = (response.result || {}) as PythonEnvironmentProbe;
-  return setPythonProbe(result);
-}
-
-async function ensurePluginRuntime(): Promise<void> {
-  const settings = readSettings();
-  if (!settings.external_python?.enabled || !settings.external_python.executable) {
-    if (configuredSidecarGeneration !== sidecarGeneration) {
-      await configurePluginRuntime({ enabled: false, executable: '' });
-    }
-    return;
-  }
-  if (configuredSidecarGeneration === sidecarGeneration && lastPythonProbe) {
-    return;
-  }
-  await configurePluginRuntime(settings.external_python);
-}
-
-async function routeSidecarRequest(
-  request: SidecarPayload,
-  onEvent: (event: JsonLineEvent) => void,
-  requestId?: string,
-): Promise<JsonLineResponse> {
-  if (pythonProbeTask) {
-    await pythonProbeTask.catch(() => undefined);
-  } else {
-    await ensurePluginRuntime();
-  }
-  return sidecar.request(request, onEvent, requestId);
-}
-
-async function validatePythonEnvironment(
-  executable: string,
-  artifactsPath?: string,
-): Promise<PythonEnvironmentProbe> {
-  const resolved = executable.trim();
-  const artifacts = (artifactsPath || '').trim();
-  if (!resolved) {
-    return setPythonProbe({ ok: false, error: 'Choose a Python interpreter.' });
-  }
-  if (!existsSync(resolved)) {
-    return setPythonProbe({
-      ok: false,
-      executable: resolved,
-      error: `Python interpreter not found: ${resolved}`,
-    });
-  }
-  if (pythonProbeTask) {
-    await pythonProbeTask.catch(() => undefined);
-  }
-  const task = configurePluginRuntime({
-    enabled: true,
-    executable: resolved,
-    artifacts_path: artifacts || undefined,
-  });
-  pythonProbeTask = task.finally(() => {
-    if (pythonProbeTask === task) pythonProbeTask = null;
-  });
-  return task;
-}
-
-async function pickPythonInterpreter(): Promise<string | null> {
-  const options: Electron.OpenDialogOptions = {
-    title: 'Select Python interpreter',
-    properties: ['openFile'],
-    filters: process.platform === 'win32'
-      ? [{ name: 'Python', extensions: ['exe'] }]
-      : undefined,
-  };
-  const result = await dialog.showOpenDialog(options);
-  return result.canceled ? null : result.filePaths[0] || null;
+function doclingArtifactsPath(): string {
+  return join(app.getPath('userData'), 'docling-artifacts');
 }
 
 function settingsPath(): string {
@@ -672,7 +557,6 @@ function withRuntime(settings: AppSettings): AppSettings {
     has_env_secrets: Object.fromEntries(
       Object.keys(storedEnvSecrets()).map((name) => [name, true]),
     ),
-    external_python_status: lastPythonProbe,
   };
 }
 
@@ -746,7 +630,6 @@ function readSettings(): AppSettings {
         : 'pymupdf',
       ingest_pipeline_configs: normalizePipelineConfigs(raw.ingest_pipeline_configs),
       embedder_configs: normalizePipelineConfigs(raw.embedder_configs),
-      external_python: normalizeExternalPython(raw.external_python),
     };
     return withRuntime(merged);
   } catch {
@@ -767,9 +650,7 @@ function writeSettings(settings: AppSettings): AppSettings {
     ingest_pipeline: settings.ingest_pipeline?.trim() || 'pymupdf',
     ingest_pipeline_configs: normalizePipelineConfigs(settings.ingest_pipeline_configs),
     embedder_configs: normalizePipelineConfigs(settings.embedder_configs),
-    external_python: normalizeExternalPython(settings.external_python),
   };
-  void configurePluginRuntime(sanitized.external_python);
   const target = settingsPath();
   const temp = `${target}.tmp`;
   writeFileSync(temp, JSON.stringify(sanitized, null, 2), 'utf8');
@@ -1143,7 +1024,7 @@ app.whenReady().then(() => {
     const request = prepared.action === 'source'
       ? { ...prepared, cache_dir: sourceCacheDir() }
       : prepared;
-    const response = await routeSidecarRequest(request, onEvent, requestId);
+    const response = await sidecar.request(request, onEvent, requestId);
     if (
       response.ok
       && request.action === 'source'
@@ -1173,21 +1054,6 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.openModesFolder, async () => shell.openPath(modesDir()));
   ipcMain.handle(IPC_CHANNELS.getSettings, async () => readSettings());
   ipcMain.handle(IPC_CHANNELS.saveSettings, async (_event, settings: AppSettings) => writeSettings(settings));
-  ipcMain.handle(IPC_CHANNELS.pickPythonInterpreter, async () => pickPythonInterpreter());
-  ipcMain.handle(IPC_CHANNELS.validatePythonEnvironment, async (_event, executable: string, artifactsPath?: string) => {
-    return validatePythonEnvironment(String(executable || ''), artifactsPath);
-  });
-  ipcMain.handle(IPC_CHANNELS.refreshExternalPipelines, async () => {
-    const settings = readSettings();
-    if (!settings.external_python?.enabled || !settings.external_python.executable) {
-      lastPythonProbe = { ok: false, error: 'External Python is not configured.' };
-      return lastPythonProbe;
-    }
-    return validatePythonEnvironment(
-      settings.external_python.executable,
-      settings.external_python.artifacts_path,
-    );
-  });
   ipcMain.handle(IPC_CHANNELS.saveApiKey, async (_event, providerId: string, apiKey: string) => saveApiKey(providerId, apiKey));
   ipcMain.handle(IPC_CHANNELS.clearApiKey, async (_event, providerId: string) => clearApiKey(providerId));
   ipcMain.handle(IPC_CHANNELS.saveHfToken, async (_event, token: string) => saveHfToken(token));
@@ -1222,10 +1088,6 @@ app.whenReady().then(() => {
     const result = await dialog.showSaveDialog({ title: 'Save file' });
     return result.canceled ? null : result.filePath;
   });
-  const startupPython = readSettings().external_python;
-  if (startupPython?.enabled && startupPython.executable) {
-    void validatePythonEnvironment(startupPython.executable, startupPython.artifacts_path);
-  }
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

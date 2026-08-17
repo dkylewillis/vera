@@ -53,6 +53,13 @@ vera validate manual.vera --json
 # Create an .vera from a PDF
 vera convert manual.pdf manual.vera --json
 
+# Docling / Advanced layout (requires vera-cli[docling] or --extra docling)
+vera convert scan.pdf scan.vera --parser docling --json
+vera convert scan.pdf scan.vera --parser docling --pipeline-option pdf_backend=pypdfium2 --json
+
+# Provider-owned embedder options (hashing dimension, future hosted providers)
+vera convert manual.pdf --model hashing --embedder-option dimension=256 --json
+
 # Batch-convert a nested PDF library beside its source files
 vera convert ./proposals --recursive --json
 
@@ -171,14 +178,14 @@ portable [agent skill](skills/vera/SKILL.md), and documentation-contract tests
 in the same change. Changes to CLI commands or flags, JSON output, exit codes,
 MCP tools, installation requirements, or retrieval behavior must also update
 the relevant files under [skills/vera/references](skills/vera/references).
-The desktop plugin host lives in
-[packages/vera-app/src/vera_plugin_host](packages/vera-app/src/vera_plugin_host).
+The desktop sidecar lives in
+[packages/vera-app/src/vera_app](packages/vera-app/src/vera_app).
 Do not merge a feature whose public behavior is only documented in
 implementation code or tests.
 
 ## Cursor Cloud specific instructions
 
-The startup update script already runs `uv sync --extra dev --extra ml --extra app --extra mcp`
+The startup update script already runs `uv sync --extra dev --extra ml --extra app --extra mcp --extra docling`
 and `npm --prefix packages/vera-app install`, so dependencies are ready. Notes below are
 non-obvious caveats for this environment; standard commands live in the sections above,
 [README.md](README.md), and [docs/desktop-app-getting-started.md](docs/desktop-app-getting-started.md).
@@ -199,8 +206,11 @@ non-obvious caveats for this environment; standard commands live in the sections
   (OpenAI/OpenRouter/Ollama/LM Studio) — there is no offline/extractive answer mode, so Ask is
   blocked without a provider/API key. For fully offline testing use the left-sidebar **Search**
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
-  **Convert PDF** view. Convert keeps the bundled PyMuPDF pipeline in the sidecar; extra ingest
-  plugins require a validated external Python environment under **File > Settings → Python plugins**. Ask is
+  **Convert PDF** view. Convert lists PyMuPDF (default) and **Advanced layout (slower)** /
+  Docling in the same sidecar. First Docling use may download models into
+  `DOCLING_ARTIFACTS_PATH` under the app userData cache. The packaged
+  Windows sidecar also freezes Sentence Transformers and vendors
+  `all-MiniLM-L6-v2` weights (`VERA_SENTENCE_TRANSFORMERS_HOME`). Ask is
   blocked without a provider/API key.
 - MCP server (optional): `uv run --extra mcp vera mcp` (long-running stdio; no `--json`).
 - There are no PDFs in the repo; generate one with the `reportlab` dev dependency when you need

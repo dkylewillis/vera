@@ -23,10 +23,11 @@ Download `VERA Setup <version>.exe` from the
 1. Open **Convert PDF** and convert selected PDFs or a directory, or
    right-click a folder and choose **Convert PDFs…**. Expand
    **Advanced pipeline options** for schema-driven settings from
-   `describe_ingest_pipelines` / `PipelineConfigForm`. Extra parsers appear
-   after you validate an external Python environment under **File > Settings
-   → Python plugins**. Extra embedders appear the same way, with `(external)` badges
-   and descriptor-driven **Advanced pipeline options**. Right-click a `.vera`
+   `describe_ingest_pipelines` / `PipelineConfigForm`. Convert lists PyMuPDF
+   (default) and **Advanced layout (slower)** / Docling from the same sidecar.
+   Convert embedding presets are hashing (default) and **Local semantic
+   (MiniLM)**; MiniLM weights ship in the Windows installer. Hosted embedders
+   are a 0.3.1 follow-up. Right-click a `.vera`
    archive and choose **Reconvert…** to replace it with a different ingest
    pipeline or embedding model.
 2. Use **File > Open Folder** to activate a document library.
@@ -40,14 +41,11 @@ Download `VERA Setup <version>.exe` from the
 Search and conversion do not require a model-provider account. A provider is
 only required for generated Ask responses.
 
-Source-run and packaged conversions keep PyMuPDF in the sidecar. Extra ingest
-and embedding plugins run from a trusted external Python environment
-configured under **File > Settings → Python plugins**. The sidecar owns the plugin host;
-Electron does not talk to that worker directly. Install plugins with
-`python -m pip install` or `python -m pip install -e <clone>` in a dedicated
-plugin venv (not the workspace `.venv`), then Validate / Refresh. While 0.3.x
-is not on PyPI, install checkout `vera-doc` and `vera-ingest` first. Later
-launches re-probe the saved interpreter. See
+Source-run and packaged conversions use one sidecar interpreter with PyMuPDF,
+Docling, hashing, and Sentence Transformers MiniLM. Extra ingest and embedding
+plugins are pip packages in that
+same environment (`python -m pip install` or `python -m pip install -e
+<clone>`). See
 [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md),
 [Creating an embedding provider](../creating-an-embedding-provider.md), and
 [Desktop app architecture](../desktop-app-architecture.md).
@@ -71,5 +69,5 @@ npm run app:dev
 
 The supported packaged target is currently Windows. Use the CLI
 `--pipeline-option` flags (or Convert-view pipeline settings) for
-provider-owned chunking and OCR controls. Extra parsers need a validated
-external Python environment in both `app:dev` and packaged builds.
+provider-owned chunking and OCR controls. Packaged and `app:dev` Convert both
+report `pymupdf` and `docling`, plus hashing and MiniLM embedders.

@@ -26,6 +26,7 @@ Documentation = "https://dkylewillis.github.io/vera/packages/vera-cli/"
 
 [project.optional-dependencies]
 mcp = ["vera-mcp>=0.3.0"]
+docling = ["vera-ingest-docling>=0.3.0"]
 
 [project.scripts]
 vera = "vera_cli:main"

@@ -36,14 +36,14 @@ describe('JsonLineProcess', () => {
     spawn.mockReturnValue(child);
     const proc = new JsonLineProcess('plugin-host', () => ({
       executable: 'C:\\Users\\me\\venv\\Scripts\\python.exe',
-      args: ['-m', 'vera_plugin_host'],
+      args: ['-m', 'vera_app.sidecar'],
       cwd: 'C:\\Users\\me\\AppData\\Roaming\\VERA',
-      env: { PYTHONPATH: 'C:\\Program Files\\VERA\\resources\\python\\plugin-host' },
+      env: { PYTHONPATH: 'C:\\Program Files\\VERA\\resources\\python\\sidecar' },
     }));
     const pending = proc.request({ action: 'ping' });
     expect(spawn).toHaveBeenCalledWith(
       'C:\\Users\\me\\venv\\Scripts\\python.exe',
-      ['-m', 'vera_plugin_host'],
+      ['-m', 'vera_app.sidecar'],
       expect.objectContaining({
         shell: false,
         windowsHide: true,
@@ -60,7 +60,7 @@ describe('JsonLineProcess', () => {
     spawn.mockReturnValueOnce(first).mockReturnValueOnce(second);
     const proc = new JsonLineProcess('plugin-host', () => ({
       executable: 'python',
-      args: ['-m', 'vera_plugin_host'],
+      args: ['-m', 'vera_app.sidecar'],
     }));
     const crashed = proc.request({ action: 'convert' }, undefined, 'req-1');
     first.emit('exit', 1, null);
@@ -77,7 +77,7 @@ describe('JsonLineProcess', () => {
     spawn.mockReturnValue(child);
     const proc = new JsonLineProcess('plugin-host', () => ({
       executable: 'python',
-      args: ['-m', 'vera_plugin_host'],
+      args: ['-m', 'vera_app.sidecar'],
     }));
     const convert = proc.request({ action: 'convert' }, undefined, 'job-1');
     const skip = proc.skipConversion('job-1');
@@ -100,7 +100,7 @@ describe('JsonLineProcess', () => {
     spawn.mockReturnValue(child);
     const proc = new JsonLineProcess('plugin-host', () => ({
       executable: 'python',
-      args: ['-m', 'vera_plugin_host'],
+      args: ['-m', 'vera_app.sidecar'],
     }));
     const pending = proc.request({ action: 'ping' });
     proc.forceRestart();

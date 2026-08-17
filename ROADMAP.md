@@ -16,11 +16,13 @@ format version. The archive format remains 0.2 unless a feature changes its
 schema or normative behavior.
 
 The **0.3.0** tag ships the extensibility foundation below (pluggable ingest
-and embedders, strict unknown-provider errors, optional Docling, descriptor
-APIs). Unchecked items under Desktop application, Official embedding
-providers, Packaging and local models, Future packaged-app plugin runtime,
-and Additional source formats and visual grounding are **follow-ups after the 0.3.0 tag**
-(0.3.1 or later). They are not blockers for 0.3.0.
+and embedders, strict unknown-provider errors, official Docling beside
+PyMuPDF, one sidecar interpreter, descriptor APIs). Unchecked items under
+Desktop application, Official embedding providers, Packaging and local
+models, Future app-managed plugin store, and Additional source formats and
+visual grounding are **follow-ups after the 0.3.0 tag** (0.3.1 or later).
+They are not blockers for 0.3.0. A packaged plugin host / second Python is
+**not** a 0.3.0 shipped item.
 
 ## VERA 0.2 — Maintenance
 
@@ -61,11 +63,11 @@ and Additional source formats and visual grounding are **follow-ups after the 0.
 - [x] Add conversion-time provider and credential preflight checks in the
   Convert UI (sidecar `preflight_embedder`).
 - [x] Improve model selection UI with provider-specific model discovery
-  (`list_embedding_models` plus `(external)` embedder options).
+  (`list_embedding_models`).
 - [x] Drive Convert UI embedding forms from descriptors
   (`EmbedderConfigForm` over `PipelineConfigForm`).
-- [x] Store hosted embedding-provider credentials securely in the desktop
-  app (`credential_env` via encrypted env secrets).
+- [ ] Store hosted embedding-provider credentials securely in the desktop
+  app (`credential_env` via encrypted env secrets) — 0.3.1.
 
 ### Official embedding providers
 
@@ -80,17 +82,17 @@ already in 0.3.0.
   via provider `Options` + descriptors (built-ins advertise dimension /
   device / batch_size; hosted plugins follow the same pattern; secrets use
   `credential_env`).
-- [ ] Document which providers are bundled with each desktop release.
+- [x] Document which providers are bundled with each desktop release
+  (hashing + MiniLM in the Windows sidecar; hosted embedders in 0.3.1).
 
 ### Packaging and local models
 
-Follow-ups after 0.3.0 (0.3.1 or later); not 0.3.0 blockers.
-
-- [ ] Bundle lightweight official providers with the released application.
-- [ ] Decide how optional local neural runtimes and models are distributed
-  without substantially increasing the base installer.
-- [ ] Verify provider availability in packaged sidecar builds.
+- [x] Bundle Sentence Transformers and vendor `all-MiniLM-L6-v2` weights in
+  the Windows installer (no first-use Hub download for that model).
+- [x] Verify MiniLM files and `sentence-transformers` in packaged sidecar
+  describe checks.
 - [ ] Add release tests that convert and search with every bundled provider.
+  Follow-up after 0.3.0; not a 0.3.0 blocker.
 
 ## VERA 0.3 — Extensible ingestion pipelines
 
@@ -133,31 +135,26 @@ Follow-ups after 0.3.0 (0.3.1 or later); not 0.3.0 blockers.
 - [x] Drive Convert settings from `describe_ingest_pipelines` descriptors and
   `PipelineConfigForm`.
 - [x] Persist Convert-view `ingest_pipeline` settings for source-run apps.
-- [x] Show Docling in the Convert pipeline dropdown when the plugin is installed.
-- [x] Ship an opt-in external Python plugin runtime for packaged extra ingest
-  plugins (`vera_plugin_host`, pip / `pip install -e` discovery).
+- [x] Show Docling in the Convert pipeline dropdown as **Advanced layout
+  (slower)** in both `app:dev` and the packaged sidecar.
+- [x] Bundle `vera-ingest-docling` (Torch, RapidOCR, ONNX Runtime) in the
+  one Windows sidecar; model artifacts download on first use into an
+  app-owned cache.
 
-### Future packaged-app plugin runtime
+### Future app-managed plugin store
 
-Source-run apps can already use installed pipeline plugins (including Docling).
-Packaged extra ingest plugins now run through a trusted user-selected Python
-environment. The items below remain for an app-managed plugin store.
+0.3.0 uses one interpreter. Official converters are pip packages in that
+environment (and a curated freeze in the Windows app). The items below remain
+for an app-managed plugin store; a packaged second-Python plugin host is not
+a 0.3.0 feature.
 
-- [x] Create a plugin runtime separate from the frozen desktop sidecar for
-  ingest pipelines.
-- [x] Extend that runtime to embedding providers.
-- [ ] Decide how Docling/Torch/model artifacts are distributed without
-  bloating the base installer.
-- [ ] Let users install, update, enable, disable, and remove plugins from the
-  application.
-- [ ] Keep plugins across application upgrades.
-- [x] Enforce plugin API and VERA version compatibility.
-- [x] Isolate plugin failures from storage, keyword search, and the main app.
+- [ ] Let users install, update, enable, disable, and remove extra plugins
+  from the application.
+- [ ] Keep extra plugins across application upgrades.
 - [ ] Define a security and trust policy for third-party plugin installation.
 
-The long-term goal is an app-managed experience. Released VERA installations
-should not require users to locate Python, manage a virtual environment, or run
-`pip` manually.
+The long-term goal is an app-managed experience for optional extras beyond
+the curated sidecar snapshot.
 
 ## Additional source formats and visual grounding
 

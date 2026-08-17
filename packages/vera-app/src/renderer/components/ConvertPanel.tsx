@@ -228,10 +228,9 @@ export function ConvertPanel({
         >
           {pipelineOptionsForSelect.map((option) => {
             const available = presetOptionAvailable(option, installedPipelineProviders);
-            const suffix = option.source === 'external' ? ' (external)' : '';
             return (
               <option key={option.value} value={option.value} disabled={!available}>
-                {available ? `${option.label}${suffix}` : `${option.label} (not installed)`}
+                {available ? option.label : `${option.label} (not installed)`}
               </option>
             );
           })}
@@ -246,7 +245,7 @@ export function ConvertPanel({
           ? (activePipelineDescriptor.description || 'Pipeline ready for conversion.')
           : (pipelineInstallHint(ingestPipeline, ingestPipelineDescriptors)
             || 'Choose an ingest pipeline.')}
-        {' '}Packaged releases keep PyMuPDF bundled; extra parsers run in a trusted external Python environment under File → Settings → Python plugins.
+        {' '}PyMuPDF is the default. Advanced layout (Docling) is slower and may download models into the app cache on first use.
       </p>
       <label className="field">
         <span>Embedding model</span>
@@ -278,10 +277,9 @@ export function ConvertPanel({
               const spec = item.default_model_id
                 ? `${item.provider}:${item.default_model_id}`
                 : item.provider;
-              const suffix = item.source === 'external' ? ' (external)' : '';
               return (
                 <option key={item.provider} value={spec}>
-                  {item.label || spec}{suffix}
+                  {item.label || spec}
                 </option>
               );
             })}
@@ -316,12 +314,10 @@ export function ConvertPanel({
         </label>
       ) : null}
       <p className="sideMuted">
-        {activeEmbedderDescriptor?.source === 'external'
-          ? 'This embedder runs in the trusted external Python environment under File → Settings → Python plugins.'
-          : embeddingProviders.includes('sentence-transformers')
-            ? 'Sentence Transformers is available. The conversion embedding model is independent of Chat.'
-            : <>Sentence Transformers is not installed. From the repo root run <code>uv sync --extra ml</code> and restart the app, or install a plugin in the external Python environment.</>}
-        {' '}Custom specs are saved when the field loses focus. Extra embedders appear as (external) after Validate / Refresh.
+        {embeddingProviders.includes('sentence-transformers')
+          ? 'Local semantic (MiniLM) is bundled in the desktop app with weights in the installer, so first use does not download. Hashing stays the default. The conversion embedding model is independent of Chat.'
+          : <>Sentence Transformers is not installed. From the repo root run <code>uv sync --extra ml</code> and restart the app. Hosted embedders ship in a later 0.3.1 release.</>}
+        {' '}Custom specs are saved when the field loses focus.
       </p>
       <label className="miniCheck">
         <input type="checkbox" checked={storeOriginal} onChange={(event) => onStoreOriginalChange(event.target.checked)} />

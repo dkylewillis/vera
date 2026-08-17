@@ -28,7 +28,10 @@ Options:
   `sentence-transformers:all-MiniLM-L6-v2`) plus legacy aliases
   (`hashing`, `vera-hashing-384`, `all-MiniLM-L6-v2`,
   `sentence-transformers/...`). Unknown providers raise and the command
-  exits non-zero instead of silently falling back to hashing.
+  exits non-zero instead of silently falling back to hashing. CLI and
+  source-run installs need the `ml` extra for Sentence Transformers. The
+  Windows desktop installer freezes that provider and vendors
+  `all-MiniLM-L6-v2` weights.
 - `--parser PARSER` defaults to `pymupdf`. Accepts ingest pipeline specs
   `provider[:variant]` (requires `vera-ingest-pymupdf` for the default; for
   example `docling` or `docling:hybrid` when `vera-ingest-docling` is

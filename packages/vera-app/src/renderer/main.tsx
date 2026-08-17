@@ -28,7 +28,7 @@ import { ModelManager, SettingsModal } from './components/ProviderManagers';
 import { embedderAsPipelineDescriptor } from './components/EmbedderConfigForm';
 import { mergePipelineFieldValues } from './components/PipelineConfigForm';
 import { VeraIcon } from './components/VeraIcon';
-import { useAppBootstrap, loadEmbeddingDescriptors, loadIngestPipelineDescriptors } from './hooks/useAppBootstrap';
+import { useAppBootstrap } from './hooks/useAppBootstrap';
 import { useConversion } from './hooks/useConversion';
 import { useSearch } from './hooks/useSearch';
 import { useSidecarCall } from './hooks/useSidecarCall';
@@ -63,7 +63,7 @@ import { libraryQueryScope } from './lib/search';
 import { hydrateSessionTurns, stripTrace, traceKey } from './lib/sessions';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS } from './lib/providers';
 import { SIDECAR_ACTIONS } from '../shared/protocol';
-import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, EmbedderDescriptor, ExportResult, ExternalPythonConfig, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, PythonEnvironmentProbe, SearchResult, Session, SessionTurn, SkippedSemanticModelGroup, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
+import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, EmbedderDescriptor, ExportResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, SkippedSemanticModelGroup, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
 import './styles.css';
 
 // In-memory store for LLM traces. Traces are large (full prompt/response dumps),
@@ -125,10 +125,6 @@ function App() {
   const [pipelineOptions, setPipelineOptions] = useState<PipelineOptions>({});
   const [embedderOptions, setEmbedderOptions] = useState<PipelineOptions>({});
   const [hasHfToken, setHasHfToken] = useState(false);
-  const [hasEnvSecrets, setHasEnvSecrets] = useState<Record<string, boolean>>({});
-  const [externalPython, setExternalPython] = useState<ExternalPythonConfig>({ enabled: false, executable: '' });
-  const [pythonStatus, setPythonStatus] = useState<PythonEnvironmentProbe | null>(null);
-  const [pythonBusy, setPythonBusy] = useState(false);
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
@@ -1395,10 +1391,6 @@ function App() {
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
     setEmbedderConfigs(saved.embedder_configs || {});
     setHasHfToken(Boolean(saved.has_hf_token));
-    setHasEnvSecrets(saved.has_env_secrets || {});
-    setExternalPython(saved.external_python || { enabled: false, executable: '' });
-    // Probe status is runtime-only. Saving settings used to copy a stale
-    // timeout from a previous launch probe into the Validate UI.
     return saved;
   }
 
@@ -1413,9 +1405,6 @@ function App() {
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
     setEmbedderConfigs(saved.embedder_configs || {});
     setHasHfToken(Boolean(saved.has_hf_token));
-    setHasEnvSecrets(saved.has_env_secrets || {});
-    setExternalPython(saved.external_python || { enabled: false, executable: '' });
-    setPythonStatus(saved.external_python_status || null);
     return saved;
   }
 
@@ -1429,7 +1418,6 @@ function App() {
       ingest_pipeline: ingestPipeline,
       ingest_pipeline_configs: ingestPipelineConfigs,
       embedder_configs: embedderConfigs,
-      external_python: externalPython,
       ...overrides,
     };
   }
@@ -1481,62 +1469,6 @@ function App() {
     };
     setEmbedderConfigs(nextConfigs);
     await persistSettings(settingsSnapshot({ embedder_configs: nextConfigs }));
-  }
-
-  async function persistExternalPython(next: ExternalPythonConfig) {
-    setExternalPython(next);
-    await persistSettings(settingsSnapshot({ external_python: next }));
-  }
-
-  async function reloadIngestPipelines() {
-    setIngestPipelineDescriptors(await loadIngestPipelineDescriptors());
-  }
-
-  async function reloadEmbeddingDescriptors() {
-    const descriptors = await loadEmbeddingDescriptors();
-    setEmbeddingDescriptors(descriptors);
-    setEmbeddingProviders(descriptors.map((item) => item.provider));
-  }
-
-  async function pickPythonInterpreter() {
-    const selected = await window.vera.pickPythonInterpreter();
-    if (!selected) return;
-    await persistExternalPython({ ...externalPython, executable: selected, enabled: true });
-  }
-
-  async function validatePythonEnvironment() {
-    setPythonBusy(true);
-    try {
-      await persistExternalPython(externalPython);
-      const probe = await window.vera.validatePythonEnvironment(
-        externalPython.executable,
-        externalPython.artifacts_path,
-      );
-      setPythonStatus(probe);
-      if (probe.ok) {
-        await persistExternalPython({
-          ...externalPython,
-          enabled: true,
-          validated_at: Date.now(),
-        });
-        await reloadIngestPipelines();
-        await reloadEmbeddingDescriptors();
-      }
-    } finally {
-      setPythonBusy(false);
-    }
-  }
-
-  async function refreshExternalPipelines() {
-    setPythonBusy(true);
-    try {
-      const probe = await window.vera.refreshExternalPipelines();
-      setPythonStatus(probe);
-      await reloadIngestPipelines();
-      await reloadEmbeddingDescriptors();
-    } finally {
-      setPythonBusy(false);
-    }
   }
 
   async function selectActiveModel(providerId: string, model: string) {
@@ -1665,12 +1597,6 @@ function App() {
     setSettingsOpen(true);
   }), []);
 
-  useEffect(() => window.vera.onPythonEnvironment((probe) => {
-    setPythonStatus(probe);
-    void reloadIngestPipelines();
-    void reloadEmbeddingDescriptors();
-  }), []);
-
   const folderPathsKey = folders.map((folder) => folder.path).join('\n');
 
   // Keep folder headers scannable: expand the active library, collapse the rest.
@@ -1695,9 +1621,6 @@ function App() {
       setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
       setEmbedderConfigs(saved.embedder_configs || {});
       setHasHfToken(Boolean(saved.has_hf_token));
-      setHasEnvSecrets(saved.has_env_secrets || {});
-      setExternalPython(saved.external_python || { enabled: false, executable: '' });
-      setPythonStatus(saved.external_python_status || null);
     },
     setEmbeddingProviders,
     setEmbeddingDescriptors,
@@ -2410,16 +2333,8 @@ function App() {
           ingestPipelineConfigs={ingestPipelineConfigs}
           embedderConfigs={embedderConfigs}
           hasHfToken={hasHfToken}
-          hasEnvSecrets={hasEnvSecrets}
-          externalPython={externalPython}
-          pythonStatus={pythonStatus}
-          pythonBusy={pythonBusy}
           onPersist={persistSettings}
           onRefresh={refreshSettings}
-          onExternalPythonChange={(next) => { void persistExternalPython(next); }}
-          onPickPython={() => { void pickPythonInterpreter(); }}
-          onValidatePython={() => { void validatePythonEnvironment(); }}
-          onRefreshPipelines={() => { void refreshExternalPipelines(); }}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}

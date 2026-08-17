@@ -32,7 +32,8 @@ Options:
 
 - `--model MODEL` (`hashing`; accepts `provider:model-id` specs such as
   `sentence-transformers:all-MiniLM-L6-v2`; unknown providers exit with an
-  error)
+  error; CLI needs the `ml` extra, while the Windows installer vendors
+  MiniLM weights)
 - `--parser PARSER` (`pymupdf`; accepts `provider[:variant]` specs such as
   `docling` / `docling:hybrid` when `vera-ingest-docling` is installed; unknown
   providers exit with an error)

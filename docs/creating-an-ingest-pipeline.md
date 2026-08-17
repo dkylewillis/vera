@@ -398,30 +398,22 @@ vera-lab "manual.pdf" -o compare.html --parser pymupdf --parser docling
 
 ## Desktop app plugins
 
-Source-run and packaged builds keep bundled PyMuPDF in the sidecar. Extra
-ingest and embedding plugins run in a shipped `vera_plugin_host` worker that
-the sidecar launches with a user-selected Python interpreter. Use a dedicated venv
-for that worker, not the workspace `.venv`.
+Source-run and packaged builds use one sidecar interpreter. Extra ingest and
+embedding plugins are pip packages in **the same environment**.
 
-1. Create a stdlib venv (`python -m venv C:\venvs\vera-plugins`) so `pip` is
-   available. Install `vera-doc` and `vera-ingest` 0.3.x plus your plugin
-   (`python -m pip install …` or `python -m pip install -e <clone>`). While
-   0.3.x is not on PyPI, install the checkout packages in order
-   (`packages/vera-doc`, `packages/vera-ingest`, then your plugin, for
-   example `packages/vera-ingest-docling`).
-2. Install every import the worker will need in **that** interpreter. A
-   Docling convert embeds in the plugin host, so Sentence Transformers must
-   be installed there (`pip install "sentence-transformers>=2.7"`) or use
-   `hashing`. The sidecar's `--extra ml` copy is not visible to the host.
-3. In VERA, open **File > Settings → Python plugins**, enable the external Python environment,
-   choose that environment's interpreter, and **Validate** once. Later launches
-   re-probe that saved interpreter and refresh Convert; first discovery can
-   take about a minute when Docling/Torch imports are cold.
-4. Convert lists extra providers as `(external)`. Bundled `pymupdf` wins on
-   duplicate names. Treat the interpreter as trusted code; raw `PYTHONPATH`
+1. Install `vera-doc` and `vera-ingest` 0.3.x plus your plugin
+   (`python -m pip install …` or `python -m pip install -e <clone>`). From a
+   checkout, `uv sync --extra app --extra docling` already includes official
+   converters.
+2. Install every import the sidecar will need in that interpreter. Sentence
+   Transformers (`sentence-transformers`) is the `ml` extra for CLI and
+   source-run (`uv sync --extra ml`). The packaged desktop app already
+   freezes it and vendors MiniLM weights; hashing needs no extra install.
+3. Restart the desktop app so Convert reloads `describe_ingest_pipelines`.
+   Bundled `pymupdf` and `docling` win on duplicate names. Raw `PYTHONPATH`
    folders are not discovered.
 
-See [Run the desktop app](desktop-app-getting-started.md#external-python-plugins).
+See [Plugins in the same environment](desktop-app-getting-started.md#plugins-in-the-same-environment).
 
 To judge whether a new pipeline (or a chunking change within one) actually
 retrieves better, run the same query set through `vera eval` against archives

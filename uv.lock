@@ -4653,15 +4653,19 @@ name = "vera-app"
 version = "0.3.0"
 source = { editable = "packages/vera-app" }
 dependencies = [
+    { name = "sentence-transformers" },
     { name = "vera-doc" },
     { name = "vera-ingest" },
+    { name = "vera-ingest-docling" },
     { name = "vera-ingest-pymupdf" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "sentence-transformers", specifier = ">=2.7" },
     { name = "vera-doc", editable = "packages/vera-doc" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
+    { name = "vera-ingest-docling", editable = "packages/vera-ingest-docling" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
 ]
 
@@ -4676,6 +4680,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+docling = [
+    { name = "vera-ingest-docling" },
+]
 mcp = [
     { name = "vera-mcp" },
 ]
@@ -4684,10 +4691,11 @@ mcp = [
 requires-dist = [
     { name = "vera-doc", editable = "packages/vera-doc" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
+    { name = "vera-ingest-docling", marker = "extra == 'docling'", editable = "packages/vera-ingest-docling" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
     { name = "vera-mcp", marker = "extra == 'mcp'", editable = "packages/vera-mcp" },
 ]
-provides-extras = ["mcp"]
+provides-extras = ["mcp", "docling"]
 
 [[package]]
 name = "vera-doc"
@@ -4790,7 +4798,6 @@ name = "vera-workspace"
 version = "0.3.0"
 source = { editable = "." }
 dependencies = [
-    { name = "vera-app" },
     { name = "vera-cli" },
     { name = "vera-doc" },
     { name = "vera-ingest" },
@@ -4842,7 +4849,6 @@ requires-dist = [
     { name = "reportlab", marker = "extra == 'dev'", specifier = ">=4" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
     { name = "sentence-transformers", marker = "extra == 'ml'", specifier = ">=2.7" },
-    { name = "vera-app", editable = "packages/vera-app" },
     { name = "vera-app", marker = "extra == 'app'", editable = "packages/vera-app" },
     { name = "vera-cli", editable = "packages/vera-cli" },
     { name = "vera-doc", editable = "packages/vera-doc" },

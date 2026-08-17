@@ -241,27 +241,6 @@ export interface PipelineDescriptor {
   source?: PipelineRuntimeSource;
 }
 
-export interface ExternalPythonConfig {
-  enabled: boolean;
-  executable: string;
-  artifacts_path?: string;
-  validated_at?: number;
-}
-
-export interface PythonEnvironmentProbe {
-  ok: boolean;
-  executable?: string;
-  python_version?: string;
-  vera_ingest_version?: string;
-  vera_doc_version?: string;
-  protocol?: number;
-  plugin_api?: number;
-  pipelines?: PipelineDescriptor[];
-  embedders?: EmbedderDescriptor[];
-  load_errors?: string[];
-  error?: string;
-}
-
 /** Opaque JSON-compatible options owned by the selected ingest pipeline. */
 export type PipelineOptions = Record<string, JsonValue>;
 
@@ -286,10 +265,6 @@ export interface AppSettings {
   has_hf_token?: boolean;
   /** Runtime-only: env var names that have a stored embedder/plugin secret. */
   has_env_secrets?: Record<string, boolean>;
-  /** Opt-in interpreter used to discover and run extra ingest plugins. */
-  external_python?: ExternalPythonConfig | null;
-  /** Runtime-only probe of the configured external Python environment. */
-  external_python_status?: PythonEnvironmentProbe | null;
 }
 
 export interface CredentialResult {

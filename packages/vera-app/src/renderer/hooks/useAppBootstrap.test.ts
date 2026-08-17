@@ -35,7 +35,7 @@ describe('fallbackPipelineDescriptors', () => {
         capabilities: {},
         fields: [],
         notes: [],
-        source: 'external',
+        source: 'bundled',
       },
     ]);
   });
@@ -79,7 +79,7 @@ describe('loadIngestPipelineDescriptors', () => {
     const descriptors = await loadIngestPipelineDescriptors();
     expect(descriptors.map((item) => item.provider)).toEqual(['pymupdf', 'docling']);
     expect(descriptors[0].source).toBe('bundled');
-    expect(descriptors[1].source).toBe('external');
+    expect(descriptors[1].source).toBe('bundled');
   });
 
   it('falls back to pymupdf when both describe and list fail', async () => {

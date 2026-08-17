@@ -16,10 +16,12 @@ Tesseract/PyMuPDF); explicit `--pipeline-option` values win for the same key.
 python -m pip install "vera-cli>=0.3.0"
 ```
 
-Install the `mcp` extra to enable `vera mcp`:
+Install the `mcp` extra to enable `vera mcp`, or the `docling` extra for
+Advanced layout conversion:
 
 ```bash
 python -m pip install "vera-cli[mcp]>=0.3.0"
+python -m pip install "vera-cli[docling]>=0.3.0"
 ```
 
 See the [vera-cli documentation](https://dkylewillis.github.io/vera/packages/vera-cli/)
