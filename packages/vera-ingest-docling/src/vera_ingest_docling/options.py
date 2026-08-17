@@ -141,6 +141,6 @@ def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
             "OCR language uses RapidOCR-native codes, not Tesseract's — 'en', not 'eng'.",
             "First conversion may download Docling model artifacts; the desktop app caches them under userData.",
             "On memory errors (bad_alloc), VERA retries failed pages then falls back to pypdfium2 automatically.",
-            "CLI install: pip install \"vera-cli[docling]>=0.3.0\" or uv sync --extra docling",
+            'CLI install: pip install "vera-cli[docling]>=0.3.0" or uv sync --extra docling',
         ),
     )

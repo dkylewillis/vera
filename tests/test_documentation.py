@@ -297,7 +297,7 @@ def test_hardening_json_contracts_are_documented():
     assert "configure_plugin_runtime" not in desktop_architecture
     assert "credential_env" in desktop_architecture
     assert "skipped_semantic_model_groups" in desktop_architecture
-    assert "### Convert in one sidecar" in desktop_architecture
+    assert "## Convert in one sidecar" in desktop_architecture
     assert "one interpreter" in desktop
     assert "sentence_transformers" in desktop
     assert "desktop-app-architecture.md#convert-in-one-sidecar" in desktop
