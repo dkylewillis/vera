@@ -4,10 +4,12 @@ import hashlib
 import logging
 import os
 import re
+import sys
 import threading
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import entry_points
+from pathlib import Path
 from typing import Any, Protocol
 
 import numpy as np
@@ -26,6 +28,9 @@ logger = logging.getLogger(__name__)
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
 _HASHING_NAME_RE = re.compile(r"^vera-hashing-(\d+)$")
+SENTENCE_TRANSFORMERS_HOME_ENV = "VERA_SENTENCE_TRANSFORMERS_HOME"
+BUNDLED_MINILM_MODEL_ID = "all-MiniLM-L6-v2"
+BUNDLED_SENTENCE_TRANSFORMERS_DIRNAME = "sentence_transformers_models"
 _ENTRY_POINT_GROUP = "vera.embedders"
 _DESCRIPTOR_ENTRY_POINT_GROUP = "vera.embedder_descriptors"
 _MODELS_ENTRY_POINT_GROUP = "vera.embedder_models"
@@ -160,17 +165,86 @@ class HashingEmbedder:
         return vectors
 
 
+def looks_like_sentence_transformers_model(path: Path) -> bool:
+    """True when ``path`` looks like a Sentence Transformers snapshot on disk."""
+    if not path.is_dir():
+        return False
+    has_config = (path / "modules.json").is_file() or (path / "config.json").is_file()
+    has_weights = (path / "model.safetensors").is_file() or (path / "pytorch_model.bin").is_file()
+    return has_config and has_weights
+
+
+def sentence_transformers_home() -> Path | None:
+    """Return the directory that may contain vendored Sentence Transformers snapshots."""
+    env = os.environ.get(SENTENCE_TRANSFORMERS_HOME_ENV, "").strip()
+    if env:
+        candidate = Path(env)
+        if candidate.is_dir():
+            return candidate
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        bundled = Path(meipass) / BUNDLED_SENTENCE_TRANSFORMERS_DIRNAME
+        if bundled.is_dir():
+            return bundled
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        for bundled in (
+            exe_dir / BUNDLED_SENTENCE_TRANSFORMERS_DIRNAME,
+            exe_dir / "_internal" / BUNDLED_SENTENCE_TRANSFORMERS_DIRNAME,
+        ):
+            if bundled.is_dir():
+                return bundled
+    return None
+
+
+def resolve_sentence_transformers_source(model_id: str) -> str:
+    """Return a local snapshot path or a Hub id for ``SentenceTransformer()``.
+
+    Archive identity stays the Hub-style name (``sentence-transformers/<id>``).
+    This helper only chooses where weights are loaded from.
+    """
+    short_id = model_id
+    if short_id.startswith("sentence-transformers/"):
+        short_id = short_id[len("sentence-transformers/") :]
+    home = sentence_transformers_home()
+    if home is not None:
+        direct = home / short_id
+        if looks_like_sentence_transformers_model(direct):
+            return str(direct)
+        if home.name == short_id and looks_like_sentence_transformers_model(home):
+            return str(home)
+    if model_id.startswith("sentence-transformers/"):
+        return model_id
+    return f"sentence-transformers/{short_id}"
+
+
+def bundled_minilm_available() -> bool:
+    """True when the installer-vendored MiniLM snapshot is on disk."""
+    source = resolve_sentence_transformers_source(BUNDLED_MINILM_MODEL_ID)
+    return looks_like_sentence_transformers_model(Path(source))
+
+
 class SentenceTransformerEmbedder:
-    def __init__(self, model_name: str, *, device: str = "", batch_size: int = 32):
+    def __init__(
+        self,
+        model_name: str,
+        *,
+        source: str | None = None,
+        device: str = "",
+        batch_size: int = 32,
+    ):
         from sentence_transformers import SentenceTransformer
 
         self.model_name = model_name
         self.normalization = "l2"
         self._embed_lock = threading.Lock()
+        load_path = source or model_name
+        kwargs: dict[str, Any] = {}
         if device:
-            self._model = SentenceTransformer(model_name, device=device)
-        else:
-            self._model = SentenceTransformer(model_name)
+            kwargs["device"] = device
+        if Path(load_path).is_dir():
+            kwargs["local_files_only"] = True
+        self._model = SentenceTransformer(load_path, **kwargs)
         self._encode_kwargs = {"batch_size": int(batch_size)}
         get_dim = (
             getattr(self._model, "get_embedding_dimension", None)
@@ -212,6 +286,7 @@ def _sentence_transformers_factory(model_id: str, **config: Any) -> SentenceTran
     options = SentenceTransformersOptions.from_mapping(config)
     return SentenceTransformerEmbedder(
         model_name,
+        source=resolve_sentence_transformers_source(model_name),
         device=options.device,
         batch_size=options.batch_size,
     )
@@ -243,7 +318,8 @@ def _sentence_transformers_descriptor() -> EmbedderDescriptor:
         provider="sentence-transformers",
         label="sentence-transformers — local neural embeddings",
         description=(
-            "Sentence Transformers models via the optional ml extra (for example all-MiniLM-L6-v2)."
+            "Sentence Transformers models via the optional ml extra (for example all-MiniLM-L6-v2). "
+            "The desktop installer freezes this provider and vendors all-MiniLM-L6-v2 weights."
         ),
         default_model_id="all-MiniLM-L6-v2",
         example_specs=(
@@ -252,7 +328,7 @@ def _sentence_transformers_descriptor() -> EmbedderDescriptor:
             "all-MiniLM-L6-v2",
         ),
         capabilities=EmbedderCapabilities(
-            requires_network=True,
+            requires_network=not bundled_minilm_available(),
             requires_api_key=False,
             local_model=True,
             configurable_dimension=False,
@@ -260,8 +336,9 @@ def _sentence_transformers_descriptor() -> EmbedderDescriptor:
         ),
         fields=fields_from_dataclass(SentenceTransformersOptions),
         notes=(
-            "Install vera-doc[ml] (or sentence-transformers) before first use. "
-            "The first resolve may download model weights. "
+            "CLI and source-run installs need vera-doc[ml] (or sentence-transformers). "
+            "The Windows installer includes all-MiniLM-L6-v2 weights, so that model "
+            "does not download on first use. Other model ids may still fetch from the Hub. "
             "device and batch_size are convert-time options; search uses defaults.",
         ),
     )

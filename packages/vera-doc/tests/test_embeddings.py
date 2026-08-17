@@ -4,9 +4,12 @@ import pytest
 
 from vera_doc.embedder_descriptors import EmbedderDescriptor
 from vera_doc.embeddings import (
+    BUNDLED_MINILM_MODEL_ID,
+    SENTENCE_TRANSFORMERS_HOME_ENV,
     HashingEmbedder,
     HashingOptions,
     UnknownEmbeddingModelError,
+    bundled_minilm_available,
     clear_embedder_cache,
     cosine_similarity,
     describe_embedder,
@@ -16,10 +19,12 @@ from vera_doc.embeddings import (
     list_embedding_models,
     list_embedding_provider_descriptors,
     list_embedding_providers,
+    looks_like_sentence_transformers_model,
     parse_model_spec,
     preflight_embedder,
     register_embedder,
     reset_embedding_registry,
+    resolve_sentence_transformers_source,
     serialize_vector,
     unregister_embedder,
 )
@@ -375,3 +380,31 @@ class TestEmbedderCacheConcurrency:
             release.set()
             unregister_embedder("slow-block")
             clear_embedder_cache()
+
+
+class TestBundledSentenceTransformers:
+    def test_rejects_incomplete_snapshot(self, tmp_path):
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        assert looks_like_sentence_transformers_model(empty) is False
+        (empty / "config.json").write_text("{}", encoding="utf-8")
+        assert looks_like_sentence_transformers_model(empty) is False
+
+    def test_resolves_vendored_minilm_from_home(self, tmp_path, monkeypatch):
+        model_dir = tmp_path / BUNDLED_MINILM_MODEL_ID
+        model_dir.mkdir()
+        (model_dir / "modules.json").write_text("[]", encoding="utf-8")
+        (model_dir / "model.safetensors").write_bytes(b"stub")
+        monkeypatch.setenv(SENTENCE_TRANSFORMERS_HOME_ENV, str(tmp_path))
+        assert resolve_sentence_transformers_source(BUNDLED_MINILM_MODEL_ID) == str(model_dir)
+        assert bundled_minilm_available() is True
+        assert describe_embedder("sentence-transformers").capabilities.requires_network is False
+
+    def test_falls_back_to_hub_id_without_snapshot(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(SENTENCE_TRANSFORMERS_HOME_ENV, str(tmp_path))
+        assert (
+            resolve_sentence_transformers_source(BUNDLED_MINILM_MODEL_ID)
+            == f"sentence-transformers/{BUNDLED_MINILM_MODEL_ID}"
+        )
+        assert bundled_minilm_available() is False
+        assert describe_embedder("sentence-transformers").capabilities.requires_network is True
