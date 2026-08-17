@@ -721,7 +721,9 @@ def test_sidecar_describe_includes_docling_when_package_importable():
     providers = [item["provider"] for item in described["result"]["pipelines"]]
     assert "pymupdf" in providers
     assert "docling" in providers
-    docling = next(item for item in described["result"]["pipelines"] if item["provider"] == "docling")
+    docling = next(
+        item for item in described["result"]["pipelines"] if item["provider"] == "docling"
+    )
     assert "slower" in docling["label"].lower()
 
 

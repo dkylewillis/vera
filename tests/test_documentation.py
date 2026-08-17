@@ -345,16 +345,16 @@ def test_hardening_json_contracts_are_documented():
     assert "VERA_SENTENCE_TRANSFORMERS_HOME" in main_ts
     assert not (ROOT / "packages" / "vera-app" / "src" / "vera_app" / "runtime.py").is_file()
     assert "Docling" in desktop
-    sidecar_build = (
-        ROOT / "packages" / "vera-app" / "scripts" / "build-sidecar.cjs"
-    ).read_text(encoding="utf-8")
+    sidecar_build = (ROOT / "packages" / "vera-app" / "scripts" / "build-sidecar.cjs").read_text(
+        encoding="utf-8"
+    )
     assert "copy-metadata" in sidecar_build
     assert "vendor_minilm.py" in sidecar_build
     assert "sentence_transformers" in sidecar_build
     assert "--exclude-module" not in sidecar_build
-    assert "sentence-transformers" in (
-        ROOT / "packages" / "vera-app" / "pyproject.toml"
-    ).read_text(encoding="utf-8")
+    assert "sentence-transformers" in (ROOT / "packages" / "vera-app" / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
     assert "ensure_registered" in (
         ROOT / "packages" / "vera-ingest-pymupdf" / "src" / "vera_ingest_pymupdf" / "__init__.py"
     ).read_text(encoding="utf-8")
