@@ -45,13 +45,31 @@ def require_ready_embedder(model: str) -> None:
         raise ValueError(result.detail or "Embedding provider is not ready")
 
 
+def _parser_is_docling(request: Request) -> bool:
+    return str(request.get("parser") or "").strip().lower().startswith("docling")
+
+
+def _emit_docling_preparing(write_event: WriteEvent | None, input_path: str) -> None:
+    if write_event is None:
+        return
+    write_event(
+        {
+            "event": "conversion_progress",
+            "phase": "preparing",
+            "completed": 0,
+            "total": 1,
+            "input": input_path,
+        }
+    )
+
+
 def handle_convert(
     request: Request,
     write_event: WriteEvent | None = None,
     cancel: CancellationToken | None = None,
 ) -> dict[str, str]:
     input_path = str(request["input"])
-    if write_event:
+    if write_event and not _parser_is_docling(request):
         write_event(
             {
                 "event": "conversion_progress",
@@ -69,6 +87,8 @@ def handle_convert(
         dict(raw_embedder_options) if isinstance(raw_embedder_options, dict) else None
     )
     require_ready_embedder(str(request.get("model", "hashing")))
+    if _parser_is_docling(request):
+        _emit_docling_preparing(write_event, input_path)
     output = convert(
         input_path,
         str(request["output"]),
@@ -136,6 +156,8 @@ def handle_batch_convert(
     if cancel:
         cancel.raise_if_interrupted()
     require_ready_embedder(str(request.get("model", "hashing")))
+    if _parser_is_docling(request):
+        _emit_docling_preparing(write_event, progress_label)
 
     return batch_convert(
         None if paths is not None else str(directory),
@@ -234,3 +256,34 @@ def handle_ocr_languages_download(
     cache_dir = download_ocr_language_data(language, progress=report_progress)
     codes = [part.strip() for part in language.split("+") if part.strip()]
     return {"language": language, "downloaded": codes, "cache_dir": cache_dir}
+
+
+def handle_prepare_docling(
+    request: Request,
+    write_event: WriteEvent | None = None,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
+    """Prefetch Docling layout/table models without converting a PDF."""
+    if cancel:
+        cancel.raise_if_interrupted()
+    if write_event:
+        write_event(
+            {
+                "event": "conversion_progress",
+                "phase": "preparing",
+                "completed": 0,
+                "total": 1,
+                "input": "Docling models",
+            }
+        )
+    try:
+        from vera_ingest_docling.converter import ensure_docling_models
+    except ImportError as exc:
+        raise ValueError(
+            "Docling is not installed in this sidecar. "
+            "Install with: python -m pip install 'vera-cli[docling]>=0.3.0'"
+        ) from exc
+    result = ensure_docling_models()
+    if cancel:
+        cancel.raise_if_interrupted()
+    return result

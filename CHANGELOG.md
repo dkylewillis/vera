@@ -26,7 +26,9 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Official Docling converter (`vera-ingest-docling`) registering
   `docling` / `docling:hybrid`, with HybridChunker, RapidOCR, first-run
   model-download notes, and `pdf_backend` recovery on page-level memory
-  errors. The desktop sidecar and `vera-cli[docling]` extra both expose it;
+  errors (per-page retry, whole-document `pypdfium2`, then page-batch
+  `pypdfium2`). RapidOCR uses the ONNX weights shipped with `docling[rapidocr]`
+  even when `DOCLING_ARTIFACTS_PATH` only holds layout models. The desktop sidecar and `vera-cli[docling]` extra both expose it;
   Convert labels it **Advanced layout (slower)**.
 - Pluggable embedding providers through the `vera.embedders` entry-point
   group and `register_embedder()`. Model specs use `provider:model-id`
@@ -44,8 +46,10 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   RapidOCR, ONNX Runtime), hashing, and Sentence Transformers. MiniLM
   (`all-MiniLM-L6-v2`) weights ship in the installer, so Local semantic
   conversion does not download on first use. There is no Settings → Python
-  plugins page and no `vera_plugin_host`. Docling model artifacts download on
-  first use into an app-owned `DOCLING_ARTIFACTS_PATH` cache. Convert drives
+  plugins page and no `vera_plugin_host`. Docling model artifacts download when
+  you select Advanced layout (`prepare_docling`) into an app-owned
+  `DOCLING_ARTIFACTS_PATH` cache (incomplete caches resume from Hugging Face
+  instead of failing offline). Convert drives
   `EmbedderConfigForm` from descriptors, persists `embedder_configs`, and
   gates conversion on `preflight_embedder`. Search reports
   `skipped_semantic_model_groups` when a query embedder is unavailable.

@@ -207,8 +207,9 @@ non-obvious caveats for this environment; standard commands live in the sections
   blocked without a provider/API key. For fully offline testing use the left-sidebar **Search**
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
   **Convert PDF** view. Convert lists PyMuPDF (default) and **Advanced layout (slower)** /
-  Docling in the same sidecar. First Docling use may download models into
-  `DOCLING_ARTIFACTS_PATH` under the app userData cache. The packaged
+  Docling in the same sidecar. Selecting Advanced layout prefetches models into
+  `DOCLING_ARTIFACTS_PATH` under the app userData cache (first download can take
+  several minutes; Stop confirms and the next run resumes). The packaged
   Windows sidecar also freezes Sentence Transformers and vendors
   `all-MiniLM-L6-v2` weights (`VERA_SENTENCE_TRANSFORMERS_HOME`). Ask is
   blocked without a provider/API key.

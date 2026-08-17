@@ -180,10 +180,15 @@ second interpreter.
 The packaged Windows installer freezes PyMuPDF, Docling (Torch, RapidOCR, ONNX
 Runtime), hashing, and Sentence Transformers into `vera-sidecar.exe`. MiniLM
 (`all-MiniLM-L6-v2`) weights ship inside Setup.exe, so **Local semantic
-(MiniLM)** does not download on first use. Docling model artifacts are
-**not** inside Setup.exe; the first Advanced layout conversion downloads them
-into the app-owned cache (`DOCLING_ARTIFACTS_PATH` under Electron `userData`)
-and reuses that cache later. Hosted embedding providers (OpenAI, Voyage,
+(MiniLM)** does not download on first use. RapidOCR ONNX weights are part of
+that freeze (and of `docling[rapidocr]` for `app:dev`). Other Docling layout
+model artifacts are **not** inside Setup.exe. Selecting **Advanced layout
+(slower)** prefetches layout and table models from Hugging Face into the
+app-owned cache (`DOCLING_ARTIFACTS_PATH` / `HF_HOME` under Electron
+`userData`) before Convert starts on a PDF. First download can take several
+minutes — leave it running. Stop asks for confirmation during that download;
+Hugging Face may keep going until the step finishes, and the next run
+resumes. Convert reuses the cache afterward. Hosted embedding providers (OpenAI, Voyage,
 Ollama) are a 0.3.1 follow-up.
 
 CLI and `app:dev` users install the same packages into the VERA environment:

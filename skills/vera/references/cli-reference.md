@@ -36,7 +36,10 @@ Options:
   `provider[:variant]` (requires `vera-ingest-pymupdf` for the default; for
   example `docling` or `docling:hybrid` when `vera-ingest-docling` is
   installed). Unknown providers exit with a non-zero status and an
-  install-the-plugin message; there is no silent fallback.
+  install-the-plugin message; there is no silent fallback. First Docling
+  convert may download layout and table models into `DOCLING_ARTIFACTS_PATH`
+  (or Hugging Face Hub); an incomplete cache resumes instead of failing
+  offline. Stopping mid-download does not abort Hugging Face immediately.
 - `--chunk-size N`. Compatibility alias; omitted uses the selected pipeline's
   default. Forwarded only when the selected pipeline advertises a `chunk_size`
   field. PyMuPDF counts whitespace-split words; Docling counts whitespace
@@ -92,7 +95,7 @@ Each pipeline owns typed defaults and validation. Advertised integer
 `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`,
 `pdf_backend=docling_parse`
 (no overlap/DPI/download fields; auto page recovery / `pypdfium2` fallback on
-memory errors).
+memory errors, then page-batch `pypdfium2` if the whole-document convert raises).
 
 For a single PDF, omitted `OUTPUT` defaults to the input basename with a
 `.vera` suffix. Conversion writes and validates a temporary sibling before

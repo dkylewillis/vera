@@ -59,6 +59,7 @@ import {
   type ExplorerFileFilter,
 } from './lib/explorer';
 import { embeddingProviderFromSpec } from './lib/convertPresets';
+import { ingestPipelineIsDocling } from './lib/conversion';
 import { libraryQueryScope } from './lib/search';
 import { hydrateSessionTurns, stripTrace, traceKey } from './lib/sessions';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS } from './lib/providers';
@@ -295,12 +296,14 @@ function App() {
     [backgroundTasks],
   );
   const conversionTask = backgroundTasks.find((task) => task.kind === 'conversion') ?? null;
+  const doclingPrepareTask = backgroundTasks.find((task) => task.kind === 'docling_prepare') ?? null;
   const operationTasks = backgroundTasks.filter((task) => task.kind === 'operation');
   const inspectionTasks = backgroundTasks.filter((task) => task.kind === 'inspection');
   const activeOperation = operationTasks[operationTasks.length - 1] ?? null;
   const conversionInProgress = Boolean(conversionTask);
+  const modelsPreparing = Boolean(doclingPrepareTask) && ingestPipelineIsDocling(ingestPipeline);
   const convertLocked = conversionInProgress || reconvertBusy;
-  const conversionStatus = conversionTask?.message ?? null;
+  const conversionStatus = conversionTask?.message ?? doclingPrepareTask?.message ?? null;
   const busyAction = activeOperation?.label ?? null;
   const chatBusy = operationTasks.some((task) => task.label === 'Asking');
   const searchBusy = operationTasks.some((task) => task.label === 'Searching');
@@ -536,6 +539,7 @@ function App() {
     stopConversion,
     skipCurrentConversion,
     batchConvertPdfs,
+    prepareDoclingModels,
   } = conversion;
   const { loadSourceDocument, closeSourceDocument, previewSourceDocument } = source;
   const { searchTarget, selectSearchResult, selectChunkResult, selectCitation } = search;
@@ -1573,6 +1577,12 @@ function App() {
     return () => window.removeEventListener('keydown', cycleReasoning);
   }, [activeProvider, activeModel, providers, activeProviderId, activeModeId]);
 
+  useEffect(() => {
+    if (!ingestPipelineIsDocling(ingestPipeline)) return;
+    if (ingestPipelineDescriptors.length === 0) return;
+    void prepareDoclingModels();
+  }, [ingestPipeline, ingestPipelineDescriptors, prepareDoclingModels]);
+
   async function selectActiveMode(modeId: string) {
     setModePickerOpen(false);
     setActiveModeId(modeId);
@@ -1870,6 +1880,7 @@ function App() {
                   busy={busy}
                   convertLocked={convertLocked}
                   conversionInProgress={conversionInProgress}
+                  modelsPreparing={modelsPreparing}
                   reconvertBusy={reconvertBusy}
                   reconvertNotice={reconvertNotice}
                   conversionStatus={conversionStatus}

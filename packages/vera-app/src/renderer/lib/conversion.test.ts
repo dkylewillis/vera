@@ -6,6 +6,9 @@ import {
   conversionFailedMessage,
   conversionMissingTargetMessage,
   conversionProgressTaskUpdate,
+  ingestPipelineIsDocling,
+  shouldConfirmDoclingPrepareStop,
+  DOCLING_PREPARE_STOP_CONFIRM,
 } from './conversion';
 
 describe('awaitConversionRequest', () => {
@@ -46,6 +49,19 @@ describe('conversionProgressTaskUpdate', () => {
     expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 1, total: 4 }, 'batch').message).toBe('2 of 4');
     expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 4, total: 4 }, 'batch').message).toBe('Converted 4 of 4');
     expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 1, total: 1 }, 'single').message).toBe('Converted');
+    expect(conversionProgressTaskUpdate({ phase: 'preparing', completed: 0, total: 1, input: 'a.pdf' }, 'single').message)
+      .toBe('Downloading Docling models (first run can take several minutes)…');
+  });
+});
+
+describe('Docling prepare helpers', () => {
+  it('detects Docling pipelines and confirms stop only while models are downloading', () => {
+    expect(ingestPipelineIsDocling('docling')).toBe(true);
+    expect(ingestPipelineIsDocling('docling:hybrid')).toBe(true);
+    expect(ingestPipelineIsDocling('pymupdf')).toBe(false);
+    expect(shouldConfirmDoclingPrepareStop('preparing')).toBe(true);
+    expect(shouldConfirmDoclingPrepareStop('converting')).toBe(false);
+    expect(DOCLING_PREPARE_STOP_CONFIRM).toContain('resume');
   });
 });
 

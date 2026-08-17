@@ -721,7 +721,9 @@ def test_sidecar_describe_includes_docling_when_package_importable():
     providers = [item["provider"] for item in described["result"]["pipelines"]]
     assert "pymupdf" in providers
     assert "docling" in providers
-    docling = next(item for item in described["result"]["pipelines"] if item["provider"] == "docling")
+    docling = next(
+        item for item in described["result"]["pipelines"] if item["provider"] == "docling"
+    )
     assert "slower" in docling["label"].lower()
 
 
@@ -855,6 +857,49 @@ def test_sidecar_ocr_languages_download_requires_language():
 
     assert response["ok"] is False
     assert "language is required" in response["error"]
+
+
+def test_sidecar_prepare_docling_returns_cache_status(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    emitted = []
+    monkeypatch.setattr(sidecar, "_write_response", emitted.append)
+    convert_mod = importlib.import_module("vera_app.convert")
+
+    def fake_handle(request, write_event=None, cancel=None):
+        if write_event:
+            write_event(
+                {
+                    "event": "conversion_progress",
+                    "phase": "preparing",
+                    "completed": 0,
+                    "total": 1,
+                    "input": "Docling models",
+                }
+            )
+        return {"ready": True, "downloaded": False, "artifacts_path": "/cache"}
+
+    monkeypatch.setattr(convert_mod, "handle_prepare_docling", fake_handle)
+    monkeypatch.setitem(sidecar.HANDLERS, "prepare_docling", fake_handle)
+
+    response = sidecar.handle({"id": "prepare", "action": "prepare_docling"})
+
+    assert response["ok"] is True
+    assert response["result"] == {
+        "ready": True,
+        "downloaded": False,
+        "artifacts_path": "/cache",
+    }
+    progress = [event for event in emitted if event.get("event") == "conversion_progress"]
+    assert progress[0]["phase"] == "preparing"
+
+
+def test_sidecar_prepare_docling_missing_runtime_fails(monkeypatch):
+    import sys
+
+    monkeypatch.setitem(sys.modules, "vera_ingest_docling.converter", None)
+    response = handle({"id": "prepare-missing", "action": "prepare_docling"})
+    assert response["ok"] is False
+    assert "Docling is not installed" in response["error"]
 
 
 def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):

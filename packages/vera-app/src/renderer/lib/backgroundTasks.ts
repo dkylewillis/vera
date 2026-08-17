@@ -1,4 +1,4 @@
-export type BackgroundTaskKind = 'conversion' | 'index' | 'inspection' | 'operation';
+export type BackgroundTaskKind = 'conversion' | 'index' | 'inspection' | 'operation' | 'docling_prepare';
 export type IndexTaskOperation = 'build' | 'update';
 
 export interface BackgroundTask {
@@ -60,6 +60,8 @@ export function formatBackgroundTask(task: BackgroundTask): string {
   } else if (task.kind === 'inspection') {
     const count = taskIsDeterminate(task) ? ` ${task.completed} of ${task.total}` : '';
     details.push(`Inspecting library${count}`);
+  } else if (task.kind === 'docling_prepare') {
+    details.push(task.message || task.label);
   } else {
     details.push(task.label);
     if (task.message) details.push(task.message);

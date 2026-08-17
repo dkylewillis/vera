@@ -69,6 +69,9 @@ Initial actions:
 - `preflight_embedder`
 - `list_ingest_pipelines`
 - `describe_ingest_pipelines`
+- `ocr_languages_list`
+- `ocr_languages_download`
+- `prepare_docling`
 - `list_modes`
 
 Sidecar JSON actions are an app-private protocol until they are versioned.
@@ -99,7 +102,9 @@ PyMuPDF, Docling, Torch, RapidOCR, ONNX Runtime, `pypdfium2`, and
 weights in the installer. Hugging Face tokens,
 `DOCLING_ARTIFACTS_PATH` (an app-owned cache under Electron `userData`), and
 `VERA_SENTENCE_TRANSFORMERS_HOME` (the bundled MiniLM snapshot) are
-forwarded on spawn. Convert gates conversion on `preflight_embedder`. Search
+forwarded on spawn. Convert gates conversion on `preflight_embedder`.
+Selecting Advanced layout runs `prepare_docling` so layout and table models
+download (and can resume) before a PDF convert starts. Search
 reports `skipped_semantic_model_groups` when a query embedder is unavailable.
 `list_embedding_models` and `credential_env` remain part of the descriptor
 contract so hosted providers can land in 0.3.1 without a protocol change.

@@ -1,4 +1,4 @@
-"""Page-level recovery and whole-document pypdfium2 fallback."""
+"""Page-level recovery, whole-document pypdfium2, and batched pypdfium2 fallback."""
 
 from __future__ import annotations
 
@@ -17,6 +17,10 @@ from .options import DoclingOptions
 # whole document once with pypdfium2 (avoids paying model-init per page).
 _MAX_RECOVERABLE_PAGE_RATIO = 0.2
 
+# When whole-document pypdfium2 still raises (typical OOM on large manuals),
+# reconvert this many pages at a time with one reused converter.
+_FALLBACK_BATCH_PAGES = 8
+
 # Docling 2.118 ErrorItem has no page_no; StandardPdfPipeline records
 # ``Page {page.page_no} failed to parse.`` with 0-based Page.page_no.
 _PAGE_FAILED_RE = re.compile(r"(?i)\bpage\s+(\d+)\s+failed")
@@ -31,6 +35,7 @@ class _MappedConversion:
     chunks: list[IngestChunk]
     backend: str
     whole_fallback: str | None = None
+    fallback_strategy: str | None = None
 
 
 def _is_memory_error_blob(blob: str) -> bool:
@@ -188,7 +193,7 @@ def _convert_single_page(
     backend: str,
 ) -> _MappedConversion | None:
     """Convert one page with a fresh converter; return mapped output or None."""
-    result = _converter._try_convert(
+    result, _error = _converter._try_convert(
         source_path,
         config,
         backend=backend,
@@ -320,6 +325,203 @@ def _raise_from(message: str, cause: BaseException | None) -> NoReturn:
     raise ValueError(message) from cause
 
 
+def _format_exceptions(errors: list[BaseException]) -> str:
+    unique: list[str] = []
+    seen: set[str] = set()
+    for exc in errors:
+        text = f"{type(exc).__name__}: {exc}".strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        unique.append(text)
+    if not unique:
+        return ""
+    joined = " | ".join(unique[:3])
+    if len(unique) > 3:
+        joined = f"{joined} | …(+{len(unique) - 3} more)"
+    return joined
+
+
+def _pdf_page_count(source_path: str) -> int | None:
+    """Return the PDF page count, or None if the file cannot be opened."""
+    try:
+        import pypdfium2 as pdfium
+
+        document = pdfium.PdfDocument(source_path)
+        try:
+            count = len(document)
+        finally:
+            close = getattr(document, "close", None)
+            if callable(close):
+                close()
+    except Exception:  # noqa: BLE001 - missing/corrupt PDFs should not crash recovery
+        return None
+    return count if isinstance(count, int) and count > 0 else None
+
+
+def _shift_mapped(mapped: _MappedConversion, offset: int) -> _MappedConversion:
+    if offset == 0:
+        return mapped
+    pages = [
+        ParsedPage(
+            page_number=page.page_number + offset,
+            width=page.width,
+            height=page.height,
+            text=page.text,
+        )
+        for page in mapped.pages
+    ]
+    blocks = []
+    for block in mapped.blocks:
+        page_number = block.page_number + offset
+        regions = list(block.regions or [])
+        shifted_regions = []
+        for region in regions:
+            if isinstance(region, dict) and "page_number" in region:
+                shifted = dict(region)
+                try:
+                    shifted["page_number"] = int(shifted["page_number"]) + offset
+                except (TypeError, ValueError):
+                    pass
+                shifted_regions.append(shifted)
+            else:
+                shifted_regions.append(region)
+        blocks.append(
+            replace(
+                block,
+                page_number=page_number,
+                regions=shifted_regions if regions else block.regions,
+            )
+        )
+    chunks = [
+        replace(
+            chunk,
+            page_start=chunk.page_start + offset,
+            page_end=chunk.page_end + offset,
+        )
+        for chunk in mapped.chunks
+    ]
+    return replace(mapped, pages=pages, blocks=blocks, chunks=chunks)
+
+
+def _retarget_mapped(mapped: _MappedConversion, start: int, end: int) -> _MappedConversion:
+    """Relabel a page-range convert onto the original 1-based PDF pages."""
+    if end < start:
+        return mapped
+    numbers = sorted({page.page_number for page in mapped.pages})
+    if not numbers or numbers[0] == start:
+        return mapped
+    return _shift_mapped(mapped, start - numbers[0])
+
+
+def _append_mapped(base: _MappedConversion, incoming: _MappedConversion) -> _MappedConversion:
+    """Concatenate a later batch onto an accumulated mapped conversion."""
+    incoming_pages = {page.page_number for page in incoming.pages}
+    pages = [page for page in base.pages if page.page_number not in incoming_pages]
+    pages.extend(incoming.pages)
+    pages.sort(key=lambda page: page.page_number)
+
+    blocks = [block for block in base.blocks if block.page_number not in incoming_pages]
+    seen_ids = {block.block_id for block in blocks}
+    remapped_ids: dict[str, str] = {}
+    for block in incoming.blocks:
+        new_id = _unique_block_id(block.block_id, seen_ids)
+        remapped_ids[block.block_id] = new_id
+        blocks.append(block if new_id == block.block_id else replace(block, block_id=new_id))
+
+    chunks = [chunk for chunk in base.chunks if not _chunk_overlaps_pages(chunk, incoming_pages)]
+    next_index = len(chunks) + 1
+    for chunk in incoming.chunks:
+        chunks.append(
+            replace(
+                chunk,
+                chunk_id=f"chunk_{next_index:06d}",
+                block_ids=[remapped_ids.get(block_id, block_id) for block_id in chunk.block_ids],
+            )
+        )
+        next_index += 1
+    chunks.sort(key=lambda chunk: (chunk.page_start, chunk.chunk_id))
+    return replace(base, pages=pages, blocks=blocks, chunks=chunks)
+
+
+def _convert_page_range(
+    source_path: str,
+    config: DoclingOptions,
+    *,
+    start: int,
+    end: int,
+    converter: Any,
+) -> tuple[_MappedConversion | None, BaseException | None]:
+    result, error = _converter._try_convert(
+        source_path,
+        config,
+        backend=_converter._PDF_BACKEND_PYPDFIUM2,
+        page_range=(start, end),
+        converter=converter,
+    )
+    if result is None:
+        return None, error
+    mapped = _mapped_from_success(result, config, backend=_converter._PDF_BACKEND_PYPDFIUM2)
+    if mapped is None:
+        return None, error
+    return _retarget_mapped(mapped, start, end), error
+
+
+def _batched_pypdfium2_convert(
+    *,
+    source_path: str,
+    config: DoclingOptions,
+    cancel: Any | None,
+) -> tuple[_MappedConversion | None, list[BaseException]]:
+    """Convert the PDF in page windows so peak memory stays bounded."""
+    errors: list[BaseException] = []
+    page_count = _pdf_page_count(source_path)
+    if page_count is None:
+        return None, errors
+    try:
+        converter = _converter._build_converter(config, backend=_converter._PDF_BACKEND_PYPDFIUM2)
+    except Exception as exc:  # noqa: BLE001
+        if _converter._is_cancellation(exc):
+            raise
+        _converter._log_convert_failure(_converter._PDF_BACKEND_PYPDFIUM2, None, exc)
+        return None, [exc]
+
+    accumulated: _MappedConversion | None = None
+    page = 1
+    while page <= page_count:
+        raise_if_cancelled(cancel)
+        end = min(page + _FALLBACK_BATCH_PAGES - 1, page_count)
+        mapped, error = _convert_page_range(
+            source_path, config, start=page, end=end, converter=converter
+        )
+        if error is not None:
+            errors.append(error)
+        if mapped is None and end > page:
+            for page_no in range(page, end + 1):
+                raise_if_cancelled(cancel)
+                page_mapped, page_error = _convert_page_range(
+                    source_path,
+                    config,
+                    start=page_no,
+                    end=page_no,
+                    converter=converter,
+                )
+                if page_error is not None:
+                    errors.append(page_error)
+                if page_mapped is None:
+                    return None, errors
+                accumulated = (
+                    page_mapped if accumulated is None else _append_mapped(accumulated, page_mapped)
+                )
+            page = end + 1
+            continue
+        if mapped is None:
+            return None, errors
+        accumulated = mapped if accumulated is None else _append_mapped(accumulated, mapped)
+        page = end + 1
+    return accumulated, errors
+
+
 def _whole_document_pypdfium2_fallback(
     *,
     source_path: str,
@@ -329,42 +531,54 @@ def _whole_document_pypdfium2_fallback(
     cause: BaseException | None = None,
 ) -> _MappedConversion:
     raise_if_cancelled(cancel)
-    if config.pdf_backend == _converter._PDF_BACKEND_PYPDFIUM2:
-        # Already on pypdfium2; nothing left to try.
-        if prior is not None:
-            try:
-                _assert_conversion_ok(prior)
-            except ValueError as exc:
-                raise exc from cause
-        _raise_from(
-            "Docling conversion failed with pdf_backend=pypdfium2; "
-            "no further backend fallback is available.",
-            cause,
+    errors: list[BaseException] = []
+    if cause is not None:
+        errors.append(cause)
+
+    if config.pdf_backend != _converter._PDF_BACKEND_PYPDFIUM2:
+        result, error = _converter._try_convert(
+            source_path,
+            config,
+            backend=_converter._PDF_BACKEND_PYPDFIUM2,
         )
-    result = _converter._try_convert(
-        source_path,
-        config,
-        backend=_converter._PDF_BACKEND_PYPDFIUM2,
+        if error is not None:
+            errors.append(error)
+        if result is not None:
+            mapped = _mapped_from_success(result, config, backend=_converter._PDF_BACKEND_PYPDFIUM2)
+            if mapped is not None:
+                return replace(
+                    mapped,
+                    whole_fallback=_converter._PDF_BACKEND_PYPDFIUM2,
+                    fallback_strategy="document",
+                )
+
+    mapped, batch_errors = _batched_pypdfium2_convert(
+        source_path=source_path,
+        config=config,
+        cancel=cancel,
     )
-    if result is None:
-        if prior is not None:
-            try:
-                _assert_conversion_ok(prior)
-            except ValueError as exc:
-                raise exc from cause
-        _raise_from(
-            "Docling conversion failed and the pypdfium2 whole-document fallback also failed.",
-            cause,
+    errors.extend(batch_errors)
+    if mapped is not None:
+        return replace(
+            mapped,
+            whole_fallback=_converter._PDF_BACKEND_PYPDFIUM2,
+            fallback_strategy="batched",
         )
-    assert result is not None
-    mapped = _mapped_from_success(result, config, backend=_converter._PDF_BACKEND_PYPDFIUM2)
-    if mapped is None:
+
+    detail = _format_exceptions(errors)
+    suffix = f" Cause: {detail}" if detail else ""
+    if prior is not None:
         try:
-            _assert_conversion_ok(result)
+            _assert_conversion_ok(prior)
         except ValueError as exc:
-            raise exc from cause
-        raise AssertionError("unreachable")  # pragma: no cover
-    return replace(mapped, whole_fallback=_converter._PDF_BACKEND_PYPDFIUM2)
+            message = str(exc)
+            if suffix and suffix[8:] not in message:
+                message = f"{message}{suffix}"
+            _raise_from(message, cause)
+    _raise_from(
+        "Docling conversion failed and the pypdfium2 whole-document fallback also failed." + suffix,
+        cause,
+    )
 
 
 def _recover_page(

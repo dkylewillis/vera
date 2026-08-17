@@ -39,6 +39,7 @@ def _build_diagnostics(
     recovered_pages: list[int],
     recovered_pages_backend: dict[int, str],
     whole_document_fallback_backend: str | None,
+    whole_document_fallback_strategy: str | None,
 ) -> dict[str, Any]:
     diagnostics: dict[str, Any] = {
         "engine": "docling",
@@ -62,6 +63,8 @@ def _build_diagnostics(
         }
     if whole_document_fallback_backend:
         diagnostics["whole_document_fallback_backend"] = whole_document_fallback_backend
+    if whole_document_fallback_strategy:
+        diagnostics["whole_document_fallback_strategy"] = whole_document_fallback_strategy
     return diagnostics
 
 
@@ -88,6 +91,7 @@ class DoclingHybridPipeline:
         recovered_pages: list[int] = []
         recovered_pages_backend: dict[int, str] = {}
         whole_document_fallback_backend: str | None = None
+        whole_document_fallback_strategy: str | None = None
         effective_backend = config.pdf_backend
 
         # Users who force pypdfium2 skip docling_parse retries during recovery.
@@ -104,6 +108,7 @@ class DoclingHybridPipeline:
             primary_raised = True
             primary_error = exc
             conversion = None
+            _converter._log_convert_failure(primary_backend, None, exc)
 
         raise_if_cancelled(request.cancel)
         mapped = _resolve_conversion(
@@ -119,6 +124,7 @@ class DoclingHybridPipeline:
         )
         if mapped.whole_fallback:
             whole_document_fallback_backend = mapped.whole_fallback
+            whole_document_fallback_strategy = mapped.fallback_strategy
             effective_backend = mapped.whole_fallback
 
         return IngestResult(
@@ -134,5 +140,6 @@ class DoclingHybridPipeline:
                 recovered_pages=recovered_pages,
                 recovered_pages_backend=recovered_pages_backend,
                 whole_document_fallback_backend=whole_document_fallback_backend,
+                whole_document_fallback_strategy=whole_document_fallback_strategy,
             ),
         )

@@ -59,6 +59,16 @@ describe('background task status', () => {
       .toBe('Finalizing index · 842 chunks · 1 skipped');
   });
 
+  it('formats Docling model prefetch as its own task', () => {
+    expect(formatBackgroundTask({
+      id: 'docling-1',
+      kind: 'docling_prepare',
+      label: 'Docling models',
+      phase: 'preparing',
+      message: 'Downloading Docling models (first run can take several minutes)…',
+    })).toBe('Downloading Docling models (first run can take several minutes)…');
+  });
+
   it('formats library inspection as its own determinate task', () => {
     expect(formatBackgroundTask({
       id: 'inspection-1',

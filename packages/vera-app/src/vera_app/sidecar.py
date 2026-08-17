@@ -66,6 +66,7 @@ HANDLERS: dict[str, Handler] = {
     "describe_ingest_pipelines": convert_handlers.handle_describe_ingest_pipelines,
     "ocr_languages_list": convert_handlers.handle_ocr_languages_list,
     "ocr_languages_download": convert_handlers.handle_ocr_languages_download,
+    "prepare_docling": convert_handlers.handle_prepare_docling,
     "list_modes": _list_modes,
 }
 
@@ -90,6 +91,8 @@ def _cancelled_error_message(action: str, exc: BaseException | None = None) -> s
         return str(exc)
     if action in {"convert", "batch_convert"}:
         return "Conversion cancelled"
+    if action == "prepare_docling":
+        return "Docling model download cancelled"
     if action == "ocr_languages_download":
         return "OCR language download cancelled"
     if action == "inspect":
@@ -122,7 +125,7 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
                 _write_response({**data, "id": request_id})
 
             result = _answer(request, write_event=_emit, cancel=cancel)
-        elif action in {"convert", "batch_convert", "ocr_languages_download"}:
+        elif action in {"convert", "batch_convert", "ocr_languages_download", "prepare_docling"}:
 
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
@@ -242,6 +245,7 @@ def main() -> int:
                 "index_update",
                 "source",
                 "ocr_languages_download",
+                "prepare_docling",
                 "search",
                 "list_models",
                 "figure_data",
@@ -262,6 +266,7 @@ def main() -> int:
                         "inspect",
                         "source",
                         "ocr_languages_download",
+                        "prepare_docling",
                         "search",
                     }:
                         cancel = CancellationToken()

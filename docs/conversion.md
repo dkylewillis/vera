@@ -272,7 +272,7 @@ override aliases for the same key.
 | Pipeline | Defaults | Notes |
 | --- | --- | --- |
 | PyMuPDF (`pymupdf`) | `chunk_size=500` words, `overlap=75` words, `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false` | Sliding-window chunks of whitespace-split words (`str.split()`, not characters or LLM subword tokens); Tesseract OCR; language picker lists bundled/downloadable codes |
-| Docling (`docling`) | `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | No `overlap` / `ocr_dpi` / Tesseract `--ocr-language` aliases; RapidOCR; auto page recovery / `pypdfium2` fallback on memory errors |
+| Docling (`docling`) | `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | No `overlap` / `ocr_dpi` / Tesseract `--ocr-language` aliases; RapidOCR; auto page recovery / `pypdfium2` fallback on memory errors, then page-batch `pypdfium2` |
 
 Discover descriptors from Python with `describe_ingest_pipeline` /
 `list_ingest_pipeline_descriptors`, or from the desktop sidecar action
@@ -311,7 +311,8 @@ cannot resolve. Embedder `credential_env` secrets stay in the environment, not
 Options. Hosted embedding providers follow in 0.3.1.
 On Docling memory errors
 (`bad_alloc`), VERA retries failed pages with a fresh converter and falls back
-to the `pypdfium2` PDF backend when needed; conversion rejects only when that
+to the `pypdfium2` PDF backend when needed (whole document, then page batches
+if that still raises); conversion rejects only when that
 recovery is exhausted. Force the low-memory backend with
 `--pipeline-option pdf_backend=pypdfium2`. Docling's descriptor advertises
 `chunk_size` (HybridChunker limit in whitespace-split words), `ocr_mode`, `ocr_language`, and
@@ -328,10 +329,19 @@ code, pass `--pipeline-option ocr_language=fr` (or `pipeline_options=`).
 Docling layout models run without `torch.compile` (so Windows does not need
 Visual Studio's `cl.exe`).
 
-First Docling conversion may download model artifacts. Set
-`DOCLING_ARTIFACTS_PATH` for a local cache; the desktop app uses an
-app-owned directory under Electron `userData`. Select **Advanced layout
-(slower)** in Convert. The Convert UI is
+First Docling conversion may download layout model artifacts from Hugging
+Face. RapidOCR ONNX weights ship with `docling[rapidocr]` (VERA pins those
+paths even when `DOCLING_ARTIFACTS_PATH` is set). An **empty or incomplete**
+artifacts directory is not treated as offline — VERA lets Hugging Face
+download or resume, and keeps Hub files under that cache via `HF_HOME`.
+Stopping mid-download does not abort Hugging Face immediately; the next
+run resumes. The desktop app prefetches layout and table models when you
+select **Advanced layout (slower)** (`prepare_docling`), before Convert
+starts on a PDF. Convert still shows “Downloading Docling models…” if
+prefetch has not finished, and the sidecar terminal prints Hub progress,
+then `Loading weights`. Set `DOCLING_ARTIFACTS_PATH` for a local
+layout-model cache; the desktop app uses an app-owned directory under
+Electron `userData`. The Convert UI is
 schema-driven: the sidecar
 `describe_ingest_pipelines` action supplies descriptors, and
 `PipelineConfigForm` renders only the fields each pipeline advertises under a

@@ -45,6 +45,7 @@ export function ConvertPanel({
   busy,
   convertLocked,
   conversionInProgress,
+  modelsPreparing,
   reconvertBusy,
   reconvertNotice,
   conversionStatus,
@@ -86,6 +87,7 @@ export function ConvertPanel({
   busy: boolean;
   convertLocked: boolean;
   conversionInProgress: boolean;
+  modelsPreparing?: boolean;
   reconvertBusy: boolean;
   reconvertNotice: string | null;
   conversionStatus: string | null;
@@ -245,7 +247,7 @@ export function ConvertPanel({
           ? (activePipelineDescriptor.description || 'Pipeline ready for conversion.')
           : (pipelineInstallHint(ingestPipeline, ingestPipelineDescriptors)
             || 'Choose an ingest pipeline.')}
-        {' '}PyMuPDF is the default. Advanced layout (Docling) is slower and may download models into the app cache on first use.
+        {' '}PyMuPDF is the default. Advanced layout (Docling) downloads layout models into the app cache when you select it, then reuses that cache. First download can take several minutes — leave it running, or Stop and the next run will resume.
       </p>
       <label className="field">
         <span>Embedding model</span>
@@ -364,13 +366,15 @@ export function ConvertPanel({
           className="sidePrimary"
           onClick={onConvert}
           disabled={convertMode === 'selected'
-            ? selectedPdfs.length === 0 || busy || convertLocked
-            : !batchDirectory.trim() || busy || convertLocked}
+            ? selectedPdfs.length === 0 || busy || convertLocked || Boolean(modelsPreparing)
+            : !batchDirectory.trim() || busy || convertLocked || Boolean(modelsPreparing)}
         >
-          <RefreshCw size={16} className={convertLocked ? 'spinning' : undefined} />
+          <RefreshCw size={16} className={convertLocked || modelsPreparing ? 'spinning' : undefined} />
           {conversionInProgress
             ? 'Converting…'
-            : reconvertBusy
+            : modelsPreparing
+              ? 'Downloading models…'
+              : reconvertBusy
               ? 'Preparing…'
               : convertMode === 'selected'
                 ? `Convert (${selectedPdfs.length})`
@@ -397,6 +401,18 @@ export function ConvertPanel({
             disabled={conversionStatus === 'Stopping…'}
             title="Stop conversion"
             aria-label="Stop conversion"
+          >
+            <Square size={12} fill="currentColor" />
+            Stop
+          </button>
+        ) : modelsPreparing ? (
+          <button
+            type="button"
+            className="secondaryAction convertStop"
+            onClick={onStop}
+            disabled={conversionStatus === 'Stopping…'}
+            title="Stop Docling model download"
+            aria-label="Stop Docling model download"
           >
             <Square size={12} fill="currentColor" />
             Stop

@@ -140,7 +140,7 @@ def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
             "Overlap is not applied by Docling HybridChunker.",
             "OCR language uses RapidOCR-native codes, not Tesseract's — 'en', not 'eng'.",
             "First conversion may download Docling model artifacts; the desktop app caches them under userData.",
-            "On memory errors (bad_alloc), VERA retries failed pages then falls back to pypdfium2 automatically.",
+            "On memory errors (bad_alloc), VERA retries failed pages, then whole-document pypdfium2, then page-batch pypdfium2.",
             'CLI install: pip install "vera-cli[docling]>=0.3.0" or uv sync --extra docling',
         ),
     )

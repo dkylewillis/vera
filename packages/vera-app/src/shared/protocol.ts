@@ -60,6 +60,7 @@ export const SIDECAR_ACTIONS = {
   describeIngestPipelines: 'describe_ingest_pipelines',
   ocrLanguagesList: 'ocr_languages_list',
   ocrLanguagesDownload: 'ocr_languages_download',
+  prepareDocling: 'prepare_docling',
   listModes: 'list_modes',
   cancel: 'cancel',
   skip: 'skip',

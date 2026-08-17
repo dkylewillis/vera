@@ -260,6 +260,8 @@ def test_hardening_json_contracts_are_documented():
     assert "list_embedding_models" in desktop_architecture
     assert "preflight_embedder" in desktop_architecture
     assert "credential_env" in desktop_architecture
+    assert "prepare_docling" in desktop_architecture
+    assert "prepare_docling" in conversion
     assert "skipped_files" in libraries
     assert "skipped_semantic_model_groups" in libraries
     assert "does not reopen archives" in libraries

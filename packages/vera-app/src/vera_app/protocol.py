@@ -26,6 +26,7 @@ SIDECAR_ACTIONS = (
     "describe_ingest_pipelines",
     "ocr_languages_list",
     "ocr_languages_download",
+    "prepare_docling",
     "list_modes",
     "cancel",
     "skip",

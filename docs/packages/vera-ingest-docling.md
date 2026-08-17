@@ -30,7 +30,17 @@ installed instead of failing plugin load.
 
 ## First-run models
 
-Docling may download layout/OCR model artifacts on first conversion. For offline
+Docling may download layout and table model artifacts on first conversion.
+RapidOCR weights ship with `docling[rapidocr]` (and the desktop sidecar freeze);
+VERA pins those packaged ONNX paths so setting `DOCLING_ARTIFACTS_PATH` does not
+require a separate RapidOCR prefetch. VERA treats that artifacts directory as
+offline only when both `docling-project--docling-layout-heron` (with weights)
+and `docling-project--docling-models` (TableFormer `tm_config.json`) are
+complete. A half-written folder stays online so Hugging Face can resume.
+The desktop app prefetches those models when you select Advanced layout
+(`prepare_docling`) instead of waiting for the first PDF convert. Stopping
+mid-download does not abort Hugging Face immediately; the next run resumes.
+For other Docling models in offline
 or CI environments:
 
 1. Prefetch models while network access is available.
@@ -72,8 +82,8 @@ The default Docling variant is `hybrid`. Unknown variants fail before parsing.
 - Maps provenance boxes from Docling bottom-left coordinates to VERA top-left
   page points.
 - Attempts automatic recovery when Docling returns page-level memory errors
-  (`bad_alloc`); rejects only when recovery is exhausted instead of publishing
-  an incomplete archive.
+  (`bad_alloc`) or the whole-document convert raises; rejects only when
+  recovery is exhausted instead of publishing an incomplete archive.
 - `ocr_language` expects a RapidOCR-native code (for example `en`, `fr`,
   `cyrillic`); it is **not** translated from Tesseract-style codes, so
   PyMuPDF's `eng` is not valid here. The shared `--ocr-language` CLI default
@@ -95,8 +105,12 @@ some large or complex pages. VERA recovers automatically:
 3. If a single-page retry still fails, retry that page once with `pypdfium2`.
 4. If too many pages fail (more than 20% of the document) or `convert()` raises,
    reconvert the **whole** document once with `pypdfium2`.
-5. If recovery still cannot produce a complete result, conversion fails with a
-   message that lists unrecoverable pages.
+5. If that whole-document convert raises or does not fully succeed, convert in
+   page batches with `pypdfium2` (one reused converter) so peak memory stays
+   bounded on large manuals.
+6. If recovery still cannot produce a complete result, conversion fails with a
+   message that includes the underlying exception. The sidecar also prints the
+   traceback to stderr (`[vera-sidecar]` in `npm run app:dev`).
 
 Force the low-memory backend for an entire conversion:
 
@@ -106,15 +120,17 @@ vera convert "manual.pdf" --parser docling --pipeline-option pdf_backend=pypdfiu
 
 Successful recoveries are recorded in ingest diagnostics (surfaced by
 `vera inspect`): `pdf_backend`, `recovered_pages`,
-`recovered_pages_backend`, and optionally `whole_document_fallback_backend`.
+`recovered_pages_backend`, and optionally `whole_document_fallback_backend`
+and `whole_document_fallback_strategy` (`document` or `batched`).
 `pypdfium2` is faster and more memory-stable but can reduce table/layout
 fidelity compared with `docling_parse`.
 
 ## Desktop app
 
 Source-run and packaged desktop conversions list Docling as **Advanced layout
-(slower)** beside PyMuPDF. First conversion may download model artifacts into
-the app-owned `DOCLING_ARTIFACTS_PATH` cache. Convert controls are schema-driven
+(slower)** beside PyMuPDF. Selecting that pipeline prefetches layout and table
+models into the app-owned `DOCLING_ARTIFACTS_PATH` cache (`prepare_docling`).
+Convert controls are schema-driven
 from Docling's pipeline descriptor (`describe_ingest_pipelines` /
 `PipelineConfigForm`), so overlap and OCR DPI controls are not shown.
 

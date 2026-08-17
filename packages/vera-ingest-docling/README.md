@@ -27,10 +27,13 @@ pip install "vera-cli[docling]>=0.3.0"
 ```
 
 Python 3.10 or newer is required. The package depends on Docling's `rapidocr`
-extra so RapidOCR and `onnxruntime` are installed for OCR. First conversion may
-download Docling model artifacts. Set `DOCLING_ARTIFACTS_PATH` to a local cache
-(or prefetch models offline) for air-gapped runs. The desktop app uses an
-app-owned cache under Electron `userData`.
+extra so RapidOCR and `onnxruntime` are installed for OCR. RapidOCR ONNX
+weights come with that extra; first conversion may still download Docling
+layout models. Set `DOCLING_ARTIFACTS_PATH` to a local cache (or prefetch
+layout models offline) for air-gapped runs. Incomplete caches are not treated
+as ready. The desktop app uses an
+app-owned cache under Electron `userData` for those layout models and
+prefetches them when you select Advanced layout.
 
 The packaged Windows sidecar freezes this pipeline as **Advanced layout
 (slower)** beside PyMuPDF.
@@ -70,9 +73,11 @@ convert("manual.pdf", "manual.vera", parser="docling")
   same-page chunk so search `--figures` can return them. Docling's
   HybridChunker omits pictures from chunk text.
 - On page-level memory errors (`bad_alloc`), VERA retries failed pages then
-  falls back to `pypdfium2`; force that backend with
+  falls back to whole-document `pypdfium2`, then page-batch `pypdfium2` if
+  that still raises. Force the backend with
   `--pipeline-option pdf_backend=pypdfium2`. Conversion rejects only when
-  recovery is exhausted.
+  recovery is exhausted. Failures include the underlying exception and print
+  it on sidecar stderr.
 
 See the [vera-ingest-docling documentation](https://dkylewillis.github.io/vera/packages/vera-ingest-docling/)
 and [conversion guide](https://github.com/dkylewillis/vera/blob/main/docs/conversion.md).

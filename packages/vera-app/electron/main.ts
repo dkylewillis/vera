@@ -306,6 +306,7 @@ class PythonSidecar {
     applyEmbedderSecretEnv(env);
     env.DOCLING_ARTIFACTS_PATH = (env.DOCLING_ARTIFACTS_PATH || '').trim() || doclingArtifactsPath();
     mkdirSync(env.DOCLING_ARTIFACTS_PATH, { recursive: true });
+    if (!(env.HF_HOME || '').trim()) env.HF_HOME = env.DOCLING_ARTIFACTS_PATH;
     const minilmHome = sentenceTransformersHome();
     if (minilmHome) env.VERA_SENTENCE_TRANSFORMERS_HOME = minilmHome;
     const executable = app.isPackaged ? packagedSidecarExecutable() : resolveDevPython();

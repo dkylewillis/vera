@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import os
 
 import numpy as np
 import pytest
@@ -42,11 +43,38 @@ from vera_ingest_docling.pipeline import (
 pytestmark = pytest.mark.docling
 
 
+def _write_complete_docling_artifacts(root) -> None:
+    from pathlib import Path
+
+    artifacts = Path(root)
+    heron = artifacts / "docling-project--docling-layout-heron"
+    heron.mkdir(parents=True, exist_ok=True)
+    (heron / "config.json").write_text("{}", encoding="utf-8")
+    (heron / "model.safetensors").write_bytes(b"weights")
+    table = (
+        artifacts
+        / "docling-project--docling-models"
+        / "model_artifacts"
+        / "tableformer"
+        / "accurate"
+    )
+    table.mkdir(parents=True, exist_ok=True)
+    (table / "tm_config.json").write_text("{}", encoding="utf-8")
+
+
 @pytest.fixture(autouse=True)
 def isolated_registry():
     reset_ingest_pipeline_registry()
     yield
     reset_ingest_pipeline_registry()
+
+
+@pytest.fixture(autouse=True)
+def skip_docling_model_download(monkeypatch):
+    monkeypatch.setattr(
+        "vera_ingest_docling.converter._download_docling_models",
+        lambda artifacts: artifacts,
+    )
 
 
 def _prov(
@@ -196,6 +224,8 @@ def test_split_ocr_languages_parses_delimited_codes_without_translation():
 
 
 def test_build_converter_uses_ocr_language_as_given_no_translation():
+    from pathlib import Path
+
     from vera_ingest_docling.options import DoclingOptions
     from vera_ingest_docling.pipeline import _build_converter
 
@@ -205,6 +235,143 @@ def test_build_converter_uses_ocr_language_as_given_no_translation():
     pdf_option = converter.format_to_options["pdf"]
     assert pdf_option.pipeline_options.do_ocr is True
     assert list(pdf_option.pipeline_options.ocr_options.lang) == ["en", "fr"]
+    ocr_options = pdf_option.pipeline_options.ocr_options
+    assert Path(ocr_options.det_model_path).is_file()
+    assert Path(ocr_options.cls_model_path).is_file()
+    assert Path(ocr_options.rec_model_path).is_file()
+    assert "rapidocr" in Path(ocr_options.det_model_path).as_posix().lower()
+
+
+def test_empty_artifacts_path_allows_hub_download(monkeypatch, tmp_path):
+    from docling.datamodel.settings import settings
+
+    from vera_ingest_docling.converter import _configure_docling_artifacts
+
+    monkeypatch.setattr(settings, "artifacts_path", settings.artifacts_path)
+    monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(tmp_path))
+    monkeypatch.delenv("HF_HOME", raising=False)
+    settings.artifacts_path = tmp_path
+    _configure_docling_artifacts()
+    assert settings.artifacts_path is None
+    assert os.environ.get("HF_HOME") == str(tmp_path)
+
+
+def test_config_only_layout_folder_stays_online(monkeypatch, tmp_path):
+    from docling.datamodel.settings import settings
+
+    from vera_ingest_docling.converter import _configure_docling_artifacts
+
+    monkeypatch.setattr(settings, "artifacts_path", settings.artifacts_path)
+    heron = tmp_path / "docling-project--docling-layout-heron"
+    heron.mkdir()
+    (heron / "config.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(tmp_path))
+    settings.artifacts_path = tmp_path
+    _configure_docling_artifacts()
+    assert settings.artifacts_path is None
+
+
+def test_layout_without_tableformer_stays_online(monkeypatch, tmp_path):
+    from docling.datamodel.settings import settings
+
+    from vera_ingest_docling.converter import _configure_docling_artifacts
+
+    monkeypatch.setattr(settings, "artifacts_path", settings.artifacts_path)
+    heron = tmp_path / "docling-project--docling-layout-heron"
+    heron.mkdir()
+    (heron / "config.json").write_text("{}", encoding="utf-8")
+    (heron / "model.safetensors").write_bytes(b"weights")
+    monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(tmp_path))
+    settings.artifacts_path = tmp_path
+    _configure_docling_artifacts()
+    assert settings.artifacts_path is None
+
+
+def test_populated_artifacts_path_stays_offline(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    from docling.datamodel.settings import settings
+
+    from vera_ingest_docling.converter import _configure_docling_artifacts
+
+    monkeypatch.setattr(settings, "artifacts_path", settings.artifacts_path)
+    _write_complete_docling_artifacts(tmp_path)
+    monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(tmp_path))
+    _configure_docling_artifacts()
+    assert Path(settings.artifacts_path) == tmp_path
+
+
+def test_ensure_docling_models_downloads_when_cache_incomplete(monkeypatch, tmp_path):
+    from docling.datamodel.settings import settings
+
+    from vera_ingest_docling import converter as converter_mod
+
+    monkeypatch.setattr(settings, "artifacts_path", settings.artifacts_path)
+    seen = {}
+
+    def fake_download(artifacts):
+        seen["path"] = artifacts
+        _write_complete_docling_artifacts(artifacts)
+
+    monkeypatch.setattr(converter_mod, "_download_docling_models", fake_download)
+    monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(tmp_path))
+    monkeypatch.delenv("HF_HOME", raising=False)
+    result = converter_mod.ensure_docling_models()
+    assert seen["path"] == tmp_path
+    assert result["ready"] is True
+    assert result["downloaded"] is True
+    assert result["artifacts_path"] == str(tmp_path)
+
+
+def test_ensure_docling_models_skips_download_when_cache_ready(monkeypatch, tmp_path):
+    from docling.datamodel.settings import settings
+
+    from vera_ingest_docling import converter as converter_mod
+
+    monkeypatch.setattr(settings, "artifacts_path", settings.artifacts_path)
+
+    def fail_download(artifacts):
+        raise AssertionError("complete cache must not download")
+
+    _write_complete_docling_artifacts(tmp_path)
+    monkeypatch.setattr(converter_mod, "_download_docling_models", fail_download)
+    monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(tmp_path))
+    result = converter_mod.ensure_docling_models()
+    assert result == {
+        "ready": True,
+        "downloaded": False,
+        "artifacts_path": str(tmp_path),
+    }
+
+
+def test_build_converter_prefers_artifacts_rapidocr_when_complete(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    from vera_ingest_docling.converter import _RAPIDOCR_MODEL_FILES, _build_converter
+    from vera_ingest_docling.options import DoclingOptions
+
+    cache = tmp_path / "RapidOcr"
+    cache.mkdir()
+    for name in _RAPIDOCR_MODEL_FILES.values():
+        (cache / name).write_bytes(b"onnx")
+    monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(tmp_path))
+    converter = _build_converter(DoclingOptions.from_mapping({"ocr_mode": "auto"}))
+    ocr_options = converter.format_to_options["pdf"].pipeline_options.ocr_options
+    assert Path(ocr_options.det_model_path) == cache / "PP-OCRv6_det_small.onnx"
+
+
+def test_build_converter_uses_packaged_rapidocr_when_artifacts_incomplete(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    from vera_ingest_docling.converter import _build_converter
+    from vera_ingest_docling.options import DoclingOptions
+
+    (tmp_path / "RapidOcr").mkdir()
+    monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(tmp_path))
+    converter = _build_converter(DoclingOptions.from_mapping({"ocr_mode": "auto"}))
+    ocr_options = converter.format_to_options["pdf"].pipeline_options.ocr_options
+    assert Path(ocr_options.det_model_path).is_file()
+    assert "rapidocr" in Path(ocr_options.det_model_path).as_posix().lower()
 
 
 def test_build_converter_disables_torch_compile_and_keeps_default_image_scale():
@@ -1051,7 +1218,7 @@ def test_cancelled_error_is_not_swallowed(monkeypatch, tmp_path):
         DoclingHybridPipeline()(str(pdf), IngestRequest())
 
 
-def test_fallback_failure_preserves_original_exception_as_cause(monkeypatch, tmp_path):
+def test_fallback_failure_preserves_original_exception_as_cause(monkeypatch, tmp_path, capsys):
     class Converter:
         def convert(self, source=None, **_kwargs):
             raise RuntimeError("std::bad_alloc native crash")
@@ -1060,12 +1227,65 @@ def test_fallback_failure_preserves_original_exception_as_cause(monkeypatch, tmp
         "vera_ingest_docling.converter._build_converter",
         lambda options, **_kwargs: Converter(),
     )
+    monkeypatch.setattr("vera_ingest_docling.recovery._pdf_page_count", lambda _path: 2)
+    monkeypatch.setattr("vera_ingest_docling.recovery._FALLBACK_BATCH_PAGES", 2)
     pdf = tmp_path / "both-fail.pdf"
     pdf.write_bytes(b"%PDF-1.4")
     with pytest.raises(ValueError, match="pypdfium2") as info:
         DoclingHybridPipeline()(str(pdf), IngestRequest())
     assert info.value.__cause__ is not None
     assert "bad_alloc" in str(info.value.__cause__)
+    assert "RuntimeError" in str(info.value)
+    assert "bad_alloc" in str(info.value)
+    err = capsys.readouterr().err
+    assert "Docling convert failed" in err
+
+
+def test_whole_pypdfium2_exception_falls_back_to_batched_pages(monkeypatch, tmp_path):
+    calls: list[dict[str, object]] = []
+
+    class SuccessResult:
+        status = ConversionStatus.SUCCESS
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class Converter:
+        def __init__(self, backend: str | None):
+            self.backend = backend or "docling_parse"
+
+        def convert(self, source=None, page_range=None, raises_on_error=True, **_kwargs):
+            calls.append({"backend": self.backend, "page_range": page_range})
+            if page_range is None:
+                raise RuntimeError("whole document OOM")
+            start, end = page_range
+            doc = DoclingDocument(name="batch")
+            for page_no in range(start, end + 1):
+                doc.add_page(page_no=page_no, size=Size(width=612.0, height=792.0))
+                doc.add_text(
+                    label=DocItemLabel.PARAGRAPH,
+                    text=f"Batched content on page {page_no}.",
+                    prov=_prov(page_no, 72, 640, 500, 680),
+                )
+            return SuccessResult(doc)
+
+    monkeypatch.setattr(
+        "vera_ingest_docling.converter._build_converter",
+        lambda options, backend=None, **_kwargs: Converter(backend),
+    )
+    monkeypatch.setattr("vera_ingest_docling.recovery._pdf_page_count", lambda _path: 3)
+    monkeypatch.setattr("vera_ingest_docling.recovery._FALLBACK_BATCH_PAGES", 2)
+
+    pdf = tmp_path / "batched.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    result = DoclingHybridPipeline()(str(pdf), IngestRequest())
+    assert result.diagnostics["whole_document_fallback_backend"] == "pypdfium2"
+    assert result.diagnostics["whole_document_fallback_strategy"] == "batched"
+    texts = " ".join(chunk.text for chunk in result.chunks)
+    assert "Batched content on page 1" in texts
+    assert "Batched content on page 3" in texts
+    assert any(call["backend"] == "pypdfium2" and call["page_range"] == (1, 2) for call in calls)
+    assert any(call["backend"] == "pypdfium2" and call["page_range"] == (3, 3) for call in calls)
 
 
 def test_picture_item_does_not_stringify_caption_refs():
