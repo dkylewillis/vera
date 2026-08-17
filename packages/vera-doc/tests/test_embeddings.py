@@ -427,10 +427,9 @@ class TestBundledSentenceTransformers:
         (model_dir / "model.safetensors").write_bytes(b"stub")
         monkeypatch.setenv(SENTENCE_TRANSFORMERS_HOME_ENV, str(model_dir))
         assert resolve_sentence_transformers_source(BUNDLED_MINILM_MODEL_ID) == str(model_dir)
-        assert (
-            resolve_sentence_transformers_source(f"sentence-transformers/{BUNDLED_MINILM_MODEL_ID}")
-            == str(model_dir)
-        )
+        assert resolve_sentence_transformers_source(
+            f"sentence-transformers/{BUNDLED_MINILM_MODEL_ID}"
+        ) == str(model_dir)
 
     def test_env_file_is_ignored_in_favor_of_meipass(self, tmp_path, monkeypatch):
         not_a_dir = tmp_path / "not-a-dir"
