@@ -27,8 +27,6 @@ SIDECAR_ACTIONS = (
     "ocr_languages_list",
     "ocr_languages_download",
     "list_modes",
-    "configure_plugin_runtime",
-    "plugin_runtime_status",
     "cancel",
     "skip",
 )

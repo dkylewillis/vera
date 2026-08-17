@@ -5,15 +5,22 @@ from __future__ import annotations
 from typing import Any
 
 from vera_ingest.descriptors import PipelineDescriptor
-from vera_ingest.pipeline import IngestPipeline, UnknownIngestPipelineError
+from vera_ingest.pipeline import (
+    IngestPipeline,
+    UnknownIngestPipelineError,
+    register_ingest_pipeline,
+    register_ingest_pipeline_descriptor,
+)
 
 from .options import DoclingOptions, _docling_runtime_available, describe_pipeline
 
 __all__ = [
     "DoclingHybridPipeline",
     "DoclingOptions",
+    "create_descriptor",
     "create_pipeline",
     "describe_pipeline",
+    "ensure_registered",
 ]
 
 
@@ -48,3 +55,16 @@ def create_descriptor(variant: str = "hybrid") -> PipelineDescriptor:
         return describe_pipeline(variant)
     except ValueError as exc:
         raise UnknownIngestPipelineError(str(exc)) from exc
+
+
+def ensure_registered(*, replace: bool = True) -> None:
+    """Register the ``docling`` pipeline without relying on package metadata.
+
+    Entry-point discovery fails in PyInstaller freezes and PYTHONPATH-only
+    source runs that never install ``vera-ingest-docling`` dist-info.
+    """
+    register_ingest_pipeline("docling", create_pipeline, replace=replace)
+    register_ingest_pipeline_descriptor("docling", create_descriptor, replace=replace)
+
+
+ensure_registered()

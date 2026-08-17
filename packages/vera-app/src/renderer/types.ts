@@ -2,8 +2,6 @@ import type {
   AppSettings,
   ChatCitationResult,
   CredentialResult,
-  ExternalPythonConfig,
-  PythonEnvironmentProbe,
   Session,
   StreamEvent,
 } from '../shared/contracts';
@@ -15,7 +13,6 @@ export type {
   ContentPart,
   ContextChunkResult,
   CredentialResult,
-  ExternalPythonConfig,
   FigureResult,
   JsonValue,
   EmbedderDescriptor,
@@ -26,7 +23,6 @@ export type {
   PipelineFieldType,
   PipelineOptions,
   ProviderProfile,
-  PythonEnvironmentProbe,
   RegionResult,
   SearchReport,
   SearchResult,
@@ -57,9 +53,6 @@ export interface VeraApi {
   skipConversion(requestId: string): Promise<{ skipped: boolean }>;
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;
-  pickPythonInterpreter(): Promise<string | null>;
-  validatePythonEnvironment(executable: string, artifactsPath?: string): Promise<PythonEnvironmentProbe>;
-  refreshExternalPipelines(): Promise<PythonEnvironmentProbe>;
   saveApiKey(providerId: string, apiKey: string): Promise<CredentialResult>;
   clearApiKey(providerId: string): Promise<CredentialResult>;
   saveHfToken(token: string): Promise<CredentialResult>;
@@ -84,7 +77,6 @@ export interface VeraApi {
   onOpenSettings(callback: () => void): () => void;
   onFolderChanged(callback: (path: string) => void): () => void;
   onAnswerEvent(callback: (data: StreamEvent) => void): () => void;
-  onPythonEnvironment(callback: (probe: PythonEnvironmentProbe) => void): () => void;
 }
 
 export interface FolderEntry {

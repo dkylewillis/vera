@@ -62,8 +62,8 @@ export function CenterSearchView({
               <p className="searchSkippedWarning" role="status">
                 Semantic search skipped {skippedSemanticModelGroups.length} model
                 group{skippedSemanticModelGroups.length === 1 ? '' : 's'} because
-                the embedder is unavailable. Keyword matches still appear. Check
-                File → Settings → Python plugins if you expected semantic hits.
+                the embedder is unavailable. Keyword matches still appear. Hosted
+                embedding providers are not included in this release.
               </p>
             ) : null}
             {results.length > 0 ? (

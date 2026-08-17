@@ -9,7 +9,6 @@ dependencies = [
   "vera-ingest",
   "vera-ingest-pymupdf",
   "vera-cli",
-  "vera-app",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
@@ -92,7 +91,6 @@ known-first-party = [
   "vera_cli",
   "vera_mcp",
   "vera_app",
-  "vera_plugin_host",
   "vera_lab",
 ]
 

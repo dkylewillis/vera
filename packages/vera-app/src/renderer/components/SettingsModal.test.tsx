@@ -24,15 +24,9 @@ function renderSettings(initialSection?: SettingsSectionId) {
       ingestPipeline="pymupdf"
       ingestPipelineConfigs={{}}
       embedderConfigs={{}}
-      externalPython={{ enabled: false, executable: '' }}
-      pythonStatus={null}
       initialSection={initialSection}
       onPersist={async () => settings}
       onRefresh={async () => settings}
-      onExternalPythonChange={() => undefined}
-      onPickPython={() => undefined}
-      onValidatePython={() => undefined}
-      onRefreshPipelines={() => undefined}
       onClose={() => undefined}
     />,
   );
@@ -45,7 +39,7 @@ describe('SettingsModal', () => {
     expect(html).toContain('Settings');
     expect(html).toContain('LLM Providers');
     expect(html).toContain('Hugging Face');
-    expect(html).toContain('Python plugins');
+    expect(html).not.toContain('Python plugins');
     expect(html).toContain('Hosted');
     expect(html).toContain('Local');
     expect(html).toContain('OpenAI');
@@ -57,13 +51,7 @@ describe('SettingsModal', () => {
     const html = renderSettings('huggingface');
     expect(html).toContain('huggingface.co/settings/tokens');
     expect(html).toContain('HF_TOKEN');
-    expect(html).not.toContain('Paste OpenAI key');
-  });
-
-  it('opens the Python plugins section when requested', () => {
-    const html = renderSettings('python');
-    expect(html).toContain('Use an external Python environment');
-    expect(html).toContain('trusted');
+    expect(html).toContain('Docling');
     expect(html).not.toContain('Paste OpenAI key');
   });
 });

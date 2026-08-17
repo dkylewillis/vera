@@ -60,10 +60,6 @@
       {
         "from": "src/vera_app/modes_builtin",
         "to": "python/vera_app/modes_builtin"
-      },
-      {
-        "from": "src/vera_plugin_host",
-        "to": "python/plugin-host/vera_plugin_host"
       }
     ],
     "win": {
