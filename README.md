@@ -11,7 +11,7 @@ copied, shared, or handed to an LLM agent and searched in place — no vector
 database, embedding service, or retrieval server is required.
 
 ```bash
-pip install vera-cli
+pip install "vera-cli>=0.3.0"
 vera convert manual.pdf manual.vera
 vera search manual.vera "when is stormwater detention required?" --json
 ```
@@ -432,10 +432,11 @@ filters, corpus search, and embedding configuration.
 
 ## Desktop app
 
-VERA also includes a desktop application for Windows: PDF conversion from the
-Explorer context menu, library search with highlighted citations, and an
-optional LLM provider connection for grounded question answering over
-documents. Configure chat providers and a Hugging Face token under
+VERA also includes a desktop application. The packaged installer currently
+targets Windows: PDF conversion from the Explorer context menu, library search
+with highlighted citations, and an optional LLM provider connection for
+grounded question answering over documents. From a repository checkout,
+`npm run app:dev` also runs on Linux and macOS. Configure chat providers and a Hugging Face token under
 **File > Settings**. Packaged conversions use one sidecar with PyMuPDF
 (default) and Advanced layout / Docling. Extra ingest and embedding plugins
 are pip packages in that same environment. It is built on the

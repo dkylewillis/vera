@@ -49,7 +49,8 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   plugins page and no `vera_plugin_host`. Docling model artifacts download when
   you select Advanced layout (`prepare_docling`) into an app-owned
   `DOCLING_ARTIFACTS_PATH` cache (incomplete caches resume from Hugging Face
-  instead of failing offline). Convert drives
+  instead of failing offline). Convert shows model-preparation status and
+  confirms before stopping an in-progress download. Convert drives
   `EmbedderConfigForm` from descriptors, persists `embedder_configs`, and
   gates conversion on `preflight_embedder`. Search reports
   `skipped_semantic_model_groups` when a query embedder is unavailable.
@@ -65,6 +66,11 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   chunk already occupies the matching FTS rowid).
 - `VeraDocument.iter_raw_chunks()` / `format_metadata()` for library indexing
   without private `VeraDocument` access.
+- `vera ocr-languages list` and `vera ocr-languages download` for Tesseract
+  language data used by the PyMuPDF pipeline (English is bundled; other
+  languages are fetched into a local cache).
+- `vera-lab` contributor layout lab (workspace `dev` extra only; not
+  published to PyPI).
 
 ### Changed
 
@@ -94,6 +100,13 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   falling back to PyMuPDF.
 - There is no silent fallback to a different embedding model or ingest
   pipeline when a named provider is missing or fails to load.
+
+### Fixed
+
+- `vera mcp` prints an install hint and exits 2 when the optional `mcp`
+  extra is not installed, instead of raising `ImportError`.
+- PyMuPDF conversion imports `pymupdf` directly, so `vera convert` no longer
+  prints a deprecated `fitz` API warning on every run.
 
 ### Desktop
 

@@ -17,9 +17,10 @@ workspace `.venv` (CLI, tests, and `app:dev`). Non-desktop users can also:
 pip install "vera-cli[docling]>=0.3.0"
 ```
 
-The packaged Windows app already freezes this pipeline into the sidecar.
-Sentence Transformers is a separate extra (`uv sync --extra ml`) and is not
-bundled in the installer.
+The packaged Windows app already freezes this pipeline into the sidecar,
+along with Sentence Transformers and vendored MiniLM weights. CLI and
+source-run users who want MiniLM still install `vera-doc[ml]` or
+`uv sync --extra ml`.
 
 The package pins Docling to the current supported minor range with the
 `rapidocr` extra (RapidOCR + `onnxruntime`) and pulls a larger machine-learning

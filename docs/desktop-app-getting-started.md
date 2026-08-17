@@ -17,7 +17,8 @@ and then open VERA from the Start menu.
 - Python 3.10 or newer
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - Node.js and npm
-- Windows (the current root development script and packaged build target Windows)
+- Source-run (`npm run app:dev`) works on Linux, macOS, and Windows. The
+  packaged installer currently targets Windows only.
 
 ## Clone the repository
 

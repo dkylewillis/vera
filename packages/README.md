@@ -48,8 +48,9 @@ so conversion works out of the box.
 ## `vera-ingest-docling`
 
 Optional plugin that depends on `vera-ingest` and Docling. Registers the
-`docling` / `docling:hybrid` ingest pipeline. It is not part of the base
-dependency set and is not bundled into packaged desktop releases.
+`docling` / `docling:hybrid` ingest pipeline. It is not part of the CLI's
+base install (`vera-cli[docling]`). The desktop app depends on it, and the
+Windows sidecar freeze includes it.
 
 ## `vera-cli`
 
@@ -67,8 +68,9 @@ retrieval implementation.
 ## `vera-app`
 
 Owns the Electron/React desktop app and Python sidecar. Depends directly on
-`vera-doc`, `vera-ingest`, and `vera-ingest-pymupdf`; it does not use the CLI
-as a backend.
+`vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, `vera-ingest-docling`, and
+`sentence-transformers`; it does not use the CLI as a backend. The packaged
+Windows installer freezes those converters plus MiniLM weights.
 
 ## `vera-lab`
 

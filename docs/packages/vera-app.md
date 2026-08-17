@@ -2,8 +2,8 @@
 
 `vera-app` is the VERA desktop product: an Electron and React interface backed
 by a local Python sidecar. It composes `vera-doc` for retrieval and
-`vera-ingest` / `vera-ingest-pymupdf` for conversion; it does not use the CLI
-as its backend.
+`vera-ingest` / `vera-ingest-pymupdf` / `vera-ingest-docling` for conversion;
+it does not use the CLI as its backend.
 
 See the [product overview](../desktop-app-overview.md) for the intended
 workflow and audience.
