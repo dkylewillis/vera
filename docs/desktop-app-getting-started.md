@@ -81,9 +81,10 @@ pipeline or embedding model, right-click the `.vera` file in Explorer and
 choose **Reconvert…**; Convert opens immediately with a preparing status while
 the archive is read, then prefills the current pipeline, embedding, and OCR
 settings and turns overwrite on. If inspect fails and no sibling PDF is
-listed, Reconvert does not export an embedded original and shows **Could not
-read archive metadata**. Place the matching `.pdf` next to the archive, or
-export the original from Document Info once the archive is readable.
+listed, Reconvert does not export an embedded original and shows
+**Could not read archive metadata**. Place the matching `.pdf` next to the
+archive, or export the original from Document Info once the archive is
+readable.
 In Explorer, click a file to select it, Ctrl/Cmd+click to add or remove it, and
 Shift+click to select a range. The checkbox next to a file adds or removes that
 row from the same list — unchecking it deselects it, and the highlight and the
