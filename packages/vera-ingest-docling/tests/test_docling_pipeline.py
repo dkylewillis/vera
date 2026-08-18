@@ -301,6 +301,63 @@ def test_populated_artifacts_path_stays_offline(monkeypatch, tmp_path):
     assert Path(settings.artifacts_path) == tmp_path
 
 
+def test_populated_artifacts_path_preserves_existing_hf_home(monkeypatch, tmp_path):
+    from pathlib import Path
+
+    from docling.datamodel.settings import settings
+
+    from vera_ingest_docling.converter import _configure_docling_artifacts
+
+    monkeypatch.setattr(settings, "artifacts_path", settings.artifacts_path)
+    _write_complete_docling_artifacts(tmp_path)
+    hub = tmp_path / "writable-hub"
+    hub.mkdir()
+    monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(tmp_path))
+    monkeypatch.setenv("HF_HOME", str(hub))
+    _configure_docling_artifacts()
+    assert Path(settings.artifacts_path) == tmp_path
+    assert os.environ["HF_HOME"] == str(hub)
+
+
+def test_configure_docling_artifacts_tolerates_mkdir_failure_when_cache_exists(
+    monkeypatch, tmp_path
+):
+    from pathlib import Path
+
+    from docling.datamodel.settings import settings
+
+    from vera_ingest_docling.converter import _configure_docling_artifacts
+
+    monkeypatch.setattr(settings, "artifacts_path", settings.artifacts_path)
+    _write_complete_docling_artifacts(tmp_path)
+    monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(tmp_path))
+
+    def fail_mkdir(self, *args, **kwargs):
+        raise PermissionError("read-only filesystem")
+
+    monkeypatch.setattr(Path, "mkdir", fail_mkdir)
+    _configure_docling_artifacts()
+    assert Path(settings.artifacts_path) == tmp_path
+
+
+def test_configure_docling_artifacts_reraises_mkdir_failure_when_cache_missing(
+    monkeypatch, tmp_path
+):
+    from pathlib import Path
+
+    from vera_ingest_docling.converter import _configure_docling_artifacts
+
+    missing = tmp_path / "missing-cache"
+    monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(missing))
+
+    def fail_mkdir(self, *args, **kwargs):
+        raise PermissionError("read-only filesystem")
+
+    monkeypatch.setattr(Path, "mkdir", fail_mkdir)
+    with pytest.raises(PermissionError, match="read-only"):
+        _configure_docling_artifacts()
+
+
 def test_ensure_docling_models_downloads_when_cache_incomplete(monkeypatch, tmp_path):
     from docling.datamodel.settings import settings
 
@@ -482,6 +539,8 @@ def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, 
     assert result.parser_version
     assert "docling_hybrid" in result.chunking_strategy
     assert result.diagnostics["overlap_ignored"] is True
+    assert result.diagnostics["layout_engine"] == "onnxruntime"
+    assert result.diagnostics["tableformer_mode"] == "accurate"
     assert result.diagnostics["pdf_backend"] == "docling_parse"
     assert result.diagnostics["recovered_pages"] == []
     assert "ocr_dpi" not in result.diagnostics

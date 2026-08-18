@@ -71,3 +71,95 @@ def test_vendor_copies_complete_seed_cache(tmp_path: Path, monkeypatch: pytest.M
     vendor.vendor_docling_models(dest)
     assert vendor.snapshot_is_complete(dest)
     assert (dest / "vera-docling-manifest.json").is_file()
+
+
+def test_seed_cache_candidates_include_override_and_appdata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    vendor = _load_vendor()
+    override = tmp_path / "override"
+    appdata = tmp_path / "AppData"
+    monkeypatch.setenv("VERA_DOCLING_VENDOR_CACHE", str(override))
+    monkeypatch.setenv("APPDATA", str(appdata))
+    assert vendor.seed_cache_candidates() == [
+        override,
+        appdata / "@vera" / "app" / "docling-artifacts",
+        appdata / "VERA" / "docling-artifacts",
+    ]
+    monkeypatch.delenv("VERA_DOCLING_VENDOR_CACHE", raising=False)
+    monkeypatch.delenv("APPDATA", raising=False)
+    assert vendor.seed_cache_candidates() == []
+
+
+def test_copy_snapshot_omits_huggingface_cache_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    vendor = _load_vendor()
+    seed = tmp_path / "seed"
+    dest = tmp_path / "dest"
+    _write_complete_snapshot(seed, vendor)
+    cache = seed / vendor.LAYOUT_DIR / ".cache" / "huggingface"
+    cache.mkdir(parents=True)
+    (cache / "tmp").write_text("partial", encoding="utf-8")
+    monkeypatch.setenv("VERA_DOCLING_VENDOR_CACHE", str(seed))
+    vendor.vendor_docling_models(dest)
+    assert vendor.snapshot_is_complete(dest)
+    assert not (dest / vendor.LAYOUT_DIR / ".cache").exists()
+
+
+def test_incomplete_seed_is_skipped_and_download_uses_pinned_revisions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    vendor = _load_vendor()
+    seed = tmp_path / "seed"
+    dest = tmp_path / "dest"
+    seed.mkdir()
+    monkeypatch.setenv("VERA_DOCLING_VENDOR_CACHE", str(seed))
+    calls = []
+
+    def fake_download(repo_id, revision, local_dir, allow_patterns):
+        calls.append(
+            {
+                "repo_id": repo_id,
+                "revision": revision,
+                "local_dir": local_dir,
+                "allow_patterns": allow_patterns,
+            }
+        )
+        for name in vendor.REQUIRED_FILES:
+            path = dest / name
+            if path.is_relative_to(local_dir):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"stub")
+
+    monkeypatch.setattr(vendor, "_download_snapshot", fake_download)
+    vendor.vendor_docling_models(dest)
+
+    assert [item["repo_id"] for item in calls] == [
+        vendor.LAYOUT_REPO_ID,
+        vendor.TABLEFORMER_REPO_ID,
+    ]
+    assert calls[0]["revision"] == vendor.LAYOUT_REVISION
+    assert calls[1]["revision"] == vendor.TABLEFORMER_REVISION
+    assert calls[0]["allow_patterns"] == vendor.LAYOUT_ALLOW_PATTERNS
+    assert calls[1]["allow_patterns"] == vendor.TABLEFORMER_ALLOW_PATTERNS
+    assert vendor.snapshot_is_complete(dest)
+    assert (dest / "vera-docling-manifest.json").is_file()
+
+
+def test_vendor_does_not_copy_dest_onto_itself(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    vendor = _load_vendor()
+    dest = tmp_path / "docling-artifacts"
+    dest.mkdir()
+    monkeypatch.setenv("VERA_DOCLING_VENDOR_CACHE", str(dest))
+    calls = []
+
+    def fake_download(repo_id, revision, local_dir, allow_patterns):
+        calls.append(repo_id)
+        for name in vendor.REQUIRED_FILES:
+            path = dest / name
+            if path.is_relative_to(local_dir):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"stub")
+
+    monkeypatch.setattr(vendor, "_download_snapshot", fake_download)
+    vendor.vendor_docling_models(dest)
+    assert calls == [vendor.LAYOUT_REPO_ID, vendor.TABLEFORMER_REPO_ID]

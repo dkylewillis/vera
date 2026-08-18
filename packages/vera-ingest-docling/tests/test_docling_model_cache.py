@@ -91,7 +91,9 @@ def test_download_docling_models_prints_progress_and_runs_snapshot(monkeypatch, 
     assert "finished" in err
 
 
-def test_run_docling_snapshot_download_fetches_onnx_layout_and_accurate_tables(monkeypatch, tmp_path):
+def test_run_docling_snapshot_download_fetches_onnx_layout_and_accurate_tables(
+    monkeypatch, tmp_path
+):
     from vera_ingest_docling import converter as converter_mod
 
     calls = []
@@ -122,7 +124,73 @@ def test_run_docling_snapshot_download_skips_complete_cache(monkeypatch, tmp_pat
     monkeypatch.setattr(
         converter_mod,
         "_download_hf_snapshot",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("complete cache must not download")),
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("complete cache must not download")
+        ),
     )
     converter_mod._run_docling_snapshot_download(tmp_path)
 
+
+def test_run_docling_snapshot_download_fetches_only_missing_tableformer(monkeypatch, tmp_path):
+    from vera_ingest_docling import converter as converter_mod
+
+    calls = []
+
+    def fake_download(repo_id, local_dir, allow_patterns=None):
+        calls.append(repo_id)
+
+    heron = tmp_path / _LAYOUT_MODEL_DIR
+    heron.mkdir(parents=True)
+    (heron / "config.json").write_text("{}", encoding="utf-8")
+    (heron / "model.onnx").write_bytes(b"weights")
+    monkeypatch.setattr(converter_mod, "_download_hf_snapshot", fake_download)
+    converter_mod._run_docling_snapshot_download(tmp_path)
+    assert calls == ["docling-project/docling-models"]
+
+
+def test_run_docling_snapshot_download_fetches_only_missing_layout(monkeypatch, tmp_path):
+    from vera_ingest_docling import converter as converter_mod
+
+    calls = []
+
+    def fake_download(repo_id, local_dir, allow_patterns=None):
+        calls.append(repo_id)
+
+    table = tmp_path / _TABLEFORMER_MODEL_DIR / "model_artifacts" / "tableformer" / "accurate"
+    table.mkdir(parents=True)
+    (table / "tm_config.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(converter_mod, "_download_hf_snapshot", fake_download)
+    converter_mod._run_docling_snapshot_download(tmp_path)
+    assert calls == ["docling-project/docling-layout-heron-onnx"]
+
+
+def test_download_hf_snapshot_forwards_allow_patterns(monkeypatch, tmp_path):
+    import sys
+    import types
+
+    from vera_ingest_docling import converter as converter_mod
+
+    seen = []
+    fake_hub = types.ModuleType("huggingface_hub")
+
+    def snapshot_download(**kwargs):
+        seen.append(kwargs)
+
+    fake_hub.snapshot_download = snapshot_download
+    monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hub)
+
+    dest = tmp_path / "heron"
+    converter_mod._download_hf_snapshot("docling-project/docling-layout-heron-onnx", dest)
+    converter_mod._download_hf_snapshot(
+        "docling-project/docling-models",
+        tmp_path / "tables",
+        allow_patterns=converter_mod._TABLEFORMER_ALLOW_PATTERNS,
+    )
+
+    assert seen[0] == {
+        "repo_id": "docling-project/docling-layout-heron-onnx",
+        "local_dir": str(dest),
+    }
+    assert "allow_patterns" not in seen[0]
+    assert seen[1]["repo_id"] == "docling-project/docling-models"
+    assert seen[1]["allow_patterns"] == list(converter_mod._TABLEFORMER_ALLOW_PATTERNS)

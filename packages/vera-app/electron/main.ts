@@ -11,6 +11,7 @@ import type {
   Session,
 } from '../src/shared/contracts.js';
 import { IPC_CHANNELS, SIDECAR_ACTIONS } from '../src/shared/protocol.js';
+import { applyDoclingArtifactsEnv } from './docling-artifacts-env.js';
 import { listFolderEntries } from './folder-listing.js';
 import { type JsonLineEvent } from './json-line-process.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
@@ -195,59 +196,6 @@ function sentenceTransformersHome(): string | undefined {
   return candidates.find((candidate) => existsSync(candidate));
 }
 
-const BUNDLED_DOCLING_FILES = [
-  join('docling-project--docling-layout-heron-onnx', 'config.json'),
-  join('docling-project--docling-layout-heron-onnx', 'model.onnx'),
-  join('docling-project--docling-layout-heron-onnx', 'preprocessor_config.json'),
-  join('docling-project--docling-models', 'model_artifacts', 'tableformer', 'accurate', 'tm_config.json'),
-  join(
-    'docling-project--docling-models',
-    'model_artifacts',
-    'tableformer',
-    'accurate',
-    'tableformer_accurate.safetensors',
-  ),
-];
-
-function userDataDoclingArtifactsPath(): string {
-  return join(app.getPath('userData'), 'docling-artifacts');
-}
-
-function doclingArtifactsComplete(root: string): boolean {
-  return BUNDLED_DOCLING_FILES.every((relativePath) => existsSync(join(root, relativePath)));
-}
-
-function bundledDoclingArtifactsPath(): string | undefined {
-  if (!app.isPackaged) return undefined;
-  const sidecarDir = dirname(packagedSidecarExecutable());
-  const candidates = [
-    join(sidecarDir, 'docling-artifacts'),
-    join(sidecarDir, '_internal', 'docling-artifacts'),
-  ];
-  return candidates.find((candidate) => doclingArtifactsComplete(candidate));
-}
-
-function applyDoclingArtifactsEnv(env: NodeJS.ProcessEnv): void {
-  const fromEnv = (env.DOCLING_ARTIFACTS_PATH || '').trim();
-  const writableCache = userDataDoclingArtifactsPath();
-  if (fromEnv) {
-    env.DOCLING_ARTIFACTS_PATH = fromEnv;
-    mkdirSync(fromEnv, { recursive: true });
-  } else {
-    const bundled = bundledDoclingArtifactsPath();
-    if (bundled) {
-      env.DOCLING_ARTIFACTS_PATH = bundled;
-    } else {
-      env.DOCLING_ARTIFACTS_PATH = writableCache;
-      mkdirSync(writableCache, { recursive: true });
-    }
-  }
-  if (!(env.HF_HOME || '').trim()) {
-    env.HF_HOME = fromEnv || writableCache;
-    mkdirSync(env.HF_HOME, { recursive: true });
-  }
-}
-
 class PythonSidecar {
   private child: ChildProcessWithoutNullStreams | null = null;
   private pending = new Map<string, {
@@ -358,7 +306,11 @@ class PythonSidecar {
     const env = { ...process.env };
     applyHfTokenEnv(env);
     applyEmbedderSecretEnv(env);
-    applyDoclingArtifactsEnv(env);
+    applyDoclingArtifactsEnv(env, {
+      isPackaged: app.isPackaged,
+      userDataPath: app.getPath('userData'),
+      sidecarDir: app.isPackaged ? dirname(packagedSidecarExecutable()) : '',
+    });
     env.PYTHONUNBUFFERED = (env.PYTHONUNBUFFERED || '').trim() || '1';
     const minilmHome = sentenceTransformersHome();
     if (minilmHome) env.VERA_SENTENCE_TRANSFORMERS_HOME = minilmHome;

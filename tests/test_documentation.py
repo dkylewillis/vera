@@ -354,8 +354,13 @@ def test_hardening_json_contracts_are_documented():
     assert "vera-ingest-pymupdf" in main_ts
     assert "vera-ingest-docling" in main_ts
     assert "configurePluginRuntime" not in main_ts
-    assert "DOCLING_ARTIFACTS_PATH" in main_ts
+    assert "applyDoclingArtifactsEnv" in main_ts
     assert "PYTHONUNBUFFERED" in main_ts
+    artifacts_env = (
+        ROOT / "packages" / "vera-app" / "electron" / "docling-artifacts-env.ts"
+    ).read_text(encoding="utf-8")
+    assert "DOCLING_ARTIFACTS_PATH" in artifacts_env
+    assert "HF_HOME" in artifacts_env
     assert "VERA_SENTENCE_TRANSFORMERS_HOME" in main_ts
     assert not (ROOT / "packages" / "vera-app" / "src" / "vera_app" / "runtime.py").is_file()
     assert "Docling" in desktop

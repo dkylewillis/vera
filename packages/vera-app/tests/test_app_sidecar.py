@@ -1306,6 +1306,18 @@ def test_sidecar_omits_traceback_unless_debug(monkeypatch):
     assert "Unknown action" in shown["traceback"]
 
 
+def test_debug_sidecar_parses_common_truthy_and_falsey_values(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    for value in ("", "0", "false", "no", "off", " FALSE "):
+        monkeypatch.setenv("VERA_APP_DEBUG", value)
+        assert sidecar._debug_sidecar() is False
+    monkeypatch.delenv("VERA_APP_DEBUG", raising=False)
+    assert sidecar._debug_sidecar() is False
+    for value in ("1", "true", "yes", "on", "TRUE"):
+        monkeypatch.setenv("VERA_APP_DEBUG", value)
+        assert sidecar._debug_sidecar() is True
+
+
 def test_answer_action_returns_structured_cancellation(tmp_path, monkeypatch):
     pdf = tmp_path / "manual.pdf"
     out = tmp_path / "manual.vera"
