@@ -5,11 +5,12 @@ specific release dates, and priorities may change as the project develops.
 
 ## Release branches
 
-- `main` is the maintenance line for VERA 0.2 bug fixes and compatible
-  improvements.
-- `v0.3` is the integration branch for features planned for VERA 0.3.
-- When VERA 0.3 is ready, `v0.3` will merge into `main` and be tagged
-  `v0.3.0`.
+- `main` is the development line for VERA **0.3.x**. Tag `v0.3.0` from
+  `main`. The last published 0.2 release is **v0.2.5**; `main` is no longer
+  a 0.2 maintenance branch.
+- The historical `v0.3` integration branch is tree-identical to `main` and
+  is not the source of new 0.3 work. CI still runs on `v0.3` for existing
+  open work; new changes should land on `main`.
 
 Package and application versions do not automatically change the `.vera`
 format version. The archive format remains 0.2 unless a feature changes its
@@ -24,12 +25,11 @@ visual grounding are **follow-ups after the 0.3.0 tag** (0.3.1 or later).
 They are not blockers for 0.3.0. A packaged plugin host / second Python is
 **not** a 0.3.0 shipped item.
 
-## VERA 0.2 — Maintenance
+## VERA 0.2 — Closed
 
-- Fix defects without intentionally breaking public behavior.
-- Improve documentation and diagnostics.
-- Preserve archive and API compatibility.
-- Backport relevant fixes to the VERA 0.3 development line.
+The last 0.2 software release is **v0.2.5**. Archive format 0.2 remains the
+current on-disk format. Do not expect further 0.2.x package releases from
+`main`.
 
 ## VERA 0.3 — Extensible embeddings
 

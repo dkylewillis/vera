@@ -206,8 +206,15 @@ Do not assume nonzero output is unstructured:
 - `index status` returns a report when the index is stale or missing;
 - `eval` returns a report when a query misses;
 - `export` returns an error object when no source is stored;
+- `convert` returns `{"ok": false, "error": "..."}` when extraction or
+  validation fails, the input path is missing (exit 1), or `--parser` /
+  `--model` is unknown (exit 2). Directory conversion also prints a batch
+  report and exits 1 when any file failed or an existing output was
+  malformed;
 - `ocr-languages download` returns `{"ok": false, "error": "..."}` and exits 2
-  for an unknown or unregistered code.
+  for an unknown or unregistered code;
+- `mcp` prints an install hint and exits 2 when the optional `mcp` extra is
+  not installed (this command does not accept `--json`).
 
 Other path, dependency, and runtime failures generally write an unstructured
 error or traceback to stderr. Check the exit status and command-specific

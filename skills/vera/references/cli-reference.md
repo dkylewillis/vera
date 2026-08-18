@@ -6,9 +6,10 @@ console entry point is `vera`; `python -m vera_cli` invokes the same parser.
 ## Runtime and installation
 
 - Python: 3.10 or newer.
-- Published CLI: `pip install vera-cli`.
+- Published CLI: `pip install "vera-cli>=0.3.0"`.
 - Neural embedding models require the `ml` extra from `vera-doc`.
-- `vera mcp` requires `pip install "vera-cli[mcp]"` or `pip install vera-mcp`.
+- `vera mcp` requires `pip install "vera-cli[mcp]>=0.3.0"` or
+  `pip install "vera-mcp>=0.3.0"`.
 - A repository checkout can use:
   `uv sync --extra dev --extra ml --extra app --extra mcp`.
 
