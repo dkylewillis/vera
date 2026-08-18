@@ -79,6 +79,9 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   pipeline `chunk_size` 100–3000).
 - Conversion writes a validated temporary sibling and publishes atomically.
   Empty (no searchable chunks) conversions fail with an OCR-oriented message.
+  `vera convert --json` prints `{"ok": false, "error": "..."}` for those
+  failures, a missing input path (exit 1), and an unknown `--parser` /
+  `--model` (exit 2) instead of leaving stdout empty.
 - Batch conversion skips an existing `.vera` only when it validates and its
   stored `source_file_hash` matches the current PDF, and reports malformed
   archives separately (`malformed_existing`).

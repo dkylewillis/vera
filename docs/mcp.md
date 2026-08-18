@@ -7,7 +7,7 @@ as native tools. Use it when an MCP-capable application should search local
 ## Install
 
 ```bash
-python -m pip install "vera-cli[mcp]"
+python -m pip install "vera-cli[mcp]>=0.3.0"
 ```
 
 Verify that the server can start:

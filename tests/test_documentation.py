@@ -409,6 +409,12 @@ def test_hardening_json_contracts_are_documented():
     assert "`skipped_semantic_model_groups`" in mcp
     assert "top_k: int = 10" in mcp
     assert "matching the CLI" in mcp
+    assert '`convert` returns `{"ok": false, "error": "..."}`' in cli_reference
+    assert "VERA_APP_DEBUG" in desktop_architecture
+    assert "maintenance line for VERA 0.2" not in roadmap
+    assert "main` is the development line for VERA" in roadmap
+    assert "semantic_weight" in python_api
+    assert "keyword_weight" in python_api
 
 
 def test_figures_storage_map_is_documented():
@@ -490,6 +496,10 @@ def test_release_0_3_versioning_and_install_pins():
     assert "archive format remains **0.2**" in getting_started
     assert "vera-cli>=0.3.0" in readme
     assert "vera-cli>=0.3.0" in getting_started
+    assert "vera-doc>=0.3.0" in (PACKAGES / "vera-doc" / "README.md").read_text(encoding="utf-8")
+    assert "vera-cli>=0.3.0" in (
+        ROOT / "skills" / "vera" / "references" / "cli-reference.md"
+    ).read_text(encoding="utf-8")
     assert ">=0.2.4" not in readme
     assert ">=0.2.4" not in getting_started
     assert "UnknownEmbeddingModelError" in changelog

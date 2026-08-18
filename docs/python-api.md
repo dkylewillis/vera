@@ -187,10 +187,15 @@ with VeraDocument.open("manual.vera") as document:
     hybrid = document.search(
         text="detention requirements",
         mode="hybrid",
+        semantic_weight=0.7,
+        keyword_weight=0.3,
     )
 ```
 
-Pass `vector=[...]` instead of text for vector-only semantic search. Portable
+Hybrid search defaults to equal semantic and keyword weights. Each hit
+exposes `result.citation` (`page_start`, `page_end`, `heading_path`,
+`source_filename`, `document_id`) derived from chunk metadata. Pass
+`vector=[...]` instead of text for vector-only semantic search. Portable
 metadata filtering currently supports exact equality on top-level keys.
 
 ## Database metadata, inspection, and validation

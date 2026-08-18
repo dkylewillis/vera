@@ -15,7 +15,7 @@ standard PDF pipeline.
 ## Install
 
 ```bash
-python -m pip install vera-doc
+python -m pip install "vera-doc>=0.3.0"
 ```
 
 Python 3.10 or newer is required. The default hashing embedder needs no model
@@ -176,7 +176,9 @@ QueryResult(
 )
 ```
 
-Call `result.as_dict()` for a JSON-compatible result without the raw vector.
+`result.citation` is a `Citation` built from chunk metadata (`page_start`,
+`page_end`, `heading_path`, `source_filename`, `document_id`). Call
+`result.as_dict()` for a JSON-compatible result without the raw vector.
 
 ### `EmbeddingFunction`
 
@@ -277,6 +279,8 @@ document.search(
     mode="hybrid",
     where=None,
     top_k=10,
+    semantic_weight=0.5,
+    keyword_weight=0.5,
 )
 ```
 
@@ -285,7 +289,7 @@ Supported modes:
 - `keyword` uses SQLite FTS5 and BM25 ranking.
 - `semantic` uses cosine similarity against stored vectors.
 - `hybrid` independently normalizes semantic and keyword scores, then combines
-  them with equal weight.
+  them with `semantic_weight` and `keyword_weight` (equal weight by default).
 
 Semantic search accepts query `text` or a compatible precomputed `vector`.
 Keyword and hybrid search require text.
@@ -640,14 +644,13 @@ the source of truth.
 ```text
 src/vera_doc/
 ├── __init__.py          Public exports
-├── models.py            Chunk, attachment, and query value objects
-├── document.py          Storage, CRUD, search, and viewer helpers
+├── models.py            Chunk, attachment, citation, and query value objects
+├── document.py          Storage, CRUD, and search
 ├── corpus.py            Multi-file corpus search
 ├── collection.py        Persistent library index
-└── core/
-    ├── schema.py        SQLite schema and format version
-    ├── validation.py    Integrity and contract validation
-    └── embeddings.py    Embedders and vector serialization
+├── embeddings.py        Embedders and vector serialization
+├── validation.py        Integrity and contract validation
+└── _schema.py           SQLite schema and format version
 ```
 
 Source ingestion lives under `packages/vera-ingest`, and MCP integration
