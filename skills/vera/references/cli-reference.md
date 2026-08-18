@@ -51,6 +51,8 @@ Options:
 - `--overlap N`. Compatibility alias; omitted uses the selected pipeline's
   default. Forwarded only when the pipeline advertises `overlap` (PyMuPDF,
   also whitespace-split words). Docling does not receive overlap.
+  Sliding-window chunking clamps overlap to `chunk_size - 1` so carry never
+  overruns.
 - `--store-original VALUE` defaults to `true`. Values `1`, `true`, `yes`, `y`,
   and `on` are true; `0`, `false`, `no`, `n`, `off`, and empty are false
   (case-insensitive). Any other token is rejected.

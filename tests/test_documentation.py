@@ -340,6 +340,13 @@ def test_hardening_json_contracts_are_documented():
     assert "Could not read archive metadata" in desktop_architecture
     assert "LIST_FOLDER_MAX_DEPTH" in desktop_architecture
     assert "32 directory levels" in desktop
+    assert "`truncated: true`" in desktop_architecture
+    assert "does not display the flag" in desktop_architecture
+    assert "`cancel`" in desktop_architecture
+    assert "`skip`" in desktop_architecture
+    assert "VERA_APP_PYTHON" in desktop_architecture
+    assert "VERA_APP_PYTHON" in desktop
+    assert "VERA_APP_DEBUG" in desktop
     assert "not bundled into packaged desktop releases" not in (
         ROOT / "packages" / "README.md"
     ).read_text(encoding="utf-8")
@@ -400,11 +407,15 @@ def test_hardening_json_contracts_are_documented():
     assert "without importing optional runtime" in ingest_guide
     assert "same environment" in ingest_guide
     assert "sentence-transformers" in ingest_guide
+    assert "list_ingest_pipeline_load_errors" in ingest_guide
+    assert "clamp `overlap` to `chunk_size - 1`" in ingest_guide
     assert "may change before 1.0" in guide
     assert "not bundled" in guide
+    assert "Plugin load errors:" in guide
     ingest_pkg = (DOCS / "packages" / "vera-ingest.md").read_text(encoding="utf-8")
     assert "register_ingest_pipeline" in ingest_pkg
     assert "may change before 1.0" in ingest_pkg
+    assert "list_ingest_pipeline_load_errors" in ingest_pkg
     assert "app-private" in desktop_architecture
     assert "until" in desktop_architecture and "versioned" in desktop_architecture
     assert "allow_empty=True" in libraries
@@ -571,6 +582,10 @@ def test_agents_and_skill_document_convert_json_on_failure():
     skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
     assert "failed `convert`" in agents
     assert "failed `convert`" in skill
+    assert "exit 2" in agents
+    assert "unknown `--parser` / `--model`" in agents
+    assert "unknown `--parser` / `--model`" in skill
+    assert '`{"ok": false, "error": "..."}`' in skill
 
 
 def test_operational_docs_cover_recent_public_interfaces():
@@ -612,6 +627,14 @@ def test_operational_docs_cover_recent_public_interfaces():
     assert "200 alphanumeric" in troubleshooting
     assert "Could not read archive metadata" in troubleshooting
     assert "32 directory" in troubleshooting
+    assert "`truncated: true`" in troubleshooting
+    assert "list_ingest_pipeline_load_errors" in troubleshooting
+    assert "Plugin load errors:" in troubleshooting
+    assert "VERA_APP_DEBUG" in troubleshooting
+    assert '`convert --json` returns `{"ok": false, "error": "..."}`' in troubleshooting
+    assert "clamp overlap to `chunk_size - 1`" in conversion
+    assert "clamps `overlap` to" in python_api
+    assert "clamps overlap to `chunk_size - 1`" in cli_reference
     assert "basename only" in (DOCS / "validation-and-export.md").read_text(encoding="utf-8")
 
     assert "--store-original false" in lab

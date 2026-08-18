@@ -263,6 +263,12 @@ preset or live model ids when `supports_model_listing` is true. A plugin that
 omits descriptor or model entry points still works for embedding; clients fall
 back to a generic descriptor and the provider's `default_model_id`.
 
+Broken `vera.embedders` (or descriptor/model-lister) entry points are logged
+as warnings and omitted from `list_embedding_providers()`.
+`UnknownEmbeddingModelError` then includes `Plugin load errors:` with the
+provider, kind, and exception so a failed import is not mistaken for an
+unknown name.
+
 ## When *not* to inherit `EmbedderOptions`
 
 `EmbedderOptions.from_mapping` only knows how to validate four field shapes:

@@ -144,7 +144,8 @@ Parent and empty folders can also be activated as libraries. Nested `.vera`
 files are discovered recursively when there is no saved index configuration.
 Explorer lists `.vera` and `.pdf` files up to 32 directory levels below a
 library root (the root itself is depth 0). Deeper files are omitted from the
-tree. A folder with no `.vera` files remains active and watched; Search and
+tree. The listing payload sets `truncated: true` when that cap is hit;
+Explorer does not show a banner for it. A folder with no `.vera` files remains active and watched; Search and
 Ask report that nothing is searchable until archives are present.
 
 ## Check or build the app
@@ -240,6 +241,11 @@ Convert and embed always run in-process in the sidecar; see
 - **Electron dependencies are missing** — rerun `npm run app:install`.
 - **The Electron window does not open** — check the `npm run app:dev` terminal
   for a Python sidecar, TypeScript, Vite, or port error before restarting it.
+  If the sidecar fails to import numpy, PyMuPDF, or pdfplumber, point
+  `VERA_APP_PYTHON` at the workspace `.venv` interpreter and restart.
+- **Sidecar errors hide a Python traceback** — packaged IPC omits `traceback`
+  unless `VERA_APP_DEBUG` is a truthy value. Source-run still prints
+  `[vera-sidecar]` stderr.
 - **`Failed to update Windows PE resources` / `uv-trampoline` Access denied** —
   Windows Defender or corporate EDR is locking uv's temporary launcher while
   uv installs a package that ships a console script. The sidecar build prefers
@@ -251,7 +257,7 @@ Convert and embed always run in-process in the sidecar; see
   npm run app:dist
   ```
 
-  Set `VERA_SIDECAR_PYTHON` to use a different interpreter, or exclude the
+  Set `VERA_SIDECAR_PYTHON` or `VERA_APP_PYTHON` to use a different interpreter, or exclude the
   repository and `%TEMP%` from real-time scanning, then retry.
 - **Docling is missing from Convert in `app:dev`** — sync the workspace with
   the `docling` extra (`uv sync --extra app --extra docling`) and restart the

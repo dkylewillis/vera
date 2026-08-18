@@ -263,7 +263,8 @@ Legacy kwargs (`chunk_size`, `overlap`, `ocr_mode`, `ocr_language`, `ocr_dpi`,
 `ocr_download`) remain compatibility aliases. They are forwarded only when
 explicitly provided; omitted aliases mean the pipeline's own default (so a
 plugin `chunk_size` of 2000 is not overwritten by 500). The CLI still passes
-its argparse defaults.
+its argparse defaults. Sliding-window chunking clamps `overlap` to
+`chunk_size - 1` so carry never overruns.
 
 Shared convert builds a thin `IngestRequest` and merges legacy kwargs with
 `pipeline_options` according to each pipeline's descriptor. Explicit

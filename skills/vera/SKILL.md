@@ -159,6 +159,8 @@ request that only asks to search or explain a document.
 - Always inspect the exit code before trusting output.
 - Do not assume all nonzero exits lack JSON. `validate`, `index status`, `eval`,
   a failed `export`, and a failed `convert` can print useful JSON while returning 1.
+  `convert --json` also prints `{"ok": false, "error": "..."}` and exits 2 for an
+  unknown `--parser` / `--model`.
 - Most other missing-path and runtime failures are unstructured tracebacks on
   stderr. Do not parse stderr as JSON.
 - Directory conversion skips an existing `.vera` only when it validates and

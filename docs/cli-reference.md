@@ -42,7 +42,7 @@ Options:
   words, Docling counts whitespace tokens)
 - `--overlap N` (`75`; compatibility alias; PyMuPDF counts whitespace-split
   words; forwarded only when the pipeline advertises overlap, e.g. PyMuPDF —
-  not Docling)
+  not Docling; sliding-window chunking clamps overlap to `chunk_size - 1`)
 - `--store-original VALUE` (`true`)
 - `--ocr auto|off|force` (`auto`; compatibility alias)
 - `--ocr-language CODE` (`eng`; Tesseract/PyMuPDF compatibility alias; not

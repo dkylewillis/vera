@@ -128,9 +128,10 @@ dimension-incompatible. Result order is the rank; the CLI does not emit a
    `{block_id, page_number, bbox, page_width, page_height}` (bbox in page points,
    origin top-left).
 6. **Check exit codes.** Parse stdout as JSON on exit 0. `validate`, `index status`,
-   `eval`, a failed `export`, and a failed `convert` can also print a structured JSON
-   report on exit 1; most other missing-path/runtime errors instead write an
-   unstructured traceback to stderr.
+ `eval`, a failed `export`, and a failed `convert` can also print a structured JSON
+ report on exit 1; `convert --json` uses the same `{ok, error}` object on exit 2
+ for an unknown `--parser` / `--model`. Most other missing-path/runtime errors
+ instead write an unstructured traceback to stderr.
 7. **Don't read the SQLite file directly** unless the CLI is unavailable — the schema
    is documented in the spec, but the CLI/MCP tools are the stable interface.
 

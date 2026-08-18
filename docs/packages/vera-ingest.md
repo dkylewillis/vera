@@ -69,7 +69,9 @@ own default.
 
 - **Pipeline registry** discovers installed providers via entry points
   (`vera.ingest_pipelines`) or in-process `register_ingest_pipeline()`.
-  Specs resolve as `provider[:variant]` with no silent fallback. Registry and
+  Specs resolve as `provider[:variant]` with no silent fallback. Broken
+  entry points are logged and collected by `list_ingest_pipeline_load_errors()`
+  instead of hiding other providers. Registry and
   descriptor APIs are experimental and may change before 1.0.
 - **Pipeline-owned config** keeps typed defaults, validation, and field
   descriptors inside each ingest plugin; shared convert passes a thin

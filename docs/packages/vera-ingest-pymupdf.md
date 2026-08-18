@@ -50,7 +50,7 @@ convert("manual.pdf", "manual.vera", parser="pymupdf")
   `ocr_language=eng`, `ocr_dpi=300`.
 - Sliding-window chunking with heading detection produces searchable text and
   figure metadata. Size and overlap count `str.split()` words, not characters
-  or LLM subword tokens.
+  or LLM subword tokens. Runtime overlap is clamped to `chunk_size - 1`.
 - OCR is designed for scanned prose and does not reconstruct complex scanned
   forms or tables.
 

@@ -133,6 +133,7 @@ def test_portable_skill_documents_hardened_library_contracts():
     assert "ocr_language=en" in reference
     assert "does not receive" in reference
     assert "does not receive this alias" in reference
+    assert "clamps overlap to `chunk_size - 1`" in reference
 
 
 def _first_json_fence_after(text: str, heading: str) -> dict:

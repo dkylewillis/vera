@@ -247,8 +247,11 @@ vera convert "input.pdf" \
 
 With PyMuPDF, chunks never span pages, preserving page-precise citations.
 Larger chunks carry more context but may reduce retrieval precision; smaller
-chunks are more specific but may separate related clauses. Evaluate changes
-against a representative query set before adopting non-default values.
+chunks are more specific but may separate related clauses. Sliding-window
+helpers clamp overlap to `chunk_size - 1` so carry never overruns, even when
+PyMuPDF's advertised overlap maximum (1000) is larger than the selected
+`chunk_size`. Evaluate changes against a representative query set before
+adopting non-default values.
 
 ## Pipeline options
 

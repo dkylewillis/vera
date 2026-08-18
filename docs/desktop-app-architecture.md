@@ -48,7 +48,7 @@ The Electron main process starts:
 python -m vera_app.sidecar
 ```
 
-Requests and responses are newline-delimited JSON. Each request carries an `id` and an `action`; responses echo the `id` and return either `ok: true` with `result`, or `ok: false` with `error`. Packaged error responses omit Python `traceback` unless `VERA_APP_DEBUG` is set to a truthy value.
+Requests and responses are newline-delimited JSON. Each request carries an `id` and an `action`; responses echo the `id` and return either `ok: true` with `result`, or `ok: false` with `error`. Packaged error responses omit Python `traceback` unless `VERA_APP_DEBUG` is set to a truthy value. Source-run prefers the workspace `.venv` interpreter, or `VERA_APP_PYTHON` when set.
 
 Initial actions:
 
@@ -77,6 +77,13 @@ Initial actions:
 - `ocr_languages_download`
 - `prepare_docling`
 - `list_modes`
+- `cancel`
+- `skip`
+
+`cancel` and `skip` take `target_id` and signal the in-flight request's
+cancellation token. `skip` is used by interactive batch convert; `cancel`
+stops convert, search, inspect, source load, OCR download, Docling prepare,
+and answers.
 
 Sidecar JSON actions are an app-private protocol until they are versioned.
 External tools should use the CLI, MCP, or Python APIs instead of speaking
@@ -223,7 +230,9 @@ performs recursive fan-out search and the app keeps a slower-search banner
 visible. Watcher events and completed directory conversions update badges but
 never start a build automatically. Explorer walks 32 directory levels below a
 library root (`LIST_FOLDER_MAX_DEPTH`; the root itself is depth 0) and omits
-deeper `.vera` / `.pdf` files from the listing. Double-clicking a library folder activates
+deeper `.vera` / `.pdf` files from the listing. The folder-listing payload
+sets `truncated: true` when that cap is hit; Explorer currently does not display the flag.
+Double-clicking a library folder activates
 it and opens its Library Info view, clearing any document preview while leaving
 the library available as the Search/Ask scope.
 
@@ -332,7 +341,7 @@ npm run app:dist
 Docling both run in the same sidecar. `npm run app:dist` packages the Python
 sidecar through `packages/vera-app/scripts/build-sidecar.cjs`, which runs
 PyInstaller with the project virtualenv when it is available (honoring
-`VERA_SIDECAR_PYTHON`) and otherwise falls back to
+`VERA_SIDECAR_PYTHON` or `VERA_APP_PYTHON`) and otherwise falls back to
 `uv run --extra app --extra sidecar --extra docling`. Bundled Tesseract
 English data is passed as an absolute path so the build works from any
 directory. The build also copies `vera-ingest-pymupdf` and

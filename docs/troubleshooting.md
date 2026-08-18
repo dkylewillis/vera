@@ -113,8 +113,9 @@ export the original once the archive is readable.
 
 The desktop Explorer lists `.vera` and `.pdf` files up to 32 directory
 levels below a library root. Files deeper than that are omitted from the
-tree. Flatten the folder layout or open the nested directory as its own
-library.
+tree; the listing payload sets `truncated: true`, but Explorer does not
+show a banner for that cap. Flatten the folder layout or open the nested
+directory as its own library.
 
 ## A collection index is stale
 
@@ -234,10 +235,16 @@ the same environment (`python -m pip install` or `python -m pip install -e
 <clone>`), then restart the app. Raw `PYTHONPATH` folders are not discovered.
 If Search reports skipped semantic model groups, the convert-time embedder is
 not available in this sidecar. Hosted embedders are a 0.3.1 follow-up. A
-A source-run or CLI convert that fails with
+source-run or CLI convert that fails with
 `No module named 'sentence_transformers'` needs `uv sync --extra ml` in the
 environment that runs VERA. The packaged Windows sidecar already includes
 that module and MiniLM weights.
+
+A plugin can be installed and still missing from Convert. Broken
+`vera.ingest_pipelines` entry points are logged as warnings and omitted from
+`list_ingest_pipelines()`; inspect them with
+`list_ingest_pipeline_load_errors()`. Broken `vera.embedders` entry points
+surface as `Plugin load errors:` on `UnknownEmbeddingModelError`.
 
 If Hugging Face Hub downloads warn about unauthenticated requests or hit rate
 limits, set `HF_TOKEN` (see `.env.example`) or save a token under **File >
@@ -306,12 +313,24 @@ Check the command:
 
 - `validate`, `index status`, `eval`, and failed `export` can return structured
   JSON with exit status 1;
+- `convert --json` returns `{"ok": false, "error": "..."}` for extraction or
+  validation failure and a missing input path (exit 1), and for an unknown
+  `--parser` / `--model` (exit 2); directory conversion prints a batch report
+  and exits 1 when any file failed or an existing output was malformed;
 - `ocr-languages download` returns structured JSON with exit status 2 for an
   unknown or unregistered code;
-- most path, dependency, and runtime failures write unstructured errors to
-  stderr.
+- most other path, dependency, and runtime failures write unstructured errors
+  to stderr.
 
 Do not parse stderr as JSON. See the [CLI reference](cli-reference.md).
+
+## Sidecar errors omit a Python traceback
+
+Packaged desktop IPC error responses include `error` but omit Python
+`traceback` unless `VERA_APP_DEBUG` is a truthy value (`1`, `true`, `yes`,
+or `on`). Source-run (`npm run app:dev`) still prints sidecar stderr as
+`[vera-sidecar]` lines. Set `VERA_APP_PYTHON` to the workspace `.venv`
+interpreter when the sidecar fails to import numpy, PyMuPDF, or pdfplumber.
 
 ## MCP does not start
 
