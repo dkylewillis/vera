@@ -392,6 +392,15 @@ def test_cli_convert_unknown_provider_emits_json(tmp_path, monkeypatch, capsys):
     assert payload == {"ok": False, "error": message}
 
 
+def test_cli_mcp_explains_missing_extra(monkeypatch, capsys):
+    monkeypatch.setitem(sys.modules, "vera_mcp", None)
+    args = build_parser().parse_args(["mcp"])
+    assert args.func(args) == 2
+    err = capsys.readouterr().err
+    assert "vera mcp requires" in err
+    assert "vera-cli[mcp]" in err
+
+
 def test_cli_ocr_languages_list_json(capsys):
     args = build_parser().parse_args(["ocr-languages", "list", "eng+zzz", "--json"])
     assert args.func(args) == 0

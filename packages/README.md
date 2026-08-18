@@ -68,8 +68,9 @@ retrieval implementation.
 ## `vera-app`
 
 Owns the Electron/React desktop app and Python sidecar. Depends directly on
-`vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and `vera-ingest-docling`;
-it does not use the CLI as a backend.
+`vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, `vera-ingest-docling`, and
+`sentence-transformers`; it does not use the CLI as a backend. The packaged
+Windows installer freezes those converters plus MiniLM weights.
 
 ## `vera-lab`
 

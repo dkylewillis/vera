@@ -14,7 +14,8 @@ Electron fits the product shape VERA is moving toward:
 - PDF/document workspace UI
 - sidebars, tabs, command palette, settings, and keyboard-driven interaction
 - mature PDF.js and web rendering ecosystem
-- normal desktop packaging path for Windows/macOS/Linux
+- a desktop packaging path (the current installer target is Windows;
+  `npm run app:dev` works on Linux, macOS, and Windows)
 
 Tauri remains a possible future optimization if app size becomes the dominant concern. PySide/PyQt would keep more code in Python but would make a polished document workstation UI more expensive to build.
 
