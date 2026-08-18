@@ -8,7 +8,7 @@ the package that owns the capability you need.
 | [vera-doc](vera-doc.md) | `vera-doc` | `import vera_doc` | Creating, storing, and searching `.vera` archives |
 | [vera-ingest](vera-ingest.md) | `vera-ingest` | `import vera_ingest` | Conversion registry, shared types, and archive writing |
 | [vera-ingest-pymupdf](vera-ingest-pymupdf.md) | `vera-ingest-pymupdf` | `import vera_ingest_pymupdf` | Default PyMuPDF PDF parsing and Tesseract OCR |
-| [vera-ingest-docling](vera-ingest-docling.md) | `vera-ingest-docling` | `import vera_ingest_docling` | Optional Docling HybridChunker ingest pipeline |
+| [vera-ingest-docling](vera-ingest-docling.md) | `vera-ingest-docling` | `import vera_ingest_docling` | Optional Docling HybridChunker ingest (bundled in the desktop sidecar) |
 | [vera-cli](vera-cli.md) | `vera-cli` | `vera` / `import vera_cli` | Shell workflows and retrieval evaluation |
 | [vera-mcp](vera-mcp.md) | `vera-mcp` | `vera mcp` / `import vera_mcp` | Exposing VERA retrieval to MCP clients |
 | [vera-app](vera-app.md) | `vera-app` | Desktop application | Interactive conversion, search, and grounded answers |

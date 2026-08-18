@@ -960,6 +960,52 @@ def test_real_error_item_has_no_page_no():
     assert getattr(item, "page_no", None) is None
 
 
+def test_page_from_error_entry_zero_based_message_and_page_no():
+    from types import SimpleNamespace
+
+    from vera_ingest_docling.recovery import _page_from_error_entry
+
+    from_message = _page_from_error_entry(
+        SimpleNamespace(error_message="Page 0 failed to parse.", page_no=None)
+    )
+    assert from_message == 1
+    leftover_zero = _page_from_error_entry(SimpleNamespace(error_message="", page_no=0))
+    assert leftover_zero == 1
+    already_one_based = _page_from_error_entry(SimpleNamespace(error_message="", page_no=5))
+    assert already_one_based == 5
+    assert _page_from_error_entry(SimpleNamespace(error_message="", page_no=-1)) is None
+    assert _page_from_error_entry(SimpleNamespace(error_message="", page_no="x")) is None
+
+
+def test_format_docling_errors_truncates_and_adds_recovery_hints():
+    from types import SimpleNamespace
+
+    from vera_ingest_docling.recovery import _format_docling_errors
+
+    empty = SimpleNamespace(errors=[])
+    assert _format_docling_errors(empty) == ""
+
+    many = SimpleNamespace(
+        errors=[SimpleNamespace(error_message=f"error {index}") for index in range(7)]
+    )
+    formatted = _format_docling_errors(many)
+    assert "error 0" in formatted
+    assert "error 4" in formatted
+    assert "error 5" not in formatted
+    assert "+2 more" in formatted
+
+    compile_fail = SimpleNamespace(
+        errors=[SimpleNamespace(error_message="Compiler: cl is not found")]
+    )
+    compile_text = _format_docling_errors(compile_fail)
+    assert "torch.compile" in compile_text
+
+    oom = SimpleNamespace(errors=[SimpleNamespace(error_message="std::bad_alloc")])
+    oom_text = _format_docling_errors(oom)
+    assert "pypdfium2" in oom_text
+    assert "out of memory" in oom_text.lower() or "ran out of memory" in oom_text.lower()
+
+
 def test_memory_error_without_page_falls_back_to_whole_pypdfium2(monkeypatch, tmp_path):
     partial_doc = _multi_page_document(5, missing_pages={2})
     full_doc = _multi_page_document(5)

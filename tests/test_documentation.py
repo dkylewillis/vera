@@ -335,6 +335,17 @@ def test_hardening_json_contracts_are_documented():
     assert "Ctrl/Cmd+click" in desktop
     assert "## Reconvert with a different parser or embedding" in conversion
     assert "**Reconvert…**" in conversion
+    assert "Could not read archive metadata" in conversion
+    assert "Could not read archive metadata" in desktop
+    assert "Could not read archive metadata" in desktop_architecture
+    assert "LIST_FOLDER_MAX_DEPTH" in desktop_architecture
+    assert "32 directory levels" in desktop
+    assert "not bundled into packaged desktop releases" not in (
+        ROOT / "packages" / "README.md"
+    ).read_text(encoding="utf-8")
+    assert "not bundled in the installer" not in (
+        DOCS / "packages" / "vera-ingest-docling.md"
+    ).read_text(encoding="utf-8")
     assert "registers the default" in desktop_architecture and "pymupdf" in desktop_architecture
     app_dev = (ROOT / "scripts" / "app-dev.js").read_text(encoding="utf-8")
     assert "--extra" in app_dev and '"app"' in app_dev
@@ -583,6 +594,12 @@ def test_operational_docs_cover_recent_public_interfaces():
     assert "no nested" in searching and "`citation`" in searching
     assert "`format_metadata()`" in python_api
     assert "`iter_raw_chunks()`" in python_api
+    assert "chunks_fts.rowid" in python_api
+    assert "200 alphanumeric" in conversion
+    assert "200 alphanumeric" in troubleshooting
+    assert "Could not read archive metadata" in troubleshooting
+    assert "32 directory" in troubleshooting
+    assert "basename only" in (DOCS / "validation-and-export.md").read_text(encoding="utf-8")
 
     assert "--store-original false" in lab
     assert "vera-lab (dev only)" in packages_index
@@ -603,11 +620,13 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     intro = readme.split("```bash", 1)[1].split("```", 1)[0]
 
     assert "not bundled into packaged desktop releases" not in packages_overview
-    assert "Windows sidecar freeze includes it" in packages_overview
+    assert "packaged Windows sidecar freezes it" in packages_overview
+    assert "Advanced layout (slower)" in packages_overview
     assert "vera-ingest-docling" in packages_overview.split("## `vera-app`", 1)[1]
+    assert "sentence-transformers" in packages_overview.split("## `vera-app`", 1)[1]
     assert "vera-ingest-docling" in app_pkg
     assert "not bundled in the installer" not in docling_pkg
-    assert "vendored MiniLM" in docling_pkg
+    assert "all-MiniLM-L6-v2" in docling_pkg
     assert "Linux, macOS, and Windows" in desktop
     assert "packaged installer currently targets Windows" in desktop
     assert "Windows/macOS/Linux" not in architecture

@@ -104,6 +104,18 @@ cannot reconstruct the PDF from parsed text. Locate the source PDF and
 reconvert it. In the desktop app, right-click the `.vera` file and choose
 **Reconvert…** when the original PDF is beside the archive or stored inside it.
 
+If Reconvert shows **Could not read archive metadata**, inspect failed and no
+sibling PDF was listed, so the app does not export an embedded original.
+Place the matching `.pdf` next to the archive, or open Document Info and
+export the original once the archive is readable.
+
+## Explorer is missing nested files
+
+The desktop Explorer lists `.vera` and `.pdf` files up to 32 directory
+levels below a library root. Files deeper than that are omitted from the
+tree. Flatten the folder layout or open the nested directory as its own
+library.
+
 ## A collection index is stale
 
 Check status:
@@ -190,6 +202,11 @@ prose and does not reconstruct scanned tables, forms, or complex multi-column
 layouts. Preprocess those files with a layout-aware OCR tool before converting.
 A failed conversion does not replace an existing destination and removes its
 temporary output.
+
+Scanned pages that still have a native header, Bates stamp, or letterhead are
+OCR'd in auto mode: a large-image page with fewer than 200 alphanumeric
+characters is treated as sparse native text, not a searchable text page. Use
+`--ocr force` only when you need to replace native extraction on every page.
 
 ## Conversion fails for a parser name
 

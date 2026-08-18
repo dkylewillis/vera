@@ -41,7 +41,10 @@ convert("manual.pdf", "manual.vera", parser="pymupdf")
 
 - Parses PDFs with PyMuPDF; extracts bordered tables with pdfplumber.
 - Selectively OCRs image-dominant low-text pages (`ocr_mode=auto`), with
-  `force` for full-page OCR and `off` to disable OCR.
+  `force` for full-page OCR and `off` to disable OCR. Auto mode still OCRs a
+  large-image page whose only native text is sparse (fewer than 200
+  alphanumeric characters: headers, Bates stamps, letterhead). Blank pages
+  and native-text pages without a large image skip OCR.
 - Owns typed defaults: `chunk_size=500` whitespace-split words, `overlap=75`
   words, `ocr_mode=auto`,
   `ocr_language=eng`, `ocr_dpi=300`.

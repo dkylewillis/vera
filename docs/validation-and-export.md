@@ -86,6 +86,9 @@ vera export "manual.vera" "./exports" --json
 If the archive does not contain the original source, export returns
 `{"ok": false, "error": "..."}` and exits 1.
 
+Export uses the stored filename's basename only. Absolute stored names and
+`..` segments are rejected so the file cannot escape the chosen directory.
+
 Export writes to disk and may create parent directories. Choose the destination
 carefully.
 

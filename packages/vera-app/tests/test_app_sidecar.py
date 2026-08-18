@@ -902,6 +902,138 @@ def test_sidecar_prepare_docling_missing_runtime_fails(monkeypatch):
     assert "Docling is not installed" in response["error"]
 
 
+def test_sidecar_prepare_docling_calls_ensure_and_emits_preparing(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    emitted = []
+    monkeypatch.setattr(sidecar, "_write_response", emitted.append)
+    monkeypatch.setattr(
+        "vera_ingest_docling.converter.ensure_docling_models",
+        lambda: {"ready": True, "downloaded": False, "artifacts_path": "/cache"},
+    )
+
+    response = sidecar.handle({"id": "prepare-real", "action": "prepare_docling"})
+
+    assert response["ok"] is True
+    assert response["result"] == {
+        "ready": True,
+        "downloaded": False,
+        "artifacts_path": "/cache",
+    }
+    progress = [event for event in emitted if event.get("event") == "conversion_progress"]
+    assert progress[0]["phase"] == "preparing"
+    assert progress[0]["input"] == "Docling models"
+
+
+def test_sidecar_prepare_docling_cancel_before_download(monkeypatch):
+    called = {"ensure": False}
+
+    def fail_ensure():
+        called["ensure"] = True
+        raise AssertionError("cancelled prepare must not download")
+
+    monkeypatch.setattr("vera_ingest_docling.converter.ensure_docling_models", fail_ensure)
+    cancel = CancellationToken()
+    cancel.cancel()
+    response = handle({"id": "prep-cancel", "action": "prepare_docling"}, cancel=cancel)
+    assert response["ok"] is False
+    assert response["cancelled"] is True
+    assert "cancelled" in response["error"].lower()
+    assert called["ensure"] is False
+
+
+def test_sidecar_prepare_docling_cancel_after_download(monkeypatch):
+    cancel = CancellationToken()
+
+    def fake_ensure():
+        cancel.cancel()
+        return {"ready": True, "downloaded": True, "artifacts_path": "/cache"}
+
+    monkeypatch.setattr("vera_ingest_docling.converter.ensure_docling_models", fake_ensure)
+    response = handle({"id": "prep-cancel-after", "action": "prepare_docling"}, cancel=cancel)
+    assert response["ok"] is False
+    assert response["cancelled"] is True
+    assert "cancelled" in response["error"].lower()
+
+
+def test_convert_emits_preparing_phase_for_docling(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    emitted = []
+    monkeypatch.setattr(sidecar, "_write_response", emitted.append)
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "convert", lambda *args, **kwargs: "out.vera")
+    monkeypatch.setattr(convert_mod, "require_ready_embedder", lambda model: None)
+
+    response = sidecar.handle(
+        {
+            "id": "docling-prepare-phase",
+            "action": "convert",
+            "input": "scan.pdf",
+            "output": "scan.vera",
+            "parser": "docling:hybrid",
+        }
+    )
+
+    assert response["ok"] is True
+    progress = [event for event in emitted if event.get("event") == "conversion_progress"]
+    assert progress[0]["phase"] == "preparing"
+    assert progress[0]["completed"] == 0
+    assert progress[-1]["completed"] == 1
+    assert "phase" not in progress[-1]
+
+
+def test_convert_skips_preparing_phase_for_pymupdf(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    emitted = []
+    monkeypatch.setattr(sidecar, "_write_response", emitted.append)
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "convert", lambda *args, **kwargs: "out.vera")
+    monkeypatch.setattr(convert_mod, "require_ready_embedder", lambda model: None)
+
+    response = sidecar.handle(
+        {
+            "id": "pymupdf-progress",
+            "action": "convert",
+            "input": "scan.pdf",
+            "output": "scan.vera",
+            "parser": "pymupdf",
+        }
+    )
+
+    assert response["ok"] is True
+    progress = [event for event in emitted if event.get("event") == "conversion_progress"]
+    assert progress[0].get("phase") != "preparing"
+    assert progress[0]["completed"] == 0
+    assert progress[-1]["completed"] == 1
+
+
+def test_batch_convert_emits_preparing_phase_for_docling(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    emitted = []
+    monkeypatch.setattr(sidecar, "_write_response", emitted.append)
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "require_ready_embedder", lambda model: None)
+    monkeypatch.setattr(
+        convert_mod,
+        "batch_convert",
+        lambda *args, **kwargs: {"converted": 0, "failed": 0},
+    )
+
+    response = sidecar.handle(
+        {
+            "id": "docling-batch-prepare",
+            "action": "batch_convert",
+            "directory": "scans",
+            "parser": "docling",
+        }
+    )
+
+    assert response["ok"] is True
+    progress = [event for event in emitted if event.get("event") == "conversion_progress"]
+    phases = [event.get("phase") for event in progress]
+    assert "discovering" in phases
+    assert "preparing" in phases
+
+
 def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):
     captured = {}
 

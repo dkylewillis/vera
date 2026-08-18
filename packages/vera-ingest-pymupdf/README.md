@@ -49,7 +49,9 @@ convert("manual.pdf", "manual.vera", parser="pymupdf")
 - Prefer `pipeline_options=` / `--pipeline-option KEY=VALUE` for provider-owned
   settings; `--chunk-size`, `--overlap`, and `--ocr*` remain compatibility
   aliases.
-- Selective OCR (`auto`) OCRs image-dominant low-text pages. Use `force` for
+- Selective OCR (`auto`) OCRs image-dominant low-text pages, including scans
+  whose only native text is a header, Bates stamp, or letterhead (fewer than
+  200 alphanumeric characters on a large-image page). Use `force` for
   full-page OCR or `off` to disable OCR.
 
 See the [vera-ingest-pymupdf documentation](https://dkylewillis.github.io/vera/packages/vera-ingest-pymupdf/)

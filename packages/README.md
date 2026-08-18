@@ -47,10 +47,10 @@ so conversion works out of the box.
 
 ## `vera-ingest-docling`
 
-Optional plugin that depends on `vera-ingest` and Docling. Registers the
-`docling` / `docling:hybrid` ingest pipeline. It is not part of the CLI's
-base install (`vera-cli[docling]`). The desktop app depends on it, and the
-Windows sidecar freeze includes it.
+Optional CLI/library plugin that depends on `vera-ingest` and Docling.
+Registers the `docling` / `docling:hybrid` ingest pipeline. `vera-cli`
+installs it through the `docling` extra. `vera-app` depends on it directly;
+the packaged Windows sidecar freezes it as **Advanced layout (slower)**.
 
 ## `vera-cli`
 
