@@ -39,9 +39,11 @@ vera convert "scan.pdf" "scan.vera" --ocr auto
 
 With the default PyMuPDF pipeline (`vera-ingest-pymupdf`), OCR runs only on
 pages that are mostly a scanned image and have too little native text to
-search reliably. Blank pages
-are skipped. Mixed PDFs can therefore use native extraction on ordinary pages
-and OCR on scanned pages in one conversion.
+search reliably. A large-image page with fewer than 200 alphanumeric
+characters is treated as sparse native text (headers, Bates stamps, or
+letterhead) and is still OCR'd. Genuinely blank pages and native-text pages
+without a large image skip OCR. Mixed PDFs can therefore use native
+extraction on ordinary pages and OCR on scanned pages in one conversion.
 
 Legacy CLI aliases (forwarded only when the selected pipeline advertises the
 matching descriptor field):
@@ -139,9 +141,13 @@ vera convert "./proposals" --recursive --overwrite --parser docling --model hash
 In the desktop app, right-click a `.vera` file in Explorer and choose
 **Reconvert…**. Convert opens immediately with a preparing status while the
 sibling PDF is resolved (or the embedded original is restored). Overwrite is
-enabled, and the archive's current ingest pipeline and embedding model are
-prefilled so you can change them before converting. After replacement, update
-the library index if that folder is indexed.
+enabled, and the archive's current ingest pipeline, embedding model, and OCR
+options are prefilled from inspect so you can change them before converting.
+If inspect fails and no sibling PDF is listed, Reconvert does **not** export
+an embedded original; Convert shows **Could not read archive metadata**. Place
+the matching `.pdf` next to the archive, or open Document Info and export the
+original once the archive is readable. After replacement, update the library
+index if that folder is indexed.
 
 ## Embedding models
 

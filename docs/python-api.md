@@ -110,7 +110,11 @@ with VeraDocument.open("manual.vera", mode="write") as document:
 
 `add()` rejects existing IDs. `upsert()` inserts or replaces the text,
 metadata, vector, FTS row, and attachment links together. Batch writes are
-atomic.
+atomic. New archives write `chunks_fts.rowid` equal to `chunks.rowid`.
+Archives written before that alignment stay writable: deletes fall back to
+`chunk_id`, and inserts append when another chunk already occupies the
+matching FTS rowid. Alignment is an optimization, not a format 0.2
+requirement.
 
 Use an explicit transaction to combine operations:
 
