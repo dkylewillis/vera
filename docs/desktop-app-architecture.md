@@ -48,7 +48,7 @@ The Electron main process starts:
 python -m vera_app.sidecar
 ```
 
-Requests and responses are newline-delimited JSON. Each request carries an `id` and an `action`; responses echo the `id` and return either `ok: true` with `result`, or `ok: false` with `error`.
+Requests and responses are newline-delimited JSON. Each request carries an `id` and an `action`; responses echo the `id` and return either `ok: true` with `result`, or `ok: false` with `error`. Packaged error responses omit Python `traceback` unless `VERA_APP_DEBUG` is set to a truthy value.
 
 Initial actions:
 

@@ -1287,6 +1287,23 @@ def test_provider_http_error_includes_raw_detail_for_debugging(monkeypatch):
     assert response["ok"] is False
     assert response["error"] == "LLM provider request failed (HTTP 400): context window exceeded"
     assert response["provider_error_detail"] == raw_detail
+    assert "traceback" not in response
+
+
+def test_sidecar_omits_traceback_unless_debug(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    monkeypatch.delenv("VERA_APP_DEBUG", raising=False)
+
+    hidden = sidecar.handle({"id": "no-trace", "action": "not-a-real-action"})
+    assert hidden["ok"] is False
+    assert "Unknown action" in hidden["error"]
+    assert "traceback" not in hidden
+
+    monkeypatch.setenv("VERA_APP_DEBUG", "1")
+    shown = sidecar.handle({"id": "with-trace", "action": "not-a-real-action"})
+    assert shown["ok"] is False
+    assert "Unknown action" in shown["error"]
+    assert "Unknown action" in shown["traceback"]
 
 
 def test_answer_action_returns_structured_cancellation(tmp_path, monkeypatch):

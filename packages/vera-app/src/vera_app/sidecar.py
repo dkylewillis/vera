@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import traceback
@@ -84,6 +85,12 @@ _inflight_requests: dict[str, CancellationToken] = {}
 def _write_response(response: Response) -> None:
     with _stdout_lock:
         print(json.dumps(response), flush=True)
+
+
+def _debug_sidecar() -> bool:
+    """Return True when packaged IPC may include Python tracebacks."""
+    value = os.environ.get("VERA_APP_DEBUG", "").strip().lower()
+    return value not in {"", "0", "false", "no", "off"}
 
 
 def _cancelled_error_message(action: str, exc: BaseException | None = None) -> str:
@@ -179,8 +186,9 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
             "id": request_id,
             "ok": False,
             "error": str(exc),
-            "traceback": traceback.format_exc(),
         }
+        if _debug_sidecar():
+            response["traceback"] = traceback.format_exc()
         if isinstance(exc, ProviderHttpError):
             response["provider_error_detail"] = exc.raw_detail
         return response
