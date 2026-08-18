@@ -65,6 +65,11 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   chunk already occupies the matching FTS rowid).
 - `VeraDocument.iter_raw_chunks()` / `format_metadata()` for library indexing
   without private `VeraDocument` access.
+- `vera ocr-languages list` and `vera ocr-languages download` for Tesseract
+  language data used by the PyMuPDF pipeline (English is bundled; other
+  languages are fetched into a local cache).
+- `vera-lab` contributor layout lab (workspace `dev` extra only; not
+  published to PyPI).
 
 ### Changed
 
@@ -94,6 +99,15 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   falling back to PyMuPDF.
 - There is no silent fallback to a different embedding model or ingest
   pipeline when a named provider is missing or fails to load.
+
+### Fixed
+
+- `vera mcp` prints an install hint and exits 2 when the optional `mcp`
+  extra is not installed, instead of raising `ImportError`.
+- PyMuPDF conversion imports `pymupdf` directly, so `vera convert` no longer
+  prints a deprecated `fitz` API warning on every run.
+- Packaged sidecar error responses omit Python tracebacks over IPC unless
+  `VERA_APP_DEBUG` is set.
 
 ### Desktop
 

@@ -358,16 +358,16 @@ def test_hardening_json_contracts_are_documented():
     assert "VERA_SENTENCE_TRANSFORMERS_HOME" in main_ts
     assert not (ROOT / "packages" / "vera-app" / "src" / "vera_app" / "runtime.py").is_file()
     assert "Docling" in desktop
-    sidecar_build = (
-        ROOT / "packages" / "vera-app" / "scripts" / "build-sidecar.cjs"
-    ).read_text(encoding="utf-8")
+    sidecar_build = (ROOT / "packages" / "vera-app" / "scripts" / "build-sidecar.cjs").read_text(
+        encoding="utf-8"
+    )
     assert "copy-metadata" in sidecar_build
     assert "vendor_minilm.py" in sidecar_build
     assert "sentence_transformers" in sidecar_build
     assert "--exclude-module" not in sidecar_build
-    assert "sentence-transformers" in (
-        ROOT / "packages" / "vera-app" / "pyproject.toml"
-    ).read_text(encoding="utf-8")
+    assert "sentence-transformers" in (ROOT / "packages" / "vera-app" / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
     assert "ensure_registered" in (
         ROOT / "packages" / "vera-ingest-pymupdf" / "src" / "vera_ingest_pymupdf" / "__init__.py"
     ).read_text(encoding="utf-8")
@@ -605,3 +605,26 @@ def test_operational_docs_cover_recent_public_interfaces():
     assert "vera-lab (dev only)" in packages_index
     assert "ocr-languages list" in agents
     assert "ocr-languages download" in skill
+
+
+def test_release_docs_match_packaged_sidecar_and_validate_behavior():
+    """Guard 0.3 packaging and validate docs against the current implementation."""
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    validate_docs = (DOCS / "validation-and-export.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    intro = readme.split("```bash", 1)[1].split("```", 1)[0]
+
+    assert "Linux, macOS, and Windows" in desktop
+    assert "packaged installer currently targets Windows" in desktop
+    assert "Windows/macOS/Linux" not in architecture
+    assert "current installer target is Windows" in architecture
+    assert "document, page, chunk, embedding, FTS, and asset counts" not in validate_docs
+    assert "page references" not in validate_docs
+    assert "`chunks_fts`" in validate_docs
+    assert "vera ocr-languages list" in changelog
+    assert "vera-lab" in changelog
+    assert "VERA_APP_DEBUG" in changelog
+    assert "vera-cli>=0.3.0" in intro
+    assert "npm run app:dev" in readme
