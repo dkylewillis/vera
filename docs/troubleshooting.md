@@ -249,7 +249,7 @@ lines, the prefetch is still running: Hugging Face Xet used to transfer
 updates overwrote the PowerShell line. Restart after this build to see
 `[vera-sidecar]` byte progress and a 15-second cache-size heartbeat. The
 Windows `app:dev` cache is `%APPDATA%\@vera\app\docling-artifacts`. When Heron ONNX
-(`model.onnx`) and TableFormer accurate (`tm_config.json`) are already there,
+(`model.onnx`) and TableFormer accurate (`tm_config.json` plus weights) are already there,
 Convert skips the Hub download and only loads those weights. Packaged Setup.exe
 already includes those snapshots.
 

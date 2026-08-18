@@ -640,6 +640,10 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "vera-ingest-docling" in app_pkg
     assert "not bundled in the installer" not in docling_pkg
     assert "all-MiniLM-L6-v2" in docling_pkg
+    assert "(TableFormer `tm_config.json`)" not in docling_pkg
+    assert "tm_config.json` and weights" in docling_pkg
+    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
+    assert "tm_config.json` plus weights" in troubleshooting
     assert "Linux, macOS, and Windows" in desktop
     assert "packaged installer currently targets Windows" in desktop
     assert "desktop-release" in desktop

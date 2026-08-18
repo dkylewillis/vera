@@ -27,6 +27,7 @@ def _write_complete_docling_artifacts(root: Path) -> None:
     table = root / _TABLEFORMER_MODEL_DIR / "model_artifacts" / "tableformer" / "accurate"
     table.mkdir(parents=True, exist_ok=True)
     (table / "tm_config.json").write_text("{}", encoding="utf-8")
+    (table / "tableformer_accurate.safetensors").write_bytes(b"weights")
 
 
 def test_incomplete_huggingface_download_is_not_cached(tmp_path: Path):
@@ -50,6 +51,32 @@ def test_tableformer_incomplete_download_keeps_cache_online(tmp_path: Path):
     _write_complete_docling_artifacts(tmp_path)
     table_root = tmp_path / _TABLEFORMER_MODEL_DIR
     (table_root / "tm_config.json.incomplete").write_bytes(b"partial")
+
+    assert _layout_model_cached(tmp_path) is True
+    assert _tableformer_cached(tmp_path) is False
+    assert _docling_models_ready(tmp_path) is False
+
+
+def test_tableformer_config_without_weights_is_not_cached(tmp_path: Path):
+    """Interrupted prefetch often finishes tm_config.json before safetensors."""
+    _write_complete_docling_artifacts(tmp_path)
+    accurate = tmp_path / _TABLEFORMER_MODEL_DIR / "model_artifacts" / "tableformer" / "accurate"
+    (accurate / "tableformer_accurate.safetensors").unlink()
+
+    assert _layout_model_cached(tmp_path) is True
+    assert _tableformer_cached(tmp_path) is False
+    assert _docling_models_ready(tmp_path) is False
+
+
+def test_tableformer_fast_config_is_not_treated_as_accurate_cache(tmp_path: Path):
+    heron = tmp_path / _LAYOUT_MODEL_DIR
+    heron.mkdir(parents=True, exist_ok=True)
+    (heron / "config.json").write_text("{}", encoding="utf-8")
+    (heron / "model.onnx").write_bytes(b"weights")
+    fast = tmp_path / _TABLEFORMER_MODEL_DIR / "model_artifacts" / "tableformer" / "fast"
+    fast.mkdir(parents=True, exist_ok=True)
+    (fast / "tm_config.json").write_text("{}", encoding="utf-8")
+    (fast / "tableformer_fast.safetensors").write_bytes(b"weights")
 
     assert _layout_model_cached(tmp_path) is True
     assert _tableformer_cached(tmp_path) is False
@@ -91,7 +118,9 @@ def test_download_docling_models_prints_progress_and_runs_snapshot(monkeypatch, 
     assert "finished" in err
 
 
-def test_run_docling_snapshot_download_fetches_onnx_layout_and_accurate_tables(monkeypatch, tmp_path):
+def test_run_docling_snapshot_download_fetches_onnx_layout_and_accurate_tables(
+    monkeypatch, tmp_path
+):
     from vera_ingest_docling import converter as converter_mod
 
     calls = []
@@ -122,7 +151,25 @@ def test_run_docling_snapshot_download_skips_complete_cache(monkeypatch, tmp_pat
     monkeypatch.setattr(
         converter_mod,
         "_download_hf_snapshot",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("complete cache must not download")),
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("complete cache must not download")
+        ),
     )
     converter_mod._run_docling_snapshot_download(tmp_path)
 
+
+def test_run_docling_snapshot_download_resumes_tableformer_without_weights(monkeypatch, tmp_path):
+    from vera_ingest_docling import converter as converter_mod
+
+    _write_complete_docling_artifacts(tmp_path)
+    accurate = tmp_path / _TABLEFORMER_MODEL_DIR / "model_artifacts" / "tableformer" / "accurate"
+    (accurate / "tableformer_accurate.safetensors").unlink()
+    calls = []
+
+    def fake_download(repo_id, local_dir, allow_patterns=None):
+        calls.append(repo_id)
+
+    monkeypatch.setattr(converter_mod, "_download_hf_snapshot", fake_download)
+    converter_mod._run_docling_snapshot_download(tmp_path)
+
+    assert calls == ["docling-project/docling-models"]

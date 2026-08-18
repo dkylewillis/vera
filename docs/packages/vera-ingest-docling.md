@@ -38,8 +38,9 @@ RapidOCR weights ship with `docling[rapidocr]` (and the desktop sidecar freeze);
 VERA pins those packaged ONNX paths so setting `DOCLING_ARTIFACTS_PATH` does not
 require a separate RapidOCR prefetch. VERA treats that artifacts directory as
 offline only when both `docling-project--docling-layout-heron-onnx` (with
-weights) and `docling-project--docling-models` (TableFormer `tm_config.json`)
-are complete. A half-written folder stays online so Hugging Face can resume.
+weights) and `docling-project--docling-models` (TableFormer accurate
+`tm_config.json` and weights) are complete. A half-written folder stays online
+so Hugging Face can resume.
 The desktop app prefetches those models when you select Advanced layout
 (`prepare_docling`) instead of waiting for the first PDF convert. Stopping
 mid-download does not abort Hugging Face immediately; the next run resumes.

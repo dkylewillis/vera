@@ -133,13 +133,19 @@ def _layout_model_cached(artifacts: Path) -> bool:
 
 
 def _tableformer_cached(artifacts: Path) -> bool:
+    """True when TableFormer accurate config and weights exist.
+
+    ``tm_config.json`` is a small file Hugging Face writes before the ~210 MB
+    safetensors. Treating that config alone as cached — or accepting a leftover
+    TableFormer *fast* config — would lock later runs into offline mode and
+    fail Convert instead of resuming the download.
+    """
     root = artifacts / _TABLEFORMER_MODEL_DIR
-    if not root.is_dir() or _has_incomplete_download(root):
+    accurate = root / "model_artifacts" / "tableformer" / "accurate"
+    if not accurate.is_dir() or _has_incomplete_download(root):
         return False
-    return any(
-        path.is_file() and path.name == "tm_config.json" and path.stat().st_size > 0
-        for path in root.rglob("tm_config.json")
-    )
+    config = accurate / "tm_config.json"
+    return config.is_file() and config.stat().st_size > 0 and _has_weight_file(accurate)
 
 
 def _docling_models_ready(artifacts: Path) -> bool:
@@ -150,7 +156,8 @@ def _docling_models_ready(artifacts: Path) -> bool:
 def _ensure_stderr_logger(name: str) -> None:
     logger = logging.getLogger(name)
     if any(
-        isinstance(handler, logging.StreamHandler) and getattr(handler, "stream", None) is sys.stderr
+        isinstance(handler, logging.StreamHandler)
+        and getattr(handler, "stream", None) is sys.stderr
         for handler in logger.handlers
     ):
         return
@@ -247,7 +254,11 @@ def _download_docling_models(artifacts: Path) -> None:
     finally:
         stop.set()
         heartbeat.join(timeout=1.0)
-    print("Docling model download finished; checking the artifacts cache…", file=sys.stderr, flush=True)
+    print(
+        "Docling model download finished; checking the artifacts cache…",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def _configure_docling_artifacts() -> None:

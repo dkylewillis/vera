@@ -60,6 +60,7 @@ def _write_complete_docling_artifacts(root) -> None:
     )
     table.mkdir(parents=True, exist_ok=True)
     (table / "tm_config.json").write_text("{}", encoding="utf-8")
+    (table / "tableformer_accurate.safetensors").write_bytes(b"weights")
 
 
 @pytest.fixture(autouse=True)

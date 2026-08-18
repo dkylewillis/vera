@@ -116,6 +116,9 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   accurate (~380 MB) instead of both Heron engines plus TableFormer fast
   (~700 MB), and convert uses the ONNX layout engine. Sidecar Hub progress
   still prints as `[vera-sidecar]` lines with a cache-size heartbeat.
+- Docling cache readiness requires TableFormer accurate weights, not just
+  `tm_config.json`, so an interrupted Hub prefetch stays online and resumes
+  instead of locking Convert into a failing offline mode.
 
 ### Desktop
 
