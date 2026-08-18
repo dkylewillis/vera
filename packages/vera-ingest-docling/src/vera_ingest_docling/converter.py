@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import threading
@@ -87,10 +88,23 @@ def _rapidocr_model_paths() -> dict[str, str]:
 
 
 # Docling offline layout: repo id with "/" replaced by "--".
-_LAYOUT_MODEL_DIR = "docling-project--docling-layout-heron"
+# Prefetch the ONNX Heron export (the engine VERA pins) plus TableFormer
+# accurate only — not the Transformers Heron snapshot or TableFormer fast.
+_LAYOUT_REPO_ID = "docling-project/docling-layout-heron-onnx"
+_LAYOUT_MODEL_DIR = "docling-project--docling-layout-heron-onnx"
+_TABLEFORMER_REPO_ID = "docling-project/docling-models"
 _TABLEFORMER_MODEL_DIR = "docling-project--docling-models"
+_TABLEFORMER_ALLOW_PATTERNS = (
+    "model_artifacts/tableformer/accurate/**",
+    "config.json",
+    "README.md",
+    ".gitattributes",
+    ".gitignore",
+)
 _WEIGHT_SUFFIXES = {".safetensors", ".bin", ".onnx", ".pt", ".pth"}
 _MODEL_DOWNLOAD_LOCK = threading.Lock()
+_CACHE_READY_LOGGED = False
+_DOWNLOAD_HEARTBEAT_SECONDS = 15.0
 
 
 def _has_incomplete_download(directory: Path) -> bool:
@@ -105,7 +119,7 @@ def _has_weight_file(directory: Path) -> bool:
 
 
 def _layout_model_cached(artifacts: Path) -> bool:
-    """True when Heron exists as a complete Docling artifacts snapshot.
+    """True when the ONNX Heron export exists as a complete artifacts snapshot.
 
     A non-empty folder is not enough: stopping mid-download can leave
     ``config.json`` without weights, and treating that as cached would lock
@@ -133,26 +147,107 @@ def _docling_models_ready(artifacts: Path) -> bool:
     return _layout_model_cached(artifacts) and _tableformer_cached(artifacts)
 
 
+def _ensure_stderr_logger(name: str) -> None:
+    logger = logging.getLogger(name)
+    if any(
+        isinstance(handler, logging.StreamHandler) and getattr(handler, "stream", None) is sys.stderr
+        for handler in logger.handlers
+    ):
+        return
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("[%(name)s] %(message)s"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+
+
+def _prepare_hub_download() -> None:
+    """Make Hub tqdm and Docling logs visible on sidecar stderr."""
+    try:
+        from huggingface_hub.utils import enable_progress_bars
+
+        enable_progress_bars()
+    except Exception:  # pragma: no cover - huggingface_hub optional at import time
+        pass
+    _ensure_stderr_logger("huggingface_hub")
+    _ensure_stderr_logger("docling")
+
+
+def _cache_size_mb(artifacts: Path) -> int:
+    total = 0
+    try:
+        for path in artifacts.rglob("*"):
+            if path.is_file():
+                total += path.stat().st_size
+    except OSError:
+        return 0
+    return int(total / (1024 * 1024))
+
+
+def _download_heartbeat(artifacts: Path, stop: threading.Event) -> None:
+    while not stop.wait(_DOWNLOAD_HEARTBEAT_SECONDS):
+        print(
+            f"Docling model download still running ({_cache_size_mb(artifacts)} MB in cache)...",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
+def _download_hf_snapshot(
+    repo_id: str,
+    local_dir: Path,
+    *,
+    allow_patterns: tuple[str, ...] | None = None,
+) -> None:
+    from huggingface_hub import snapshot_download
+
+    print(f"Downloading {repo_id}...", file=sys.stderr, flush=True)
+    kwargs: dict[str, Any] = {"repo_id": repo_id, "local_dir": str(local_dir)}
+    if allow_patterns:
+        kwargs["allow_patterns"] = list(allow_patterns)
+    snapshot_download(**kwargs)
+
+
+def _run_docling_snapshot_download(artifacts: Path) -> None:
+    """Fetch only the snapshots VERA's Docling converter loads."""
+    if not _layout_model_cached(artifacts):
+        _download_hf_snapshot(_LAYOUT_REPO_ID, artifacts / _LAYOUT_MODEL_DIR)
+    if not _tableformer_cached(artifacts):
+        _download_hf_snapshot(
+            _TABLEFORMER_REPO_ID,
+            artifacts / _TABLEFORMER_MODEL_DIR,
+            allow_patterns=_TABLEFORMER_ALLOW_PATTERNS,
+        )
+
+
 def _download_docling_models(artifacts: Path) -> None:
     """Fetch the models VERA's Docling pipeline actually loads.
 
     RapidOCR ONNX weights are pinned from site-packages separately. Code,
-    picture-classifier, and VLM extras are not enabled on this pipeline.
+    picture-classifier, Transformers Heron, TableFormer fast, and VLM extras
+    are not enabled on this pipeline. Prefetch is Heron ONNX (~170 MB) plus
+    TableFormer accurate (~210 MB).
     """
-    from docling.utils.model_downloader import download_models
-
-    download_models(
-        output_dir=artifacts,
-        progress=True,
-        with_layout=True,
-        with_tableformer=True,
-        with_tableformer_v2=False,
-        with_code_formula=False,
-        with_picture_classifier=False,
-        with_rapidocr=False,
-        with_easyocr=False,
-        with_nemotron_ocr=False,
+    _prepare_hub_download()
+    print(
+        "Downloading Docling layout and table models from Hugging Face "
+        "(about 380 MB: Heron ONNX + TableFormer accurate).",
+        file=sys.stderr,
+        flush=True,
     )
+    stop = threading.Event()
+    heartbeat = threading.Thread(
+        target=_download_heartbeat,
+        args=(artifacts, stop),
+        daemon=True,
+        name="vera-docling-download-heartbeat",
+    )
+    heartbeat.start()
+    try:
+        _run_docling_snapshot_download(artifacts)
+    finally:
+        stop.set()
+        heartbeat.join(timeout=1.0)
+    print("Docling model download finished; checking the artifacts cache…", file=sys.stderr, flush=True)
 
 
 def _configure_docling_artifacts() -> None:
@@ -161,7 +256,9 @@ def _configure_docling_artifacts() -> None:
     Docling treats ``DOCLING_ARTIFACTS_PATH`` as fully offline: a missing
     Heron or TableFormer folder raises instead of downloading. When the cache
     is incomplete, clear ``settings.artifacts_path`` so Hugging Face can
-    download or resume, and keep ``HF_HOME`` inside the same directory.
+    download or resume. ``HF_HOME`` defaults to this directory unless the
+    desktop already set a writable cache (packaged builds keep Hub writes
+    under Electron ``userData`` while reading bundled snapshots).
     """
     try:
         from docling.datamodel.settings import settings
@@ -171,12 +268,29 @@ def _configure_docling_artifacts() -> None:
     if not raw:
         return
     artifacts = Path(raw)
-    artifacts.mkdir(parents=True, exist_ok=True)
+    try:
+        artifacts.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # Packaged snapshots live next to vera-sidecar.exe and may be read-only.
+        if not artifacts.is_dir():
+            raise
     os.environ.setdefault("HF_HOME", raw)
     if _docling_models_ready(artifacts):
         settings.artifacts_path = artifacts
         return
     settings.artifacts_path = None
+
+
+def _log_cache_ready_once() -> None:
+    global _CACHE_READY_LOGGED
+    if _CACHE_READY_LOGGED:
+        return
+    print(
+        "Docling layout models are already cached; skipping Hugging Face download.",
+        file=sys.stderr,
+        flush=True,
+    )
+    _CACHE_READY_LOGGED = True
 
 
 def ensure_docling_models() -> dict[str, Any]:
@@ -192,16 +306,18 @@ def ensure_docling_models() -> dict[str, Any]:
         return {"ready": False, "downloaded": False, "reason": "no_artifacts_path"}
     artifacts = Path(raw)
     if _docling_models_ready(artifacts):
+        _log_cache_ready_once()
         return {"ready": True, "downloaded": False, "artifacts_path": str(artifacts)}
     with _MODEL_DOWNLOAD_LOCK:
         _configure_docling_artifacts()
         if _docling_models_ready(artifacts):
+            _log_cache_ready_once()
             return {"ready": True, "downloaded": False, "artifacts_path": str(artifacts)}
         print(
             "Docling layout models are not in the artifacts cache yet; "
-            "downloading from Hugging Face (first run can take several minutes). "
-            "Stopping mid-download does not abort Hugging Face immediately; "
-            "the next run will resume.",
+            "downloading from Hugging Face (about 380 MB; first run can "
+            "take several minutes). Stopping mid-download does not abort "
+            "Hugging Face immediately; the next run will resume.",
             file=sys.stderr,
             flush=True,
         )
@@ -214,6 +330,28 @@ def ensure_docling_models() -> dict[str, Any]:
         }
 
 
+def _configure_fast_pipeline_options(pipeline_options: Any) -> None:
+    """Use Heron ONNX and TableFormer accurate so prefetch matches convert."""
+    try:
+        from docling.datamodel.object_detection_engine_options import (
+            OnnxRuntimeObjectDetectionEngineOptions,
+        )
+        from docling.datamodel.pipeline_options import TableFormerMode
+    except Exception:  # pragma: no cover - Docling optional at import time
+        layout_engine = getattr(
+            getattr(pipeline_options, "layout_options", None), "engine_options", None
+        )
+        if layout_engine is not None and hasattr(layout_engine, "compile_model"):
+            layout_engine.compile_model = False
+        return
+    layout_options = getattr(pipeline_options, "layout_options", None)
+    if layout_options is not None and hasattr(layout_options, "engine_options"):
+        layout_options.engine_options = OnnxRuntimeObjectDetectionEngineOptions()
+    table_options = getattr(pipeline_options, "table_structure_options", None)
+    if table_options is not None and hasattr(table_options, "mode"):
+        table_options.mode = TableFormerMode.ACCURATE
+
+
 def _build_converter(options: DoclingOptions, *, backend: str | None = None) -> Any:
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import PdfPipelineOptions, RapidOcrOptions
@@ -223,6 +361,11 @@ def _build_converter(options: DoclingOptions, *, backend: str | None = None) -> 
     # Must run before PdfPipelineOptions() so default_factory compile flags are False.
     _disable_torch_compile()
     ensure_docling_models()
+    print(
+        "Initializing Docling converter (ONNX layout + TableFormer; first load can take a minute)...",
+        file=sys.stderr,
+        flush=True,
+    )
 
     pipeline_options = PdfPipelineOptions()
     pipeline_options.do_table_structure = True
@@ -230,11 +373,7 @@ def _build_converter(options: DoclingOptions, *, backend: str | None = None) -> 
     # Keep Docling's default raster scale. Mapping VERA's Tesseract OCR DPI
     # (default 300) to images_scale (~4.17x) OOMs large manuals.
     pipeline_options.images_scale = 1.0
-    layout_engine = getattr(
-        getattr(pipeline_options, "layout_options", None), "engine_options", None
-    )
-    if layout_engine is not None and hasattr(layout_engine, "compile_model"):
-        layout_engine.compile_model = False
+    _configure_fast_pipeline_options(pipeline_options)
 
     if ocr_mode == "off":
         pipeline_options.do_ocr = False

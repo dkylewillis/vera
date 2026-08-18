@@ -103,12 +103,17 @@ The sidecar registers the default `pymupdf` pipeline and, when
 `PYTHONPATH` includes `vera-ingest-docling/src`. Packaged Windows builds freeze
 PyMuPDF, Docling, Torch, RapidOCR, ONNX Runtime, `pypdfium2`, and
 `sentence_transformers` into one sidecar, and vendor `all-MiniLM-L6-v2`
-weights in the installer. Hugging Face tokens,
-`DOCLING_ARTIFACTS_PATH` (an app-owned cache under Electron `userData`), and
+weights plus Heron ONNX and TableFormer accurate in the installer. Hugging Face tokens,
+`DOCLING_ARTIFACTS_PATH` (the bundled snapshot when packaged and complete,
+otherwise an app-owned cache under Electron `userData`), `HF_HOME` (always a
+writable cache under `userData` unless already set), and
 `VERA_SENTENCE_TRANSFORMERS_HOME` (the bundled MiniLM snapshot) are
 forwarded on spawn. Convert gates conversion on `preflight_embedder`.
 Selecting Advanced layout runs `prepare_docling` so layout and table models
-download (and can resume) before a PDF convert starts. Search
+are ready before a PDF convert starts. Packaged builds skip the Hub download
+when the freeze is complete; `app:dev` prefetches Heron ONNX plus TableFormer
+accurate (~380 MB) into `userData`. The sidecar sets `PYTHONUNBUFFERED=1`
+and forwards tqdm `\r` Hub progress as `[vera-sidecar]` lines. Search
 reports `skipped_semantic_model_groups` when a query embedder is unavailable.
 `list_embedding_models` and `credential_env` remain part of the descriptor
 contract so hosted providers can land in 0.3.1 without a protocol change.

@@ -51,6 +51,8 @@ def _build_diagnostics(
         ),
         "images_scale": 1.0,
         "torch_compile": False,
+        "layout_engine": "onnxruntime",
+        "tableformer_mode": "accurate",
         "overlap_ignored": True,
         "artifacts_path_env": "DOCLING_ARTIFACTS_PATH",
         "pdf_backend": effective_backend,

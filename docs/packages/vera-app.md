@@ -26,7 +26,8 @@ Download `VERA Setup <version>.exe` from the
    `describe_ingest_pipelines` / `PipelineConfigForm`. Convert lists PyMuPDF
    (default) and **Advanced layout (slower)** / Docling from the same sidecar.
    Convert embedding presets are hashing (default) and **Local semantic
-   (MiniLM)**; MiniLM weights ship in the Windows installer. Hosted embedders
+   (MiniLM)**; MiniLM weights and Docling layout/table snapshots ship in the
+   Windows installer. Hosted embedders
    are a 0.3.1 follow-up. Right-click a `.vera`
    archive and choose **Reconvert…** to replace it with a different ingest
    pipeline or embedding model.

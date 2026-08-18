@@ -50,7 +50,7 @@ describe('conversionProgressTaskUpdate', () => {
     expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 4, total: 4 }, 'batch').message).toBe('Converted 4 of 4');
     expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 1, total: 1 }, 'single').message).toBe('Converted');
     expect(conversionProgressTaskUpdate({ phase: 'preparing', completed: 0, total: 1, input: 'a.pdf' }, 'single').message)
-      .toBe('Downloading Docling models (first run can take several minutes)…');
+      .toBe('Preparing Docling models…');
   });
 });
 

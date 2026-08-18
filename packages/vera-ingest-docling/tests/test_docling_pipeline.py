@@ -47,10 +47,10 @@ def _write_complete_docling_artifacts(root) -> None:
     from pathlib import Path
 
     artifacts = Path(root)
-    heron = artifacts / "docling-project--docling-layout-heron"
+    heron = artifacts / "docling-project--docling-layout-heron-onnx"
     heron.mkdir(parents=True, exist_ok=True)
     (heron / "config.json").write_text("{}", encoding="utf-8")
-    (heron / "model.safetensors").write_bytes(b"weights")
+    (heron / "model.onnx").write_bytes(b"weights")
     table = (
         artifacts
         / "docling-project--docling-models"
@@ -262,7 +262,7 @@ def test_config_only_layout_folder_stays_online(monkeypatch, tmp_path):
     from vera_ingest_docling.converter import _configure_docling_artifacts
 
     monkeypatch.setattr(settings, "artifacts_path", settings.artifacts_path)
-    heron = tmp_path / "docling-project--docling-layout-heron"
+    heron = tmp_path / "docling-project--docling-layout-heron-onnx"
     heron.mkdir()
     (heron / "config.json").write_text("{}", encoding="utf-8")
     monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(tmp_path))
@@ -277,10 +277,10 @@ def test_layout_without_tableformer_stays_online(monkeypatch, tmp_path):
     from vera_ingest_docling.converter import _configure_docling_artifacts
 
     monkeypatch.setattr(settings, "artifacts_path", settings.artifacts_path)
-    heron = tmp_path / "docling-project--docling-layout-heron"
+    heron = tmp_path / "docling-project--docling-layout-heron-onnx"
     heron.mkdir()
     (heron / "config.json").write_text("{}", encoding="utf-8")
-    (heron / "model.safetensors").write_bytes(b"weights")
+    (heron / "model.onnx").write_bytes(b"weights")
     monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(tmp_path))
     settings.artifacts_path = tmp_path
     _configure_docling_artifacts()
@@ -374,7 +374,7 @@ def test_build_converter_uses_packaged_rapidocr_when_artifacts_incomplete(monkey
     assert "rapidocr" in Path(ocr_options.det_model_path).as_posix().lower()
 
 
-def test_build_converter_disables_torch_compile_and_keeps_default_image_scale():
+def test_build_converter_uses_onnx_layout_and_accurate_tableformer():
     from vera_ingest_docling.options import DoclingOptions
     from vera_ingest_docling.pipeline import _build_converter
 
@@ -384,7 +384,9 @@ def test_build_converter_disables_torch_compile_and_keeps_default_image_scale():
     pipeline_options = converter.format_to_options["pdf"].pipeline_options
     assert pipeline_options.images_scale == 1.0
     assert pipeline_options.generate_picture_images is True
-    assert pipeline_options.layout_options.engine_options.compile_model is False
+    engine = pipeline_options.layout_options.engine_options
+    assert engine.engine_type.value == "onnxruntime"
+    assert pipeline_options.table_structure_options.mode.value == "accurate"
 
 
 def test_docling_options_ignore_pymupdf_only_keys_and_reject_unknown():

@@ -355,6 +355,7 @@ def test_hardening_json_contracts_are_documented():
     assert "vera-ingest-docling" in main_ts
     assert "configurePluginRuntime" not in main_ts
     assert "DOCLING_ARTIFACTS_PATH" in main_ts
+    assert "PYTHONUNBUFFERED" in main_ts
     assert "VERA_SENTENCE_TRANSFORMERS_HOME" in main_ts
     assert not (ROOT / "packages" / "vera-app" / "src" / "vera_app" / "runtime.py").is_file()
     assert "Docling" in desktop
@@ -363,6 +364,8 @@ def test_hardening_json_contracts_are_documented():
     )
     assert "copy-metadata" in sidecar_build
     assert "vendor_minilm.py" in sidecar_build
+    assert "vendor_docling_models.py" in sidecar_build
+    assert "docling-artifacts" in sidecar_build
     assert "sentence_transformers" in sidecar_build
     assert "--exclude-module" not in sidecar_build
     assert "sentence-transformers" in (ROOT / "packages" / "vera-app" / "pyproject.toml").read_text(
@@ -639,6 +642,9 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "all-MiniLM-L6-v2" in docling_pkg
     assert "Linux, macOS, and Windows" in desktop
     assert "packaged installer currently targets Windows" in desktop
+    assert "desktop-release" in desktop
+    assert "%LOCALAPPDATA%" in desktop
+    assert "packages/vera-app/release/win-unpacked" not in desktop
     assert "Windows/macOS/Linux" not in architecture
     assert "current installer target is Windows" in architecture
     assert "document, page, chunk, embedding, FTS, and asset counts" not in validate_docs

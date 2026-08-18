@@ -70,8 +70,9 @@ hashing, and Sentence Transformers MiniLM. Plugins are ordinary pip packages in 
 (`vera.ingest_pipelines` / `vera.embedders`); CLI users can
 `pip install "vera-cli[docling]>=0.3.0"` or `pip install -e <clone>` after
 `vera-ingest` 0.3.x. An unavailable selection is disabled or fails with the
-resolver error. Docling's first conversion may download Hugging Face
-models into the app-owned cache under Electron `userData`
+resolver error. Packaged Advanced layout uses snapshots already inside
+Setup.exe. `npm run app:dev` may download Hugging Face layout models (about
+380 MB) into the app-owned cache under Electron `userData`
 (`DOCLING_ARTIFACTS_PATH`); save an optional token under **File > Settings → Hugging Face**
 (or set `HF_TOKEN` in the environment / a local `.env` from `.env.example`) to
 raise Hub rate limits. Conversion progress and the current filename appear in
@@ -166,8 +167,10 @@ Create an unpacked desktop build, including the packaged Python sidecar:
 npm run app:dist
 ```
 
-On Windows, the unpacked executable is written to
-`packages/vera-app/release/win-unpacked/VERA.exe`.
+On Windows, packaging writes outside the repo (electron-builder rename locks
+inside a watched checkout). The unpacked app is
+`%LOCALAPPDATA%\Vera\desktop-release\win-unpacked\VERA.exe`. Override the
+folder with `VERA_DIST_OUTPUT`.
 
 Create the distributable Windows installer:
 
@@ -175,8 +178,14 @@ Create the distributable Windows installer:
 npm run app:release
 ```
 
-This removes the existing `packages/vera-app/release` directory, rebuilds the
-app and Python sidecar, and writes an NSIS installer into that directory.
+This rebuilds the app and Python sidecar and writes `VERA Setup <version>.exe`
+into `%LOCALAPPDATA%\Vera\desktop-release` (and clears any leftover
+`packages/vera-app/release` directory).
+Sidecar freeze vendors MiniLM plus Docling Heron ONNX and TableFormer accurate
+from Hugging Face into gitignored `packages/vera-app/build/` (about 380 MB
+extra on the first run; later builds reuse that snapshot). A complete
+`app:dev` cache under `%APPDATA%\@vera\app\docling-artifacts` is copied instead
+of downloaded again.
 
 ## Plugins in the same environment
 
@@ -187,17 +196,19 @@ second interpreter.
 
 The packaged Windows installer freezes PyMuPDF, Docling (Torch, RapidOCR, ONNX
 Runtime), hashing, and Sentence Transformers into `vera-sidecar.exe`. MiniLM
-(`all-MiniLM-L6-v2`) weights ship inside Setup.exe, so **Local semantic
-(MiniLM)** does not download on first use. RapidOCR ONNX weights are part of
-that freeze (and of `docling[rapidocr]` for `app:dev`). Other Docling layout
-model artifacts are **not** inside Setup.exe. Selecting **Advanced layout
-(slower)** prefetches layout and table models from Hugging Face into the
-app-owned cache (`DOCLING_ARTIFACTS_PATH` / `HF_HOME` under Electron
-`userData`) before Convert starts on a PDF. First download can take several
-minutes — leave it running. Stop asks for confirmation during that download;
-Hugging Face may keep going until the step finishes, and the next run
-resumes. Convert reuses the cache afterward. Hosted embedding providers (OpenAI, Voyage,
-Ollama) are a 0.3.1 follow-up.
+(`all-MiniLM-L6-v2`) weights and Docling layout/table snapshots (Heron ONNX +
+TableFormer accurate, about 380 MB) ship inside Setup.exe, so **Local semantic
+(MiniLM)** and **Advanced layout (slower)** do not download those files on
+first use. RapidOCR ONNX weights are part of that freeze (and of
+`docling[rapidocr]` for `app:dev`). `npm run app:dev` still prefetches layout
+and table models from Hugging Face into the app-owned cache
+(`DOCLING_ARTIFACTS_PATH` / `HF_HOME` under Electron `userData`) when you
+select Advanced layout. First `app:dev` download can take several minutes —
+leave it running. Stop asks for confirmation during that download; Hugging
+Face may keep going until the step finishes, and the next run resumes.
+Packaged Advanced layout points `DOCLING_ARTIFACTS_PATH` at the freeze and
+keeps a writable `HF_HOME` under `userData`. Hosted embedding providers
+(OpenAI, Voyage, Ollama) are a 0.3.1 follow-up.
 
 CLI and `app:dev` users install the same packages into the VERA environment:
 
@@ -211,7 +222,8 @@ python -m pip install -e packages/vera-ingest-docling
 Ingest plugins register under `vera.ingest_pipelines`; embedders register
 under `vera.embedders`. Convert calls `preflight_embedder` before writing an
 archive. Sentence Transformers is frozen into the Windows sidecar with
-vendored MiniLM weights. Source-run `app:dev` installs it via `--extra ml`. A
+vendored MiniLM weights, and Docling layout/table snapshots are frozen the
+same way. Source-run `app:dev` installs MiniLM via `--extra ml`. A
 missing `sentence_transformers` module in a checkout means that extra is not
 installed — run `uv sync --extra ml` and restart the app. See
 [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md) and
@@ -244,10 +256,15 @@ Convert and embed always run in-process in the sidecar; see
 - **Docling is missing from Convert in `app:dev`** — sync the workspace with
   the `docling` extra (`uv sync --extra app --extra docling`) and restart the
   app. Packaged builds already include Advanced layout.
-- **First Docling conversion is slow or downloads models** — expected. Layout
-  artifacts land in the app cache under `userData` and are reused. Save
-  `HF_TOKEN` under **File > Settings → Hugging Face** if Hub rate limits
-  appear.
+- **First Docling conversion is slow or downloads models** — expected in
+  `npm run app:dev`. Layout and table artifacts are about 380 MB (Heron ONNX +
+  TableFormer accurate) and land in the app cache under `userData`
+  (`%APPDATA%\@vera\app\docling-artifacts` on Windows). Reuse that cache
+  afterward. Watch for `[vera-sidecar]` Hub tqdm lines and a periodic
+  “still running (N MB in cache)” heartbeat. The packaged installer already
+  ships those snapshots, so Setup.exe Advanced layout should not download
+  them. Save `HF_TOKEN` under **File > Settings → Hugging Face** if Hub rate
+  limits appear during `app:dev`.
 - **An extra parser or embedder is missing from Convert** — install it into
   the same environment the sidecar uses (`python -m pip install` or
   `python -m pip install -e <clone>`), then restart the app. Raw `PYTHONPATH`

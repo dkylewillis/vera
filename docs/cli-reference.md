@@ -36,7 +36,8 @@ Options:
   MiniLM weights)
 - `--parser PARSER` (`pymupdf`; accepts `provider[:variant]` specs such as
   `docling` / `docling:hybrid` when `vera-ingest-docling` is installed; unknown
-  providers exit with an error)
+  providers exit with an error; the Windows installer vendors Heron ONNX and
+  TableFormer accurate)
 - `--chunk-size N` (`500`; compatibility alias; PyMuPDF counts whitespace-split
   words, Docling counts whitespace tokens)
 - `--overlap N` (`75`; compatibility alias; PyMuPDF counts whitespace-split

@@ -65,8 +65,8 @@ describe('background task status', () => {
       kind: 'docling_prepare',
       label: 'Docling models',
       phase: 'preparing',
-      message: 'Downloading Docling models (first run can take several minutes)…',
-    })).toBe('Downloading Docling models (first run can take several minutes)…');
+      message: 'Preparing Docling models…',
+    })).toBe('Preparing Docling models…');
   });
 
   it('formats library inspection as its own determinate task', () => {

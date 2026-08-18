@@ -43,6 +43,14 @@ npm --prefix packages/vera-app run build:sidecar
 node packages/vera-app/scripts/verify-packaged-sidecar.cjs
 ```
 
+`build:sidecar` vendors MiniLM and Docling layout/table snapshots from Hugging
+Face into gitignored `packages/vera-app/build/` (about 380 MB extra on the
+first run; later builds reuse the snapshot). If
+`%APPDATA%\@vera\app\docling-artifacts` or `%APPDATA%\VERA\docling-artifacts`
+already has a complete Heron ONNX + TableFormer accurate cache, the sidecar
+build copies it instead of downloading again. Override the source with
+`VERA_DOCLING_VENDOR_CACHE`.
+
 ## Formatting and blame
 
 Python sources are formatted with Ruff. A one-time format pass lives in

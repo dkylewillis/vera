@@ -1,6 +1,7 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { parseSidecarJsonLine } from './sidecar-json.js';
+import { logSidecarStderr } from './sidecar-log.js';
 
 export interface JsonLineRequest {
   action: string;
@@ -159,9 +160,7 @@ export class JsonLineProcess {
       shell: false,
     });
     this.child.stdout.on('data', (chunk: Buffer) => this.handleStdout(chunk.toString('utf8')));
-    this.child.stderr.on('data', (chunk: Buffer) => {
-      console.error(`[${this.label}] ${chunk.toString('utf8')}`);
-    });
+    this.child.stderr.on('data', (chunk: Buffer) => logSidecarStderr(this.label, chunk.toString('utf8')));
     const child = this.child;
     child.on('error', (error: Error) => {
       if (this.child === child) this.child = null;

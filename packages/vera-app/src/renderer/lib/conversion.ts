@@ -50,7 +50,7 @@ export function conversionProgressTaskUpdate(
   if (event.phase === 'preparing') {
     return {
       ...base,
-      message: 'Downloading Docling models (first run can take several minutes)…',
+      message: 'Preparing Docling models…',
     };
   }
   if (!total) {

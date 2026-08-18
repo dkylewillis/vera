@@ -531,7 +531,7 @@ export function createConversionController(getHost: () => ConversionHost) {
         kind: 'docling_prepare',
         label: 'Docling models',
         phase: 'preparing',
-        message: 'Downloading Docling models (first run can take several minutes)…',
+        message: 'Preparing Docling models…',
       },
     });
     const offProgress = window.vera.onAnswerEvent((event) => {

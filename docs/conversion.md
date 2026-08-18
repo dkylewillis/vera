@@ -341,13 +341,19 @@ paths even when `DOCLING_ARTIFACTS_PATH` is set). An **empty or incomplete**
 artifacts directory is not treated as offline — VERA lets Hugging Face
 download or resume, and keeps Hub files under that cache via `HF_HOME`.
 Stopping mid-download does not abort Hugging Face immediately; the next
-run resumes. The desktop app prefetches layout and table models when you
-select **Advanced layout (slower)** (`prepare_docling`), before Convert
-starts on a PDF. Convert still shows “Downloading Docling models…” if
-prefetch has not finished, and the sidecar terminal prints Hub progress,
-then `Loading weights`. Set `DOCLING_ARTIFACTS_PATH` for a local
+run resumes. The first prefetch is about 380 MB (Heron ONNX plus TableFormer
+accurate). The desktop app runs `prepare_docling` when you select
+**Advanced layout (slower)**, before Convert starts on a PDF. Packaged Windows
+builds vendor those snapshots in Setup.exe. `npm run app:dev` still downloads
+them into Electron `userData`. Convert uses that ONNX layout engine instead of downloading a
+second Transformers Heron snapshot and TableFormer fast. Convert still shows
+“Preparing Docling models…” if prefetch has not finished. In `npm run app:dev`,
+sidecar Hub progress appears as `[vera-sidecar]` lines (tqdm `\r` updates
+are turned into newlines so PowerShell is not overwritten) plus a periodic
+cache-size heartbeat. After the cache is ready the sidecar prints that it is
+initializing the converter. Set `DOCLING_ARTIFACTS_PATH` for a local
 layout-model cache; the desktop app uses an app-owned directory under
-Electron `userData`. The Convert UI is
+Electron `userData` unless the packaged freeze is complete. The Convert UI is
 schema-driven: the sidecar
 `describe_ingest_pipelines` action supplies descriptors, and
 `PipelineConfigForm` renders only the fields each pipeline advertises under a

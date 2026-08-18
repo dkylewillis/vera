@@ -44,17 +44,19 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   Chat; show installed provider suggestions; hashing and MiniLM presets.
 - Packaged desktop app: one frozen sidecar with PyMuPDF, Docling (Torch,
   RapidOCR, ONNX Runtime), hashing, and Sentence Transformers. MiniLM
-  (`all-MiniLM-L6-v2`) weights ship in the installer, so Local semantic
-  conversion does not download on first use. There is no Settings → Python
-  plugins page and no `vera_plugin_host`. Docling model artifacts download when
-  you select Advanced layout (`prepare_docling`) into an app-owned
-  `DOCLING_ARTIFACTS_PATH` cache (incomplete caches resume from Hugging Face
-  instead of failing offline). Convert shows model-preparation status and
-  confirms before stopping an in-progress download. Convert drives
-  `EmbedderConfigForm` from descriptors, persists `embedder_configs`, and
-  gates conversion on `preflight_embedder`. Search reports
-  `skipped_semantic_model_groups` when a query embedder is unavailable.
-  Hosted embedding providers (OpenAI, Voyage, Ollama) follow in 0.3.1.
+  (`all-MiniLM-L6-v2`) weights and Docling layout/table snapshots (Heron ONNX
+  + TableFormer accurate) ship in the installer, so Local semantic conversion
+  and Advanced layout do not download those files on first use. There is no
+  Settings → Python plugins page and no `vera_plugin_host`. `app:dev` still
+  downloads Docling model artifacts when you select Advanced layout
+  (`prepare_docling`) into an app-owned `DOCLING_ARTIFACTS_PATH` cache
+  (incomplete caches resume from Hugging Face instead of failing offline).
+  Convert shows model-preparation status and confirms before stopping an
+  in-progress download. Convert drives `EmbedderConfigForm` from descriptors,
+  persists `embedder_configs`, and gates conversion on `preflight_embedder`.
+  Search reports `skipped_semantic_model_groups` when a query embedder is
+  unavailable. Hosted embedding providers (OpenAI, Voyage, Ollama) follow in
+  0.3.1.
 
 - Typed `Citation` on search hits (`result.citation`) plus configurable hybrid
   `semantic_weight` / `keyword_weight` on `VeraDocument.search()`.
@@ -110,6 +112,10 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   extra is not installed, instead of raising `ImportError`.
 - PyMuPDF conversion imports `pymupdf` directly, so `vera convert` no longer
   prints a deprecated `fitz` API warning on every run.
+- Docling Advanced layout prefetches only Heron ONNX and TableFormer
+  accurate (~380 MB) instead of both Heron engines plus TableFormer fast
+  (~700 MB), and convert uses the ONNX layout engine. Sidecar Hub progress
+  still prints as `[vera-sidecar]` lines with a cache-size heartbeat.
 
 ### Desktop
 

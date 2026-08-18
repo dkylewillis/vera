@@ -29,11 +29,14 @@ pip install "vera-cli[docling]>=0.3.0"
 Python 3.10 or newer is required. The package depends on Docling's `rapidocr`
 extra so RapidOCR and `onnxruntime` are installed for OCR. RapidOCR ONNX
 weights come with that extra; first conversion may still download Docling
-layout models. Set `DOCLING_ARTIFACTS_PATH` to a local cache (or prefetch
-layout models offline) for air-gapped runs. Incomplete caches are not treated
-as ready. The desktop app uses an
-app-owned cache under Electron `userData` for those layout models and
-prefetches them when you select Advanced layout.
+layout models (about 380 MB: Heron ONNX + TableFormer accurate). Set
+`DOCLING_ARTIFACTS_PATH` to a local cache (or prefetch layout models offline)
+for air-gapped runs. Incomplete caches are not treated as ready. Hub progress
+is visible on sidecar stderr (`[vera-sidecar]` in `app:dev`).
+The desktop app uses an app-owned cache under Electron `userData` for those
+layout models in `app:dev` and prefetches them when you select Advanced layout.
+The packaged Windows sidecar vendors Heron ONNX and TableFormer accurate next
+to MiniLM so Setup.exe Advanced layout does not download them.
 
 The packaged Windows sidecar freezes this pipeline as **Advanced layout
 (slower)** beside PyMuPDF.

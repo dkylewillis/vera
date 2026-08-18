@@ -39,8 +39,11 @@ Options:
   installed). Unknown providers exit with a non-zero status and an
   install-the-plugin message; there is no silent fallback. First Docling
   convert may download layout and table models into `DOCLING_ARTIFACTS_PATH`
-  (or Hugging Face Hub); an incomplete cache resumes instead of failing
-  offline. Stopping mid-download does not abort Hugging Face immediately.
+  (or Hugging Face Hub; about 380 MB: Heron ONNX + TableFormer accurate). The
+  Windows desktop installer vendors those snapshots so packaged Advanced
+  layout does not download them. An incomplete cache resumes instead of
+  failing offline. Stopping mid-download
+  does not abort Hugging Face immediately.
 - `--chunk-size N`. Compatibility alias; omitted uses the selected pipeline's
   default. Forwarded only when the selected pipeline advertises a `chunk_size`
   field. PyMuPDF counts whitespace-split words; Docling counts whitespace

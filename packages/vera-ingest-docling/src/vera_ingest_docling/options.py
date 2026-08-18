@@ -124,8 +124,9 @@ def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
         label="Advanced layout (slower)",
         description=(
             "Docling DocumentConverter + HybridChunker with RapidOCR. Slower than "
-            "PyMuPDF; better tables, layout, and scanned pages. First use may "
-            "download model artifacts into DOCLING_ARTIFACTS_PATH."
+            "PyMuPDF; better tables, layout, and scanned pages. Packaged Windows "
+            "builds include layout models; CLI and app:dev may download them into "
+            "DOCLING_ARTIFACTS_PATH on first use."
         ),
         installed=_docling_runtime_available(),
         capabilities=PipelineCapabilities(

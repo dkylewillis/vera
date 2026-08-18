@@ -6,10 +6,26 @@ const appDir = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(appDir, "..", "..");
 const tessdata = path.join(repoRoot, "packages", "vera-ingest-pymupdf", "src", "vera_ingest_pymupdf", "tessdata");
 const minilmDir = path.join(appDir, "build", "minilm", "all-MiniLM-L6-v2");
+const doclingDir = path.join(appDir, "build", "docling-artifacts");
 const vendorMinilm = path.join(appDir, "scripts", "vendor_minilm.py");
+const vendorDocling = path.join(appDir, "scripts", "vendor_docling_models.py");
 const entry = path.join("src", "vera_app", "sidecar.py");
 const hooksDir = path.join(appDir, "scripts", "hooks");
 const workpath = path.join(appDir, "build", "pyinstaller");
+const REQUIRED_MINILM_FILES = ["config.json", "modules.json", "model.safetensors", "tokenizer.json"];
+const REQUIRED_DOCLING_FILES = [
+  path.join("docling-project--docling-layout-heron-onnx", "config.json"),
+  path.join("docling-project--docling-layout-heron-onnx", "model.onnx"),
+  path.join("docling-project--docling-layout-heron-onnx", "preprocessor_config.json"),
+  path.join("docling-project--docling-models", "model_artifacts", "tableformer", "accurate", "tm_config.json"),
+  path.join(
+    "docling-project--docling-models",
+    "model_artifacts",
+    "tableformer",
+    "accurate",
+    "tableformer_accurate.safetensors",
+  ),
+];
 
 const pyinstallerArgs = [
   "-m",
@@ -21,6 +37,8 @@ const pyinstallerArgs = [
   `${tessdata}${path.delimiter}vera_ingest_pymupdf/tessdata`,
   "--add-data",
   `${minilmDir}${path.delimiter}sentence_transformers_models/all-MiniLM-L6-v2`,
+  "--add-data",
+  `${doclingDir}${path.delimiter}docling-artifacts`,
   "--additional-hooks-dir",
   hooksDir,
   // Keep dist-info so importlib.metadata can still see vera.ingest_pipelines
@@ -110,7 +128,11 @@ function run(command, args, label) {
 }
 
 function warnFilePath() {
-  return path.join(workpath, "warn-vera-sidecar.txt");
+  const candidates = [
+    path.join(workpath, "vera-sidecar", "warn-vera-sidecar.txt"),
+    path.join(workpath, "warn-vera-sidecar.txt"),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[0];
 }
 
 function missingModuleName(line) {
@@ -148,39 +170,58 @@ if (!fs.existsSync(tessdata)) {
 
 const python = venvPython();
 
-function vendorMinilmWeights(pythonBin) {
-  console.log(`Vendoring MiniLM weights into ${minilmDir}`);
-  const result = spawnSync(pythonBin, [vendorMinilm, "--dest", minilmDir], {
+function missingFiles(directory, files) {
+  return files.filter((name) => !fs.existsSync(path.join(directory, name)));
+}
+
+function assertSnapshot(directory, files, label) {
+  const missing = missingFiles(directory, files);
+  if (missing.length) {
+    console.error(`${label} snapshot is incomplete in ${directory}: missing ${missing.join(", ")}`);
+    process.exit(1);
+  }
+}
+
+function runVendor(command, args, dest, label) {
+  console.log(`Vendoring ${label} into ${dest}`);
+  const result = spawnSync(command, args, {
     cwd: repoRoot,
     stdio: "inherit",
     shell: false,
     env,
   });
   if ((result.status ?? 1) !== 0) {
-    console.error("Failed to vendor all-MiniLM-L6-v2 weights for the sidecar freeze.");
+    console.error(`Failed to vendor ${label} for the sidecar freeze.`);
     process.exit(result.status ?? 1);
-  }
-  const required = ["config.json", "modules.json", "model.safetensors", "tokenizer.json"];
-  const missing = required.filter((name) => !fs.existsSync(path.join(minilmDir, name)));
-  if (missing.length) {
-    console.error(`MiniLM snapshot is incomplete in ${minilmDir}: missing ${missing.join(", ")}`);
-    process.exit(1);
   }
 }
 
-if (python) {
-  vendorMinilmWeights(python);
-} else {
-  const uvVendor = spawnSync(
-    "uv",
-    ["run", "--project", repoRoot, "--extra", "ml", "python", vendorMinilm, "--dest", minilmDir],
-    { cwd: repoRoot, stdio: "inherit", shell: false, env },
-  );
-  if ((uvVendor.status ?? 1) !== 0) {
-    console.error("Failed to vendor all-MiniLM-L6-v2 weights for the sidecar freeze.");
-    process.exit(uvVendor.status ?? 1);
-  }
+function vendorWithPython(pythonBin, script, dest, label) {
+  runVendor(pythonBin, [script, "--dest", dest], dest, label);
 }
+
+function vendorWithUv(script, dest, label) {
+  runVendor(
+    "uv",
+    ["run", "--project", repoRoot, "--extra", "ml", "python", script, "--dest", dest],
+    dest,
+    label,
+  );
+}
+
+function vendorSidecarModels(pythonBin) {
+  if (pythonBin) {
+    vendorWithPython(pythonBin, vendorMinilm, minilmDir, "MiniLM weights");
+    vendorWithPython(pythonBin, vendorDocling, doclingDir, "Docling layout models");
+  } else {
+    vendorWithUv(vendorMinilm, minilmDir, "MiniLM weights");
+    vendorWithUv(vendorDocling, doclingDir, "Docling layout models");
+  }
+  assertSnapshot(minilmDir, REQUIRED_MINILM_FILES, "MiniLM");
+  assertSnapshot(doclingDir, REQUIRED_DOCLING_FILES, "Docling");
+}
+
+vendorSidecarModels(python);
 
 let result;
 if (python && hasPyInstaller(python)) {
