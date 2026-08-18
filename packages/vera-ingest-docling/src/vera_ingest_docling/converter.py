@@ -150,7 +150,8 @@ def _docling_models_ready(artifacts: Path) -> bool:
 def _ensure_stderr_logger(name: str) -> None:
     logger = logging.getLogger(name)
     if any(
-        isinstance(handler, logging.StreamHandler) and getattr(handler, "stream", None) is sys.stderr
+        isinstance(handler, logging.StreamHandler)
+        and getattr(handler, "stream", None) is sys.stderr
         for handler in logger.handlers
     ):
         return
@@ -247,7 +248,11 @@ def _download_docling_models(artifacts: Path) -> None:
     finally:
         stop.set()
         heartbeat.join(timeout=1.0)
-    print("Docling model download finished; checking the artifacts cache…", file=sys.stderr, flush=True)
+    print(
+        "Docling model download finished; checking the artifacts cache…",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def _configure_docling_artifacts() -> None:

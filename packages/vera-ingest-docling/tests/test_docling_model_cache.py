@@ -91,7 +91,9 @@ def test_download_docling_models_prints_progress_and_runs_snapshot(monkeypatch, 
     assert "finished" in err
 
 
-def test_run_docling_snapshot_download_fetches_onnx_layout_and_accurate_tables(monkeypatch, tmp_path):
+def test_run_docling_snapshot_download_fetches_onnx_layout_and_accurate_tables(
+    monkeypatch, tmp_path
+):
     from vera_ingest_docling import converter as converter_mod
 
     calls = []
@@ -122,7 +124,8 @@ def test_run_docling_snapshot_download_skips_complete_cache(monkeypatch, tmp_pat
     monkeypatch.setattr(
         converter_mod,
         "_download_hf_snapshot",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("complete cache must not download")),
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("complete cache must not download")
+        ),
     )
     converter_mod._run_docling_snapshot_download(tmp_path)
-
