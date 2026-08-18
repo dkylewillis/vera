@@ -58,7 +58,7 @@ def rasterize_pages(
 
     Returns a mapping of page_number -> {data_url, width, height}.
     """
-    import fitz
+    import pymupdf as fitz
 
     if dpi < 36 or dpi > 300:
         raise ValueError("dpi must be between 36 and 300")

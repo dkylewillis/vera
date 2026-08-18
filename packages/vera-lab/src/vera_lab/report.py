@@ -116,7 +116,7 @@ def _load_runs(
 
 
 def _pdf_page_count(source_bytes: bytes) -> int:
-    import fitz
+    import pymupdf as fitz
 
     document = fitz.open(stream=source_bytes, filetype="pdf")
     try:

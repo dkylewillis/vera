@@ -33,13 +33,14 @@ vera validate "manual.vera"
 Validation checks:
 
 - SQLite integrity;
-- required tables and metadata;
-- document, page, chunk, embedding, FTS, and asset counts;
-- one embedding and one FTS row per chunk;
-- embedding blob dimensions;
+- required tables and metadata (`vera_metadata`, `chunks`, `embeddings`,
+  `attachments`, `chunk_attachments`, `chunks_fts`);
+- matching chunk, embedding, and FTS row counts;
+- embedding blob dimensions and `float32_le` vector format;
 - finite vectors and compliance with a declared L2 normalization policy;
-- page references;
-- presence of the original source document.
+- JSON object shape for chunk, attachment, and archive metadata;
+- attachment SHA-256 checksums;
+- presence of the original source document (warning when it is omitted).
 
 JSON mode returns the full report:
 

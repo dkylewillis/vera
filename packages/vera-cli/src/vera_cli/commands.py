@@ -360,8 +360,15 @@ def cmd_export(args) -> int:
 
 
 def cmd_mcp(args) -> int:
-    from vera_mcp import main as mcp_main
-
+    try:
+        from vera_mcp import main as mcp_main
+    except ImportError:
+        print(
+            "vera mcp requires the optional MCP extra. "
+            "Install with: python -m pip install 'vera-cli[mcp]>=0.3.0'",
+            file=sys.stderr,
+        )
+        return 2
     return mcp_main()
 
 

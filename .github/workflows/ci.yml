@@ -94,4 +94,4 @@ jobs:
         env:
           HF_HUB_OFFLINE: "1"
           TRANSFORMERS_OFFLINE: "1"
-        run: uv run --extra dev --extra docling pytest -q -m "docling and not docling_integration"
+        run: uv run --extra dev --extra docling pytest -q packages/vera-ingest-docling/tests -m "not docling_integration"

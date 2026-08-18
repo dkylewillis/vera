@@ -36,8 +36,9 @@ def test_create_descriptor_entry_point_does_not_need_runtime(monkeypatch):
 
 
 def test_create_pipeline_explains_missing_runtime(monkeypatch):
+    # create_pipeline() binds this helper at import time in __init__.py.
     monkeypatch.setattr(
-        "vera_ingest_docling.options._docling_runtime_available",
+        "vera_ingest_docling._docling_runtime_available",
         lambda: False,
     )
     with pytest.raises(UnknownIngestPipelineError, match="vera-ingest-docling"):
