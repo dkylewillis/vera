@@ -1,10 +1,13 @@
 """Unit tests for embedder registry, hashing, and vector serialization."""
 
+import sys
+
 import pytest
 
 from vera_doc.embedder_descriptors import EmbedderDescriptor
 from vera_doc.embeddings import (
     BUNDLED_MINILM_MODEL_ID,
+    BUNDLED_SENTENCE_TRANSFORMERS_DIRNAME,
     SENTENCE_TRANSFORMERS_HOME_ENV,
     HashingEmbedder,
     HashingOptions,
@@ -25,6 +28,7 @@ from vera_doc.embeddings import (
     register_embedder,
     reset_embedding_registry,
     resolve_sentence_transformers_source,
+    sentence_transformers_home,
     serialize_vector,
     unregister_embedder,
 )
@@ -408,3 +412,52 @@ class TestBundledSentenceTransformers:
         )
         assert bundled_minilm_available() is False
         assert describe_embedder("sentence-transformers").capabilities.requires_network is True
+
+    def test_accepts_pytorch_bin_weights(self, tmp_path):
+        model_dir = tmp_path / BUNDLED_MINILM_MODEL_ID
+        model_dir.mkdir()
+        (model_dir / "config.json").write_text("{}", encoding="utf-8")
+        (model_dir / "pytorch_model.bin").write_bytes(b"stub")
+        assert looks_like_sentence_transformers_model(model_dir) is True
+
+    def test_resolves_when_home_is_the_model_directory(self, tmp_path, monkeypatch):
+        model_dir = tmp_path / BUNDLED_MINILM_MODEL_ID
+        model_dir.mkdir()
+        (model_dir / "modules.json").write_text("[]", encoding="utf-8")
+        (model_dir / "model.safetensors").write_bytes(b"stub")
+        monkeypatch.setenv(SENTENCE_TRANSFORMERS_HOME_ENV, str(model_dir))
+        assert resolve_sentence_transformers_source(BUNDLED_MINILM_MODEL_ID) == str(model_dir)
+        assert resolve_sentence_transformers_source(
+            f"sentence-transformers/{BUNDLED_MINILM_MODEL_ID}"
+        ) == str(model_dir)
+
+    def test_env_file_is_ignored_in_favor_of_meipass(self, tmp_path, monkeypatch):
+        not_a_dir = tmp_path / "not-a-dir"
+        not_a_dir.write_text("x", encoding="utf-8")
+        home = tmp_path / "meipass" / BUNDLED_SENTENCE_TRANSFORMERS_DIRNAME
+        model_dir = home / BUNDLED_MINILM_MODEL_ID
+        model_dir.mkdir(parents=True)
+        (model_dir / "modules.json").write_text("[]", encoding="utf-8")
+        (model_dir / "model.safetensors").write_bytes(b"stub")
+        monkeypatch.setenv(SENTENCE_TRANSFORMERS_HOME_ENV, str(not_a_dir))
+        monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "meipass"), raising=False)
+        monkeypatch.setattr(sys, "frozen", False, raising=False)
+        assert sentence_transformers_home() == home
+        assert resolve_sentence_transformers_source(BUNDLED_MINILM_MODEL_ID) == str(model_dir)
+
+    def test_frozen_sidecar_uses_internal_snapshot(self, tmp_path, monkeypatch):
+        exe_dir = tmp_path / "app"
+        exe_dir.mkdir()
+        exe = exe_dir / "vera-sidecar"
+        exe.write_bytes(b"")
+        home = exe_dir / "_internal" / BUNDLED_SENTENCE_TRANSFORMERS_DIRNAME
+        model_dir = home / BUNDLED_MINILM_MODEL_ID
+        model_dir.mkdir(parents=True)
+        (model_dir / "modules.json").write_text("[]", encoding="utf-8")
+        (model_dir / "model.safetensors").write_bytes(b"stub")
+        monkeypatch.delenv(SENTENCE_TRANSFORMERS_HOME_ENV, raising=False)
+        monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "missing-meipass"), raising=False)
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+        monkeypatch.setattr(sys, "executable", str(exe))
+        assert sentence_transformers_home() == home
+        assert bundled_minilm_available() is True
