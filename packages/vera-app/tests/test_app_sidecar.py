@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from helpers.pdfs import make_pdf, make_structured_pdf, make_topic_pdf
+from vera_app import sidecar as sidecar_module
 from vera_app.cancellation import CancellationToken
 from vera_app.llm import (
     ChatResponse,
@@ -1933,3 +1934,29 @@ def test_list_models_parses_openai_and_ollama_shapes(monkeypatch):
         {"base_url": "http://localhost:11434/v1", "auth_type": "none"}
     )
     assert llm_module.list_models(ollama_config) == ["llama3.1", "qwen2"]
+
+
+def test_sidecar_includes_traceback_in_source_run(monkeypatch):
+    monkeypatch.setattr(sidecar_module.sys, "frozen", False, raising=False)
+    monkeypatch.delenv("VERA_APP_DEBUG", raising=False)
+    response = handle({"id": "1", "action": "not-a-real-action"})
+    assert response["ok"] is False
+    assert "Unknown action" in response["error"]
+    assert "traceback" in response
+
+
+def test_sidecar_omits_traceback_when_frozen(monkeypatch):
+    monkeypatch.setattr(sidecar_module.sys, "frozen", True, raising=False)
+    monkeypatch.delenv("VERA_APP_DEBUG", raising=False)
+    response = handle({"id": "1", "action": "not-a-real-action"})
+    assert response["ok"] is False
+    assert "Unknown action" in response["error"]
+    assert "traceback" not in response
+
+
+def test_sidecar_debug_flag_restores_traceback_when_frozen(monkeypatch):
+    monkeypatch.setattr(sidecar_module.sys, "frozen", True, raising=False)
+    monkeypatch.setenv("VERA_APP_DEBUG", "1")
+    response = handle({"id": "1", "action": "not-a-real-action"})
+    assert response["ok"] is False
+    assert "traceback" in response

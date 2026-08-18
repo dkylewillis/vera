@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import traceback
@@ -104,6 +105,14 @@ def _cancelled_error_message(action: str, exc: BaseException | None = None) -> s
     return "Answer cancelled"
 
 
+def _include_ipc_traceback() -> bool:
+    """Send stack traces over IPC in source-run/debug builds, not packaged apps."""
+    flag = os.environ.get("VERA_APP_DEBUG", "").strip().lower()
+    if flag in {"1", "true", "yes", "on"}:
+        return True
+    return not getattr(sys, "frozen", False)
+
+
 def handle(request: Request, cancel: CancellationToken | None = None) -> Response:
     """Dispatch a JSON-RPC request from the Electron renderer.
 
@@ -179,8 +188,9 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
             "id": request_id,
             "ok": False,
             "error": str(exc),
-            "traceback": traceback.format_exc(),
         }
+        if _include_ipc_traceback():
+            response["traceback"] = traceback.format_exc()
         if isinstance(exc, ProviderHttpError):
             response["provider_error_detail"] = exc.raw_detail
         return response

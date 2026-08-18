@@ -34,7 +34,7 @@ _OCR_IMAGE_COVERAGE_THRESHOLD = 0.5
 
 def _open_fitz():
     try:
-        import fitz  # PyMuPDF
+        import pymupdf as fitz
     except Exception as exc:  # pragma: no cover
         raise RuntimeError(
             "PyMuPDF is required for PDF parsing: install vera-ingest-pymupdf"
