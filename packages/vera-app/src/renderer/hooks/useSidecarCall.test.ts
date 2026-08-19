@@ -28,6 +28,7 @@ function installVera(request: (payload: Record<string, unknown>, requestId?: str
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -103,5 +104,40 @@ describe('createSidecarCaller', () => {
     first.resolve({ ok: false, error: 'stale inspect failed' });
     await expect(firstCall).resolves.toBeNull();
     expect(setErrorMessage).not.toHaveBeenCalledWith('stale inspect failed');
+  });
+
+  it('cancels the sidecar request when the call times out', async () => {
+    vi.useFakeTimers();
+    const pending = deferred<SidecarResponse<{ id: string }>>();
+    const { cancelRequest } = installVera(async () => pending.promise);
+    const setErrorMessage = vi.fn();
+    const caller = createSidecarCaller(new Map(), () => ({
+      dispatchBackgroundTask: () => undefined,
+      setErrorMessage,
+      setProviderErrorDetail: () => undefined,
+    }));
+
+    const call = caller.call({ action: 'inspect' }, 'Opening', 'req-1', { timeoutMs: 1000 });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expect(call).resolves.toBeNull();
+    expect(cancelRequest).toHaveBeenCalledWith('req-1');
+    expect(setErrorMessage).toHaveBeenCalledWith('Opening timed out after 1 seconds');
+  });
+
+  it('cancelActionScope cancels the in-flight request for that scope', () => {
+    const { cancelRequest } = installVera(async () => deferred().promise);
+    const dispatchBackgroundTask = vi.fn();
+    const caller = createSidecarCaller(new Map(), () => ({
+      dispatchBackgroundTask,
+      setErrorMessage: () => undefined,
+      setProviderErrorDetail: () => undefined,
+    }));
+
+    void caller.call({ action: 'inspect' }, 'Opening', 'req-1', { timeoutMs: 0 });
+    caller.cancelActionScope('inspect');
+
+    expect(cancelRequest).toHaveBeenCalledWith('req-1');
+    expect(dispatchBackgroundTask).toHaveBeenCalledWith({ type: 'finish', id: 'req-1' });
   });
 });

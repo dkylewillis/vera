@@ -9,13 +9,17 @@ import urllib.error
 import pytest
 
 from vera_app.cancellation import CancellationToken, CancelledError
+from vera_app.chat import _redact_messages_for_trace
 from vera_app.llm import (
     LlmConfig,
     ProviderHttpError,
     VisionUnsupportedError,
     _consume_stream,
     _encode_json_payload,
+    _extract_text_tool_calls,
     _extract_xml_tool_calls,
+    _tools_rejected,
+    _uses_openai_responses,
     chat,
 )
 
@@ -65,6 +69,87 @@ def test_strips_malformed_nested_xml_tool_call_before_answer():
     assert cleaned == "Below is the grounded answer. [C9]"
     assert [call.name for call in calls] == ["search"]
     assert calls[0].arguments == {"mode": "keyword", "top_k": 10}
+
+
+def test_extracts_inline_functions_tool_calls():
+    content = (
+        "Looking now.\n"
+        '<functions.search>{"query": "detention", "mode": "keyword"}</functions.search>\n'
+        "Done."
+    )
+
+    cleaned, calls = _extract_text_tool_calls(content)
+
+    assert "functions.search" not in cleaned
+    assert "Looking now." in cleaned
+    assert "Done." in cleaned
+    assert [call.name for call in calls] == ["search"]
+    assert calls[0].arguments == {"query": "detention", "mode": "keyword"}
+
+
+def test_strips_malformed_functions_markup_and_ignores_non_object_args():
+    content = (
+        "<functions.search /> leftover\n"
+        "<functions.search>[1, 2]</functions.search>\n"
+        "<functions.search>{not json}</functions.search>\n"
+        "Answer [C1]"
+    )
+
+    cleaned, calls = _extract_text_tool_calls(content)
+
+    assert "functions." not in cleaned
+    assert "Answer [C1]" in cleaned
+    assert "leftover" in cleaned
+    assert [call.name for call in calls] == ["search", "search"]
+    assert all(call.arguments == {} for call in calls)
+
+
+@pytest.mark.parametrize(
+    ("detail", "expected"),
+    [
+        ("tools are not supported on this model", True),
+        ("function calling is disabled", True),
+        ("Unsupported parameter: 'temperature'", False),
+        ("max_completion_tokens is not allowed with this model", False),
+        ("generic provider 400", False),
+    ],
+)
+def test_tools_rejected_ignores_temperature_and_token_limit_errors(detail, expected):
+    assert _tools_rejected(detail) is expected
+
+
+def test_uses_openai_responses_only_for_first_party_gpt_56():
+    assert _uses_openai_responses(config()) is True
+    assert _uses_openai_responses(config(model="gpt-4o")) is False
+    assert (
+        _uses_openai_responses(config(provider_key="ollama", base_url="http://127.0.0.1:11434"))
+        is False
+    )
+
+
+def test_redact_trace_omits_image_bytes_and_encrypted_reasoning():
+    original = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "see figure"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64," + ("A" * 80)},
+                },
+            ],
+            "_responses_items": [{"type": "reasoning", "encrypted_content": "secret"}],
+        }
+    ]
+
+    redacted = _redact_messages_for_trace(original)
+
+    assert original[0]["_responses_items"][0]["encrypted_content"] == "secret"
+    assert original[0]["content"][1]["image_url"]["url"].startswith("data:image")
+    assert "_responses_items" not in redacted[0]
+    omitted = redacted[0]["content"][1]["image_url"]["url"]
+    assert omitted.startswith("<image omitted, ")
+    assert "data:image" not in omitted
 
 
 class FakeResponse:

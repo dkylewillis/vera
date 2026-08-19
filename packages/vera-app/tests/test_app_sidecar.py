@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from helpers.pdfs import make_pdf, make_structured_pdf, make_topic_pdf
-from vera_app.cancellation import CancellationToken
+from vera_app.cancellation import CancellationToken, SkipCurrentError
 from vera_app.llm import (
     ChatResponse,
     LlmConfig,
@@ -1163,6 +1163,38 @@ def test_source_action_loads_filesystem_pdf(tmp_path):
     assert again["result"]["cache_path"] == result["cache_path"]
 
 
+def test_source_action_replaces_truncated_cache(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    cache_dir = tmp_path / "source-cache"
+    make_pdf(pdf)
+    first = handle(
+        {
+            "id": "1",
+            "action": "source",
+            "path": str(pdf),
+            "cache_dir": str(cache_dir),
+        }
+    )
+    assert first["ok"] is True
+    cache_path = Path(first["result"]["cache_path"])
+    cache_path.write_bytes(b"%PDF")
+
+    again = handle(
+        {
+            "id": "2",
+            "action": "source",
+            "path": str(pdf),
+            "cache_dir": str(cache_dir),
+        }
+    )
+
+    assert again["ok"] is True
+    restored = Path(again["result"]["cache_path"])
+    assert restored == cache_path
+    assert restored.read_bytes() == pdf.read_bytes()
+    assert restored.stat().st_size == pdf.stat().st_size
+
+
 def test_source_action_reuses_cache_without_extracting_blob(tmp_path, monkeypatch):
     pdf = tmp_path / "manual.pdf"
     out = tmp_path / "manual.vera"
@@ -1426,6 +1458,62 @@ def test_convert_action_returns_structured_cancellation(monkeypatch):
         "ok": False,
         "error": "Conversion cancelled",
         "cancelled": True,
+    }
+
+
+def test_convert_skip_is_reported_as_cancelled(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+
+    def fake_convert(*args, **kwargs):
+        raise SkipCurrentError()
+
+    convert_mod = importlib.import_module("vera_app.convert")
+    monkeypatch.setattr(convert_mod, "convert", fake_convert)
+
+    response = sidecar.handle(
+        {
+            "id": "convert-skipped",
+            "action": "convert",
+            "input": "manual.pdf",
+            "output": "manual.vera",
+        },
+        cancel=CancellationToken(),
+    )
+
+    assert response == {
+        "id": "convert-skipped",
+        "ok": False,
+        "error": "File skipped",
+        "cancelled": True,
+    }
+
+
+def test_skip_and_cancel_unknown_target_report_false(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    responses = []
+    stdin = _ScriptedStdin()
+    monkeypatch.setattr(sidecar, "_write_response", lambda response: responses.append(response))
+    monkeypatch.setattr(sidecar.sys, "stdin", stdin)
+
+    thread = threading.Thread(target=sidecar.main, daemon=True)
+    thread.start()
+    stdin.push('{"id":"skip","action":"skip","target_id":"missing"}\n')
+    stdin.push('{"id":"cancel","action":"cancel","target_id":"missing"}\n')
+    stdin.push(None)
+    thread.join(timeout=2)
+
+    assert not thread.is_alive()
+    skip = next(item for item in responses if item.get("id") == "skip")
+    cancel = next(item for item in responses if item.get("id") == "cancel")
+    assert skip == {
+        "id": "skip",
+        "ok": True,
+        "result": {"target_id": "missing", "skipped": False},
+    }
+    assert cancel == {
+        "id": "cancel",
+        "ok": True,
+        "result": {"target_id": "missing", "cancelled": False},
     }
 
 
