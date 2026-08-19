@@ -60,7 +60,8 @@ Use `--recursive` for a nested, unindexed directory. A fresh local index is used
 automatically when one exists; inspect the top-level `index.used` and
 `index.reasons` fields instead of assuming the index was active. Also inspect
 `skipped_files`: malformed archives are excluded from results and reported
-with their paths and validation reasons. For indexed semantic or hybrid
+with their paths, `category` (`invalid` or `incompatible`), and reasons.
+For indexed semantic or hybrid
 searches, also inspect `skipped_semantic_model_groups`: unavailable or
 dimension-incompatible query embedders are omitted, so semantic coverage is
 incomplete even though keyword matches may still be returned.
@@ -111,6 +112,8 @@ vera inspect "manual.vera" --json
 
 Inspection includes `default_embedding_normalization`: `l2`, `none`, or
 `unknown`. Older archives without the field are reported as `unknown`.
+Ingest diagnostics live under `ocr` (PyMuPDF OCR settings, or Docling
+`pdf_backend` / `layout_engine` / `tableformer_mode` / `recovered_pages`).
 Package release 0.3.x versions the CLI and APIs; `format_version` remains
 `0.2` and existing archives stay compatible.
 

@@ -15,8 +15,8 @@ JSON results add:
 
 - `file` on each result, identifying its `.vera` archive;
 - a top-level `index` object describing whether a collection index was used;
-- a top-level `skipped_files` array containing the absolute path, category, and
-  validation reason for each rejected archive.
+- a top-level `skipped_files` array containing the absolute path, `category`
+  (`invalid` or `incompatible`), and reason for each rejected archive.
 
 Keep citations separated by archive when comparing sources.
 
@@ -101,8 +101,10 @@ The response reports:
 ```
 
 Treat `index.used`, not merely `index.exists`, as the indication that indexed
-search was active. The `index.skipped_files` array retains relative paths,
-categories, and reasons recorded when the active index was built. Inspection
+search was active. When a fresh index is used, top-level `skipped_files` copies
+those omissions with absolute paths. The nested `index` object is the full
+status report, so `index.skipped_files` keeps the relative paths, `category`
+(`invalid` or `incompatible`), and reasons recorded at build time. Inspection
 uses this manifest and does not reopen archives that the fresh index already
 rejected.
 

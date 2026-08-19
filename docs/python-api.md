@@ -285,7 +285,7 @@ implement yourself; they are not bundled with VERA. See
 ## Corpus and library indexes
 
 ```python
-from vera_doc import VeraCorpus, build_library_index, update_library_index
+from vera_doc import VeraCorpus, build_library_index, library_index_status, update_library_index
 
 build_library_index("./library", recursive=True)
 
@@ -296,7 +296,11 @@ update_library_index("./library")
 ```
 
 The `.vera-index/` directory is derived and rebuildable. The `.vera` files
-remain the source of truth.
+remain the source of truth. `library_index_status()` and a search JSON
+`index` object include `skipped_files` with `category` `invalid` (validation
+or open failure) or `incompatible` (vector length ≠ declared dimension).
+`build_library_index()` raises `ValueError` when every discovered archive is
+skipped.
 
 ## Evaluation and MCP
 

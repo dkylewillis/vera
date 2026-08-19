@@ -144,6 +144,33 @@ vera index build "./library" --recursive --json
 
 `index update` only works when saved index configuration already exists.
 
+## Index skipped files as invalid or incompatible
+
+A successful index can still omit archives. `vera index build` / `update`
+JSON lists them in separate `invalid` and `incompatible` arrays; `vera index
+status --json` repeats them in `skipped_files` with a `category` of
+`invalid` or `incompatible`.
+
+- `invalid`: validation failed, or opening/indexing raised (corrupt SQLite,
+  missing tables, unreadable file).
+- `incompatible`: a chunk vector length does not match the archive's declared
+  embedding dimension. The archive can still validate and search on its own;
+  it is omitted from the library matrix so mixed-model search stays aligned.
+
+Those skipped rows do not make an otherwise valid index stale. Directory
+search JSON copies a fresh index's skips into top-level `skipped_files`
+(absolute paths). The nested `index` object is the full status report, so
+`index.skipped_files` uses the same relative paths as `index status`. Direct
+fallback search (stale or missing index) does not reuse those categories; it
+reopens archives and records new skips as `invalid`.
+
+## Index build finds no valid archives
+
+If every discovered `.vera` is skipped, `vera index build` raises
+`No valid .vera files could be indexed` and exits 1. `--json` does not emit a
+report for this failure (it is an uncaught `ValueError` on stderr). Validate
+or reconvert the archives, then rebuild.
+
 ## Conversion skips files
 
 Directory conversion skips an existing same-named `.vera` only when it

@@ -215,6 +215,9 @@ agents must tolerate additional keys.
 
 Metadata is extensible. `default_embedding_normalization` is `l2`, `none`, or
 `unknown`; archives created before this field was introduced report `unknown`.
+The `ocr` object is the ingest diagnostics bag: PyMuPDF stores OCR settings
+there, while Docling may add `pdf_backend`, `layout_engine`,
+`tableformer_mode`, and `recovered_pages`.
 Summary counts, embedding dimensions, attachment counts, and
 `archive_size_bytes` are integers.
 
@@ -393,6 +396,12 @@ This command creates or replaces the hidden `.vera-index/` collection index.
 ```
 
 `invalid` and `incompatible` entries contain `file` and `reason`.
+`invalid` is a validation or open failure. `incompatible` is a chunk vector
+whose length does not match the archive's declared embedding dimension (the
+file can still validate and search alone). The same rows appear on
+`index status` as `skipped_files` with `category` set to one of those values.
+If every discovered archive is skipped, the command raises
+`No valid .vera files could be indexed` on stderr and does not print JSON.
 
 ### `vera index update DIRECTORY`
 

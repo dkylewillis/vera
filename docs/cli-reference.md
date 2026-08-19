@@ -119,7 +119,11 @@ Options:
 - `--exclude PATTERN` (repeatable)
 - `--json`
 
-Writes `.vera-index/` under the library root.
+Writes `.vera-index/` under the library root. JSON reports `invalid` (validation
+or open failure) and `incompatible` (vector length ≠ declared dimension)
+separately; those rows also appear on `index status` as `skipped_files`. If no
+archive can be indexed, the command raises `No valid .vera files could be indexed`
+on stderr and does not print JSON.
 
 ## `vera index update DIRECTORY`
 

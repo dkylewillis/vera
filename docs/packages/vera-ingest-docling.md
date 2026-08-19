@@ -126,7 +126,8 @@ vera convert "manual.pdf" --parser docling --pipeline-option pdf_backend=pypdfiu
 ```
 
 Successful recoveries are recorded in ingest diagnostics (surfaced by
-`vera inspect`): `pdf_backend`, `recovered_pages`,
+`vera inspect` under the `ocr` key): `pdf_backend`, `layout_engine`,
+`tableformer_mode`, `recovered_pages`,
 `recovered_pages_backend`, and optionally `whole_document_fallback_backend`
 and `whole_document_fallback_strategy` (`document` or `batched`).
 `pypdfium2` is faster and more memory-stable but can reduce table/layout

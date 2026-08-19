@@ -121,6 +121,9 @@ def test_portable_skill_documents_hardened_library_contracts():
     assert "`source_file_hash`" in reference
     assert "`skipped_files`" in skill
     assert "`skipped_semantic_model_groups`" in skill
+    assert "`category` (`invalid` or `incompatible`)" in skill
+    assert "No valid .vera files could be indexed" in reference
+    assert "layout_engine" in reference
     assert "--pipeline-option KEY=VALUE" in skill
     assert "compatibility aliases" in skill
     assert '"malformed_existing": [' in reference

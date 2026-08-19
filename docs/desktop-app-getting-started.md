@@ -184,8 +184,11 @@ into `%LOCALAPPDATA%\Vera\desktop-release` (and clears any leftover
 Sidecar freeze vendors MiniLM plus Docling Heron ONNX and TableFormer accurate
 from Hugging Face into gitignored `packages/vera-app/build/` (about 380 MB
 extra on the first run; later builds reuse that snapshot). A complete
-`app:dev` cache under `%APPDATA%\@vera\app\docling-artifacts` is copied instead
-of downloaded again.
+`app:dev` cache under `%APPDATA%\@vera\app\docling-artifacts` (or
+`%APPDATA%\VERA\docling-artifacts`) is copied instead of downloaded again.
+Override the seed with `VERA_DOCLING_VENDOR_CACHE`; incomplete caches (missing
+Heron `model.onnx` or TableFormer accurate weights) are skipped so the build
+does not copy a half-written tree.
 
 ## Plugins in the same environment
 

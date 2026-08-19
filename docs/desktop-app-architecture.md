@@ -232,6 +232,13 @@ archive. Search and Ask open the corpus on demand; an empty library returns a
 clear error instead of leaving the folder inactive. Other `VeraCorpus.open`
 callers retain the strict non-empty default unless they pass `allow_empty`.
 
+Convert and OCR downloads use the same footer. Request-scoped
+`conversion_progress` events report `completed`/`total` and the current
+`input` path. Docling single-file convert and `prepare_docling` set
+`phase: "preparing"` before Hub/cache work; batch convert starts with
+`phase: "discovering"`. `ocr_download_progress` reports `language`,
+`downloaded`, and `total` bytes for Tesseract language fetches.
+
 Explicit library inspection also runs on a sidecar worker. Request-scoped
 `inspection_progress` events report completed/total archives, the current
 archive, cumulative chunks, and skipped files through the shared task footer.

@@ -10,9 +10,11 @@ vera inspect "manual.vera"
 ```
 
 Inspection reports the format version, source filename, page and chunk counts,
-embedding model, dimensions, and normalization policy, parser, and creation
-time. Normalization is `l2`, `none`, or `unknown`; older archives without the
-field report `unknown`.
+embedding model, dimensions, and normalization policy, parser, chunking
+strategy, and creation time. Normalization is `l2`, `none`, or `unknown`; older
+archives without the field report `unknown`. JSON also includes ingest
+diagnostics under `ocr` (PyMuPDF OCR settings, or Docling recovery fields such
+as `pdf_backend`, `layout_engine`, `tableformer_mode`, and `recovered_pages`).
 
 For structured output:
 

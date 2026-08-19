@@ -264,6 +264,7 @@ def test_hardening_json_contracts_are_documented():
     assert "prepare_docling" in conversion
     assert "skipped_files" in libraries
     assert "skipped_semantic_model_groups" in libraries
+    assert "`invalid` or `incompatible`" in libraries
     assert "does not reopen archives" in libraries
     assert "does not rebuild" in libraries
     assert "summary_complete" in libraries
@@ -602,16 +603,30 @@ def test_operational_docs_cover_recent_public_interfaces():
     assert "vera ocr-languages list" in conversion
     assert "ocr-languages download" in cli_reference
     assert "exits 2" in cli_reference
+    assert "No valid .vera files could be indexed" in cli_reference
 
     assert "result.citation" in searching
     assert "no nested" in searching and "`citation`" in searching
     assert "`format_metadata()`" in python_api
     assert "`iter_raw_chunks()`" in python_api
+    assert "library_index_status" in python_api
     assert "chunks_fts.rowid" in python_api
     assert "200 alphanumeric" in conversion
     assert "200 alphanumeric" in troubleshooting
     assert "Could not read archive metadata" in troubleshooting
     assert "32 directory" in troubleshooting
+    assert "category" in troubleshooting and "incompatible" in troubleshooting
+    assert "No valid .vera files could be indexed" in troubleshooting
+    assert "conversion_progress" in (DOCS / "desktop-app-architecture.md").read_text(
+        encoding="utf-8"
+    )
+    assert "ocr_download_progress" in (DOCS / "desktop-app-architecture.md").read_text(
+        encoding="utf-8"
+    )
+    assert "VERA_DOCLING_VENDOR_CACHE" in (DOCS / "desktop-app-getting-started.md").read_text(
+        encoding="utf-8"
+    )
+    assert "layout_engine" in (DOCS / "validation-and-export.md").read_text(encoding="utf-8")
     assert "basename only" in (DOCS / "validation-and-export.md").read_text(encoding="utf-8")
 
     assert "--store-original false" in lab
@@ -640,6 +655,8 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "vera-ingest-docling" in app_pkg
     assert "not bundled in the installer" not in docling_pkg
     assert "all-MiniLM-L6-v2" in docling_pkg
+    assert "under the `ocr` key" in docling_pkg
+    assert "layout_engine" in docling_pkg
     assert "Linux, macOS, and Windows" in desktop
     assert "packaged installer currently targets Windows" in desktop
     assert "desktop-release" in desktop

@@ -70,11 +70,15 @@ path.
   Automatic searches use a fast size/mtime freshness check; `index status`
   performs the full hash verification.
 
-Invalid archives are recorded as skipped entries so they are visible in build
-reports without making an otherwise valid index permanently stale.
-`vera index status --json` exposes these entries in `skipped_files`, including
-their relative paths, categories, and reasons. Folder inspection uses that
-manifest when the index is fresh and does not reopen known-invalid archives.
+Skipped archives are recorded so they stay visible in build reports without
+making an otherwise valid index permanently stale. Build/update JSON lists
+them as `invalid` (validation or open failure) or `incompatible` (a chunk
+vector length that does not match the declared embedding dimension).
+`vera index status --json` repeats those rows in `skipped_files` with
+relative paths, `category`, and `reason`. If every discovered archive is
+skipped, build raises `No valid .vera files could be indexed` with no JSON
+report. Folder inspection uses the skip manifest when the index is fresh and
+does not reopen known-invalid archives.
 The desktop app also reads library counts and source metadata directly from a
 fresh index when opening a folder, avoiding a full validation scan of every
 archive. Its explicit **Inspect** action still reopens and validates all
