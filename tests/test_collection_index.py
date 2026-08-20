@@ -128,6 +128,27 @@ class TestDiscovery:
         assert len(recursive) == 2
         assert all("archive" not in path.parts for path in recursive)
 
+    def test_exclusions_match_starstar_prefix_and_ignore_blank_patterns(self, nested_library):
+        recursive = discover_vera_files(nested_library, recursive=True, excludes=["", "archive/**"])
+        assert len(recursive) == 2
+        assert all("archive" not in path.parts for path in recursive)
+
+    def test_file_and_directory_symlinks_are_skipped(self, nested_library, tmp_path):
+        real = next(nested_library.rglob("roadway.vera"))
+        (nested_library / "alias.vera").symlink_to(real)
+        outside = tmp_path / "outside"
+        _convert_topic(
+            outside,
+            "extra.vera",
+            "Linked Extra",
+            "This file lives outside the library and should stay hidden.",
+        )
+        (nested_library / "linked-dir").symlink_to(outside)
+        found = discover_vera_files(nested_library, recursive=True, excludes=["archive"])
+        assert len(found) == 2
+        assert all(path.name != "alias.vera" for path in found)
+        assert all("extra.vera" not in path.as_posix() for path in found)
+
     def test_corpus_can_search_nested_files_without_an_index(self, nested_library):
         with VeraCorpus.open(
             str(nested_library), recursive=True, excludes=["archive"], use_index=False

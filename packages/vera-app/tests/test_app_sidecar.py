@@ -1238,6 +1238,41 @@ def test_source_action_uses_sibling_when_original_is_not_stored(tmp_path):
     assert Path(response["result"]["cache_path"]).read_bytes() == pdf.read_bytes()
 
 
+def test_source_action_rejects_non_pdf_files(tmp_path):
+    fake = tmp_path / "notes.pdf"
+    fake.write_text("not a pdf", encoding="utf-8")
+    response = handle(
+        {
+            "id": "1",
+            "action": "source",
+            "path": str(fake),
+            "cache_dir": str(tmp_path / "source-cache"),
+        }
+    )
+    assert response["ok"] is False
+    assert "not a pdf file" in response["error"].lower()
+
+
+def test_convert_refuses_unready_embedder_before_running(monkeypatch):
+    convert_mod = importlib.import_module("vera_app.convert")
+
+    def fail_convert(*args, **kwargs):
+        raise AssertionError("convert must not run when the embedder is not ready")
+
+    monkeypatch.setattr(convert_mod, "convert", fail_convert)
+    response = handle(
+        {
+            "id": "1",
+            "action": "convert",
+            "input": "manual.pdf",
+            "output": "manual.vera",
+            "model": "no-such-provider:model",
+        }
+    )
+    assert response["ok"] is False
+    assert "unknown embedding provider" in response["error"].lower()
+
+
 def test_source_action_extracts_embedded_pdf_when_sibling_is_missing(tmp_path):
     pdf = tmp_path / "manual.pdf"
     out = tmp_path / "manual.vera"
