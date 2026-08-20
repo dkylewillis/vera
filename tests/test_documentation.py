@@ -653,3 +653,47 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "vera ocr-languages list" in changelog
     assert "vera-lab" in changelog
     assert "vera-cli>=0.3.0" in intro
+
+
+def test_index_ask_and_embedder_operational_docs():
+    """Pin collection-index GC, Ask modes, and CLI vs desktop preflight."""
+    collection = (DOCS / "collection-index.md").read_text(encoding="utf-8")
+    structure = (DOCS / "library-index-structure.md").read_text(encoding="utf-8")
+    libraries = (DOCS / "document-libraries.md").read_text(encoding="utf-8")
+    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
+    conversion = (DOCS / "conversion.md").read_text(encoding="utf-8")
+    evaluation = (DOCS / "evaluation.md").read_text(encoding="utf-8")
+    python_api = (DOCS / "python-api.md").read_text(encoding="utf-8")
+    embedder_guide = (DOCS / "creating-an-embedding-provider.md").read_text(encoding="utf-8")
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    searching = (DOCS / "searching.md").read_text(encoding="utf-8")
+    skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
+    skill_cli = (ROOT / "skills" / "vera" / "references" / "cli-reference.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "future explicit garbage-collection command" not in collection
+    assert "deletes every other generation directory" in collection
+    assert "build.lock" in collection
+    assert "No .vera files found in" in collection
+    assert "indexed_chunks" in collection and "source_chunks" in collection
+    assert "retainedGeneration" not in structure
+    assert "build.lock" in structure
+    assert "deletes every other generation directory" in libraries
+    assert "No .vera files found in" in troubleshooting
+    assert "list_embedder_load_errors" in troubleshooting
+    assert "provider_error_detail" in troubleshooting
+    assert "Open modes folder" in desktop
+    assert "quality" in desktop and "permissive" in desktop
+    assert "provider_error_detail" in architecture
+    assert "does not call `preflight_embedder`" in conversion
+    assert "does not call `preflight_embedder`" in architecture
+    assert "single `.vera` archive" in evaluation
+    assert "list_embedder_load_errors" in python_api
+    assert "list_embedder_load_errors" in embedder_guide
+    assert "quality" in searching
+    assert "does not call `preflight_embedder`" in skill_cli
+    assert "deletes every other generation directory" in skill_cli
+    assert "opens one `.vera` archive" in skill
+    assert "delete previous" in skill

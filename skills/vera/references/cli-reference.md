@@ -20,7 +20,10 @@ Check `vera --help` first. If it is not on `PATH`, try
 
 ### `vera convert INPUT [OUTPUT]`
 
-Convert one PDF or a directory of PDFs.
+Convert one PDF or a directory of PDFs. CLI convert resolves the embedder with
+`get_embedder` and does not call `preflight_embedder`; missing credential env
+vars surface when the factory runs. Desktop Convert still gates on
+`preflight_embedder`.
 
 Options:
 
@@ -370,6 +373,10 @@ Options:
 - `--json` emits one JSON object.
 
 This command creates or replaces the hidden `.vera-index/` collection index.
+Indexing writes a unique temporary sibling; publication takes
+`.vera-index/build.lock`, then deletes every other generation directory.
+An empty discovery set raises unstructured `No .vera files found in ...`
+(exit 1, no JSON). Recursive discovery is off by default.
 
 ```json
 {
@@ -458,8 +465,11 @@ Existing index:
 
 Exit code is 0 only when `fresh` is true. A missing, stale, corrupt, or
 unsupported index still prints this JSON report and exits 1.
-Existing indexes built before these metrics were introduced report indexed
-chunks as their source-chunk count until the next rebuild.
+`indexed_chunks` counts rows written into FTS and vector matrices;
+`source_chunks` counts chunk rows from successfully indexed archives.
+Current builds keep these equal. Existing indexes built before these metrics
+were introduced report indexed chunks as their source-chunk count until the
+next rebuild.
 
 ### `vera validate FILE`
 
@@ -521,6 +531,9 @@ If no original was stored, JSON mode prints:
 and exits 1.
 
 ### `vera eval FILE QUERIES`
+
+`FILE` is a single `.vera` archive. The command does not search a directory or
+collection index.
 
 Options:
 

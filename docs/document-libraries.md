@@ -65,7 +65,8 @@ library/.vera-index/
 The index is a rebuildable local acceleration artifact. It does not modify the
 `.vera` files, and the archives remain independently portable. It persists
 across process and app restarts. Opening a library does not rebuild its index;
-only an explicit build or update writes a new generation.
+only an explicit build or update writes a new generation. A successful rebuild
+deletes every other generation directory under `.vera-index/generations/`.
 
 Use the same exclusion patterns while building:
 
@@ -148,9 +149,11 @@ search. The JSON response sets `index.used` to false and lists the reason:
 This preserves correctness while making the performance change visible.
 
 `vera index status --json` also reports the active generation and timestamps,
-database/vector/total storage, embedded-versus-source chunk coverage, discovery
-settings, skipped files, and a `model_groups` array with dimensions and
-document/chunk counts. These fields power the desktop app's Library Info view.
+database/vector/total storage, `indexed_chunks` versus `source_chunks`
+coverage, discovery settings, skipped files, and a `model_groups` array with
+dimensions and document/chunk counts. These fields power the desktop app's
+Library Info view. On current builds the two chunk counters match; older
+indexes may report indexed chunks as the source total until rebuilt.
 
 ## Mixed embedding models
 

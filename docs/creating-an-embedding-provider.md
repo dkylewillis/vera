@@ -53,9 +53,15 @@ Archives store `model_name`, dimension, and normalization — not your
   separately; Options fields must stay non-secret.
 
 Use `preflight_embedder("openai:text-embedding-3-small")` to check that a
-required credential env var is present without loading model weights. Official
-hosted embedding packages (OpenAI, Voyage, Ollama) and their Settings UI are
-0.3.1 follow-ups. Options fields must stay non-secret.
+required credential env var is present without loading model weights. Desktop
+Convert calls this automatically; CLI `vera convert` and `vera_ingest.convert()`
+do not. Official hosted embedding packages (OpenAI, Voyage, Ollama) and their
+Settings UI are 0.3.1 follow-ups. Options fields must stay non-secret.
+
+If a `vera.embedders` entry point fails to import, the provider is absent from
+`list_embedding_providers()`. Inspect `vera_doc.embeddings.list_embedder_load_errors()`
+(not exported from `vera_doc`) and restart after fixing the plugin. Failed
+entries are not retried until `reset_embedding_registry()` runs.
 
 Install the package in the same environment as VERA (`python -m pip install`
 or `python -m pip install -e <clone>`), then restart the app. Bundled

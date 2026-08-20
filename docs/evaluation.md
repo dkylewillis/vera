@@ -1,8 +1,9 @@
 # Evaluate retrieval quality
 
 `vera eval` measures whether expected answers appear in the top search results.
-Use it when changing embedding models, chunking, parsing, ranking, or a document
-library's conversion settings.
+Use it when changing embedding models, chunking, parsing, ranking, or a
+document's conversion settings. `FILE` is a single `.vera` archive; the
+command does not evaluate a directory, corpus, or collection index.
 
 ## Create a query set
 

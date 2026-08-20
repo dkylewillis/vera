@@ -46,7 +46,10 @@ Try, in order:
 7. add `--context-chunks 1` to interpret a promising hit.
 
 An empty successful result does not prove the topic is absent. See
-[Search documents](searching.md).
+[Search documents](searching.md). Desktop Ask additionally filters hits with
+a relative `quality` cutoff and skips already-cited chunks; try **permissive**
+quality, another mode, or the Search view when Chat returns too little
+evidence.
 
 ## Exact identifiers produce broad matches
 
@@ -80,10 +83,24 @@ time and never create hashing vectors under a different name. If a custom name
 was used accidentally, reconvert with `--model hashing` or a supported
 `provider:model-id` spec.
 
+A broken `vera.embedders` entry point is recorded during registry scan. Inspect
+it with `from vera_doc.embeddings import list_embedder_load_errors` (not
+exported from `vera_doc`). Failed plugins are not retried until
+`reset_embedding_registry()` runs.
+
 An archive already written with a model that is not installed in the current
 environment cannot be searched semantically until that provider is available.
 Indexed directory search still returns keyword hits and reports the omitted
 group in `skipped_semantic_model_groups`.
+
+## Ask returns too little evidence
+
+Desktop Ask filters search hits with a relative `quality` cutoff (`strict`
+0.85, `balanced` 0.55, `permissive` keep-all) and skips already-cited chunks.
+Switch the Chat mode, ask the model to retry at `permissive`, or use the
+Search view (no quality filter). Custom modes live in `userData/modes`; use
+**Reload modes** after editing. For LLM HTTP failures, enable Chat **Trace**
+to expand **Provider error details** (`provider_error_detail`).
 
 ## Validation fails because the original is missing
 
@@ -132,7 +149,16 @@ vera index update "./library" --json
 ```
 
 Search remains available through direct-file fallback while the index is
-stale.
+stale. A successful rebuild deletes every other generation directory; do not
+rely on `.vera-index/generations/` as a rollback history.
+
+## Index build finds no archives
+
+`vera index build` raises unstructured `No .vera files found in ...` (exit 1,
+no JSON) when discovery returns nothing. Pass `--recursive` for nested
+libraries. Parallel builds of the same root may index at the same time;
+publication serializes on `.vera-index/build.lock`, and the last successful
+publish wins.
 
 ## Index update says no index exists
 

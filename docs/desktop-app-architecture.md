@@ -48,7 +48,7 @@ The Electron main process starts:
 python -m vera_app.sidecar
 ```
 
-Requests and responses are newline-delimited JSON. Each request carries an `id` and an `action`; responses echo the `id` and return either `ok: true` with `result`, or `ok: false` with `error`. Packaged error responses omit Python `traceback` unless `VERA_APP_DEBUG` is set to a truthy value.
+Requests and responses are newline-delimited JSON. Each request carries an `id` and an `action`; responses echo the `id` and return either `ok: true` with `result`, or `ok: false` with `error`. Packaged error responses omit Python `traceback` unless `VERA_APP_DEBUG` is set to a truthy value. LLM `ProviderHttpError` responses also include `provider_error_detail` with the raw provider payload; the Chat **Trace** toggle surfaces that text as **Provider error details**.
 
 Initial actions:
 
@@ -77,6 +77,12 @@ Initial actions:
 - `ocr_languages_download`
 - `prepare_docling`
 - `list_modes`
+
+`list_modes` and `answer` accept `modes_dir` (Electron `userData/modes`). User
+`.md` files there override built-in Ask/Research/Summarize modes by `id`.
+Ask's search tool applies a relative `quality` cutoff (`strict` 0.85,
+`balanced` 0.55, `permissive` 0.0) against the top hit and skips already-cited
+chunks; CLI/MCP search does not.
 
 Sidecar JSON actions are an app-private protocol until they are versioned.
 External tools should use the CLI, MCP, or Python APIs instead of speaking
@@ -140,7 +146,8 @@ same thread-and-composer layout. Search renders the query as a user message and
 ranked passage results as selectable response cards; selecting a result opens
 and highlights its source in the document viewer. Retrieval controls remain
 available beneath the Search composer. Explorer, chat history, and conversion
-remain sidebar views.
+remain sidebar views. Customize Chat behavior with Markdown files in
+`userData/modes`; see [Customize Ask modes](desktop-app-getting-started.md#customize-ask-modes).
 
 Figure-aware searches return metadata without image bytes. The renderer calls
 `figure_data` only after selecting a result and caches the returned image data
@@ -268,7 +275,9 @@ shared background-task footer. Selecting a completed badge opens the latest
 report, including indexed/chunk counts and invalid or embedding-incompatible
 archives that were skipped. Index publication remains atomic in `vera-doc`, so
 concurrent searches use the previous valid generation until the new generation
-is published, and a failed build does not replace it.
+is published, and a failed build does not replace it. After a successful
+publish, VERA deletes every other generation directory under
+`.vera-index/generations/`.
 
 ## Batch PDF Conversion
 
@@ -311,9 +320,12 @@ counts plus individual diagnostics. During multi-file conversion the UI shows
 the current file path and offers **Skip** (continue with the next PDF) and
 **Stop** (abort the batch). Workspace folders refresh after the batch, allowing
 an existing collection index to become visibly stale without being rebuilt
-automatically. The same public `vera-doc` operation powers
-`vera convert <directory> --recursive`, keeping desktop and CLI behavior
-aligned.
+automatically. Sidecar `convert` and `batch_convert` call `preflight_embedder`
+before PDF work. CLI `vera convert` does not call `preflight_embedder`; it
+resolves the embedder with `get_embedder`, matching `vera_ingest.convert()`.
+The same public `vera-ingest` conversion path powers
+`vera convert <directory> --recursive`, keeping desktop and CLI archive
+writing aligned.
 
 ## Development Commands
 

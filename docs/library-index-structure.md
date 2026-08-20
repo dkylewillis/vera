@@ -13,26 +13,28 @@ flowchart TD
     archives["Nested .vera archives"]
     indexDir[".vera-index"]
     currentPointer["current.json"]
+    buildLock["build.lock"]
     generations["generations"]
     activeGeneration["generation-active-id"]
-    retainedGeneration["generation-previous-id"]
     sqliteDb["index.sqlite3"]
     vectorFiles["vectors-model-hash-dimension.npy"]
 
     libraryRoot --> archives
     libraryRoot --> indexDir
     indexDir --> currentPointer
+    indexDir --> buildLock
     indexDir --> generations
     currentPointer -->|"atomically points to"| activeGeneration
     generations --> activeGeneration
-    generations --> retainedGeneration
     activeGeneration --> sqliteDb
     activeGeneration --> vectorFiles
 ```
 
 `current.json` identifies the active generation. A build writes and validates a
-new generation before atomically replacing that pointer. Previous generations
-are retained so readers that already opened one can finish safely.
+new generation before atomically replacing that pointer under `build.lock`.
+After the swap, VERA deletes every other generation directory. Concurrent
+readers that already opened the previous generation can finish the pointer
+swap; leftover files are best-effort cleanup, not a retained history.
 
 ## Active generation contents
 

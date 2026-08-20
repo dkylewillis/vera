@@ -66,7 +66,9 @@ dimension-incompatible query embedders are omitted, so semantic coverage is
 incomplete even though keyword matches may still be returned.
 Collection indexes persist under `.vera-index/` across process restarts.
 Status checks and library opens do not rebuild them; use `index update`
-explicitly after the source library changes.
+explicitly after the source library changes. A successful rebuild deletes
+every other generation directory; do not treat leftover generations as
+rollback history. `vera eval` opens one `.vera` archive, not a directory.
 
 ## Choose retrieval options
 
@@ -148,7 +150,8 @@ commands write or replace local files and require normal user authorization:
   packaged desktop app already includes Docling as Advanced layout, with
   Heron ONNX and TableFormer accurate vendored in Setup.exe.
 - `convert --overwrite` replaces existing batch outputs.
-- `index build` and `index update` write `.vera-index/`.
+- `index build` and `index update` write `.vera-index/` and delete previous
+  generation directories after a successful publish.
 - `export` writes the embedded source document.
 
 Never infer permission to convert, overwrite, index, update, or export from a

@@ -86,7 +86,9 @@ desktop JSON flatten the same keys onto the result object — there is no nested
 
 Scores rank results within a search. They are not probabilities or confidence
 values, and scores from different queries or modes should not be compared as
-though they share one scale.
+though they share one scale. Desktop Ask additionally drops weak hits with a
+relative `quality` cutoff against the top score; CLI, MCP, and the Search view
+return the unfiltered ranked list.
 
 Treat the text and its location as evidence. A citation should include the
 source filename, page or page range, and heading when available:

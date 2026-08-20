@@ -194,7 +194,11 @@ provider-owned settings advertised by the provider's Options dataclass.
 Advertised integer bounds are enforced (hashing `dimension` is 8–4096). See
 [Creating an embedding provider plugin](creating-an-embedding-provider.md).
 Prefer environment variables for API keys (`capabilities.credential_env` /
-`preflight_embedder`); do not put secrets in Options. Convert-time knobs such
+`preflight_embedder`); do not put secrets in Options. Desktop Convert calls
+`preflight_embedder` before writing an archive. CLI `vera convert` and
+`vera_ingest.convert()` do not call `preflight_embedder`; they resolve the
+embedder with `get_embedder`, so missing credential env vars surface when
+the factory runs. Convert-time knobs such
 as `batch_size` use `scope: convert` so search can resolve
 `get_embedder(stored_model_name)` with defaults.
 
@@ -311,9 +315,11 @@ Unknown pipeline names fail before parsing with an install-the-plugin message;
 VERA never silently falls back to PyMuPDF. The packaged desktop app bundles
 PyMuPDF and Docling in one sidecar. Extra pip plugins install into the same
 environment (`python -m pip install` or `python -m pip install -e <clone>`).
-Convert persists `embedder_options` / `embedder_configs` and gates conversion
-on `preflight_embedder` so an archive is never written with a model Search
-cannot resolve. Embedder `credential_env` secrets stay in the environment, not
+The desktop Convert view persists `embedder_options` / `embedder_configs` and
+gates conversion on `preflight_embedder` so an archive is never written with a
+model Search cannot resolve. CLI convert still rejects unknown `--model` /
+`--parser` values before parsing, but it does not call `preflight_embedder`.
+Embedder `credential_env` secrets stay in the environment, not
 Options. Hosted embedding providers follow in 0.3.1.
 On Docling memory errors
 (`bad_alloc`), VERA retries failed pages with a fresh converter and falls back

@@ -119,7 +119,10 @@ Options:
 - `--exclude PATTERN` (repeatable)
 - `--json`
 
-Writes `.vera-index/` under the library root.
+Writes `.vera-index/` under the library root. Indexing uses a unique
+temporary sibling; publication takes `.vera-index/build.lock`, then deletes
+every other generation directory. An empty discovery set raises unstructured
+`No .vera files found in ...` (exit 1, no JSON).
 
 ## `vera index update DIRECTORY`
 
@@ -158,7 +161,8 @@ Options: `--json`.
 
 ## `vera eval FILE QUERIES`
 
-Evaluate retrieval against expected pages or terms.
+Evaluate retrieval against expected pages or terms. `FILE` is a single
+`.vera` archive; the command does not search a directory or collection index.
 
 Options:
 
