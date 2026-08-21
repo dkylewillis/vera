@@ -66,7 +66,9 @@ dimension-incompatible query embedders are omitted, so semantic coverage is
 incomplete even though keyword matches may still be returned.
 Collection indexes persist under `.vera-index/` across process restarts.
 Status checks and library opens do not rebuild them; use `index update`
-explicitly after the source library changes.
+explicitly after the source library changes. A successful rebuild deletes
+every other generation directory; do not treat leftover generations as
+rollback history. `vera eval` opens one `.vera` archive, not a directory.
 
 ## Choose retrieval options
 
@@ -148,7 +150,8 @@ commands write or replace local files and require normal user authorization:
   0.3.0 packaged desktop app converts with PyMuPDF only; Docling is the
   `vera-cli[docling]` extra, not Advanced layout in Convert.
 - `convert --overwrite` replaces existing batch outputs.
-- `index build` and `index update` write `.vera-index/`.
+- `index build` and `index update` write `.vera-index/` and delete previous
+  generation directories after a successful publish.
 - `export` writes the embedded source document.
 
 Never infer permission to convert, overwrite, index, update, or export from a
@@ -159,6 +162,8 @@ request that only asks to search or explain a document.
 - Always inspect the exit code before trusting output.
 - Do not assume all nonzero exits lack JSON. `validate`, `index status`, `eval`,
   a failed `export`, and a failed `convert` can print useful JSON while returning 1.
+  `convert --json` also prints `{"ok": false, "error": "..."}` and exits 2 for an
+  unknown `--parser` / `--model`.
 - Most other missing-path and runtime failures are unstructured tracebacks on
   stderr. Do not parse stderr as JSON.
 - Directory conversion skips an existing `.vera` only when it validates and

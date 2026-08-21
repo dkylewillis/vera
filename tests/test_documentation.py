@@ -348,6 +348,13 @@ def test_hardening_json_contracts_are_documented():
     assert "Could not read archive metadata" in desktop_architecture
     assert "LIST_FOLDER_MAX_DEPTH" in desktop_architecture
     assert "32 directory levels" in desktop
+    assert "`truncated: true`" in desktop_architecture
+    assert "does not display the flag" in desktop_architecture
+    assert "`cancel`" in desktop_architecture
+    assert "`skip`" in desktop_architecture
+    assert "VERA_APP_PYTHON" in desktop_architecture
+    assert "VERA_APP_PYTHON" in desktop
+    assert "VERA_APP_DEBUG" in desktop
     assert "not bundled into packaged desktop releases" in (
         ROOT / "packages" / "README.md"
     ).read_text(encoding="utf-8")
@@ -412,11 +419,15 @@ def test_hardening_json_contracts_are_documented():
     assert "without importing optional runtime" in ingest_guide
     assert "same environment" in ingest_guide
     assert "sentence-transformers" in ingest_guide
+    assert "list_ingest_pipeline_load_errors" in ingest_guide
+    assert "clamp `overlap` to `chunk_size - 1`" in ingest_guide
     assert "may change before 1.0" in guide
     assert "not bundled" in guide
+    assert "Plugin load errors:" in guide
     ingest_pkg = (DOCS / "packages" / "vera-ingest.md").read_text(encoding="utf-8")
     assert "register_ingest_pipeline" in ingest_pkg
     assert "may change before 1.0" in ingest_pkg
+    assert "list_ingest_pipeline_load_errors" in ingest_pkg
     assert "app-private" in desktop_architecture
     assert "until" in desktop_architecture and "versioned" in desktop_architecture
     assert "allow_empty=True" in libraries
@@ -587,6 +598,10 @@ def test_agents_and_skill_document_convert_json_on_failure():
     skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
     assert "failed `convert`" in agents
     assert "failed `convert`" in skill
+    assert "exit 2" in agents
+    assert "unknown `--parser` / `--model`" in agents
+    assert "unknown `--parser` / `--model`" in skill
+    assert '`{"ok": false, "error": "..."}`' in skill
 
 
 def test_operational_docs_cover_recent_public_interfaces():
@@ -628,6 +643,14 @@ def test_operational_docs_cover_recent_public_interfaces():
     assert "200 alphanumeric" in troubleshooting
     assert "Could not read archive metadata" in troubleshooting
     assert "32 directory" in troubleshooting
+    assert "`truncated: true`" in troubleshooting
+    assert "list_ingest_pipeline_load_errors" in troubleshooting
+    assert "Plugin load errors:" in troubleshooting
+    assert "VERA_APP_DEBUG" in troubleshooting
+    assert '`convert --json` returns `{"ok": false, "error": "..."}`' in troubleshooting
+    assert "clamp overlap to `chunk_size - 1`" in conversion
+    assert "clamps `overlap` to" in python_api
+    assert "clamps overlap to `chunk_size - 1`" in cli_reference
     assert "basename only" in (DOCS / "validation-and-export.md").read_text(encoding="utf-8")
 
     assert "--store-original false" in lab
@@ -680,3 +703,49 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "Open convert log" in app_pkg
     assert "Open convert log" in readme
     assert "logs/sidecar.log" in readme
+
+
+def test_index_ask_and_embedder_operational_docs():
+    """Pin collection-index GC, Ask modes, and CLI vs desktop preflight."""
+    collection = (DOCS / "collection-index.md").read_text(encoding="utf-8")
+    structure = (DOCS / "library-index-structure.md").read_text(encoding="utf-8")
+    libraries = (DOCS / "document-libraries.md").read_text(encoding="utf-8")
+    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
+    conversion = (DOCS / "conversion.md").read_text(encoding="utf-8")
+    evaluation = (DOCS / "evaluation.md").read_text(encoding="utf-8")
+    python_api = (DOCS / "python-api.md").read_text(encoding="utf-8")
+    embedder_guide = (DOCS / "creating-an-embedding-provider.md").read_text(encoding="utf-8")
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    searching = (DOCS / "searching.md").read_text(encoding="utf-8")
+    skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
+    skill_cli = (ROOT / "skills" / "vera" / "references" / "cli-reference.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "future explicit garbage-collection command" not in collection
+    assert "deletes every other generation directory" in collection
+    assert "build.lock" in collection
+    assert "No .vera files found in" in collection
+    assert "indexed_chunks" in collection and "source_chunks" in collection
+    assert "invalid" in collection and "incompatible" in collection
+    assert "No valid .vera files could be indexed" in collection
+    assert "retainedGeneration" not in structure
+    assert "build.lock" in structure
+    assert "deletes every other generation directory" in libraries
+    assert "No .vera files found in" in troubleshooting
+    assert "list_embedder_load_errors" in troubleshooting
+    assert "provider_error_detail" in troubleshooting
+    assert "Open modes folder" in desktop
+    assert "quality" in desktop and "permissive" in desktop
+    assert "provider_error_detail" in architecture
+    assert "does not call `preflight_embedder`" in conversion
+    assert "does not call `preflight_embedder`" in architecture
+    assert "single `.vera` archive" in evaluation
+    assert "list_embedder_load_errors" in python_api
+    assert "list_embedder_load_errors" in embedder_guide
+    assert "quality" in searching
+    assert "does not call `preflight_embedder`" in skill_cli
+    assert "deletes every other generation directory" in skill_cli
+    assert "opens one `.vera` archive" in skill
+    assert "delete previous" in skill

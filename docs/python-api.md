@@ -255,6 +255,10 @@ New callers should pass `parser`, `pipeline_options`, and embedder settings
 `provider:model-id` specs (and legacy aliases). Pass
 `embedding_function=` instead when you already have an embedder object.
 Unknown model names raise `UnknownEmbeddingModelError` before parsing begins.
+Call `preflight_embedder(model)` yourself when you need credential-env checks
+before PDF work; `convert()` does not call it. Failed `vera.embedders` entry
+points are listed by `vera_doc.embeddings.list_embedder_load_errors()` until
+`reset_embedding_registry()` runs.
 `parser` accepts ingest pipeline specs `provider[:variant]` (default
 `pymupdf`). Optional plugins such as
 `vera-ingest-docling` register additional
@@ -263,7 +267,8 @@ Legacy kwargs (`chunk_size`, `overlap`, `ocr_mode`, `ocr_language`, `ocr_dpi`,
 `ocr_download`) remain compatibility aliases. They are forwarded only when
 explicitly provided; omitted aliases mean the pipeline's own default (so a
 plugin `chunk_size` of 2000 is not overwritten by 500). The CLI still passes
-its argparse defaults.
+its argparse defaults. Sliding-window chunking clamps `overlap` to
+`chunk_size - 1` so carry never overruns.
 
 Shared convert builds a thin `IngestRequest` and merges legacy kwargs with
 `pipeline_options` according to each pipeline's descriptor. Explicit
@@ -296,11 +301,13 @@ update_library_index("./library")
 ```
 
 The `.vera-index/` directory is derived and rebuildable. The `.vera` files
-remain the source of truth.
+remain the source of truth. A successful `build_library_index` deletes every
+other generation directory after swapping `current.json`.
 
 ## Evaluation and MCP
 
-Evaluation belongs to `vera-cli`:
+Evaluation belongs to `vera-cli` and opens one `.vera` archive (not a
+directory):
 
 ```python
 from vera_cli.evaluate import evaluate

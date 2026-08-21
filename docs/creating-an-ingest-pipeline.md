@@ -71,6 +71,10 @@ construct `IngestBlock` directly.
 - `chunk_pages` / `detect_heading` — public helpers for custom pipelines that
   only have `ParsedPage.text`. First-party pipelines do not call them.
 
+Both sliding-window helpers clamp `overlap` to `chunk_size - 1` so carry never
+overruns. PyMuPDF's descriptor still advertises overlap `maximum` 1000, which
+can exceed a small `chunk_size`; the clamp is the runtime constraint.
+
 ## Minimal example
 
 This plugin ingests plain-text files as a single page/block/chunk — enough to
@@ -294,6 +298,13 @@ plugin:
 ```text
 Unknown ingest parser pipeline 'example'. Installed providers: docling, pymupdf.
 ```
+
+A broken entry point does not raise during discovery. Import failures are
+logged as warnings and omitted from that installed-providers list. Inspect
+them with `list_ingest_pipeline_load_errors()` after `list_ingest_pipelines()`
+is empty of your provider, then fix the import and restart the process
+(entry-point load errors are recorded once until
+`reset_ingest_pipeline_registry()`).
 
 ## Try it without publishing a package
 
