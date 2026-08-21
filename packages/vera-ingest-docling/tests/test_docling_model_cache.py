@@ -90,6 +90,33 @@ def test_try_convert_emits_converter_convert_timing(capsys):
     assert "manual.pdf" not in err
 
 
+def test_try_convert_forwards_page_range_once():
+    from vera_ingest_docling.converter import _try_convert
+    from vera_ingest_docling.options import DoclingOptions
+
+    seen: dict[str, object] = {}
+
+    class FakeConverter:
+        def convert(self, **kwargs):
+            seen.update(kwargs)
+            return "ok"
+
+    result, error = _try_convert(
+        "manual.pdf",
+        DoclingOptions.from_mapping({}),
+        backend="pypdfium2",
+        page_range=(2, 2),
+        converter=FakeConverter(),
+    )
+    assert result == "ok"
+    assert error is None
+    assert seen == {
+        "source": "manual.pdf",
+        "raises_on_error": False,
+        "page_range": (2, 2),
+    }
+
+
 def test_blank_artifacts_path_is_treated_as_missing(monkeypatch):
     monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", "   ")
     result = ensure_docling_models()
@@ -119,7 +146,9 @@ def test_download_docling_models_prints_progress_and_runs_snapshot(monkeypatch, 
     assert "finished" in err
 
 
-def test_run_docling_snapshot_download_fetches_onnx_layout_and_accurate_tables(monkeypatch, tmp_path):
+def test_run_docling_snapshot_download_fetches_onnx_layout_and_accurate_tables(
+    monkeypatch, tmp_path
+):
     from vera_ingest_docling import converter as converter_mod
 
     calls = []
@@ -150,7 +179,8 @@ def test_run_docling_snapshot_download_skips_complete_cache(monkeypatch, tmp_pat
     monkeypatch.setattr(
         converter_mod,
         "_download_hf_snapshot",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("complete cache must not download")),
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("complete cache must not download")
+        ),
     )
     converter_mod._run_docling_snapshot_download(tmp_path)
-

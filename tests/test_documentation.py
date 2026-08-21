@@ -261,7 +261,9 @@ def test_hardening_json_contracts_are_documented():
     assert "preflight_embedder" in desktop_architecture
     assert "credential_env" in desktop_architecture
     assert "prepare_docling" not in desktop_architecture
-    assert "not run `prepare_docling`" in conversion or "does not run `prepare_docling`" in conversion
+    assert (
+        "not run `prepare_docling`" in conversion or "does not run `prepare_docling`" in conversion
+    )
     assert "skipped_files" in libraries
     assert "skipped_semantic_model_groups" in libraries
     assert "does not reopen archives" in libraries
@@ -304,7 +306,9 @@ def test_hardening_json_contracts_are_documented():
     assert "all-MiniLM-L6-v2" in desktop_architecture
     assert "HF_HOME" in desktop_architecture
     assert "stdin.readline" in desktop_architecture
-    assert "import_sentence_transformers" in (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
+    assert "import_sentence_transformers" in (DOCS / "troubleshooting.md").read_text(
+        encoding="utf-8"
+    )
     assert "Discovering PDFs" in (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
     assert "one interpreter" in desktop
     assert "sentence_transformers" in desktop
@@ -370,6 +374,10 @@ def test_hardening_json_contracts_are_documented():
     assert "vendor_minilm.py" in sidecar_build
     assert "vendor_docling_models.py" not in sidecar_build
     assert "docling-artifacts" not in sidecar_build
+    hooks_dir = ROOT / "packages" / "vera-app" / "scripts" / "hooks"
+    assert (hooks_dir / "hook-sentence_transformers.py").is_file()
+    assert not (hooks_dir / "hook-docling_parse.py").is_file()
+    assert not (hooks_dir / "hook-vera_ingest_docling.py").is_file()
     assert "sentence_transformers" in sidecar_build
     assert "--exclude-module" not in sidecar_build
     assert "sentence-transformers" in (ROOT / "packages" / "vera-app" / "pyproject.toml").read_text(
@@ -504,9 +512,13 @@ def test_release_0_3_versioning_and_install_pins():
     assert "vera-cli>=0.3.0" in readme
     assert "vera-cli>=0.3.0" in getting_started
     assert "vera-doc>=0.3.0" in (PACKAGES / "vera-doc" / "README.md").read_text(encoding="utf-8")
-    assert "vera-cli>=0.3.0" in (
-        ROOT / "skills" / "vera" / "references" / "cli-reference.md"
-    ).read_text(encoding="utf-8")
+    skill_cli = (ROOT / "skills" / "vera" / "references" / "cli-reference.md").read_text(
+        encoding="utf-8"
+    )
+    human_cli = (DOCS / "cli-reference.md").read_text(encoding="utf-8")
+    assert "vera-cli>=0.3.0" in skill_cli
+    assert "Windows installer vendors Heron" not in human_cli
+    assert "vendors those snapshots so packaged Advanced" not in skill_cli
     assert ">=0.2.4" not in readme
     assert ">=0.2.4" not in getting_started
     assert "UnknownEmbeddingModelError" in changelog
