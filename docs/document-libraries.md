@@ -15,8 +15,8 @@ JSON results add:
 
 - `file` on each result, identifying its `.vera` archive;
 - a top-level `index` object describing whether a collection index was used;
-- a top-level `skipped_files` array containing the absolute path, category, and
-  validation reason for each rejected archive.
+- a top-level `skipped_files` array containing the absolute path, `category`
+  (`invalid` or `incompatible`), and reason for each rejected archive.
 
 Keep citations separated by archive when comparing sources.
 
@@ -65,7 +65,8 @@ library/.vera-index/
 The index is a rebuildable local acceleration artifact. It does not modify the
 `.vera` files, and the archives remain independently portable. It persists
 across process and app restarts. Opening a library does not rebuild its index;
-only an explicit build or update writes a new generation.
+only an explicit build or update writes a new generation. A successful rebuild
+deletes every other generation directory under `.vera-index/generations/`.
 
 Use the same exclusion patterns while building:
 
@@ -101,8 +102,10 @@ The response reports:
 ```
 
 Treat `index.used`, not merely `index.exists`, as the indication that indexed
-search was active. The `index.skipped_files` array retains relative paths,
-categories, and reasons recorded when the active index was built. Inspection
+search was active. When a fresh index is used, top-level `skipped_files` copies
+those omissions with absolute paths. The nested `index` object is the full
+status report, so `index.skipped_files` keeps the relative paths, `category`
+(`invalid` or `incompatible`), and reasons recorded at build time. Inspection
 uses this manifest and does not reopen archives that the fresh index already
 rejected.
 
@@ -148,9 +151,11 @@ search. The JSON response sets `index.used` to false and lists the reason:
 This preserves correctness while making the performance change visible.
 
 `vera index status --json` also reports the active generation and timestamps,
-database/vector/total storage, embedded-versus-source chunk coverage, discovery
-settings, skipped files, and a `model_groups` array with dimensions and
-document/chunk counts. These fields power the desktop app's Library Info view.
+database/vector/total storage, `indexed_chunks` versus `source_chunks`
+coverage, discovery settings, skipped files, and a `model_groups` array with
+dimensions and document/chunk counts. These fields power the desktop app's
+Library Info view. On current builds the two chunk counters match; older
+indexes may report indexed chunks as the source total until rebuilt.
 
 ## Mixed embedding models
 

@@ -42,9 +42,12 @@ Index status and the desktop Library Info view report the active generation,
 build and verification times, database/vector/total storage, indexed and
 discovered document counts, exclusions, skipped archives, and embedding
 coverage. Model groups are listed separately with model name, vector dimension,
-document count, chunk count, and vector-file size. Indexes created before
-source-chunk coverage was recorded treat indexed chunks as the source total
-until they are rebuilt.
+document count, chunk count, and vector-file size. Status JSON
+`indexed_chunks` is the number of chunk rows written into FTS and vector
+matrices; `source_chunks` is the chunk-row count from archives that were
+successfully indexed. Current builds keep these equal. Indexes created before
+source-chunk coverage was recorded omit `source_chunks` and treat indexed
+chunks as the source total until they are rebuilt.
 
 See [Library index structure](library-index-structure.md) for diagrams of the
 generation layout, SQLite relationships, vector mapping, and indexed search
@@ -52,12 +55,19 @@ path.
 
 ## Lifecycle and fallback
 
-- `vera index build` creates a new generation in a temporary sibling directory,
-  validates it, moves it under `generations/`, then atomically replaces the
-  small `current.json` pointer. Existing readers can keep the previous
-  generation open during publication, including on Windows. Old generations
-  are retained because another process may still have one open; a future
-  explicit garbage-collection command can remove generations known to be idle.
+- `vera index build` indexes into a unique temporary sibling
+  (`.vera-index.build-<uuid>/`), validates it, then takes an exclusive
+  `.vera-index/build.lock` to move the tree under `generations/` and replace
+  `current.json`. A successful publish deletes every other generation directory.
+  There is no separate garbage-collection command. Concurrent readers can keep
+  the previous generation open during the pointer swap; cleanup uses
+  `ignore_errors=True`, so a Windows process that still has files open may
+  leave remnants rather than fail the build. Two builds may index in
+  parallel; only publication is serialized, and the last successful publish
+  wins.
+- A directory with no discovered `.vera` files raises unstructured
+  `No .vera files found in ...` (exit 1, no JSON). Recursive discovery is
+  off by default.
 - `vera index update` rebuilds with the saved recursive and exclusion settings
   and reports added, changed, moved, and removed archives.
 - The index persists across app and CLI restarts. Opening a library checks its
@@ -70,11 +80,15 @@ path.
   Automatic searches use a fast size/mtime freshness check; `index status`
   performs the full hash verification.
 
-Invalid archives are recorded as skipped entries so they are visible in build
-reports without making an otherwise valid index permanently stale.
-`vera index status --json` exposes these entries in `skipped_files`, including
-their relative paths, categories, and reasons. Folder inspection uses that
-manifest when the index is fresh and does not reopen known-invalid archives.
+Skipped archives are recorded so they stay visible in build reports without
+making an otherwise valid index permanently stale. Build/update JSON lists
+them as `invalid` (validation or open failure) or `incompatible` (a chunk
+vector length that does not match the declared embedding dimension).
+`vera index status --json` repeats those rows in `skipped_files` with
+relative paths, `category`, and `reason`. If every discovered archive is
+skipped, build raises `No valid .vera files could be indexed` with no JSON
+report. Folder inspection uses the skip manifest when the index is fresh and
+does not reopen known-invalid archives.
 The desktop app also reads library counts and source metadata directly from a
 fresh index when opening a folder, avoiding a full validation scan of every
 archive. Its explicit **Inspect** action still reopens and validates all

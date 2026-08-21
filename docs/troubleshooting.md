@@ -46,7 +46,10 @@ Try, in order:
 7. add `--context-chunks 1` to interpret a promising hit.
 
 An empty successful result does not prove the topic is absent. See
-[Search documents](searching.md).
+[Search documents](searching.md). Desktop Ask additionally filters hits with
+a relative `quality` cutoff and skips already-cited chunks; try **permissive**
+quality, another mode, or the Search view when Chat returns too little
+evidence.
 
 ## Exact identifiers produce broad matches
 
@@ -80,10 +83,25 @@ time and never create hashing vectors under a different name. If a custom name
 was used accidentally, reconvert with `--model hashing` or a supported
 `provider:model-id` spec.
 
+A broken `vera.embedders` entry point is recorded during registry scan. Inspect
+it with `from vera_doc.embeddings import list_embedder_load_errors` (not
+exported from `vera_doc`). Failed plugins are not retried until
+`reset_embedding_registry()` runs. `UnknownEmbeddingModelError` then includes
+`Plugin load errors:` with the provider, kind, and exception.
+
 An archive already written with a model that is not installed in the current
 environment cannot be searched semantically until that provider is available.
 Indexed directory search still returns keyword hits and reports the omitted
 group in `skipped_semantic_model_groups`.
+
+## Ask returns too little evidence
+
+Desktop Ask filters search hits with a relative `quality` cutoff (`strict`
+0.85, `balanced` 0.55, `permissive` keep-all) and skips already-cited chunks.
+Switch the Chat mode, ask the model to retry at `permissive`, or use the
+Search view (no quality filter). Custom modes live in `userData/modes`; use
+**Reload modes** after editing. For LLM HTTP failures, enable Chat **Trace**
+to expand **Provider error details** (`provider_error_detail`).
 
 ## Validation fails because the original is missing
 
@@ -113,8 +131,9 @@ export the original once the archive is readable.
 
 The desktop Explorer lists `.vera` and `.pdf` files up to 32 directory
 levels below a library root. Files deeper than that are omitted from the
-tree. Flatten the folder layout or open the nested directory as its own
-library.
+tree; the listing payload sets `truncated: true`, but Explorer does not
+show a banner for that cap. Flatten the folder layout or open the nested
+directory as its own library.
 
 ## A collection index is stale
 
@@ -132,7 +151,43 @@ vera index update "./library" --json
 ```
 
 Search remains available through direct-file fallback while the index is
-stale.
+stale. A successful rebuild deletes every other generation directory; do not
+rely on `.vera-index/generations/` as a rollback history.
+
+## Index skipped files as invalid or incompatible
+
+A successful index can still omit archives. `vera index build` / `update`
+JSON lists them in separate `invalid` and `incompatible` arrays; `vera index
+status --json` repeats them in `skipped_files` with a `category` of
+`invalid` or `incompatible`.
+
+- `invalid`: validation failed, or opening/indexing raised (corrupt SQLite,
+  missing tables, unreadable file).
+- `incompatible`: a chunk vector length does not match the archive's declared
+  embedding dimension. The archive can still validate and search on its own;
+  it is omitted from the library matrix so mixed-model search stays aligned.
+
+Those skipped rows do not make an otherwise valid index stale. Directory
+search JSON copies a fresh index's skips into top-level `skipped_files`
+(absolute paths). The nested `index` object is the full status report, so
+`index.skipped_files` uses the same relative paths as `index status`. Direct
+fallback search (stale or missing index) does not reuse those categories; it
+reopens archives and records new skips as `invalid`.
+
+## Index build finds no archives
+
+`vera index build` raises unstructured `No .vera files found in ...` (exit 1,
+no JSON) when discovery returns nothing. Pass `--recursive` for nested
+libraries. Parallel builds of the same root may index at the same time;
+publication serializes on `.vera-index/build.lock`, and the last successful
+publish wins.
+
+## Index build finds no valid archives
+
+If every discovered `.vera` is skipped, `vera index build` raises
+`No valid .vera files could be indexed` and exits 1. `--json` does not emit a
+report for this failure (it is an uncaught `ValueError` on stderr). Validate
+or reconvert the archives, then rebuild.
 
 ## Index update says no index exists
 
@@ -234,10 +289,16 @@ the same environment (`python -m pip install` or `python -m pip install -e
 <clone>`), then restart the app. Raw `PYTHONPATH` folders are not discovered.
 If Search reports skipped semantic model groups, the convert-time embedder is
 not available in this sidecar. Hosted embedders are a 0.3.1 follow-up. A
-A source-run or CLI convert that fails with
+source-run or CLI convert that fails with
 `No module named 'sentence_transformers'` needs `uv sync --extra ml` in the
 environment that runs VERA. The packaged Windows sidecar already includes
 that module and MiniLM weights.
+
+A plugin can be installed and still missing from Convert. Broken
+`vera.ingest_pipelines` entry points are logged as warnings and omitted from
+`list_ingest_pipelines()`; inspect them with
+`list_ingest_pipeline_load_errors()`. Broken `vera.embedders` entry points
+surface as `Plugin load errors:` on `UnknownEmbeddingModelError`.
 
 If Hugging Face Hub downloads warn about unauthenticated requests or hit rate
 limits, set `HF_TOKEN` (see `.env.example`) or save a token under **File >
@@ -306,12 +367,24 @@ Check the command:
 
 - `validate`, `index status`, `eval`, and failed `export` can return structured
   JSON with exit status 1;
+- `convert --json` returns `{"ok": false, "error": "..."}` for extraction or
+  validation failure and a missing input path (exit 1), and for an unknown
+  `--parser` / `--model` (exit 2); directory conversion prints a batch report
+  and exits 1 when any file failed or an existing output was malformed;
 - `ocr-languages download` returns structured JSON with exit status 2 for an
   unknown or unregistered code;
-- most path, dependency, and runtime failures write unstructured errors to
-  stderr.
+- most other path, dependency, and runtime failures write unstructured errors
+  to stderr.
 
 Do not parse stderr as JSON. See the [CLI reference](cli-reference.md).
+
+## Sidecar errors omit a Python traceback
+
+Packaged desktop IPC error responses include `error` but omit Python
+`traceback` unless `VERA_APP_DEBUG` is a truthy value (`1`, `true`, `yes`,
+or `on`). Source-run (`npm run app:dev`) still prints sidecar stderr as
+`[vera-sidecar]` lines. Set `VERA_APP_PYTHON` to the workspace `.venv`
+interpreter when the sidecar fails to import numpy, PyMuPDF, or pdfplumber.
 
 ## MCP does not start
 

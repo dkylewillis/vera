@@ -42,7 +42,7 @@ Options:
   words, Docling counts whitespace tokens)
 - `--overlap N` (`75`; compatibility alias; PyMuPDF counts whitespace-split
   words; forwarded only when the pipeline advertises overlap, e.g. PyMuPDF —
-  not Docling)
+  not Docling; sliding-window chunking clamps overlap to `chunk_size - 1`)
 - `--store-original VALUE` (`true`)
 - `--ocr auto|off|force` (`auto`; compatibility alias)
 - `--ocr-language CODE` (`eng`; Tesseract/PyMuPDF compatibility alias; not
@@ -119,7 +119,14 @@ Options:
 - `--exclude PATTERN` (repeatable)
 - `--json`
 
-Writes `.vera-index/` under the library root.
+Writes `.vera-index/` under the library root. Indexing uses a unique
+temporary sibling; publication takes `.vera-index/build.lock`, then deletes
+every other generation directory. An empty discovery set raises unstructured
+`No .vera files found in ...` (exit 1, no JSON). JSON reports `invalid`
+(validation or open failure) and `incompatible` (vector length ≠ declared
+dimension) separately; those rows also appear on `index status` as
+`skipped_files`. If no archive can be indexed, the command raises
+`No valid .vera files could be indexed` on stderr and does not print JSON.
 
 ## `vera index update DIRECTORY`
 
@@ -158,7 +165,8 @@ Options: `--json`.
 
 ## `vera eval FILE QUERIES`
 
-Evaluate retrieval against expected pages or terms.
+Evaluate retrieval against expected pages or terms. `FILE` is a single
+`.vera` archive; the command does not search a directory or collection index.
 
 Options:
 

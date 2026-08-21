@@ -97,7 +97,44 @@ Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,
 and keyword modes from its composer options. Its ranked passage cards open and
 highlight the matching source in the document viewer without adding the query
-to chat history. Source loading remains independent of library inspection,
+to chat history. CLI and MCP search return the full ranked list; they do not
+apply Ask's relative `quality` filter.
+
+### Customize Ask modes
+
+Built-in Chat modes are **Ask**, **Research**, and **Summarize**. Each is a
+Markdown file: YAML-ish frontmatter sets retrieval defaults, and the body is
+the system prompt. User files live in Electron `userData/modes` (in
+`npm run app:dev` on Windows, `%APPDATA%\@vera\app\modes`). On first launch
+the app copies `ask.md` and `research.md` into that folder if they are
+missing so you can edit them; `summarize.md` stays package-only until you
+add a file. User files override built-ins with the same `id`.
+
+Open the folder from **File → Answer Modes Folder…** or the mode picker's
+**Open modes folder…**. Click **Reload modes** (or restart) after edits.
+Only flat `key: value` frontmatter is parsed; nested YAML is treated as
+prompt body. Clamped fields:
+
+| Field | Default | Allowed |
+| --- | --- | --- |
+| `id` | slug of `name` | stable identifier |
+| `search_mode` | `hybrid` | `hybrid`, `semantic`, `keyword` |
+| `top_k` | 8 | 1–20 |
+| `context_chunks` | 1 | 0–3 |
+| `include_figures` | false | boolean |
+| `max_searches` | 6 | 1–12 |
+| `max_chunks` | 20 | 1–60 |
+| `max_figure_images` | 4 | 0–20 |
+
+Ask's LLM `search` tool also accepts `quality`: `strict` (keep hits at least
+0.85 of the top score), `balanced` (0.55, default), or `permissive` (keep
+all). Scores are RRF-based, not 0–1 cosine. If the cutoff would drop every
+hit, the single best result is kept. Re-searches skip chunks already cited
+in the conversation.
+
+Chat **Trace** shows prompts, tool calls, and streamed answers. When an LLM
+HTTP error includes `provider_error_detail`, Trace also expands **Provider
+error details** on the error banner. Source loading remains independent of library inspection,
 conversion, and indexing. Selecting another citation supersedes the earlier
 source request. Large manuals copy into a local viewer cache; if a matching
 PDF sits next to the `.vera` file, that sibling is used instead of extracting
@@ -144,7 +181,8 @@ Parent and empty folders can also be activated as libraries. Nested `.vera`
 files are discovered recursively when there is no saved index configuration.
 Explorer lists `.vera` and `.pdf` files up to 32 directory levels below a
 library root (the root itself is depth 0). Deeper files are omitted from the
-tree. A folder with no `.vera` files remains active and watched; Search and
+tree. The listing payload sets `truncated: true` when that cap is hit;
+Explorer does not show a banner for it. A folder with no `.vera` files remains active and watched; Search and
 Ask report that nothing is searchable until archives are present.
 
 ## Check or build the app
@@ -220,7 +258,7 @@ python -m pip install -e packages/vera-ingest-docling
 ```
 
 Ingest plugins register under `vera.ingest_pipelines`; embedders register
-under `vera.embedders`. Convert calls `preflight_embedder` before writing an
+under `vera.embedders`. Desktop Convert calls `preflight_embedder` before writing an
 archive. Sentence Transformers is frozen into the Windows sidecar with
 vendored MiniLM weights, and Docling layout/table snapshots are frozen the
 same way. Source-run `app:dev` installs MiniLM via `--extra ml`. A
@@ -240,6 +278,11 @@ Convert and embed always run in-process in the sidecar; see
 - **Electron dependencies are missing** — rerun `npm run app:install`.
 - **The Electron window does not open** — check the `npm run app:dev` terminal
   for a Python sidecar, TypeScript, Vite, or port error before restarting it.
+  If the sidecar fails to import numpy, PyMuPDF, or pdfplumber, point
+  `VERA_APP_PYTHON` at the workspace `.venv` interpreter and restart.
+- **Sidecar errors hide a Python traceback** — packaged IPC omits `traceback`
+  unless `VERA_APP_DEBUG` is a truthy value. Source-run still prints
+  `[vera-sidecar]` stderr.
 - **`Failed to update Windows PE resources` / `uv-trampoline` Access denied** —
   Windows Defender or corporate EDR is locking uv's temporary launcher while
   uv installs a package that ships a console script. The sidecar build prefers
@@ -251,7 +294,7 @@ Convert and embed always run in-process in the sidecar; see
   npm run app:dist
   ```
 
-  Set `VERA_SIDECAR_PYTHON` to use a different interpreter, or exclude the
+  Set `VERA_SIDECAR_PYTHON` or `VERA_APP_PYTHON` to use a different interpreter, or exclude the
   repository and `%TEMP%` from real-time scanning, then retry.
 - **Docling is missing from Convert in `app:dev`** — sync the workspace with
   the `docling` extra (`uv sync --extra app --extra docling`) and restart the
