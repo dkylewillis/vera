@@ -6,26 +6,11 @@ const appDir = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(appDir, "..", "..");
 const tessdata = path.join(repoRoot, "packages", "vera-ingest-pymupdf", "src", "vera_ingest_pymupdf", "tessdata");
 const minilmDir = path.join(appDir, "build", "minilm", "all-MiniLM-L6-v2");
-const doclingDir = path.join(appDir, "build", "docling-artifacts");
 const vendorMinilm = path.join(appDir, "scripts", "vendor_minilm.py");
-const vendorDocling = path.join(appDir, "scripts", "vendor_docling_models.py");
 const entry = path.join("src", "vera_app", "sidecar.py");
 const hooksDir = path.join(appDir, "scripts", "hooks");
 const workpath = path.join(appDir, "build", "pyinstaller");
 const REQUIRED_MINILM_FILES = ["config.json", "modules.json", "model.safetensors", "tokenizer.json"];
-const REQUIRED_DOCLING_FILES = [
-  path.join("docling-project--docling-layout-heron-onnx", "config.json"),
-  path.join("docling-project--docling-layout-heron-onnx", "model.onnx"),
-  path.join("docling-project--docling-layout-heron-onnx", "preprocessor_config.json"),
-  path.join("docling-project--docling-models", "model_artifacts", "tableformer", "accurate", "tm_config.json"),
-  path.join(
-    "docling-project--docling-models",
-    "model_artifacts",
-    "tableformer",
-    "accurate",
-    "tableformer_accurate.safetensors",
-  ),
-];
 
 const pyinstallerArgs = [
   "-m",
@@ -37,8 +22,6 @@ const pyinstallerArgs = [
   `${tessdata}${path.delimiter}vera_ingest_pymupdf/tessdata`,
   "--add-data",
   `${minilmDir}${path.delimiter}sentence_transformers_models/all-MiniLM-L6-v2`,
-  "--add-data",
-  `${doclingDir}${path.delimiter}docling-artifacts`,
   "--additional-hooks-dir",
   hooksDir,
   // Keep dist-info so importlib.metadata can still see vera.ingest_pipelines
@@ -48,25 +31,11 @@ const pyinstallerArgs = [
   "--copy-metadata",
   "vera-ingest",
   "--copy-metadata",
-  "vera-ingest-docling",
-  "--copy-metadata",
   "sentence-transformers",
   "--hidden-import",
   "vera_ingest_pymupdf",
   "--hidden-import",
-  "vera_ingest_docling",
-  "--hidden-import",
   "sentence_transformers",
-  "--collect-all",
-  "docling",
-  "--collect-all",
-  "docling_core",
-  "--collect-all",
-  "rapidocr",
-  "--collect-all",
-  "onnxruntime",
-  "--collect-all",
-  "pypdfium2",
   "--collect-all",
   "torch",
   "--collect-all",
@@ -88,7 +57,6 @@ const sourcePaths = [
   path.join(repoRoot, "packages", "vera-doc", "src"),
   path.join(repoRoot, "packages", "vera-ingest", "src"),
   path.join(repoRoot, "packages", "vera-ingest-pymupdf", "src"),
-  path.join(repoRoot, "packages", "vera-ingest-docling", "src"),
 ];
 const env = {
   ...process.env,
@@ -96,14 +64,8 @@ const env = {
 };
 
 const CRITICAL_MISSING_PREFIXES = [
-  "vera_ingest_docling",
   "vera_ingest_pymupdf",
-  "docling",
-  "docling_core",
-  "rapidocr",
-  "onnxruntime",
   "torch",
-  "pypdfium2",
   "sentence_transformers",
 ];
 
@@ -212,13 +174,10 @@ function vendorWithUv(script, dest, label) {
 function vendorSidecarModels(pythonBin) {
   if (pythonBin) {
     vendorWithPython(pythonBin, vendorMinilm, minilmDir, "MiniLM weights");
-    vendorWithPython(pythonBin, vendorDocling, doclingDir, "Docling layout models");
   } else {
     vendorWithUv(vendorMinilm, minilmDir, "MiniLM weights");
-    vendorWithUv(vendorDocling, doclingDir, "Docling layout models");
   }
   assertSnapshot(minilmDir, REQUIRED_MINILM_FILES, "MiniLM");
-  assertSnapshot(doclingDir, REQUIRED_DOCLING_FILES, "Docling");
 }
 
 vendorSidecarModels(python);
@@ -238,8 +197,6 @@ if (python && hasPyInstaller(python)) {
     "app",
     "--extra",
     "sidecar",
-    "--extra",
-    "docling",
     "--extra",
     "ml",
     "python",

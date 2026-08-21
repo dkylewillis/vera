@@ -135,11 +135,11 @@ already in 0.3.0.
 - [x] Drive Convert settings from `describe_ingest_pipelines` descriptors and
   `PipelineConfigForm`.
 - [x] Persist Convert-view `ingest_pipeline` settings for source-run apps.
-- [x] Show Docling in the Convert pipeline dropdown as **Advanced layout
-  (slower)** in both `app:dev` and the packaged sidecar.
-- [x] Bundle `vera-ingest-docling` (Torch, RapidOCR, ONNX Runtime) in the
-  one Windows sidecar; model artifacts download on first use into an
-  app-owned cache.
+- [x] Keep 0.3.0 desktop Convert PyMuPDF-only. Docling stays a CLI extra
+  (`vera-cli[docling]`); it is not listed in Convert and is not frozen into
+  Setup.exe.
+- [ ] Revisit bundling Docling, a lighter layout engine, or a hosted layout
+  API as another ingest provider after 0.3.0.
 
 ### Future app-managed plugin store
 

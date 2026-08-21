@@ -62,4 +62,17 @@ describe('sidecar protocol contract', () => {
   it('keeps preload.cts IPC_CHANNELS duplicate aligned with the shared contract', () => {
     expect(preloadIpcChannels(preload)).toEqual(IPC_CHANNELS);
   });
+
+  it('exposes convert-log IPC from File menu and window.vera', () => {
+    const main = readFileSync(join(root, 'electron/main.ts'), 'utf8');
+    expect(IPC_CHANNELS.openConvertLog).toBe('vera:openConvertLog');
+    expect(IPC_CHANNELS.showConvertLogFolder).toBe('vera:showConvertLogFolder');
+    expect(IPC_CHANNELS.getConvertLogPath).toBe('vera:getConvertLogPath');
+    expect(main).toContain("label: 'Open convert log...'");
+    expect(main).toContain("label: 'Show convert log in folder'");
+    expect(main).toContain('IPC_CHANNELS.openConvertLog');
+    expect(preload).toContain('openConvertLog:');
+    expect(preload).toContain('showConvertLogFolder:');
+    expect(preload).toContain('getConvertLogPath:');
+  });
 });

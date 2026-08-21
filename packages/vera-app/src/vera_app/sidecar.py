@@ -17,15 +17,6 @@ from vera_ingest_pymupdf import (
 # metadata; the sidecar hard-depends on the default PDF pipeline.
 ensure_pymupdf_pipeline_registered()
 
-try:
-    from vera_ingest_docling import (
-        ensure_registered as ensure_docling_pipeline_registered,
-    )
-except ImportError:
-    pass
-else:
-    ensure_docling_pipeline_registered()
-
 from vera_app import convert as convert_handlers
 from vera_app import library as library_handlers
 from vera_app.cancellation import CancellationToken, CancelledError, SkipCurrentError
@@ -42,6 +33,7 @@ from vera_app.search import search_report as _search_report
 from vera_app.source import export as _export
 from vera_app.source import source as _source
 from vera_app.types import Handler, Request, Response
+from vera_ingest.timing import log_event, timed_step
 
 HANDLERS: dict[str, Handler] = {
     "ping": lambda request: {"status": "ok"},
@@ -67,7 +59,6 @@ HANDLERS: dict[str, Handler] = {
     "describe_ingest_pipelines": convert_handlers.handle_describe_ingest_pipelines,
     "ocr_languages_list": convert_handlers.handle_ocr_languages_list,
     "ocr_languages_download": convert_handlers.handle_ocr_languages_download,
-    "prepare_docling": convert_handlers.handle_prepare_docling,
     "list_modes": _list_modes,
 }
 
@@ -98,8 +89,6 @@ def _cancelled_error_message(action: str, exc: BaseException | None = None) -> s
         return str(exc)
     if action in {"convert", "batch_convert"}:
         return "Conversion cancelled"
-    if action == "prepare_docling":
-        return "Docling model download cancelled"
     if action == "ocr_languages_download":
         return "OCR language download cancelled"
     if action == "inspect":
@@ -132,7 +121,7 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
                 _write_response({**data, "id": request_id})
 
             result = _answer(request, write_event=_emit, cancel=cancel)
-        elif action in {"convert", "batch_convert", "ocr_languages_download", "prepare_docling"}:
+        elif action in {"convert", "batch_convert", "ocr_languages_download"}:
 
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
@@ -210,8 +199,33 @@ def _run_background_request(request: Request) -> None:
     _write_response(handle(request))
 
 
+def _skip_torch_warmup() -> bool:
+    value = os.environ.get("VERA_SIDECAR_SKIP_TORCH_WARMUP", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _warmup_sentence_transformers() -> None:
+    """Import Torch on the main thread before the stdin loop.
+
+    Convert runs on a worker. On Windows, the first
+    ``import sentence_transformers`` from that worker deadlocks while this
+    process is blocked in ``stdin.readline()``.
+    """
+    if _skip_torch_warmup():
+        return
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    try:
+        with timed_step("import_sentence_transformers", phase="sidecar_start"):
+            import torch  # noqa: F401
+            from sentence_transformers import SentenceTransformer  # noqa: F401
+    except ImportError:
+        log_event("import_sentence_transformers", phase="sidecar_start", error="ImportError")
+
+
 def main() -> int:
     """Read JSON-RPC requests from stdin and write responses to stdout."""
+    log_event("sidecar_start")
+    _warmup_sentence_transformers()
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -253,7 +267,6 @@ def main() -> int:
                 "index_update",
                 "source",
                 "ocr_languages_download",
-                "prepare_docling",
                 "search",
                 "list_models",
                 "figure_data",
@@ -274,7 +287,6 @@ def main() -> int:
                         "inspect",
                         "source",
                         "ocr_languages_download",
-                        "prepare_docling",
                         "search",
                     }:
                         cancel = CancellationToken()

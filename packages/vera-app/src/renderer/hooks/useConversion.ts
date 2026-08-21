@@ -9,9 +9,6 @@ import {
   conversionFailedMessage,
   conversionMissingTargetMessage,
   conversionProgressTaskUpdate,
-  DOCLING_PREPARE_STOP_CONFIRM,
-  ingestPipelineIsDocling,
-  shouldConfirmDoclingPrepareStop,
   type ConversionProgressMode,
   type ConvertMode,
 } from '../lib/conversion';
@@ -83,8 +80,6 @@ export function createConversionController(getHost: () => ConversionHost) {
   const conversionCanceledRef = { current: false };
   const conversionInterruptRef = { current: null as 'stop' | 'skip' | null };
   const conversionPhaseRef = { current: null as string | null };
-  const doclingPrepareRequestIdRef = { current: null as string | null };
-  const doclingPrepareCleanupRef = { current: null as { requestId: string; off: () => void } | null };
   const reconvertInFlightRef = { current: false };
   const reconvertDefaultsRef = { current: null as { overwrite: boolean; storeOriginal: boolean } | null };
 
@@ -297,21 +292,6 @@ export function createConversionController(getHost: () => ConversionHost) {
 
   function stopConversion() {
     const host = getHost();
-    const preparing = shouldConfirmDoclingPrepareStop(conversionPhaseRef.current ?? undefined)
-      || Boolean(doclingPrepareRequestIdRef.current);
-    if (preparing && typeof window.confirm === 'function' && !window.confirm(DOCLING_PREPARE_STOP_CONFIRM)) {
-      return;
-    }
-    const prepareRequestId = doclingPrepareRequestIdRef.current;
-    if (prepareRequestId && !host.conversionInProgress) {
-      host.dispatchBackgroundTask({
-        type: 'update',
-        id: prepareRequestId,
-        update: { message: 'Stopping…' },
-      });
-      void window.vera.cancelAnswer(prepareRequestId);
-      return;
-    }
     const requestId = conversionRequestIdRef.current;
     if (!host.conversionInProgress || !requestId) return;
     conversionCanceledRef.current = true;
@@ -502,75 +482,6 @@ export function createConversionController(getHost: () => ConversionHost) {
     }
   }
 
-  function settleDoclingPrepare(requestId: string) {
-    if (doclingPrepareCleanupRef.current?.requestId === requestId) {
-      doclingPrepareCleanupRef.current.off();
-      doclingPrepareCleanupRef.current = null;
-    }
-    if (doclingPrepareRequestIdRef.current !== requestId) return;
-    doclingPrepareRequestIdRef.current = null;
-    getHost().dispatchBackgroundTask({ type: 'finish', id: requestId });
-  }
-
-  async function prepareDoclingModels() {
-    const host = getHost();
-    if (!ingestPipelineIsDocling(host.ingestPipeline)) return;
-    if (doclingPrepareRequestIdRef.current) return;
-    const installed = host.ingestPipelineDescriptors.some(
-      (item) => ingestPipelineIsDocling(item.spec || item.provider) && item.installed,
-    );
-    if (host.ingestPipelineDescriptors.length > 0 && !installed) return;
-
-    const requestId = crypto.randomUUID();
-    doclingPrepareRequestIdRef.current = requestId;
-    conversionPhaseRef.current = 'preparing';
-    host.dispatchBackgroundTask({
-      type: 'start',
-      task: {
-        id: requestId,
-        kind: 'docling_prepare',
-        label: 'Docling models',
-        phase: 'preparing',
-        message: 'Preparing Docling models…',
-      },
-    });
-    const offProgress = window.vera.onAnswerEvent((event) => {
-      if (event.id !== requestId || event.event !== 'conversion_progress') return;
-      host.dispatchBackgroundTask({
-        type: 'update',
-        id: requestId,
-        update: conversionProgressTaskUpdate(event, 'single'),
-      });
-    });
-    doclingPrepareCleanupRef.current = { requestId, off: offProgress };
-    try {
-      const response = await window.vera.request<{
-        ready?: boolean;
-        downloaded?: boolean;
-        artifacts_path?: string;
-      }>(
-        { action: SIDECAR_ACTIONS.prepareDocling },
-        requestId,
-      );
-      if (response.cancelled || response.error?.toLowerCase().includes('cancelled')) {
-        return;
-      }
-      if (!response.ok) {
-        host.setConversionError(response.error || 'Unable to download Docling models');
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to download Docling models';
-      if (!message.toLowerCase().includes('cancelled')) {
-        host.setConversionError(message);
-      }
-    } finally {
-      settleDoclingPrepare(requestId);
-      if (conversionRequestIdRef.current === null) {
-        conversionPhaseRef.current = null;
-      }
-    }
-  }
-
   return {
     applyConvertDefaultsFromSelection,
     restoreConvertDefaultsAfterReconvert,
@@ -583,7 +494,6 @@ export function createConversionController(getHost: () => ConversionHost) {
     stopConversion,
     skipCurrentConversion,
     batchConvertPdfs,
-    prepareDoclingModels,
   };
 }
 

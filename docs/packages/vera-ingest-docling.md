@@ -11,16 +11,15 @@ python -m pip install "vera-ingest-docling>=0.3.0"
 ```
 
 From a repository checkout, `uv sync --extra docling` adds it to the
-workspace `.venv` (CLI, tests, and `app:dev`). Non-desktop users can also:
+workspace `.venv` (CLI and tests). It is not bundled in the installer.
+Non-desktop users can also:
 
 ```bash
 pip install "vera-cli[docling]>=0.3.0"
 ```
 
-The packaged Windows app already freezes this pipeline into the sidecar
-as **Advanced layout (slower)**. That installer also includes Sentence
-Transformers, MiniLM (`all-MiniLM-L6-v2`) weights, and Docling Heron ONNX
-plus TableFormer accurate snapshots. CLI and source-run
+The 0.3.0 Windows app does not freeze this pipeline or list **Advanced layout
+(slower)** in Convert. CLI and source-run
 installs still need `vera-doc[ml]` / `uv sync --extra ml` for neural
 embeddings; those extras are independent of this Docling package.
 
@@ -40,12 +39,10 @@ require a separate RapidOCR prefetch. VERA treats that artifacts directory as
 offline only when both `docling-project--docling-layout-heron-onnx` (with
 weights) and `docling-project--docling-models` (TableFormer `tm_config.json`)
 are complete. A half-written folder stays online so Hugging Face can resume.
-The desktop app prefetches those models when you select Advanced layout
-(`prepare_docling`) instead of waiting for the first PDF convert. Stopping
+Prefetch those models before the first CLI convert, or set
+`DOCLING_ARTIFACTS_PATH` and let Hugging Face resume. Stopping
 mid-download does not abort Hugging Face immediately; the next run resumes.
-The first prefetch is about 380 MB (Heron ONNX + TableFormer accurate). Packaged
-Windows builds vendor those snapshots in Setup.exe, so Advanced layout there
-does not download them. Convert
+The first prefetch is about 380 MB (Heron ONNX + TableFormer accurate). Convert
 uses the ONNX layout engine so the Transformers Heron snapshot is not required.
 For other Docling models in offline
 or CI environments:
@@ -134,13 +131,10 @@ fidelity compared with `docling_parse`.
 
 ## Desktop app
 
-Source-run and packaged desktop conversions list Docling as **Advanced layout
-(slower)** beside PyMuPDF. Selecting that pipeline runs `prepare_docling`.
-Packaged Windows builds already include Heron ONNX and TableFormer accurate;
-`app:dev` prefetches them into the app-owned `DOCLING_ARTIFACTS_PATH` cache.
-Convert controls are schema-driven
-from Docling's pipeline descriptor (`describe_ingest_pipelines` /
-`PipelineConfigForm`), so overlap and OCR DPI controls are not shown.
+The 0.3.0 desktop Convert view does not list Docling. Use this package from
+the CLI (`vera convert --parser docling`) after installing `vera-cli[docling]`.
+Pipeline descriptors still omit overlap and OCR DPI when a future desktop
+host lists the plugin.
 
 ## See also
 

@@ -13,7 +13,7 @@ export function fallbackPipelineDescriptors(pipelines: string[]): PipelineDescri
     capabilities: {},
     fields: [],
     notes: [],
-    source: spec === 'pymupdf' || spec === 'docling' ? 'bundled' : 'external',
+    source: spec === 'pymupdf' ? 'bundled' : 'external',
   }));
 }
 

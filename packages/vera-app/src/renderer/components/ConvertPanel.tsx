@@ -1,4 +1,5 @@
 import {
+  FileText,
   Folder,
   FolderOpen,
   RefreshCw,
@@ -247,7 +248,7 @@ export function ConvertPanel({
           ? (activePipelineDescriptor.description || 'Pipeline ready for conversion.')
           : (pipelineInstallHint(ingestPipeline, ingestPipelineDescriptors)
             || 'Choose an ingest pipeline.')}
-        {' '}PyMuPDF is the default. Advanced layout (Docling) downloads layout models into the app cache when you select it, then reuses that cache. First download can take several minutes — leave it running, or Stop and the next run will resume.
+        {' '}PyMuPDF is the default ingest pipeline. Optional layout-aware conversion remains a CLI extra (`vera-cli[docling]`), not part of the 0.3.0 desktop app.
       </p>
       <label className="field">
         <span>Embedding model</span>
@@ -380,6 +381,16 @@ export function ConvertPanel({
                 ? `Convert (${selectedPdfs.length})`
                 : 'Convert Directory'}
         </button>
+        <button
+          type="button"
+          className="secondaryAction convertStop"
+          onClick={() => { void window.vera.openConvertLog(); }}
+          title="Open convert log"
+          aria-label="Open convert log"
+        >
+          <FileText size={14} />
+          Open log
+        </button>
         {conversionInProgress && (convertMode === 'batch' || convertMode === 'selected') ? (
           <button
             type="button"
@@ -411,8 +422,8 @@ export function ConvertPanel({
             className="secondaryAction convertStop"
             onClick={onStop}
             disabled={conversionStatus === 'Stopping…'}
-            title="Stop Docling model download"
-            aria-label="Stop Docling model download"
+            title="Stop conversion"
+            aria-label="Stop conversion"
           >
             <Square size={12} fill="currentColor" />
             Stop

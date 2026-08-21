@@ -35,6 +35,8 @@ _ENTRY_POINT_GROUP = "vera.embedders"
 _DESCRIPTOR_ENTRY_POINT_GROUP = "vera.embedder_descriptors"
 _MODELS_ENTRY_POINT_GROUP = "vera.embedder_models"
 _REGISTRY_LOCK = threading.RLock()
+_LOAD_LOCKS_GUARD = threading.Lock()
+_LOAD_LOCKS: dict[tuple[Any, ...], threading.Lock] = {}
 _PROVIDERS: dict[str, Callable[..., EmbeddingFunction]] = {}
 _DESCRIPTOR_FACTORIES: dict[str, Callable[[], EmbedderDescriptor]] = {}
 _MODEL_LISTERS: dict[str, Callable[[], Sequence[EmbeddingModelInfo]]] = {}
@@ -116,7 +118,7 @@ class SentenceTransformersOptions(EmbedderOptions):
             "label": "Device",
             "description": (
                 "Optional torch device (for example cpu or cuda). "
-                "Leave blank to let Sentence Transformers choose. "
+                "Leave blank to use CPU. "
                 "Convert-time only — search may use the default device."
             ),
             "allow_empty": True,
@@ -239,9 +241,7 @@ class SentenceTransformerEmbedder:
         self.normalization = "l2"
         self._embed_lock = threading.Lock()
         load_path = source or model_name
-        kwargs: dict[str, Any] = {}
-        if device:
-            kwargs["device"] = device
+        kwargs: dict[str, Any] = {"device": (device or "cpu").strip() or "cpu"}
         if Path(load_path).is_dir():
             kwargs["local_files_only"] = True
         self._model = SentenceTransformer(load_path, **kwargs)
@@ -786,6 +786,15 @@ def _unknown_provider_message(provider: str, *, model: str | None = None) -> str
     return message
 
 
+def _load_lock_for(key: tuple[Any, ...]) -> threading.Lock:
+    with _LOAD_LOCKS_GUARD:
+        lock = _LOAD_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _LOAD_LOCKS[key] = lock
+        return lock
+
+
 def get_embedder(
     model: str = "hashing",
     *,
@@ -815,13 +824,18 @@ def get_embedder(
         factory = _PROVIDERS.get(provider)
         if factory is None:
             raise UnknownEmbeddingModelError(_unknown_provider_message(provider, model=model))
-    embedder = factory(model_id, **resolved)
-    with _REGISTRY_LOCK:
-        cached = _INSTANCE_CACHE.get(key)
-        if cached is not None:
-            return cached
-        _INSTANCE_CACHE[key] = embedder
-        return embedder
+    with _load_lock_for(key):
+        with _REGISTRY_LOCK:
+            cached = _INSTANCE_CACHE.get(key)
+            if cached is not None:
+                return cached
+        embedder = factory(model_id, **resolved)
+        with _REGISTRY_LOCK:
+            cached = _INSTANCE_CACHE.get(key)
+            if cached is not None:
+                return cached
+            _INSTANCE_CACHE[key] = embedder
+            return embedder
 
 
 _register_builtins()

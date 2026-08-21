@@ -44,7 +44,10 @@ def create_pipeline(variant: str = "hybrid") -> IngestPipeline:
             "Docling is not installed in this environment. "
             "Install with: python -m pip install 'vera-ingest-docling>=0.3.0'"
         )
-    from .pipeline import DoclingHybridPipeline
+    from vera_ingest.timing import timed_step
+
+    with timed_step("import_docling_pipeline"):
+        from .pipeline import DoclingHybridPipeline
 
     return DoclingHybridPipeline()
 

@@ -4120,6 +4120,12 @@ input.viewerPageInput:focus {
   max-width: 520px;
 }
 
+.convertLogPath {
+  display: block;
+  word-break: break-all;
+  font-size: 12px;
+}
+
 .modelManagerModal {
   width: min(480px, 100%);
   max-height: min(700px, 88vh);

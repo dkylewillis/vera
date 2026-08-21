@@ -39,6 +39,7 @@ describe('SettingsModal', () => {
     expect(html).toContain('Settings');
     expect(html).toContain('LLM Providers');
     expect(html).toContain('Hugging Face');
+    expect(html).toContain('Diagnostics');
     expect(html).not.toContain('Python plugins');
     expect(html).toContain('Hosted');
     expect(html).toContain('Local');
@@ -47,11 +48,28 @@ describe('SettingsModal', () => {
     expect(html).not.toContain('huggingface.co/settings/tokens');
   });
 
-  it('opens the Hugging Face section when requested', () => {
-    const html = renderSettings('huggingface');
-    expect(html).toContain('huggingface.co/settings/tokens');
-    expect(html).toContain('HF_TOKEN');
-    expect(html).toContain('Docling');
+  it('opens the Diagnostics section when requested', () => {
+    const html = renderToStaticMarkup(
+      <SettingsModal
+        providers={[]}
+        activeProviderId=""
+        activeModel=""
+        activeModeId=""
+        embeddingModel="hashing"
+        ingestPipeline="pymupdf"
+        ingestPipelineConfigs={{}}
+        embedderConfigs={{}}
+        convertLogPath="C:\\Users\\me\\AppData\\Roaming\\VERA\\logs\\sidecar.log"
+        initialSection="diagnostics"
+        onPersist={async () => settings}
+        onRefresh={async () => settings}
+        onClose={() => undefined}
+      />,
+    );
+    expect(html).toContain('sidecar.log');
+    expect(html).toContain('Open convert log');
+    expect(html).toContain('Show convert log in folder');
+    expect(html).toContain('app:dev');
     expect(html).not.toContain('Paste OpenAI key');
   });
 });

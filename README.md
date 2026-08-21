@@ -319,8 +319,9 @@ def create_pipeline(variant: str = ""):
 A pipeline distributed as a package with a `vera.ingest_pipelines` entry
 point is discovered automatically by `vera convert --parser myformat`.
 Pipelines can also publish descriptors that advertise their options for
-schema-driven UIs. Official converters (PyMuPDF and Docling) ship in the
-packaged sidecar; extra plugins are pip packages in the same environment.
+schema-driven UIs. Official converters: PyMuPDF ships in the
+packaged sidecar; Docling is the optional `vera-cli[docling]` extra.
+Extra plugins are pip packages in the same environment.
 See [Creating an ingest pipeline](docs/creating-an-ingest-pipeline.md) and
 [Creating an embedding provider](docs/creating-an-embedding-provider.md).
 
@@ -437,8 +438,12 @@ targets Windows: PDF conversion from the Explorer context menu, library search
 with highlighted citations, and an optional LLM provider connection for
 grounded question answering over documents. From a repository checkout,
 `npm run app:dev` also runs on Linux and macOS. Configure chat providers and a Hugging Face token under
-**File > Settings**. Packaged conversions use one sidecar with PyMuPDF
-(default) and Advanced layout / Docling. Extra ingest and embedding plugins
+**File > Settings**. Packaged conversions use one sidecar with PyMuPDF.
+**File > Open convert log...** opens
+timed convert steps in `userData/logs/sidecar.log` (same file in
+`app:dev` and packaged VERA). `app:dev` loads MiniLM from
+`packages/vera-app/build/minilm` when that snapshot exists; packaged builds
+vendor it. Extra ingest and embedding plugins
 are pip packages in that same environment. It is built on the
 same packages described above. Download it from
 [GitHub Releases](https://github.com/dkylewillis/vera/releases/latest) and see

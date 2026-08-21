@@ -14,7 +14,14 @@ import { IPC_CHANNELS, SIDECAR_ACTIONS } from '../src/shared/protocol.js';
 import { listFolderEntries } from './folder-listing.js';
 import { type JsonLineEvent } from './json-line-process.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
-import { logSidecarStderr } from './sidecar-log.js';
+import {
+  configureSidecarLogFile,
+  ensureSidecarLogFile,
+  formatSidecarTimingLine,
+  logSidecarMessage,
+  logSidecarStderr,
+  sidecarLogFilePath,
+} from './sidecar-log.js';
 
 /** Prefer the workspace uv venv so bundled sidecar packages resolve in source-run. */
 function resolveDevPython(): string {
@@ -186,7 +193,13 @@ function packagedSidecarExecutable(): string {
 function sentenceTransformersHome(): string | undefined {
   const fromEnv = process.env.VERA_SENTENCE_TRANSFORMERS_HOME?.trim();
   if (fromEnv && existsSync(fromEnv)) return fromEnv;
-  if (!app.isPackaged) return fromEnv || undefined;
+  if (!app.isPackaged) {
+    const devVendor = join(process.cwd(), 'build', 'minilm');
+    if (existsSync(join(devVendor, 'all-MiniLM-L6-v2', 'model.safetensors'))) {
+      return devVendor;
+    }
+    return fromEnv || undefined;
+  }
   const sidecarDir = dirname(packagedSidecarExecutable());
   const candidates = [
     join(sidecarDir, 'sentence_transformers_models'),
@@ -195,57 +208,17 @@ function sentenceTransformersHome(): string | undefined {
   return candidates.find((candidate) => existsSync(candidate));
 }
 
-const BUNDLED_DOCLING_FILES = [
-  join('docling-project--docling-layout-heron-onnx', 'config.json'),
-  join('docling-project--docling-layout-heron-onnx', 'model.onnx'),
-  join('docling-project--docling-layout-heron-onnx', 'preprocessor_config.json'),
-  join('docling-project--docling-models', 'model_artifacts', 'tableformer', 'accurate', 'tm_config.json'),
-  join(
-    'docling-project--docling-models',
-    'model_artifacts',
-    'tableformer',
-    'accurate',
-    'tableformer_accurate.safetensors',
-  ),
-];
-
-function userDataDoclingArtifactsPath(): string {
-  return join(app.getPath('userData'), 'docling-artifacts');
+function userDataHfHome(): string {
+  return join(app.getPath('userData'), 'hf-home');
 }
 
-function doclingArtifactsComplete(root: string): boolean {
-  return BUNDLED_DOCLING_FILES.every((relativePath) => existsSync(join(root, relativePath)));
-}
-
-function bundledDoclingArtifactsPath(): string | undefined {
-  if (!app.isPackaged) return undefined;
-  const sidecarDir = dirname(packagedSidecarExecutable());
-  const candidates = [
-    join(sidecarDir, 'docling-artifacts'),
-    join(sidecarDir, '_internal', 'docling-artifacts'),
-  ];
-  return candidates.find((candidate) => doclingArtifactsComplete(candidate));
-}
-
-function applyDoclingArtifactsEnv(env: NodeJS.ProcessEnv): void {
-  const fromEnv = (env.DOCLING_ARTIFACTS_PATH || '').trim();
-  const writableCache = userDataDoclingArtifactsPath();
-  if (fromEnv) {
-    env.DOCLING_ARTIFACTS_PATH = fromEnv;
-    mkdirSync(fromEnv, { recursive: true });
-  } else {
-    const bundled = bundledDoclingArtifactsPath();
-    if (bundled) {
-      env.DOCLING_ARTIFACTS_PATH = bundled;
-    } else {
-      env.DOCLING_ARTIFACTS_PATH = writableCache;
-      mkdirSync(writableCache, { recursive: true });
-    }
-  }
-  if (!(env.HF_HOME || '').trim()) {
-    env.HF_HOME = fromEnv || writableCache;
-    mkdirSync(env.HF_HOME, { recursive: true });
-  }
+function applyHfHomeEnv(env: NodeJS.ProcessEnv): void {
+  if ((env.HF_HOME || '').trim()) return;
+  // Packaged sidecar needs a writable Hub cache. app:dev leaves HF_HOME unset
+  // so the user's existing Hugging Face cache is used.
+  if (!app.isPackaged) return;
+  env.HF_HOME = userDataHfHome();
+  mkdirSync(env.HF_HOME, { recursive: true });
 }
 
 class PythonSidecar {
@@ -358,7 +331,7 @@ class PythonSidecar {
     const env = { ...process.env };
     applyHfTokenEnv(env);
     applyEmbedderSecretEnv(env);
-    applyDoclingArtifactsEnv(env);
+    applyHfHomeEnv(env);
     env.PYTHONUNBUFFERED = (env.PYTHONUNBUFFERED || '').trim() || '1';
     const minilmHome = sentenceTransformersHome();
     if (minilmHome) env.VERA_SENTENCE_TRANSFORMERS_HOME = minilmHome;
@@ -370,7 +343,6 @@ class PythonSidecar {
         join(process.cwd(), '..', 'vera-doc', 'src'),
         join(process.cwd(), '..', 'vera-ingest', 'src'),
         join(process.cwd(), '..', 'vera-ingest-pymupdf', 'src'),
-        join(process.cwd(), '..', 'vera-ingest-docling', 'src'),
       ];
       env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
     }
@@ -383,6 +355,10 @@ class PythonSidecar {
 
     this.child.stdout.on('data', (chunk: Buffer) => this.handleStdout(chunk.toString('utf8')));
     this.child.stderr.on('data', (chunk: Buffer) => logSidecarStderr('vera-sidecar', chunk.toString('utf8')));
+    logSidecarMessage('vera-sidecar', formatSidecarTimingLine('sidecar_spawn', {
+      executable,
+      isPackaged: app.isPackaged,
+    }));
     const child = this.child;
     child.on('error', (error: Error) => {
       if (this.child === child) this.child = null;
@@ -826,6 +802,17 @@ async function showInFolder(targetPath: string): Promise<void> {
   shell.showItemInFolder(resolved);
 }
 
+async function openConvertLog(): Promise<string> {
+  const filePath = ensureSidecarLogFile();
+  const error = await shell.openPath(filePath);
+  if (error) throw new Error(error);
+  return filePath;
+}
+
+async function showConvertLogFolder(): Promise<void> {
+  await showInFolder(ensureSidecarLogFile());
+}
+
 async function trashWorkspaceFile(filePath: string, folderPath: string): Promise<'trashed' | 'deleted' | 'cancelled'> {
   if (!isWorkspaceFile(filePath, folderPath) || !existsSync(filePath) || !statSync(filePath).isFile()) {
     throw new Error('This file is no longer available in the open folder.');
@@ -954,6 +941,18 @@ function configureMenu(): void {
             void shell.openPath(modesDir());
           },
         },
+        {
+          label: 'Open convert log...',
+          click: () => {
+            void openConvertLog();
+          },
+        },
+        {
+          label: 'Show convert log in folder',
+          click: () => {
+            void showConvertLogFolder();
+          },
+        },
         { type: 'separator' },
         { role: process.platform === 'darwin' ? 'close' : 'quit' },
       ],
@@ -1028,6 +1027,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  configureSidecarLogFile(sidecarLogFilePath(app.getPath('userData')));
   configureMenu();
   mkdirSync(sourceCacheDir(), { recursive: true });
   protocol.handle('vera-source', (request) => {
@@ -1117,6 +1117,9 @@ app.whenReady().then(() => {
     typeof targetPath === 'string' && Boolean(targetPath.trim()) && existsSync(resolve(targetPath))
   ));
   ipcMain.handle(IPC_CHANNELS.showInFolder, async (_event, targetPath: string) => showInFolder(targetPath));
+  ipcMain.handle(IPC_CHANNELS.openConvertLog, async () => openConvertLog());
+  ipcMain.handle(IPC_CHANNELS.showConvertLogFolder, async () => showConvertLogFolder());
+  ipcMain.handle(IPC_CHANNELS.getConvertLogPath, async () => ensureSidecarLogFile());
   ipcMain.handle(IPC_CHANNELS.trashWorkspaceFile, async (_event, filePath: string, folderPath: string) => trashWorkspaceFile(filePath, folderPath));
   ipcMain.handle(IPC_CHANNELS.setWatchedFolders, async (_event, paths: string[]) => {
     setWatchedFolders(Array.isArray(paths) ? paths : []);

@@ -26,7 +26,7 @@ packages/
   vera-doc/               # Python document engine (`vera_doc`)
   vera-ingest/            # conversion registry and archive writer
   vera-ingest-pymupdf/    # default PDF pipeline
-  vera-ingest-docling/    # Advanced layout pipeline
+  vera-ingest-docling/    # optional CLI Docling pipeline
   vera-cli/               # terminal interface
   vera-app/               # Electron desktop app plus Python sidecar
 ```
@@ -35,7 +35,7 @@ Dependency direction stays one-way:
 
 ```text
 vera-cli -> vera-ingest-pymupdf -> vera-ingest -> vera-doc
-vera-app -> vera-ingest-pymupdf / vera-ingest-docling -> vera-ingest -> vera-doc
+vera-app -> vera-ingest-pymupdf -> vera-ingest -> vera-doc
 ```
 
 `vera-app` should not shell out to `vera-cli` for normal product behavior. The CLI is a user interface; the app backend should call `vera-doc` and ingest packages directly.
@@ -75,7 +75,6 @@ Initial actions:
 - `describe_ingest_pipelines`
 - `ocr_languages_list`
 - `ocr_languages_download`
-- `prepare_docling`
 - `list_modes`
 
 Sidecar JSON actions are an app-private protocol until they are versioned.
@@ -93,27 +92,29 @@ and embedder describe run in-process in that one interpreter.
 flowchart LR
   Electron --> sidecar["vera-sidecar"]
   sidecar --> pymupdf
-  sidecar --> docling
   sidecar --> hashing
   sidecar --> minilm["MiniLM"]
 ```
 
-The sidecar registers the default `pymupdf` pipeline and, when
-`vera-ingest-docling` is importable, the `docling` pipeline. Source-run
-`PYTHONPATH` includes `vera-ingest-docling/src`. Packaged Windows builds freeze
-PyMuPDF, Docling, Torch, RapidOCR, ONNX Runtime, `pypdfium2`, and
-`sentence_transformers` into one sidecar, and vendor `all-MiniLM-L6-v2`
-weights plus Heron ONNX and TableFormer accurate in the installer. Hugging Face tokens,
-`DOCLING_ARTIFACTS_PATH` (the bundled snapshot when packaged and complete,
-otherwise an app-owned cache under Electron `userData`), `HF_HOME` (always a
-writable cache under `userData` unless already set), and
-`VERA_SENTENCE_TRANSFORMERS_HOME` (the bundled MiniLM snapshot) are
-forwarded on spawn. Convert gates conversion on `preflight_embedder`.
-Selecting Advanced layout runs `prepare_docling` so layout and table models
-are ready before a PDF convert starts. Packaged builds skip the Hub download
-when the freeze is complete; `app:dev` prefetches Heron ONNX plus TableFormer
-accurate (~380 MB) into `userData`. The sidecar sets `PYTHONUNBUFFERED=1`
-and forwards tqdm `\r` Hub progress as `[vera-sidecar]` lines. Search
+The sidecar registers the default `pymupdf` pipeline. Packaged Windows builds
+freeze PyMuPDF, Torch, and `sentence_transformers` into one sidecar, and vendor
+`all-MiniLM-L6-v2` weights in the installer. Hugging Face tokens,
+packaged `HF_HOME` (a writable cache under `userData` unless already set), and
+`VERA_SENTENCE_TRANSFORMERS_HOME` (the bundled MiniLM snapshot, or
+`packages/vera-app/build/minilm` when that folder exists in `app:dev`) are
+forwarded on spawn. `app:dev` leaves `HF_HOME` unset. The sidecar imports
+`sentence_transformers` on the main thread at `sidecar_start` before the
+stdin loop; a convert-worker import deadlocks on Windows while
+`stdin.readline()` is blocked. Convert
+stays on **Discovering PDFs** until `resolve_embedder` finishes.
+Convert gates conversion on `preflight_embedder`.
+Docling is a CLI extra (`vera-cli[docling]`) and is not listed in Convert.
+The sidecar sets `PYTHONUNBUFFERED=1`
+and forwards tqdm `\r` Hub progress as `[vera-sidecar]` lines. Electron tees
+that stderr (plus a `sidecar_spawn` line with the executable and `isPackaged`)
+into `userData/logs/sidecar.log`, rotated to
+`sidecar.log.1` at about 2 MB. **File > Open convert log...**, Convert
+**Open log**, and **Settings → Diagnostics** open that file. Search
 reports `skipped_semantic_model_groups` when a query embedder is unavailable.
 `list_embedding_models` and `credential_env` remain part of the descriptor
 contract so hosted providers can land in 0.3.1 without a protocol change.
@@ -284,9 +285,8 @@ before they are skipped; malformed outputs are reported separately, and
 overwrite must be selected explicitly. Conversion uses selective
 PyMuPDF/Tesseract OCR (via `vera-ingest-pymupdf`) for image-based low-text
 pages with English language data bundled into that package and the packaged
-sidecar. Advanced layout (Docling) is the slower path for tables, complex
-layout, and scanned pages; first use may download model artifacts into the
-app cache. It publishes a validated
+sidecar. Docling remains a CLI extra (`vera-cli[docling]`), not a Convert
+pipeline. It publishes a validated
 temporary sibling atomically, preserves an existing destination after failure,
 and rejects PDFs with no searchable text after OCR with an OCR-specific
 message. Sidecar `convert` and `batch_convert` requests accept optional
@@ -328,19 +328,20 @@ npm run app:dist
 ```
 
 `npm run app:dev` starts Electron against the workspace sidecar with the
-`app`, `ml`, and `docling` extras, matching packaged Convert: PyMuPDF and
-Docling both run in the same sidecar. `npm run app:dist` packages the Python
+`app` and `ml` extras. Convert uses PyMuPDF in that sidecar. `npm run app:dist`
+packages the Python
 sidecar through `packages/vera-app/scripts/build-sidecar.cjs`, which runs
 PyInstaller with the project virtualenv when it is available (honoring
 `VERA_SIDECAR_PYTHON`) and otherwise falls back to
-`uv run --extra app --extra sidecar --extra docling`. Bundled Tesseract
+`uv run --extra app --extra sidecar --extra ml`. Bundled Tesseract
 English data is passed as an absolute path so the build works from any
-directory. The build also copies `vera-ingest-pymupdf` and
-`vera-ingest-docling` package metadata and the sidecar registers the default
-`pymupdf` pipeline and Docling on import so Convert works in frozen builds
+directory. The build copies `vera-ingest-pymupdf`
+package metadata and the sidecar registers the default
+`pymupdf` pipeline on import so Convert works in frozen builds
 where `importlib.metadata` entry points are otherwise empty. After a freeze,
 `node packages/vera-app/scripts/verify-packaged-sidecar.cjs` asserts
-`describe_ingest_pipelines` reports both providers.
+`describe_ingest_pipelines` reports `pymupdf` (and not Docling) and that MiniLM
+weights are present.
 
 From the repo root:
 
@@ -396,4 +397,3 @@ export controls alongside the PDF.
 
 - Hosted embedding providers (OpenAI, Voyage, Ollama) and their credentials UI.
 - Add recent document shortcuts.
-- Add richer conversion progress events from the sidecar for first-use Docling downloads.

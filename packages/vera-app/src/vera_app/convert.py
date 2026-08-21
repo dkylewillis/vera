@@ -45,21 +45,22 @@ def require_ready_embedder(model: str) -> None:
         raise ValueError(result.detail or "Embedding provider is not ready")
 
 
-def _parser_is_docling(request: Request) -> bool:
-    return str(request.get("parser") or "").strip().lower().startswith("docling")
+# 0.3.0 desktop Convert ships PyMuPDF only. The Docling plugin remains a CLI extra.
+_DESKTOP_EXCLUDED_PIPELINE_PROVIDERS = frozenset({"docling"})
 
 
-def _emit_docling_preparing(write_event: WriteEvent | None, input_path: str) -> None:
-    if write_event is None:
+def _pipeline_provider(name: str) -> str:
+    return str(name or "").strip().lower().split(":", 1)[0]
+
+
+def _reject_excluded_desktop_parser(request: Request) -> None:
+    parser = str(request.get("parser") or "pymupdf")
+    if _pipeline_provider(parser) not in _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS:
         return
-    write_event(
-        {
-            "event": "conversion_progress",
-            "phase": "preparing",
-            "completed": 0,
-            "total": 1,
-            "input": input_path,
-        }
+    raise ValueError(
+        "Docling is not available in the desktop app in 0.3.0. "
+        "Convert PDFs with PyMuPDF here, or use the CLI extra: "
+        "pip install \"vera-cli[docling]>=0.3.0\""
     )
 
 
@@ -69,7 +70,8 @@ def handle_convert(
     cancel: CancellationToken | None = None,
 ) -> dict[str, str]:
     input_path = str(request["input"])
-    if write_event and not _parser_is_docling(request):
+    _reject_excluded_desktop_parser(request)
+    if write_event:
         write_event(
             {
                 "event": "conversion_progress",
@@ -87,8 +89,6 @@ def handle_convert(
         dict(raw_embedder_options) if isinstance(raw_embedder_options, dict) else None
     )
     require_ready_embedder(str(request.get("model", "hashing")))
-    if _parser_is_docling(request):
-        _emit_docling_preparing(write_event, input_path)
     output = convert(
         input_path,
         str(request["output"]),
@@ -155,9 +155,8 @@ def handle_batch_convert(
         )
     if cancel:
         cancel.raise_if_interrupted()
+    _reject_excluded_desktop_parser(request)
     require_ready_embedder(str(request.get("model", "hashing")))
-    if _parser_is_docling(request):
-        _emit_docling_preparing(write_event, progress_label)
 
     return batch_convert(
         None if paths is not None else str(directory),
@@ -214,13 +213,23 @@ def handle_preflight_embedder(request: Request) -> dict[str, Any]:
 
 def handle_list_ingest_pipelines(request: Request) -> dict[str, Any]:
     """List installed ingest pipeline providers for the Convert view."""
-    return {"pipelines": list_ingest_pipelines()}
+    return {
+        "pipelines": [
+            name
+            for name in list_ingest_pipelines()
+            if _pipeline_provider(name) not in _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS
+        ]
+    }
 
 
 def handle_describe_ingest_pipelines(request: Request) -> dict[str, Any]:
     """Return installed pipeline descriptors for schema-driven Convert controls."""
     return {
-        "pipelines": [descriptor.as_dict() for descriptor in list_ingest_pipeline_descriptors()],
+        "pipelines": [
+            descriptor.as_dict()
+            for descriptor in list_ingest_pipeline_descriptors()
+            if descriptor.provider not in _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS
+        ],
     }
 
 
@@ -256,34 +265,3 @@ def handle_ocr_languages_download(
     cache_dir = download_ocr_language_data(language, progress=report_progress)
     codes = [part.strip() for part in language.split("+") if part.strip()]
     return {"language": language, "downloaded": codes, "cache_dir": cache_dir}
-
-
-def handle_prepare_docling(
-    request: Request,
-    write_event: WriteEvent | None = None,
-    cancel: CancellationToken | None = None,
-) -> dict[str, Any]:
-    """Prefetch Docling layout/table models without converting a PDF."""
-    if cancel:
-        cancel.raise_if_interrupted()
-    if write_event:
-        write_event(
-            {
-                "event": "conversion_progress",
-                "phase": "preparing",
-                "completed": 0,
-                "total": 1,
-                "input": "Docling models",
-            }
-        )
-    try:
-        from vera_ingest_docling.converter import ensure_docling_models
-    except ImportError as exc:
-        raise ValueError(
-            "Docling is not installed in this sidecar. "
-            "Install with: python -m pip install 'vera-cli[docling]>=0.3.0'"
-        ) from exc
-    result = ensure_docling_models()
-    if cancel:
-        cancel.raise_if_interrupted()
-    return result

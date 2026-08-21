@@ -635,6 +635,9 @@ def _resolve_conversion(
         # Memory errors with no attributable pages (typical real ErrorItem)
         # must fall back to whole-document pypdfium2 instead of rejecting.
         need_whole_fallback = True
+    if status == ConversionStatus.FAILURE:
+        # Invalid input / missing docling-parse resources (no exception, 0 pages).
+        need_whole_fallback = True
     if can_recover:
         total_pages = _page_count_estimate(conversion, failed_pages)
         ratio = len(failed_pages) / max(total_pages, 1)

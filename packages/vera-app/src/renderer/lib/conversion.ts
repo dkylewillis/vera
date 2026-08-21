@@ -20,17 +20,6 @@ export async function awaitConversionRequest<T>(
 export type ConversionProgressMode = 'single' | 'batch';
 export type ConvertMode = 'batch' | 'selected';
 
-export const DOCLING_PREPARE_STOP_CONFIRM =
-  'Docling is still downloading layout models. Stop will not cancel Hugging Face immediately — the download may keep going until this step finishes, and the next convert will resume. Stop anyway?';
-
-export function ingestPipelineIsDocling(spec: string): boolean {
-  return spec.trim().toLowerCase().startsWith('docling');
-}
-
-export function shouldConfirmDoclingPrepareStop(phase: string | undefined): boolean {
-  return phase === 'preparing';
-}
-
 export function conversionProgressTaskUpdate(
   event: Pick<StreamEvent, 'phase' | 'total' | 'completed' | 'input'>,
   mode: ConversionProgressMode,
@@ -50,7 +39,7 @@ export function conversionProgressTaskUpdate(
   if (event.phase === 'preparing') {
     return {
       ...base,
-      message: 'Preparing Docling models…',
+      message: 'Preparing…',
     };
   }
   if (!total) {

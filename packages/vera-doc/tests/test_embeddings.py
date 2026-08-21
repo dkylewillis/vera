@@ -385,6 +385,36 @@ class TestEmbedderCacheConcurrency:
             unregister_embedder("slow-block")
             clear_embedder_cache()
 
+    def test_same_key_waits_for_in_flight_factory(self):
+        import threading
+
+        started = threading.Event()
+        release = threading.Event()
+        calls = {"n": 0}
+
+        def factory(model_id: str, **config):
+            calls["n"] += 1
+            started.set()
+            assert release.wait(timeout=5)
+            return HashingEmbedder(model_name=f"once/{model_id}")
+
+        register_embedder("once-load", factory, replace=True)
+        clear_embedder_cache()
+        try:
+            worker = threading.Thread(target=lambda: get_embedder("once-load:one"))
+            worker.start()
+            assert started.wait(timeout=2)
+            release.set()
+            embedder = get_embedder("once-load:one")
+            worker.join(timeout=5)
+            assert not worker.is_alive()
+            assert calls["n"] == 1
+            assert embedder.model_name == "once/one"
+        finally:
+            release.set()
+            unregister_embedder("once-load")
+            clear_embedder_cache()
+
 
 class TestBundledSentenceTransformers:
     def test_rejects_incomplete_snapshot(self, tmp_path):
