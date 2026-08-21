@@ -49,8 +49,7 @@ so conversion works out of the box.
 
 Optional CLI/library plugin that depends on `vera-ingest` and Docling.
 Registers the `docling` / `docling:hybrid` ingest pipeline. `vera-cli`
-installs it through the `docling` extra. `vera-app` depends on it directly;
-the packaged Windows sidecar freezes it as **Advanced layout (slower)**.
+installs it through the `docling` extra. It is not bundled into packaged desktop releases. The 0.3.0 Convert view does not list **Advanced layout (slower)**.
 
 ## `vera-cli`
 
@@ -68,10 +67,10 @@ retrieval implementation.
 ## `vera-app`
 
 Owns the Electron/React desktop app and Python sidecar. Depends directly on
-`vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, `vera-ingest-docling`, and
+`vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and
 `sentence-transformers`; it does not use the CLI as a backend. The packaged
-Windows installer freezes those converters plus MiniLM and Docling layout/table
-snapshots.
+Windows installer freezes PyMuPDF plus MiniLM. The Docling CLI extra is
+not bundled in the installer.
 
 ## `vera-lab`
 

@@ -260,8 +260,10 @@ def test_hardening_json_contracts_are_documented():
     assert "list_embedding_models" in desktop_architecture
     assert "preflight_embedder" in desktop_architecture
     assert "credential_env" in desktop_architecture
-    assert "prepare_docling" in desktop_architecture
-    assert "prepare_docling" in conversion
+    assert "prepare_docling" not in desktop_architecture
+    assert (
+        "not run `prepare_docling`" in conversion or "does not run `prepare_docling`" in conversion
+    )
     assert "skipped_files" in libraries
     assert "skipped_semantic_model_groups" in libraries
     assert "does not reopen archives" in libraries
@@ -302,6 +304,12 @@ def test_hardening_json_contracts_are_documented():
     assert "## Convert in one sidecar" in desktop_architecture
     assert "VERA_SENTENCE_TRANSFORMERS_HOME" in desktop_architecture
     assert "all-MiniLM-L6-v2" in desktop_architecture
+    assert "HF_HOME" in desktop_architecture
+    assert "stdin.readline" in desktop_architecture
+    assert "import_sentence_transformers" in (DOCS / "troubleshooting.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Discovering PDFs" in (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
     assert "one interpreter" in desktop
     assert "sentence_transformers" in desktop
     assert "is not frozen into the Windows sidecar" not in desktop
@@ -347,21 +355,21 @@ def test_hardening_json_contracts_are_documented():
     assert "VERA_APP_PYTHON" in desktop_architecture
     assert "VERA_APP_PYTHON" in desktop
     assert "VERA_APP_DEBUG" in desktop
-    assert "not bundled into packaged desktop releases" not in (
+    assert "not bundled into packaged desktop releases" in (
         ROOT / "packages" / "README.md"
     ).read_text(encoding="utf-8")
-    assert "not bundled in the installer" not in (
+    assert "not bundled in the installer" in (
         DOCS / "packages" / "vera-ingest-docling.md"
     ).read_text(encoding="utf-8")
     assert "registers the default" in desktop_architecture and "pymupdf" in desktop_architecture
     app_dev = (ROOT / "scripts" / "app-dev.js").read_text(encoding="utf-8")
     assert "--extra" in app_dev and '"app"' in app_dev
-    assert "docling" in app_dev
+    assert '"docling"' not in app_dev
     main_ts = (ROOT / "packages" / "vera-app" / "electron" / "main.ts").read_text(encoding="utf-8")
     assert "vera-ingest-pymupdf" in main_ts
-    assert "vera-ingest-docling" in main_ts
+    assert "vera-ingest-docling" not in main_ts
     assert "configurePluginRuntime" not in main_ts
-    assert "DOCLING_ARTIFACTS_PATH" in main_ts
+    assert "DOCLING_ARTIFACTS_PATH" not in main_ts
     assert "PYTHONUNBUFFERED" in main_ts
     assert "VERA_SENTENCE_TRANSFORMERS_HOME" in main_ts
     assert not (ROOT / "packages" / "vera-app" / "src" / "vera_app" / "runtime.py").is_file()
@@ -371,8 +379,12 @@ def test_hardening_json_contracts_are_documented():
     )
     assert "copy-metadata" in sidecar_build
     assert "vendor_minilm.py" in sidecar_build
-    assert "vendor_docling_models.py" in sidecar_build
-    assert "docling-artifacts" in sidecar_build
+    assert "vendor_docling_models.py" not in sidecar_build
+    assert "docling-artifacts" not in sidecar_build
+    hooks_dir = ROOT / "packages" / "vera-app" / "scripts" / "hooks"
+    assert (hooks_dir / "hook-sentence_transformers.py").is_file()
+    assert not (hooks_dir / "hook-docling_parse.py").is_file()
+    assert not (hooks_dir / "hook-vera_ingest_docling.py").is_file()
     assert "sentence_transformers" in sidecar_build
     assert "--exclude-module" not in sidecar_build
     assert "sentence-transformers" in (ROOT / "packages" / "vera-app" / "pyproject.toml").read_text(
@@ -511,9 +523,13 @@ def test_release_0_3_versioning_and_install_pins():
     assert "vera-cli>=0.3.0" in readme
     assert "vera-cli>=0.3.0" in getting_started
     assert "vera-doc>=0.3.0" in (PACKAGES / "vera-doc" / "README.md").read_text(encoding="utf-8")
-    assert "vera-cli>=0.3.0" in (
-        ROOT / "skills" / "vera" / "references" / "cli-reference.md"
-    ).read_text(encoding="utf-8")
+    skill_cli = (ROOT / "skills" / "vera" / "references" / "cli-reference.md").read_text(
+        encoding="utf-8"
+    )
+    human_cli = (DOCS / "cli-reference.md").read_text(encoding="utf-8")
+    assert "vera-cli>=0.3.0" in skill_cli
+    assert "Windows installer vendors Heron" not in human_cli
+    assert "vendors those snapshots so packaged Advanced" not in skill_cli
     assert ">=0.2.4" not in readme
     assert ">=0.2.4" not in getting_started
     assert "UnknownEmbeddingModelError" in changelog
@@ -650,19 +666,21 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     app_pkg = (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
     desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
     architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
     validate_docs = (DOCS / "validation-and-export.md").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     intro = readme.split("```bash", 1)[1].split("```", 1)[0]
 
-    assert "not bundled into packaged desktop releases" not in packages_overview
-    assert "packaged Windows sidecar freezes it" in packages_overview
+    assert "not bundled into packaged desktop releases" in packages_overview
+    assert "not bundled in the installer" in packages_overview
     assert "Advanced layout (slower)" in packages_overview
-    assert "vera-ingest-docling" in packages_overview.split("## `vera-app`", 1)[1]
-    assert "sentence-transformers" in packages_overview.split("## `vera-app`", 1)[1]
+    app_section = packages_overview.split("## `vera-app`", 1)[1].split("## `", 1)[0]
+    assert "vera-ingest-docling" not in app_section
+    assert "sentence-transformers" in app_section
     assert "vera-ingest-docling" in app_pkg
-    assert "not bundled in the installer" not in docling_pkg
-    assert "all-MiniLM-L6-v2" in docling_pkg
+    assert "not bundled in the installer" in docling_pkg
+    assert "all-MiniLM-L6-v2" in desktop
     assert "Linux, macOS, and Windows" in desktop
     assert "packaged installer currently targets Windows" in desktop
     assert "desktop-release" in desktop
@@ -676,6 +694,15 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "vera ocr-languages list" in changelog
     assert "vera-lab" in changelog
     assert "vera-cli>=0.3.0" in intro
+    assert "Open convert log" in desktop
+    assert "logs/sidecar.log" in desktop
+    assert "Open convert log" in troubleshooting
+    assert "logs/sidecar.log" in troubleshooting
+    assert "logs/sidecar.log" in architecture
+    assert "Open convert log" in changelog
+    assert "Open convert log" in app_pkg
+    assert "Open convert log" in readme
+    assert "logs/sidecar.log" in readme
 
 
 def test_index_ask_and_embedder_operational_docs():

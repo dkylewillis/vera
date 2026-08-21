@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  FileText,
   KeyRound,
   ListChecks,
   MessageSquareText,
@@ -114,7 +115,7 @@ type ProviderRowInfo = {
   profile: ProviderProfile | null;
 };
 
-export type SettingsSectionId = 'providers' | 'huggingface';
+export type SettingsSectionId = 'providers' | 'huggingface' | 'diagnostics';
 
 const SETTINGS_SECTIONS: {
   id: SettingsSectionId;
@@ -131,8 +132,14 @@ const SETTINGS_SECTIONS: {
   {
     id: 'huggingface',
     label: 'Hugging Face',
-    description: 'Optional Hub token for Docling model downloads and other Hugging Face Hub access.',
+    description: 'Optional Hub token for Hugging Face model downloads.',
     icon: KeyRound,
+  },
+  {
+    id: 'diagnostics',
+    label: 'Diagnostics',
+    description: 'Convert timing log written by the sidecar in both app:dev and packaged VERA.',
+    icon: FileText,
   },
 ];
 
@@ -146,6 +153,7 @@ export function SettingsModal({
   ingestPipelineConfigs,
   embedderConfigs,
   hasHfToken = false,
+  convertLogPath = '',
   initialSection = 'providers',
   onPersist,
   onRefresh,
@@ -160,6 +168,7 @@ export function SettingsModal({
   ingestPipelineConfigs: AppSettings['ingest_pipeline_configs'];
   embedderConfigs: AppSettings['embedder_configs'];
   hasHfToken?: boolean;
+  convertLogPath?: string;
   initialSection?: SettingsSectionId;
   onPersist: (next: AppSettings) => Promise<AppSettings>;
   onRefresh: () => Promise<AppSettings>;
@@ -728,8 +737,8 @@ export function SettingsModal({
               <div className="settingsForm">
                 <p className="providerItemDescription">
                   Stored securely like provider API keys and passed to the sidecar as{' '}
-                  <code>HF_TOKEN</code>. Docling uses this token when it downloads layout models
-                  into the app-owned cache on first conversion. Get one at huggingface.co/settings/tokens.
+                  <code>HF_TOKEN</code>. Save a token if a converter or embedder needs Hub access.
+                  Get one at huggingface.co/settings/tokens.
                 </p>
                 <label className="field">
                   <span>Access token</span>
@@ -764,6 +773,37 @@ export function SettingsModal({
                     </div>
                   )}
                 </label>
+              </div>
+            ) : null}
+
+            {section === 'diagnostics' ? (
+              <div className="settingsForm">
+                <p className="providerItemDescription">
+                  Convert and sidecar stderr, including timed convert steps, append to
+                  this file in both <code>app:dev</code> and packaged VERA. Open it while Advanced
+                  layout is running to compare freeze vs <code>.venv</code> times. The log does not
+                  include PDF text or API keys.
+                </p>
+                <label className="field">
+                  <span>Convert log</span>
+                  <code className="convertLogPath">{convertLogPath || 'logs/sidecar.log'}</code>
+                </label>
+                <div className="editorActions">
+                  <button
+                    type="button"
+                    className="secondaryAction"
+                    onClick={() => { void window.vera.openConvertLog(); }}
+                  >
+                    <FileText size={16} />Open convert log
+                  </button>
+                  <button
+                    type="button"
+                    className="secondaryAction"
+                    onClick={() => { void window.vera.showConvertLogFolder(); }}
+                  >
+                    Show convert log in folder
+                  </button>
+                </div>
               </div>
             ) : null}
           </div>

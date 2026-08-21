@@ -8,19 +8,6 @@ const defaultSidecar = process.platform === "win32"
   : path.join(appDir, "build", "sidecar", "vera-sidecar", "vera-sidecar");
 
 const REQUIRED_MINILM_FILES = ["config.json", "modules.json", "model.safetensors", "tokenizer.json"];
-const REQUIRED_DOCLING_FILES = [
-  path.join("docling-project--docling-layout-heron-onnx", "config.json"),
-  path.join("docling-project--docling-layout-heron-onnx", "model.onnx"),
-  path.join("docling-project--docling-layout-heron-onnx", "preprocessor_config.json"),
-  path.join("docling-project--docling-models", "model_artifacts", "tableformer", "accurate", "tm_config.json"),
-  path.join(
-    "docling-project--docling-models",
-    "model_artifacts",
-    "tableformer",
-    "accurate",
-    "tableformer_accurate.safetensors",
-  ),
-];
 
 function minilmCandidates(sidecarExe) {
   const sidecarDir = path.dirname(sidecarExe);
@@ -39,37 +26,12 @@ function findBundledMinilm(sidecarExe) {
   return null;
 }
 
-function doclingCandidates(sidecarExe) {
-  const sidecarDir = path.dirname(sidecarExe);
-  return [
-    path.join(sidecarDir, "docling-artifacts"),
-    path.join(sidecarDir, "_internal", "docling-artifacts"),
-  ];
-}
-
-function findBundledDocling(sidecarExe) {
-  for (const candidate of doclingCandidates(sidecarExe)) {
-    if (REQUIRED_DOCLING_FILES.every((name) => fs.existsSync(path.join(candidate, name)))) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
 function runDescribeChecks(sidecarPath) {
   const minilmPath = findBundledMinilm(sidecarPath);
   if (!minilmPath) {
     console.error(
       "Packaged sidecar is missing vendored MiniLM weights. Looked in:\n  "
         + minilmCandidates(sidecarPath).join("\n  "),
-    );
-    process.exit(1);
-  }
-  const doclingPath = findBundledDocling(sidecarPath);
-  if (!doclingPath) {
-    console.error(
-      "Packaged sidecar is missing vendored Docling layout models. Looked in:\n  "
-        + doclingCandidates(sidecarPath).join("\n  "),
     );
     process.exit(1);
   }
@@ -81,7 +43,6 @@ function runDescribeChecks(sidecarPath) {
     env: {
       ...process.env,
       VERA_SENTENCE_TRANSFORMERS_HOME: path.dirname(minilmPath),
-      DOCLING_ARTIFACTS_PATH: doclingPath,
     },
   });
 
@@ -147,9 +108,12 @@ function runDescribeChecks(sidecarPath) {
       return;
     }
     const providers = (pipelines.result?.pipelines || []).map((item) => item.provider || item.spec);
-    const missingPipelines = ["pymupdf", "docling"].filter((name) => !providers.includes(name));
-    if (missingPipelines.length) {
-      finish(1, `Sidecar omitted ingest providers: ${missingPipelines.join(", ")} (got ${providers.join(", ") || "none"})`);
+    if (!providers.includes("pymupdf")) {
+      finish(1, `Sidecar omitted ingest provider pymupdf (got ${providers.join(", ") || "none"})`);
+      return;
+    }
+    if (providers.includes("docling")) {
+      finish(1, `Sidecar included Docling; 0.3.0 packaged Convert is PyMuPDF-only (got ${providers.join(", ")})`);
       return;
     }
 
@@ -169,7 +133,6 @@ function runDescribeChecks(sidecarPath) {
       providers,
       embedders: embedderNames,
       minilm: minilmPath,
-      docling: doclingPath,
     }, null, 2));
     clearTimeout(timer);
     finish(0);
@@ -190,12 +153,9 @@ function main() {
 
 module.exports = {
   REQUIRED_MINILM_FILES,
-  REQUIRED_DOCLING_FILES,
   defaultSidecar,
   findBundledMinilm,
-  findBundledDocling,
   minilmCandidates,
-  doclingCandidates,
 };
 
 if (require.main === module) {

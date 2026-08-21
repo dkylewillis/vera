@@ -103,7 +103,12 @@ class DoclingHybridPipeline:
         primary_error: BaseException | None = None
         try:
             converter = _converter._build_converter(config, backend=primary_backend)
-            conversion = converter.convert(source=source_path, raises_on_error=False)
+            conversion = _converter._run_converter_convert(
+                converter,
+                backend=primary_backend,
+                source=source_path,
+                raises_on_error=False,
+            )
         except Exception as exc:  # noqa: BLE001 - Docling may raise on hard native crashes
             if _converter._is_cancellation(exc):
                 raise

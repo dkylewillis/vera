@@ -35,9 +35,9 @@ Options:
   error; CLI needs the `ml` extra, while the Windows installer vendors
   MiniLM weights)
 - `--parser PARSER` (`pymupdf`; accepts `provider[:variant]` specs such as
-  `docling` / `docling:hybrid` when `vera-ingest-docling` is installed; unknown
-  providers exit with an error; the Windows installer vendors Heron ONNX and
-  TableFormer accurate)
+  `docling` / `docling:hybrid` when `vera-cli[docling]` is installed; unknown
+  providers exit with an error; the 0.3.0 Windows installer does not include
+  Docling)
 - `--chunk-size N` (`500`; compatibility alias; PyMuPDF counts whitespace-split
   words, Docling counts whitespace tokens)
 - `--overlap N` (`75`; compatibility alias; PyMuPDF counts whitespace-split

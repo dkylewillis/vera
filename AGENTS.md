@@ -53,7 +53,7 @@ vera validate manual.vera --json
 # Create an .vera from a PDF
 vera convert manual.pdf manual.vera --json
 
-# Docling / Advanced layout (requires vera-cli[docling] or --extra docling)
+# Docling (optional CLI extra: vera-cli[docling] or --extra docling; not in the 0.3.0 desktop app)
 vera convert scan.pdf scan.vera --parser docling --json
 vera convert scan.pdf scan.vera --parser docling --pipeline-option pdf_backend=pypdfium2 --json
 
@@ -207,15 +207,18 @@ non-obvious caveats for this environment; standard commands live in the sections
   (OpenAI/OpenRouter/Ollama/LM Studio) — there is no offline/extractive answer mode, so Ask is
   blocked without a provider/API key. For fully offline testing use the left-sidebar **Search**
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
-  **Convert PDF** view. Convert lists PyMuPDF (default) and **Advanced layout (slower)** /
-  Docling in the same sidecar. Selecting Advanced layout in `app:dev` prefetches models into
-  `DOCLING_ARTIFACTS_PATH` under the app userData cache (first download is about
-  380 MB and can take several minutes; `app:dev` prints `[vera-sidecar]` Hub
-  progress; Stop confirms and the next run resumes). The packaged
+  **Convert PDF** view. Convert lists PyMuPDF only. Docling is a CLI extra
+  (`uv sync --extra docling`; `vera convert --parser docling`), not a desktop
+  pipeline in 0.3.0. The packaged
   Windows sidecar freezes Sentence Transformers and vendors
-  `all-MiniLM-L6-v2` weights (`VERA_SENTENCE_TRANSFORMERS_HOME`) plus Heron ONNX
-  and TableFormer accurate (`DOCLING_ARTIFACTS_PATH` points at the freeze;
-  `HF_HOME` stays under userData). Ask is
+  `all-MiniLM-L6-v2` weights (`VERA_SENTENCE_TRANSFORMERS_HOME`);
+  packaged `HF_HOME` stays under userData. `app:dev` leaves `HF_HOME` unset
+  and points MiniLM at `packages/vera-app/build/minilm` when that snapshot
+  exists. The sidecar imports Torch on the main thread at start (before
+  stdin); a convert-worker import deadlocks on Windows. Convert
+  timing lines (`elapsed_ms`) go to
+  sidecar stderr and are teed to `userData/logs/sidecar.log`; open it from
+  **File > Open convert log...**. Ask is
   blocked without a provider/API key.
 - MCP server (optional): `uv run --extra mcp vera mcp` (long-running stdio; no `--json`).
 - There are no PDFs in the repo; generate one with the `reportlab` dev dependency when you need

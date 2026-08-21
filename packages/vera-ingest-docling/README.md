@@ -14,7 +14,7 @@ for embeddings.
 python -m pip install "vera-ingest-docling>=0.3.0"
 ```
 
-From a repository checkout with uv (workspace `.venv` for CLI/tests/`app:dev`):
+From a repository checkout with uv (workspace `.venv` for CLI and tests):
 
 ```bash
 uv sync --extra docling
@@ -32,14 +32,9 @@ weights come with that extra; first conversion may still download Docling
 layout models (about 380 MB: Heron ONNX + TableFormer accurate). Set
 `DOCLING_ARTIFACTS_PATH` to a local cache (or prefetch layout models offline)
 for air-gapped runs. Incomplete caches are not treated as ready. Hub progress
-is visible on sidecar stderr (`[vera-sidecar]` in `app:dev`).
-The desktop app uses an app-owned cache under Electron `userData` for those
-layout models in `app:dev` and prefetches them when you select Advanced layout.
-The packaged Windows sidecar vendors Heron ONNX and TableFormer accurate next
-to MiniLM so Setup.exe Advanced layout does not download them.
-
-The packaged Windows sidecar freezes this pipeline as **Advanced layout
-(slower)** beside PyMuPDF.
+is visible on CLI stderr.
+This extra is not bundled in the 0.3.0 desktop installer and is not listed in
+Convert.
 
 ## Usage
 

@@ -94,35 +94,33 @@ describe('convertPresets', () => {
 
   it('gates optional providers on sidecar availability', () => {
     expect(presetOptionAvailable(
-      { value: 'docling', label: 'docling', requiresProvider: 'docling' },
-      ['pymupdf'],
+      { value: 'sentence-transformers:all-MiniLM-L6-v2', label: 'MiniLM', requiresProvider: 'sentence-transformers' },
+      ['hashing'],
     )).toBe(false);
     expect(presetOptionAvailable(
-      { value: 'docling', label: 'docling', requiresProvider: 'docling' },
-      ['pymupdf', 'docling'],
+      { value: 'sentence-transformers:all-MiniLM-L6-v2', label: 'MiniLM', requiresProvider: 'sentence-transformers' },
+      ['hashing', 'sentence-transformers'],
     )).toBe(true);
   });
 
-  it('builds select options from descriptors and missing install hints', () => {
+  it('builds select options from installed descriptors only', () => {
     const withDocling = pipelineSelectOptions([pymupdfDescriptor, doclingDescriptor]);
     expect(withDocling.map((option) => option.value)).toEqual(['pymupdf', 'docling']);
 
     const withoutDocling = pipelineSelectOptions([pymupdfDescriptor]);
-    expect(withoutDocling.map((option) => option.value)).toEqual(['pymupdf', 'docling']);
-    expect(withoutDocling[1]?.requiresProvider).toBe('docling');
+    expect(withoutDocling.map((option) => option.value)).toEqual(['pymupdf']);
   });
 
-  it('treats a discovered but uninstalled Docling descriptor as a missing hint', () => {
+  it('omits uninstalled descriptors instead of advertising a missing install hint', () => {
     const options = pipelineSelectOptions([
       pymupdfDescriptor,
       { ...doclingDescriptor, installed: false },
     ]);
-    expect(options.map((option) => option.value)).toEqual(['pymupdf', 'docling']);
-    expect(options[1]?.requiresProvider).toBe('docling');
+    expect(options.map((option) => option.value)).toEqual(['pymupdf']);
     expect(pipelineInstallHint('docling', [
       pymupdfDescriptor,
       { ...doclingDescriptor, installed: false },
-    ])).toContain('vera-cli[docling]');
+    ])).toBeNull();
   });
 
   it('preserves bundled source on installed options', () => {
@@ -134,9 +132,8 @@ describe('convertPresets', () => {
     expect(options[1]?.source).toBe('bundled');
   });
 
-  it('returns install hints for missing optional pipelines', () => {
-    expect(pipelineInstallHint('docling', [pymupdfDescriptor])).toContain('vera-cli[docling]');
-    expect(pipelineInstallHint('docling', [pymupdfDescriptor])).toContain('uv sync --extra docling');
+  it('returns advertised descriptions for installed pipelines and no install hint otherwise', () => {
+    expect(pipelineInstallHint('docling', [pymupdfDescriptor])).toBeNull();
     expect(pipelineInstallHint('pymupdf', [pymupdfDescriptor])).toBe('Default PDF ingest pipeline');
   });
 });

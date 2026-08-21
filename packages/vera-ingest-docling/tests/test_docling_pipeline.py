@@ -389,6 +389,18 @@ def test_build_converter_uses_onnx_layout_and_accurate_tableformer():
     assert pipeline_options.table_structure_options.mode.value == "accurate"
 
 
+def test_build_converter_emits_import_and_init_timing(capsys):
+    from vera_ingest_docling.options import DoclingOptions
+    from vera_ingest_docling.pipeline import _build_converter
+
+    _build_converter(DoclingOptions.from_mapping({"ocr_mode": "off"}))
+    err = capsys.readouterr().err
+    assert "timing step=import_docling" in err
+    assert "timing step=document_converter_init" in err
+    assert "timing step=ensure_docling_models" in err
+    assert err.count("elapsed_ms=") >= 3
+
+
 def test_docling_options_ignore_pymupdf_only_keys_and_reject_unknown():
     from vera_ingest_docling.options import DoclingOptions, describe_pipeline
 
@@ -920,6 +932,44 @@ def test_convert_exception_triggers_whole_document_pypdfium2_fallback(monkeypatc
     assert result.chunks
     assert any(call["backend"] == "pypdfium2" for call in calls)
     assert all(call["raises_on_error"] is False for call in calls)
+
+
+def test_invalid_document_failure_falls_back_to_whole_document_pypdfium2(monkeypatch, tmp_path):
+    full_doc = _multi_page_document(3)
+    calls: list[dict[str, object]] = []
+
+    class FailResult:
+        status = ConversionStatus.FAILURE
+        errors = []
+        document = None
+
+    class SuccessResult:
+        status = ConversionStatus.SUCCESS
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class Converter:
+        def __init__(self, backend: str | None):
+            self.backend = backend or "docling_parse"
+
+        def convert(self, source=None, page_range=None, raises_on_error=True, **_kwargs):
+            calls.append({"backend": self.backend, "page_range": page_range})
+            if self.backend != "pypdfium2":
+                return FailResult()
+            return SuccessResult(full_doc)
+
+    monkeypatch.setattr(
+        "vera_ingest_docling.converter._build_converter",
+        lambda options, backend=None, **_kwargs: Converter(backend),
+    )
+
+    pdf = tmp_path / "invalid.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+    result = DoclingHybridPipeline()(str(pdf), IngestRequest())
+    assert result.diagnostics["whole_document_fallback_backend"] == "pypdfium2"
+    assert result.chunks
+    assert any(call["backend"] == "pypdfium2" and call["page_range"] is None for call in calls)
 
 
 def test_unrecoverable_page_still_raises_with_page_detail(monkeypatch, tmp_path):

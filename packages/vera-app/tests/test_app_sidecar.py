@@ -56,6 +56,33 @@ class _ScriptedStdin:
         return line
 
 
+def test_sidecar_main_logs_process_start(monkeypatch, capsys):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    monkeypatch.setattr(sidecar.sys, "stdin", io.StringIO(""))
+    assert sidecar.main() == 0
+    err = capsys.readouterr().err
+    assert "timing step=sidecar_start" in err
+
+
+def test_sidecar_warms_torch_before_stdin_loop(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    order: list[str] = []
+    monkeypatch.setattr(
+        sidecar,
+        "_warmup_sentence_transformers",
+        lambda: order.append("warmup"),
+    )
+
+    class _Stdin:
+        def __iter__(self):
+            order.append("stdin")
+            return iter(())
+
+    monkeypatch.setattr(sidecar.sys, "stdin", _Stdin())
+    assert sidecar.main() == 0
+    assert order == ["warmup", "stdin"]
+
+
 @pytest.fixture
 def nested_app_library(tmp_path):
     root = tmp_path / "proposals"
@@ -648,6 +675,8 @@ def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):
     captured = {}
 
     class FakeDescriptor:
+        provider = "pymupdf"
+
         def as_dict(self):
             return {
                 "provider": "pymupdf",
@@ -694,8 +723,8 @@ def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):
             "id": "opts-batch",
             "action": "batch_convert",
             "directory": "scans",
-            "parser": "docling",
-            "pipeline_options": {"chunk_size": 250, "ocr_language": "en"},
+            "parser": "pymupdf",
+            "pipeline_options": {"chunk_size": 250, "ocr_language": "eng"},
         }
     )
 
@@ -708,78 +737,49 @@ def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):
     assert "ocr_mode" not in captured["single"]
     assert "ocr_language" not in captured["single"]
     assert batch["ok"] is True
-    assert captured["batch"]["pipeline_options"] == {"chunk_size": 250, "ocr_language": "en"}
-    assert captured["batch"]["parser"] == "docling"
+    assert captured["batch"]["pipeline_options"] == {"chunk_size": 250, "ocr_language": "eng"}
+    assert captured["batch"]["parser"] == "pymupdf"
     assert "chunk_size" not in captured["batch"]
     assert "ocr_language" not in captured["batch"]
 
 
-def test_sidecar_describe_includes_docling_when_package_importable():
+def test_sidecar_describe_omits_docling_even_when_package_importable():
     pytest.importorskip("vera_ingest_docling")
     described = handle({"id": "desc-docling", "action": "describe_ingest_pipelines"})
     assert described["ok"] is True
     providers = [item["provider"] for item in described["result"]["pipelines"]]
+    listed = handle({"id": "list-docling", "action": "list_ingest_pipelines"})
+    assert listed["ok"] is True
     assert "pymupdf" in providers
-    assert "docling" in providers
-    docling = next(
-        item for item in described["result"]["pipelines"] if item["provider"] == "docling"
-    )
-    assert "slower" in docling["label"].lower()
+    assert "docling" not in providers
+    assert "docling" not in listed["result"]["pipelines"]
 
 
-def test_sidecar_default_ocr_language_is_not_forwarded_to_docling(monkeypatch):
-    pytest.importorskip("vera_ingest_docling")
-    from vera_ingest import (
-        prepare_pipeline_options,
-        register_ingest_pipeline,
-        register_ingest_pipeline_descriptor,
-    )
-    from vera_ingest_docling import create_descriptor, create_pipeline
-    from vera_ingest_docling.options import DoclingOptions
-
-    register_ingest_pipeline("docling", create_pipeline, replace=True)
-    register_ingest_pipeline_descriptor("docling", create_descriptor, replace=True)
-
-    captured = {}
-
-    def fake_convert(input_path, output_path, **kwargs):
-        captured.update(kwargs)
-        return output_path
-
-    convert_mod = importlib.import_module("vera_app.convert")
-    monkeypatch.setattr(convert_mod, "convert", fake_convert)
+def test_sidecar_rejects_docling_parser():
     response = handle(
         {
-            "id": "docling-ocr-default",
+            "id": "docling-rejected",
             "action": "convert",
             "input": "scan.pdf",
             "output": "scan.vera",
             "parser": "docling",
         }
     )
+    assert response["ok"] is False
+    assert "not available in the desktop app" in response["error"]
 
-    assert response["ok"] is True
-    assert "ocr_language" not in captured
-    assert "chunk_size" not in captured
-    assert "ocr_mode" not in captured
-    merged = prepare_pipeline_options(
-        spec=captured["parser"],
-        pipeline_options=captured.get("pipeline_options"),
-        legacy_options={
-            key: captured[key]
-            for key in (
-                "chunk_size",
-                "overlap",
-                "ocr_mode",
-                "ocr_language",
-                "ocr_dpi",
-                "ocr_download",
-            )
-            if key in captured
-        },
+
+def test_sidecar_rejects_docling_batch_parser():
+    response = handle(
+        {
+            "id": "docling-batch-rejected",
+            "action": "batch_convert",
+            "directory": "scans",
+            "parser": "docling:hybrid",
+        }
     )
-    assert "ocr_language" not in merged
-    assert DoclingOptions.from_mapping(merged).ocr_language == "en"
+    assert response["ok"] is False
+    assert "not available in the desktop app" in response["error"]
 
 
 def test_sidecar_forwards_ocr_download_flag(monkeypatch):
@@ -859,128 +859,6 @@ def test_sidecar_ocr_languages_download_requires_language():
     assert "language is required" in response["error"]
 
 
-def test_sidecar_prepare_docling_returns_cache_status(monkeypatch):
-    sidecar = importlib.import_module("vera_app.sidecar")
-    emitted = []
-    monkeypatch.setattr(sidecar, "_write_response", emitted.append)
-    convert_mod = importlib.import_module("vera_app.convert")
-
-    def fake_handle(request, write_event=None, cancel=None):
-        if write_event:
-            write_event(
-                {
-                    "event": "conversion_progress",
-                    "phase": "preparing",
-                    "completed": 0,
-                    "total": 1,
-                    "input": "Docling models",
-                }
-            )
-        return {"ready": True, "downloaded": False, "artifacts_path": "/cache"}
-
-    monkeypatch.setattr(convert_mod, "handle_prepare_docling", fake_handle)
-    monkeypatch.setitem(sidecar.HANDLERS, "prepare_docling", fake_handle)
-
-    response = sidecar.handle({"id": "prepare", "action": "prepare_docling"})
-
-    assert response["ok"] is True
-    assert response["result"] == {
-        "ready": True,
-        "downloaded": False,
-        "artifacts_path": "/cache",
-    }
-    progress = [event for event in emitted if event.get("event") == "conversion_progress"]
-    assert progress[0]["phase"] == "preparing"
-
-
-def test_sidecar_prepare_docling_missing_runtime_fails(monkeypatch):
-    import sys
-
-    monkeypatch.setitem(sys.modules, "vera_ingest_docling.converter", None)
-    response = handle({"id": "prepare-missing", "action": "prepare_docling"})
-    assert response["ok"] is False
-    assert "Docling is not installed" in response["error"]
-
-
-def test_sidecar_prepare_docling_calls_ensure_and_emits_preparing(monkeypatch):
-    sidecar = importlib.import_module("vera_app.sidecar")
-    emitted = []
-    monkeypatch.setattr(sidecar, "_write_response", emitted.append)
-    monkeypatch.setattr(
-        "vera_ingest_docling.converter.ensure_docling_models",
-        lambda: {"ready": True, "downloaded": False, "artifacts_path": "/cache"},
-    )
-
-    response = sidecar.handle({"id": "prepare-real", "action": "prepare_docling"})
-
-    assert response["ok"] is True
-    assert response["result"] == {
-        "ready": True,
-        "downloaded": False,
-        "artifacts_path": "/cache",
-    }
-    progress = [event for event in emitted if event.get("event") == "conversion_progress"]
-    assert progress[0]["phase"] == "preparing"
-    assert progress[0]["input"] == "Docling models"
-
-
-def test_sidecar_prepare_docling_cancel_before_download(monkeypatch):
-    called = {"ensure": False}
-
-    def fail_ensure():
-        called["ensure"] = True
-        raise AssertionError("cancelled prepare must not download")
-
-    monkeypatch.setattr("vera_ingest_docling.converter.ensure_docling_models", fail_ensure)
-    cancel = CancellationToken()
-    cancel.cancel()
-    response = handle({"id": "prep-cancel", "action": "prepare_docling"}, cancel=cancel)
-    assert response["ok"] is False
-    assert response["cancelled"] is True
-    assert "cancelled" in response["error"].lower()
-    assert called["ensure"] is False
-
-
-def test_sidecar_prepare_docling_cancel_after_download(monkeypatch):
-    cancel = CancellationToken()
-
-    def fake_ensure():
-        cancel.cancel()
-        return {"ready": True, "downloaded": True, "artifacts_path": "/cache"}
-
-    monkeypatch.setattr("vera_ingest_docling.converter.ensure_docling_models", fake_ensure)
-    response = handle({"id": "prep-cancel-after", "action": "prepare_docling"}, cancel=cancel)
-    assert response["ok"] is False
-    assert response["cancelled"] is True
-    assert "cancelled" in response["error"].lower()
-
-
-def test_convert_emits_preparing_phase_for_docling(monkeypatch):
-    sidecar = importlib.import_module("vera_app.sidecar")
-    emitted = []
-    monkeypatch.setattr(sidecar, "_write_response", emitted.append)
-    convert_mod = importlib.import_module("vera_app.convert")
-    monkeypatch.setattr(convert_mod, "convert", lambda *args, **kwargs: "out.vera")
-    monkeypatch.setattr(convert_mod, "require_ready_embedder", lambda model: None)
-
-    response = sidecar.handle(
-        {
-            "id": "docling-prepare-phase",
-            "action": "convert",
-            "input": "scan.pdf",
-            "output": "scan.vera",
-            "parser": "docling:hybrid",
-        }
-    )
-
-    assert response["ok"] is True
-    progress = [event for event in emitted if event.get("event") == "conversion_progress"]
-    assert progress[0]["phase"] == "preparing"
-    assert progress[0]["completed"] == 0
-    assert progress[-1]["completed"] == 1
-    assert "phase" not in progress[-1]
-
-
 def test_convert_skips_preparing_phase_for_pymupdf(monkeypatch):
     sidecar = importlib.import_module("vera_app.sidecar")
     emitted = []
@@ -1004,34 +882,6 @@ def test_convert_skips_preparing_phase_for_pymupdf(monkeypatch):
     assert progress[0].get("phase") != "preparing"
     assert progress[0]["completed"] == 0
     assert progress[-1]["completed"] == 1
-
-
-def test_batch_convert_emits_preparing_phase_for_docling(monkeypatch):
-    sidecar = importlib.import_module("vera_app.sidecar")
-    emitted = []
-    monkeypatch.setattr(sidecar, "_write_response", emitted.append)
-    convert_mod = importlib.import_module("vera_app.convert")
-    monkeypatch.setattr(convert_mod, "require_ready_embedder", lambda model: None)
-    monkeypatch.setattr(
-        convert_mod,
-        "batch_convert",
-        lambda *args, **kwargs: {"converted": 0, "failed": 0},
-    )
-
-    response = sidecar.handle(
-        {
-            "id": "docling-batch-prepare",
-            "action": "batch_convert",
-            "directory": "scans",
-            "parser": "docling",
-        }
-    )
-
-    assert response["ok"] is True
-    progress = [event for event in emitted if event.get("event") == "conversion_progress"]
-    phases = [event.get("phase") for event in progress]
-    assert "discovering" in phases
-    assert "preparing" in phases
 
 
 def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):

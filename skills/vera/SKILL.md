@@ -147,8 +147,8 @@ commands write or replace local files and require normal user authorization:
   or a manual `TESSDATA_PREFIX` install.
   Extra ingest plugins are pip packages in the same environment
   (`python -m pip install` or `python -m pip install -e <clone>`). The
-  packaged desktop app already includes Docling as Advanced layout, with
-  Heron ONNX and TableFormer accurate vendored in Setup.exe.
+  0.3.0 packaged desktop app converts with PyMuPDF only; Docling is the
+  `vera-cli[docling]` extra, not Advanced layout in Convert.
 - `convert --overwrite` replaces existing batch outputs.
 - `index build` and `index update` write `.vera-index/` and delete previous
   generation directories after a successful publish.

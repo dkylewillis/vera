@@ -69,6 +69,9 @@ export interface VeraApi {
   listFolder(dir: string): Promise<WorkspaceFolderResult | null>;
   pathExists(targetPath: string): Promise<boolean>;
   showInFolder(targetPath: string): Promise<void>;
+  openConvertLog(): Promise<string>;
+  showConvertLogFolder(): Promise<void>;
+  getConvertLogPath(): Promise<string>;
   trashWorkspaceFile(filePath: string, folderPath: string): Promise<'trashed' | 'deleted' | 'cancelled'>;
   setWatchedFolders(paths: string[]): Promise<void>;
   pickPdf(): Promise<string[]>;

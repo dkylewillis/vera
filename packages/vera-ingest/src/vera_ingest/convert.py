@@ -28,6 +28,7 @@ from .pipeline import (
     parse_ingest_pipeline_spec,
     prepare_pipeline_options,
 )
+from .timing import timed_step
 from .types import IngestBlock, IngestRequest, IngestResult
 
 
@@ -256,24 +257,27 @@ def convert(
         embedder_options=embedder_options,
         cancel=cancel,
     )
-    _, pipeline_variant = parse_ingest_pipeline_spec(settings.parser)
-    pipeline = get_ingest_pipeline(settings.parser)
-    embedder = settings.resolve_embedder()
+    with timed_step("resolve_pipeline", parser=settings.parser):
+        _, pipeline_variant = parse_ingest_pipeline_spec(settings.parser)
+        pipeline = get_ingest_pipeline(settings.parser)
+    with timed_step("resolve_embedder", model=settings.model):
+        embedder = settings.resolve_embedder()
     resolved_options = settings.resolve_pipeline_options()
 
     raise_if_cancelled(settings.cancel)
     source_data = source.read_bytes()
     source_hash = _sha256_bytes(source_data)
     mime_type = mimetypes.guess_type(source.name)[0] or "application/pdf"
-    ingest_result = invoke_ingest_pipeline(
-        pipeline,
-        str(source),
-        IngestRequest(
-            variant=pipeline_variant,
-            cancel=settings.cancel,
-            pipeline_options=resolved_options,
-        ),
-    )
+    with timed_step("ingest", parser=settings.parser, file=source.name):
+        ingest_result = invoke_ingest_pipeline(
+            pipeline,
+            str(source),
+            IngestRequest(
+                variant=pipeline_variant,
+                cancel=settings.cancel,
+                pipeline_options=resolved_options,
+            ),
+        )
     raise_if_cancelled(settings.cancel)
     _validate_ingest_result(ingest_result)
     pages = ingest_result.pages
@@ -387,12 +391,13 @@ def convert(
             index for index, chunk in enumerate(chunks) if chunk.embedding_text is not None
         ]
         contextualized_vectors: dict[int, Any] = {}
-        if contextualized_indices:
-            vectors = embedder.embed(
-                [chunks[index].embedding_text or "" for index in contextualized_indices]
-            )
-            contextualized_vectors = dict(zip(contextualized_indices, vectors))
-            raise_if_cancelled(settings.cancel)
+        with timed_step("embed", model=settings.model, chunks=len(contextualized_indices)):
+            if contextualized_indices:
+                vectors = embedder.embed(
+                    [chunks[index].embedding_text or "" for index in contextualized_indices]
+                )
+                contextualized_vectors = dict(zip(contextualized_indices, vectors))
+                raise_if_cancelled(settings.cancel)
         records: list[ChunkRecord] = []
         for index, chunk in enumerate(chunks):
             regions = []
@@ -450,24 +455,25 @@ def convert(
                 )
             )
 
-        document = VeraDocument.create(
-            temporary,
-            embedding_function=embedder,
-            metadata=archive_metadata,
-        )
-        with document.transaction():
-            document.put_attachments(attachments)
-            document.add(records)
-        document.close()
-        document = None
-        raise_if_cancelled(settings.cancel)
+        with timed_step("write_archive", file=target.name, chunks=len(records)):
+            document = VeraDocument.create(
+                temporary,
+                embedding_function=embedder,
+                metadata=archive_metadata,
+            )
+            with document.transaction():
+                document.put_attachments(attachments)
+                document.add(records)
+            document.close()
+            document = None
+            raise_if_cancelled(settings.cancel)
 
-        validation = _validate_output(temporary)
-        if not validation["ok"]:
-            issues = "; ".join(validation["issues"])
-            raise ValueError(f"Converted VERA database failed validation: {issues}")
+            validation = _validate_output(temporary)
+            if not validation["ok"]:
+                issues = "; ".join(validation["issues"])
+                raise ValueError(f"Converted VERA database failed validation: {issues}")
 
-        os.replace(temporary, target)
+            os.replace(temporary, target)
     finally:
         if document is not None:
             document.close()
@@ -612,8 +618,10 @@ def batch_convert(
         cancel=cancel,
     )
     # Resolve once up front so bad providers fail before discovery or PDF work.
-    get_ingest_pipeline(settings.parser)
-    embedder = settings.resolve_embedder()
+    with timed_step("resolve_pipeline", parser=settings.parser):
+        get_ingest_pipeline(settings.parser)
+    with timed_step("resolve_embedder", model=settings.model):
+        embedder = settings.resolve_embedder()
     file_settings = replace(settings, embedding_function=embedder)
 
     root, pdfs = _resolve_batch_pdfs(

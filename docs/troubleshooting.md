@@ -272,8 +272,8 @@ default provider is `pymupdf` (from `vera-ingest-pymupdf`):
 vera convert "input.pdf" --parser pymupdf
 ```
 
-For Docling, install the official extra (CLI) or use Advanced layout in the
-desktop app (already bundled):
+For Docling, install the official extra and convert from the CLI. The 0.3.0
+desktop app does not list Advanced layout:
 
 ```bash
 pip install "vera-cli[docling]>=0.3.0"
@@ -304,15 +304,24 @@ If Hugging Face Hub downloads warn about unauthenticated requests or hit rate
 limits, set `HF_TOKEN` (see `.env.example`) or save a token under **File >
 Settings → Hugging Face** in the desktop app.
 
-If **Advanced layout** looks stuck in `npm run app:dev` with no sidecar
-lines, the prefetch is still running: Hugging Face Xet used to transfer
-170–210 MB files with a file-count bar that did not move, and tqdm `\r`
-updates overwrote the PowerShell line. Restart after this build to see
-`[vera-sidecar]` byte progress and a 15-second cache-size heartbeat. The
-Windows `app:dev` cache is `%APPDATA%\@vera\app\docling-artifacts`. When Heron ONNX
-(`model.onnx`) and TableFormer accurate (`tm_config.json`) are already there,
-Convert skips the Hub download and only loads those weights. Packaged Setup.exe
-already includes those snapshots.
+If a CLI Docling convert is slow or sits on model download, check stderr for
+timing lines such as
+`2026-08-19T20:44:01.123Z timing step=import_docling elapsed_ms=12450`.
+Set `DOCLING_ARTIFACTS_PATH` for a local layout-model cache. The desktop
+convert log (**File > Open convert log...**, Convert **Open log**, or
+**Settings → Diagnostics**) records PyMuPDF convert timing in
+`userData/logs/sidecar.log` for `app:dev` and packaged VERA. CLI `vera convert`
+prints the same timing on stderr without writing that desktop file. Each step
+also logs a
+start line (no `elapsed_ms`) so a long `resolve_pipeline` or MiniLM load is
+visible while it is still running.
+
+## Convert stays on Discovering PDFs
+
+Convert reports **Discovering PDFs** until MiniLM is resolved. The sidecar
+imports `sentence_transformers` on the main thread at `sidecar_start` so that
+import does not deadlock against `stdin.readline()` on Windows. Check
+`sidecar.log` for `import_sentence_transformers phase=sidecar_start`.
 
 ## Figures are missing or have no caption
 

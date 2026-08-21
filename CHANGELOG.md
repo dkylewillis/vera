@@ -28,8 +28,9 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   model-download notes, and `pdf_backend` recovery on page-level memory
   errors (per-page retry, whole-document `pypdfium2`, then page-batch
   `pypdfium2`). RapidOCR uses the ONNX weights shipped with `docling[rapidocr]`
-  even when `DOCLING_ARTIFACTS_PATH` only holds layout models. The desktop sidecar and `vera-cli[docling]` extra both expose it;
-  Convert labels it **Advanced layout (slower)**.
+  even when `DOCLING_ARTIFACTS_PATH` only holds layout models. Install it with
+  `vera-cli[docling]` or `uv sync --extra docling`. The 0.3.0 desktop app does
+  not list or freeze this pipeline (Convert is PyMuPDF-only).
 - Pluggable embedding providers through the `vera.embedders` entry-point
   group and `register_embedder()`. Model specs use `provider:model-id`
   (existing aliases still work).
@@ -42,21 +43,21 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   Options).
 - Desktop Convert view: persist the selected embedding model separately from
   Chat; show installed provider suggestions; hashing and MiniLM presets.
-- Packaged desktop app: one frozen sidecar with PyMuPDF, Docling (Torch,
-  RapidOCR, ONNX Runtime), hashing, and Sentence Transformers. MiniLM
-  (`all-MiniLM-L6-v2`) weights and Docling layout/table snapshots (Heron ONNX
-  + TableFormer accurate) ship in the installer, so Local semantic conversion
-  and Advanced layout do not download those files on first use. There is no
-  Settings → Python plugins page and no `vera_plugin_host`. `app:dev` still
-  downloads Docling model artifacts when you select Advanced layout
-  (`prepare_docling`) into an app-owned `DOCLING_ARTIFACTS_PATH` cache
-  (incomplete caches resume from Hugging Face instead of failing offline).
-  Convert shows model-preparation status and confirms before stopping an
-  in-progress download. Convert drives `EmbedderConfigForm` from descriptors,
-  persists `embedder_configs`, and gates conversion on `preflight_embedder`.
-  Search reports `skipped_semantic_model_groups` when a query embedder is
-  unavailable. Hosted embedding providers (OpenAI, Voyage, Ollama) follow in
-  0.3.1.
+- Packaged desktop app: one frozen sidecar with PyMuPDF, hashing, and
+  Sentence Transformers. MiniLM (`all-MiniLM-L6-v2`) weights ship in the
+  installer, so Local semantic conversion does not download those files on
+  first use. Docling is not part of the 0.3.0 installer or Convert view;
+  use `vera-cli[docling]` for that pipeline. There is no Settings → Python
+  plugins page and no `vera_plugin_host`. Convert drives `EmbedderConfigForm`
+  from descriptors, persists `embedder_configs`, and gates conversion on
+  `preflight_embedder`. Search reports `skipped_semantic_model_groups` when a
+  query embedder is unavailable. Hosted embedding providers (OpenAI, Voyage,
+  Ollama) follow in 0.3.1.
+- Desktop convert timing log: sidecar stderr (including `elapsed_ms` convert
+  steps) is teed to `userData/logs/sidecar.log` in both `app:dev`
+  and packaged VERA. **File > Open convert log...**, Convert **Open log**, and
+  **Settings → Diagnostics** open it. CLI `vera convert` still prints the same
+  timing on stderr only.
 
 - Typed `Citation` on search hits (`result.citation`) plus configurable hybrid
   `semantic_weight` / `keyword_weight` on `VeraDocument.search()`.
@@ -110,12 +111,22 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 - `vera mcp` prints an install hint and exits 2 when the optional `mcp`
   extra is not installed, instead of raising `ImportError`.
+- Desktop Convert no longer hangs on the first MiniLM load. The sidecar
+  imports Torch on the main thread before it reads stdin. On Windows,
+  importing `sentence_transformers` from a convert worker while
+  `stdin.readline()` is blocked deadlocks until Stop writes a JSON line.
 - PyMuPDF conversion imports `pymupdf` directly, so `vera convert` no longer
   prints a deprecated `fitz` API warning on every run.
-- Docling Advanced layout prefetches only Heron ONNX and TableFormer
+- Docling CLI conversion prefetches only Heron ONNX and TableFormer
   accurate (~380 MB) instead of both Heron engines plus TableFormer fast
-  (~700 MB), and convert uses the ONNX layout engine. Sidecar Hub progress
-  still prints as `[vera-sidecar]` lines with a cache-size heartbeat.
+  (~700 MB), and convert uses the ONNX layout engine.
+- Docling `docling_parse/pdf_resources` (fonts/cmaps) must sit next to the
+  native parser. Without that tree, convert logged
+  `resources-dir does not exist` and rejected the PDF in ~20 ms. Whole-document
+  `pypdfium2` fallback now also covers a `FAILURE` status from that backend.
+- Docling page-level and page-batch `pypdfium2` recovery no longer fails with
+  `multiple values for keyword argument 'page_range'` when retrying a failed
+  page.
 
 ### Desktop
 
@@ -140,8 +151,8 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   on Windows and `npm` elsewhere before handing off to `uv run`, since `uv`
   does not resolve Windows shims on its own
   ([astral-sh/uv#8770](https://github.com/astral-sh/uv/issues/8770)). It
-  installs the `app`, `ml`, and `docling` extras so source-run Convert
-  matches the packaged sidecar (PyMuPDF + Docling + hashing + MiniLM).
+  installs the `app` and `ml` extras so source-run Convert matches the
+  packaged sidecar (PyMuPDF + hashing + MiniLM). Docling remains a CLI extra.
 - Fixed a blank-window crash on every launch: the sandboxed preload script's
   restricted `require` cannot load `protocol.ts`'s compiled ES module output
   (or a sibling JSON/CommonJS file by relative path), so `IPC_CHANNELS` threw

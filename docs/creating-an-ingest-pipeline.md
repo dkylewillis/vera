@@ -414,15 +414,16 @@ embedding plugins are pip packages in **the same environment**.
 
 1. Install `vera-doc` and `vera-ingest` 0.3.x plus your plugin
    (`python -m pip install …` or `python -m pip install -e <clone>`). From a
-   checkout, `uv sync --extra app --extra docling` already includes official
-   converters.
+   checkout, `uv sync --extra app --extra ml` covers the 0.3.0 desktop
+   sidecar. Add `--extra docling` only for CLI Docling tests.
 2. Install every import the sidecar will need in that interpreter. Sentence
    Transformers (`sentence-transformers`) is the `ml` extra for CLI and
    source-run (`uv sync --extra ml`). The packaged desktop app already
-   freezes it and vendors MiniLM weights plus Docling layout/table snapshots;
+   freezes it and vendors MiniLM weights;
    hashing needs no extra install.
 3. Restart the desktop app so Convert reloads `describe_ingest_pipelines`.
-   Bundled `pymupdf` and `docling` win on duplicate names. Raw `PYTHONPATH`
+   Bundled `pymupdf` wins on duplicate names. The 0.3.0 sidecar does not list
+   `docling`. Raw `PYTHONPATH`
    folders are not discovered.
 
 See [Plugins in the same environment](desktop-app-getting-started.md#plugins-in-the-same-environment).

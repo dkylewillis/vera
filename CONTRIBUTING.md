@@ -8,8 +8,10 @@ guide. Agents working in this repository should also read [AGENTS.md](AGENTS.md)
 Python 3.10+, dependencies managed with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv sync --extra dev --extra ml --extra app --extra mcp --extra docling
+uv sync --extra dev --extra ml --extra app --extra mcp
 ```
+
+Add `--extra docling` when you need the optional CLI Docling pipeline and its tests.
 
 The desktop app also needs Node.js 22+:
 
@@ -38,18 +40,13 @@ Windows packaged-sidecar release gate (optional locally; CI runs it on `v*`
 tags):
 
 ```bash
-uv sync --extra app --extra sidecar --extra docling --extra ml
+uv sync --extra app --extra sidecar --extra ml
 npm --prefix packages/vera-app run build:sidecar
 node packages/vera-app/scripts/verify-packaged-sidecar.cjs
 ```
 
-`build:sidecar` vendors MiniLM and Docling layout/table snapshots from Hugging
-Face into gitignored `packages/vera-app/build/` (about 380 MB extra on the
-first run; later builds reuse the snapshot). If
-`%APPDATA%\@vera\app\docling-artifacts` or `%APPDATA%\VERA\docling-artifacts`
-already has a complete Heron ONNX + TableFormer accurate cache, the sidecar
-build copies it instead of downloading again. Override the source with
-`VERA_DOCLING_VENDOR_CACHE`.
+`build:sidecar` vendors MiniLM from Hugging
+Face into gitignored `packages/vera-app/build/` (later builds reuse the snapshot).
 
 ## Formatting and blame
 

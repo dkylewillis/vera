@@ -4656,7 +4656,6 @@ dependencies = [
     { name = "sentence-transformers" },
     { name = "vera-doc" },
     { name = "vera-ingest" },
-    { name = "vera-ingest-docling" },
     { name = "vera-ingest-pymupdf" },
 ]
 
@@ -4665,7 +4664,6 @@ requires-dist = [
     { name = "sentence-transformers", specifier = ">=2.7" },
     { name = "vera-doc", editable = "packages/vera-doc" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
-    { name = "vera-ingest-docling", editable = "packages/vera-ingest-docling" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
 ]
 

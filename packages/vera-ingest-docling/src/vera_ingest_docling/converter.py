@@ -10,6 +10,8 @@ import traceback
 from pathlib import Path
 from typing import Any
 
+from vera_ingest.timing import timed_step
+
 from .options import DoclingOptions
 
 _PDF_BACKEND_DOCLING_PARSE = "docling_parse"
@@ -150,7 +152,8 @@ def _docling_models_ready(artifacts: Path) -> bool:
 def _ensure_stderr_logger(name: str) -> None:
     logger = logging.getLogger(name)
     if any(
-        isinstance(handler, logging.StreamHandler) and getattr(handler, "stream", None) is sys.stderr
+        isinstance(handler, logging.StreamHandler)
+        and getattr(handler, "stream", None) is sys.stderr
         for handler in logger.handlers
     ):
         return
@@ -247,7 +250,11 @@ def _download_docling_models(artifacts: Path) -> None:
     finally:
         stop.set()
         heartbeat.join(timeout=1.0)
-    print("Docling model download finished; checking the artifacts cache…", file=sys.stderr, flush=True)
+    print(
+        "Docling model download finished; checking the artifacts cache…",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def _configure_docling_artifacts() -> None:
@@ -300,6 +307,13 @@ def ensure_docling_models() -> dict[str, Any]:
     cannot download the same snapshot twice. Incomplete caches stay online
     (Hub resume) instead of being treated as a ready offline tree.
     """
+    with timed_step("ensure_docling_models") as extras:
+        result = _ensure_docling_models()
+        extras.update(result)
+        return result
+
+
+def _ensure_docling_models() -> dict[str, Any]:
     _configure_docling_artifacts()
     raw = (os.environ.get("DOCLING_ARTIFACTS_PATH") or "").strip()
     if not raw:
@@ -353,13 +367,14 @@ def _configure_fast_pipeline_options(pipeline_options: Any) -> None:
 
 
 def _build_converter(options: DoclingOptions, *, backend: str | None = None) -> Any:
-    from docling.datamodel.base_models import InputFormat
-    from docling.datamodel.pipeline_options import PdfPipelineOptions, RapidOcrOptions
-    from docling.document_converter import DocumentConverter, PdfFormatOption
+    with timed_step("import_docling"):
+        from docling.datamodel.base_models import InputFormat
+        from docling.datamodel.pipeline_options import PdfPipelineOptions, RapidOcrOptions
+        from docling.document_converter import DocumentConverter, PdfFormatOption
 
-    ocr_mode = options.ocr_mode
-    # Must run before PdfPipelineOptions() so default_factory compile flags are False.
-    _disable_torch_compile()
+        # Must run before PdfPipelineOptions() so default_factory compile flags are False.
+        _disable_torch_compile()
+
     ensure_docling_models()
     print(
         "Initializing Docling converter (ONNX layout + TableFormer; first load can take a minute)...",
@@ -367,38 +382,40 @@ def _build_converter(options: DoclingOptions, *, backend: str | None = None) -> 
         flush=True,
     )
 
-    pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_table_structure = True
-    pipeline_options.generate_picture_images = True
-    # Keep Docling's default raster scale. Mapping VERA's Tesseract OCR DPI
-    # (default 300) to images_scale (~4.17x) OOMs large manuals.
-    pipeline_options.images_scale = 1.0
-    _configure_fast_pipeline_options(pipeline_options)
+    with timed_step("document_converter_init"):
+        ocr_mode = options.ocr_mode
+        pipeline_options = PdfPipelineOptions()
+        pipeline_options.do_table_structure = True
+        pipeline_options.generate_picture_images = True
+        # Keep Docling's default raster scale. Mapping VERA's Tesseract OCR DPI
+        # (default 300) to images_scale (~4.17x) OOMs large manuals.
+        pipeline_options.images_scale = 1.0
+        _configure_fast_pipeline_options(pipeline_options)
 
-    if ocr_mode == "off":
-        pipeline_options.do_ocr = False
-    else:
-        pipeline_options.do_ocr = True
-        ocr_kwargs: dict[str, Any] = {
-            "force_full_page_ocr": ocr_mode == "force",
-            "lang": _split_ocr_languages(options.ocr_language),
-        }
-        ocr_kwargs.update(_rapidocr_model_paths())
-        pipeline_options.ocr_options = RapidOcrOptions(**ocr_kwargs)
+        if ocr_mode == "off":
+            pipeline_options.do_ocr = False
+        else:
+            pipeline_options.do_ocr = True
+            ocr_kwargs: dict[str, Any] = {
+                "force_full_page_ocr": ocr_mode == "force",
+                "lang": _split_ocr_languages(options.ocr_language),
+            }
+            ocr_kwargs.update(_rapidocr_model_paths())
+            pipeline_options.ocr_options = RapidOcrOptions(**ocr_kwargs)
 
-    selected = (backend or options.pdf_backend or _PDF_BACKEND_DOCLING_PARSE).strip().lower()
-    format_kwargs: dict[str, Any] = {"pipeline_options": pipeline_options}
-    if selected == _PDF_BACKEND_PYPDFIUM2:
-        from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+        selected = (backend or options.pdf_backend or _PDF_BACKEND_DOCLING_PARSE).strip().lower()
+        format_kwargs: dict[str, Any] = {"pipeline_options": pipeline_options}
+        if selected == _PDF_BACKEND_PYPDFIUM2:
+            from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 
-        format_kwargs["backend"] = PyPdfiumDocumentBackend
+            format_kwargs["backend"] = PyPdfiumDocumentBackend
 
-    return DocumentConverter(
-        allowed_formats=[InputFormat.PDF],
-        format_options={
-            InputFormat.PDF: PdfFormatOption(**format_kwargs),
-        },
-    )
+        return DocumentConverter(
+            allowed_formats=[InputFormat.PDF],
+            format_options={
+                InputFormat.PDF: PdfFormatOption(**format_kwargs),
+            },
+        )
 
 
 def _is_cancellation(exc: BaseException) -> bool:
@@ -421,6 +438,25 @@ def _log_convert_failure(
     traceback.print_exception(type(exc), exc, exc.__traceback__, file=sys.stderr)
 
 
+def _run_converter_convert(
+    built: Any,
+    *,
+    backend: str,
+    page_range: tuple[int, int] | None = None,
+    **kwargs: Any,
+) -> Any:
+    # Accept page_range as a named argument or in kwargs, but never both.
+    # Passing it twice raises TypeError and aborts Docling page recovery.
+    if page_range is None:
+        page_range = kwargs.pop("page_range", None)
+    else:
+        kwargs.pop("page_range", None)
+        kwargs["page_range"] = page_range
+    pages = f"{page_range[0]}-{page_range[1]}" if page_range is not None else "all"
+    with timed_step("converter.convert", backend=backend, pages=pages):
+        return built.convert(**kwargs)
+
+
 def _try_convert(
     source_path: str,
     config: DoclingOptions,
@@ -438,10 +474,8 @@ def _try_convert(
     """
     built = converter or _build_converter(config, backend=backend)
     kwargs: dict[str, Any] = {"source": source_path, "raises_on_error": False}
-    if page_range is not None:
-        kwargs["page_range"] = page_range
     try:
-        return built.convert(**kwargs), None
+        return _run_converter_convert(built, backend=backend, page_range=page_range, **kwargs), None
     except Exception as exc:  # noqa: BLE001 - catch native/process crashes from Docling
         if _is_cancellation(exc):
             raise

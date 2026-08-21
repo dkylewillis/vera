@@ -54,30 +54,32 @@ Open a PDF from the app's Convert view to create a `.vera` archive, or use the
 native File menu to open an existing archive or document library.
 Desktop conversions default to the PyMuPDF ingest pipeline and the
 offline `hashing` embedder. The Convert view exposes dropdowns for
-`ingest_pipeline` (PyMuPDF plus **Advanced layout (slower)** / Docling) and
+`ingest_pipeline` (PyMuPDF in 0.3.0) and
 embedding model presets such as `sentence-transformers:all-MiniLM-L6-v2`, plus
 a custom `provider:model-id` field. Chunking and OCR controls are schema-driven:
 the sidecar `describe_ingest_pipelines` action supplies descriptors, and
 `PipelineConfigForm` renders only advertised fields under a collapsed
 **Advanced pipeline options** section (PyMuPDF includes overlap, OCR DPI, and
 a Tesseract OCR language dropdown of bundled/downloadable codes plus Custom
-for combinations such as `eng+spa`; Docling does not advertise overlap or
-DPI). These settings are independent of the Chat
-model and are persisted in app settings. `npm run app:dev` installs the `app`,
-`ml`, and `docling` extras into the workspace environment. The source-run
-sidecar matches packaged releases: one Python process with PyMuPDF, Docling,
+for combinations such as `eng+spa`). These settings are independent of the Chat
+model and are persisted in app settings. `npm run app:dev` installs the `app`
+and `ml` extras into the workspace environment. The source-run
+sidecar matches packaged releases: one Python process with PyMuPDF,
 hashing, and Sentence Transformers MiniLM. Plugins are ordinary pip packages in **the same environment**
 (`vera.ingest_pipelines` / `vera.embedders`); CLI users can
 `pip install "vera-cli[docling]>=0.3.0"` or `pip install -e <clone>` after
 `vera-ingest` 0.3.x. An unavailable selection is disabled or fails with the
-resolver error. Packaged Advanced layout uses snapshots already inside
-Setup.exe. `npm run app:dev` may download Hugging Face layout models (about
-380 MB) into the app-owned cache under Electron `userData`
-(`DOCLING_ARTIFACTS_PATH`); save an optional token under **File > Settings → Hugging Face**
-(or set `HF_TOKEN` in the environment / a local `.env` from `.env.example`) to
-raise Hub rate limits. Conversion progress and the current filename appear in
+resolver error. Save an optional token under **File > Settings → Hugging Face**
+(or set `HF_TOKEN` in the environment / a local `.env` from `.env.example`) for
+Hub access used by extras. Conversion progress and the current filename appear in
 the footer status bar, so progress remains visible when you switch away from
-the Convert view. Right-click a folder in Explorer and choose **Convert PDFs…**
+the Convert view. **File > Open convert log...**, Convert **Open log**, and
+**Settings → Diagnostics** open the same append-only file
+(`userData/logs/sidecar.log`: `%APPDATA%\VERA\logs\sidecar.log` when packaged,
+`%APPDATA%\@vera\app\logs\sidecar.log` in `app:dev`). Timed convert
+steps (`elapsed_ms`) go there so freeze vs `.venv` times can be
+compared; CLI `vera convert` still prints those lines on stderr only.
+Right-click a folder in Explorer and choose **Convert PDFs…**
 to open directory conversion for that folder. To rebuild an existing archive with a different ingest
 pipeline or embedding model, right-click the `.vera` file in Explorer and
 choose **Reconvert…**; Convert opens immediately with a preparing status while
@@ -219,49 +221,43 @@ npm run app:release
 This rebuilds the app and Python sidecar and writes `VERA Setup <version>.exe`
 into `%LOCALAPPDATA%\Vera\desktop-release` (and clears any leftover
 `packages/vera-app/release` directory).
-Sidecar freeze vendors MiniLM plus Docling Heron ONNX and TableFormer accurate
-from Hugging Face into gitignored `packages/vera-app/build/` (about 380 MB
-extra on the first run; later builds reuse that snapshot). A complete
-`app:dev` cache under `%APPDATA%\@vera\app\docling-artifacts` is copied instead
-of downloaded again.
+Sidecar freeze vendors MiniLM from Hugging Face into gitignored
+`packages/vera-app/build/` (later builds reuse that snapshot).
 
 ## Plugins in the same environment
 
 Source-run (`npm run app:dev`) and packaged builds use **one interpreter**.
-Search, Ask, indexing, PyMuPDF conversion, and Docling conversion all run in
+Search, Ask, indexing, and PyMuPDF conversion all run in
 the sidecar. Extra converters are pip packages in that environment, not a
-second interpreter.
+second interpreter. The 0.3.0 sidecar does not run Docling conversion.
 
-The packaged Windows installer freezes PyMuPDF, Docling (Torch, RapidOCR, ONNX
-Runtime), hashing, and Sentence Transformers into `vera-sidecar.exe`. MiniLM
-(`all-MiniLM-L6-v2`) weights and Docling layout/table snapshots (Heron ONNX +
-TableFormer accurate, about 380 MB) ship inside Setup.exe, so **Local semantic
-(MiniLM)** and **Advanced layout (slower)** do not download those files on
-first use. RapidOCR ONNX weights are part of that freeze (and of
-`docling[rapidocr]` for `app:dev`). `npm run app:dev` still prefetches layout
-and table models from Hugging Face into the app-owned cache
-(`DOCLING_ARTIFACTS_PATH` / `HF_HOME` under Electron `userData`) when you
-select Advanced layout. First `app:dev` download can take several minutes —
-leave it running. Stop asks for confirmation during that download; Hugging
-Face may keep going until the step finishes, and the next run resumes.
-Packaged Advanced layout points `DOCLING_ARTIFACTS_PATH` at the freeze and
-keeps a writable `HF_HOME` under `userData`. Hosted embedding providers
+The packaged Windows installer freezes PyMuPDF, hashing, and Sentence
+Transformers into `vera-sidecar.exe`. MiniLM
+(`all-MiniLM-L6-v2`) weights ship inside Setup.exe, so **Local semantic
+(MiniLM)** does not download those files on
+first use. Docling / **Advanced layout (slower)** is not part of the 0.3.0
+desktop app; install `vera-cli[docling]` and convert from the CLI. Hosted
+embedding providers
 (OpenAI, Voyage, Ollama) are a 0.3.1 follow-up.
 
-CLI and `app:dev` users install the same packages into the VERA environment:
+CLI users who want Docling install it into the VERA environment:
 
 ```bash
 pip install "vera-cli[docling]>=0.3.0"
 # or from a checkout:
-uv sync --extra app --extra ml --extra docling
-python -m pip install -e packages/vera-ingest-docling
+uv sync --extra docling
 ```
+
+CLI Docling may download layout models into `DOCLING_ARTIFACTS_PATH`. That
+pipeline is not listed in the 0.3.0 desktop Convert view.
 
 Ingest plugins register under `vera.ingest_pipelines`; embedders register
 under `vera.embedders`. Desktop Convert calls `preflight_embedder` before writing an
 archive. Sentence Transformers is frozen into the Windows sidecar with
-vendored MiniLM weights, and Docling layout/table snapshots are frozen the
-same way. Source-run `app:dev` installs MiniLM via `--extra ml`. A
+vendored MiniLM weights. Source-run `app:dev` installs MiniLM via `--extra ml`
+and, when present, loads `packages/vera-app/build/minilm`. The sidecar imports
+Torch at startup on the main thread so the first Convert does not deadlock
+on Windows. A
 missing `sentence_transformers` module in a checkout means that extra is not
 installed — run `uv sync --extra ml` and restart the app. See
 [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md) and
@@ -296,19 +292,9 @@ Convert and embed always run in-process in the sidecar; see
 
   Set `VERA_SIDECAR_PYTHON` or `VERA_APP_PYTHON` to use a different interpreter, or exclude the
   repository and `%TEMP%` from real-time scanning, then retry.
-- **Docling is missing from Convert in `app:dev`** — sync the workspace with
-  the `docling` extra (`uv sync --extra app --extra docling`) and restart the
-  app. Packaged builds already include Advanced layout.
-- **First Docling conversion is slow or downloads models** — expected in
-  `npm run app:dev`. Layout and table artifacts are about 380 MB (Heron ONNX +
-  TableFormer accurate) and land in the app cache under `userData`
-  (`%APPDATA%\@vera\app\docling-artifacts` on Windows). Reuse that cache
-  afterward. Watch for `[vera-sidecar]` Hub tqdm lines and a periodic
-  “still running (N MB in cache)” heartbeat. The packaged installer already
-  ships those snapshots, so Setup.exe Advanced layout should not download
-  them. Save `HF_TOKEN` under **File > Settings → Hugging Face** if Hub rate
-  limits appear during `app:dev`.
-- **An extra parser or embedder is missing from Convert** — install it into
+- **An extra parser or embedder is missing from Convert** — the 0.3.0 desktop
+  sidecar ships PyMuPDF only. Docling is a CLI extra (`vera-cli[docling]`),
+  not a Convert dropdown. For other plugins, install into
   the same environment the sidecar uses (`python -m pip install` or
   `python -m pip install -e <clone>`), then restart the app. Raw `PYTHONPATH`
   folders are not discovered. If Search warns that semantic groups were
