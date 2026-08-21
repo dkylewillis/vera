@@ -152,7 +152,8 @@ def _docling_models_ready(artifacts: Path) -> bool:
 def _ensure_stderr_logger(name: str) -> None:
     logger = logging.getLogger(name)
     if any(
-        isinstance(handler, logging.StreamHandler) and getattr(handler, "stream", None) is sys.stderr
+        isinstance(handler, logging.StreamHandler)
+        and getattr(handler, "stream", None) is sys.stderr
         for handler in logger.handlers
     ):
         return
@@ -249,7 +250,11 @@ def _download_docling_models(artifacts: Path) -> None:
     finally:
         stop.set()
         heartbeat.join(timeout=1.0)
-    print("Docling model download finished; checking the artifacts cache…", file=sys.stderr, flush=True)
+    print(
+        "Docling model download finished; checking the artifacts cache…",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def _configure_docling_artifacts() -> None:
@@ -440,6 +445,13 @@ def _run_converter_convert(
     page_range: tuple[int, int] | None = None,
     **kwargs: Any,
 ) -> Any:
+    # Accept page_range as a named argument or in kwargs, but never both.
+    # Passing it twice raises TypeError and aborts Docling page recovery.
+    if page_range is None:
+        page_range = kwargs.pop("page_range", None)
+    else:
+        kwargs.pop("page_range", None)
+        kwargs["page_range"] = page_range
     pages = f"{page_range[0]}-{page_range[1]}" if page_range is not None else "all"
     with timed_step("converter.convert", backend=backend, pages=pages):
         return built.convert(**kwargs)
@@ -462,8 +474,6 @@ def _try_convert(
     """
     built = converter or _build_converter(config, backend=backend)
     kwargs: dict[str, Any] = {"source": source_path, "raises_on_error": False}
-    if page_range is not None:
-        kwargs["page_range"] = page_range
     try:
         return _run_converter_convert(built, backend=backend, page_range=page_range, **kwargs), None
     except Exception as exc:  # noqa: BLE001 - catch native/process crashes from Docling

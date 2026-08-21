@@ -124,6 +124,9 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   native parser. Without that tree, convert logged
   `resources-dir does not exist` and rejected the PDF in ~20 ms. Whole-document
   `pypdfium2` fallback now also covers a `FAILURE` status from that backend.
+- Docling page-level and page-batch `pypdfium2` recovery no longer fails with
+  `multiple values for keyword argument 'page_range'` when retrying a failed
+  page.
 
 ### Desktop
 
@@ -148,8 +151,8 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   on Windows and `npm` elsewhere before handing off to `uv run`, since `uv`
   does not resolve Windows shims on its own
   ([astral-sh/uv#8770](https://github.com/astral-sh/uv/issues/8770)). It
-  installs the `app`, `ml`, and `docling` extras so source-run Convert
-  matches the packaged sidecar (PyMuPDF + Docling + hashing + MiniLM).
+  installs the `app` and `ml` extras so source-run Convert matches the
+  packaged sidecar (PyMuPDF + hashing + MiniLM). Docling remains a CLI extra.
 - Fixed a blank-window crash on every launch: the sandboxed preload script's
   restricted `require` cannot load `protocol.ts`'s compiled ES module output
   (or a sibling JSON/CommonJS file by relative path), so `IPC_CHANNELS` threw
