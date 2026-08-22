@@ -24,7 +24,8 @@ Documentation = "https://dkylewillis.github.io/vera/packages/vera-doc/"
 Specification = "https://github.com/dkylewillis/vera/blob/main/docs/vera-spec-v0.2.md"
 
 [project.optional-dependencies]
-ml = ["sentence-transformers>=2.7"]
+ml = ["sentence-transformers>=2.7", "onnx>=1.16"]
+onnx = ["onnxruntime>=1.17", "tokenizers>=0.15"]
 
 [build-system]
 requires = ["hatchling"]

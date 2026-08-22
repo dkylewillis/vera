@@ -23,7 +23,8 @@ dev = [
   "mypy>=1.13",
   "pre-commit>=4",
 ]
-ml = ["sentence-transformers>=2.7"]
+ml = ["sentence-transformers>=2.7", "onnx>=1.16"]
+onnx = ["vera-doc[onnx]"]
 app = ["vera-app"]
 mcp = ["vera-mcp"]
 docling = ["vera-ingest-docling"]

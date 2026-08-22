@@ -5,10 +5,9 @@ description = "Python sidecar for the VERA desktop app"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-doc>=0.3.0",
+  "vera-doc[onnx]>=0.3.0",
   "vera-ingest>=0.3.0",
   "vera-ingest-pymupdf>=0.3.0",
-  "sentence-transformers>=2.7",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
