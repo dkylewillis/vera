@@ -29,6 +29,8 @@ jobs:
         run: uv sync --extra app --extra sidecar --extra onnx
 
       - name: Export MiniLM ONNX graph
+        env:
+          UV_PROJECT_ENVIRONMENT: ${{ runner.temp }}/minilm-export-venv
         run: uv run --extra ml python packages/vera-app/scripts/export_minilm_onnx.py --dest packages/vera-app/build/minilm-export/all-MiniLM-L6-v2
 
       - name: Install app dependencies

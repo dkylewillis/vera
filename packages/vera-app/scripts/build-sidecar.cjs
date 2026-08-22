@@ -12,6 +12,15 @@ const hooksDir = path.join(appDir, "scripts", "hooks");
 const workpath = path.join(appDir, "build", "pyinstaller");
 const REQUIRED_MINILM_FILES = ["config.json", "model.onnx", "tokenizer.json"];
 const FORBIDDEN_MINILM_FILES = ["model.safetensors", "pytorch_model.bin"];
+// Packaged MiniLM is ONNX Runtime. The freeze venv may still have the ml extra
+// (export uses Sentence Transformers), so PyInstaller must not collect Torch.
+const EXCLUDED_MODULES = [
+  "torch",
+  "torchvision",
+  "torchaudio",
+  "sentence_transformers",
+  "transformers",
+];
 
 const pyinstallerArgs = [
   "-m",
@@ -43,6 +52,7 @@ const pyinstallerArgs = [
   "onnxruntime",
   "--collect-all",
   "tokenizers",
+  ...EXCLUDED_MODULES.flatMap((name) => ["--exclude-module", name]),
   "--name",
   "vera-sidecar",
   "--distpath",
@@ -182,7 +192,7 @@ function vendorWithPython(pythonBin, script, dest, label) {
 function vendorWithUv(script, dest, label) {
   runVendor(
     "uv",
-    ["run", "--project", repoRoot, "--extra", "ml", "python", script, "--dest", dest],
+    ["run", "--project", repoRoot, "--extra", "onnx", "python", script, "--dest", dest],
     dest,
     label,
   );

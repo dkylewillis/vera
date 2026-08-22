@@ -222,7 +222,8 @@ This rebuilds the app and Python sidecar and writes `VERA Setup <version>.exe`
 into `%LOCALAPPDATA%\Vera\desktop-release` (and clears any leftover
 `packages/vera-app/release` directory).
 Sidecar freeze vendors a VERA-exported MiniLM ONNX graph into gitignored
-`packages/vera-app/build/` (later builds reuse that snapshot).
+`packages/vera-app/build/` (later builds reuse that snapshot). Torch and
+Sentence Transformers are excluded from the freeze.
 
 ## Plugins in the same environment
 
