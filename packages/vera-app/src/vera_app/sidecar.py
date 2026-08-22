@@ -33,7 +33,7 @@ from vera_app.search import search_report as _search_report
 from vera_app.source import export as _export
 from vera_app.source import source as _source
 from vera_app.types import Handler, Request, Response
-from vera_ingest.timing import log_event, timed_step
+from vera_ingest.timing import log_event
 
 HANDLERS: dict[str, Handler] = {
     "ping": lambda request: {"status": "ok"},
@@ -199,33 +199,10 @@ def _run_background_request(request: Request) -> None:
     _write_response(handle(request))
 
 
-def _skip_torch_warmup() -> bool:
-    value = os.environ.get("VERA_SIDECAR_SKIP_TORCH_WARMUP", "").strip().lower()
-    return value in {"1", "true", "yes", "on"}
-
-
-def _warmup_sentence_transformers() -> None:
-    """Import Torch on the main thread before the stdin loop.
-
-    Convert runs on a worker. On Windows, the first
-    ``import sentence_transformers`` from that worker deadlocks while this
-    process is blocked in ``stdin.readline()``.
-    """
-    if _skip_torch_warmup():
-        return
-    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    try:
-        with timed_step("import_sentence_transformers", phase="sidecar_start"):
-            import torch  # noqa: F401
-            from sentence_transformers import SentenceTransformer  # noqa: F401
-    except ImportError:
-        log_event("import_sentence_transformers", phase="sidecar_start", error="ImportError")
-
-
 def main() -> int:
     """Read JSON-RPC requests from stdin and write responses to stdout."""
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     log_event("sidecar_start")
-    _warmup_sentence_transformers()
     for line in sys.stdin:
         line = line.strip()
         if not line:

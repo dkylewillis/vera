@@ -190,22 +190,26 @@ function packagedSidecarExecutable(): string {
   return join(dir, fallback);
 }
 
-function sentenceTransformersHome(): string | undefined {
+function minilmHome(): string | undefined {
+  const onnxEnv = process.env.VERA_ONNX_MINILM_HOME?.trim();
+  if (onnxEnv && existsSync(onnxEnv)) return onnxEnv;
   const fromEnv = process.env.VERA_SENTENCE_TRANSFORMERS_HOME?.trim();
   if (fromEnv && existsSync(fromEnv)) return fromEnv;
   if (!app.isPackaged) {
     const devVendor = join(process.cwd(), 'build', 'minilm');
-    if (existsSync(join(devVendor, 'all-MiniLM-L6-v2', 'model.safetensors'))) {
+    if (existsSync(join(devVendor, 'all-MiniLM-L6-v2', 'model.onnx'))) {
       return devVendor;
     }
-    return fromEnv || undefined;
+    return onnxEnv || fromEnv || undefined;
   }
   const sidecarDir = dirname(packagedSidecarExecutable());
   const candidates = [
     join(sidecarDir, 'sentence_transformers_models'),
     join(sidecarDir, '_internal', 'sentence_transformers_models'),
   ];
-  return candidates.find((candidate) => existsSync(candidate));
+  return candidates.find((candidate) =>
+    existsSync(join(candidate, 'all-MiniLM-L6-v2', 'model.onnx')),
+  );
 }
 
 function userDataHfHome(): string {
@@ -333,8 +337,11 @@ class PythonSidecar {
     applyEmbedderSecretEnv(env);
     applyHfHomeEnv(env);
     env.PYTHONUNBUFFERED = (env.PYTHONUNBUFFERED || '').trim() || '1';
-    const minilmHome = sentenceTransformersHome();
-    if (minilmHome) env.VERA_SENTENCE_TRANSFORMERS_HOME = minilmHome;
+    const bundledMinilm = minilmHome();
+    if (bundledMinilm) {
+      env.VERA_ONNX_MINILM_HOME = bundledMinilm;
+      env.VERA_SENTENCE_TRANSFORMERS_HOME = bundledMinilm;
+    }
     const executable = app.isPackaged ? packagedSidecarExecutable() : resolveDevPython();
     const args = app.isPackaged ? [] : ['-m', 'vera_app.sidecar'];
     if (!app.isPackaged) {

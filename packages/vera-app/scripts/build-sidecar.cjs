@@ -10,7 +10,8 @@ const vendorMinilm = path.join(appDir, "scripts", "vendor_minilm.py");
 const entry = path.join("src", "vera_app", "sidecar.py");
 const hooksDir = path.join(appDir, "scripts", "hooks");
 const workpath = path.join(appDir, "build", "pyinstaller");
-const REQUIRED_MINILM_FILES = ["config.json", "modules.json", "model.safetensors", "tokenizer.json"];
+const REQUIRED_MINILM_FILES = ["config.json", "model.onnx", "tokenizer.json"];
+const FORBIDDEN_MINILM_FILES = ["model.safetensors", "pytorch_model.bin"];
 
 const pyinstallerArgs = [
   "-m",
@@ -31,15 +32,17 @@ const pyinstallerArgs = [
   "--copy-metadata",
   "vera-ingest",
   "--copy-metadata",
-  "sentence-transformers",
+  "onnxruntime",
   "--hidden-import",
   "vera_ingest_pymupdf",
   "--hidden-import",
-  "sentence_transformers",
+  "onnxruntime",
+  "--hidden-import",
+  "tokenizers",
   "--collect-all",
-  "torch",
+  "onnxruntime",
   "--collect-all",
-  "sentence_transformers",
+  "tokenizers",
   "--name",
   "vera-sidecar",
   "--distpath",
@@ -65,8 +68,8 @@ const env = {
 
 const CRITICAL_MISSING_PREFIXES = [
   "vera_ingest_pymupdf",
-  "torch",
-  "sentence_transformers",
+  "onnxruntime",
+  "tokenizers",
 ];
 
 function venvPython() {
@@ -144,6 +147,20 @@ function assertSnapshot(directory, files, label) {
   }
 }
 
+function assertOnnxOnlySnapshot(directory) {
+  const present = FORBIDDEN_MINILM_FILES.filter((name) => fs.existsSync(path.join(directory, name)));
+  if (present.length) {
+    console.error(
+      `MiniLM snapshot must not include Hub PyTorch weights (${present.join(", ")}) in ${directory}`,
+    );
+    process.exit(1);
+  }
+  if (fs.existsSync(path.join(directory, ".export-src"))) {
+    console.error(`MiniLM snapshot still contains .export-src in ${directory}`);
+    process.exit(1);
+  }
+}
+
 function runVendor(command, args, dest, label) {
   console.log(`Vendoring ${label} into ${dest}`);
   const result = spawnSync(command, args, {
@@ -178,6 +195,7 @@ function vendorSidecarModels(pythonBin) {
     vendorWithUv(vendorMinilm, minilmDir, "MiniLM weights");
   }
   assertSnapshot(minilmDir, REQUIRED_MINILM_FILES, "MiniLM");
+  assertOnnxOnlySnapshot(minilmDir);
 }
 
 vendorSidecarModels(python);
@@ -198,7 +216,7 @@ if (python && hasPyInstaller(python)) {
     "--extra",
     "sidecar",
     "--extra",
-    "ml",
+    "onnx",
     "python",
     ...pyinstallerArgs,
   ];
