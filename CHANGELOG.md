@@ -16,7 +16,10 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   and `compare_minilm_onnx.py`). CLI MiniLM is `vera-doc[onnx]`; other Hub
   Sentence Transformers models remain `vera-doc[ml]`. `app:dev` vendors the ONNX
   snapshot before launch. MiniLM no longer falls back to Sentence Transformers
-  when the `onnx` extra is installed but the ONNX graph is missing.
+  when the `onnx` extra is installed but the ONNX graph is missing. Sidecar
+  freeze `--exclude-module`s Torch / Sentence Transformers even when the
+  project venv has the `ml` extra; MiniLM export in release CI uses a throwaway
+  venv.
 
 ## [0.3.0] — 2026-08
 

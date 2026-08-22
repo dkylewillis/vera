@@ -8,10 +8,12 @@ const require = createRequire(import.meta.url);
 const {
   REQUIRED_MINILM_FILES,
   findBundledMinilm,
+  findForbiddenRuntime,
   minilmCandidates,
 } = require('../scripts/verify-packaged-sidecar.cjs') as {
   REQUIRED_MINILM_FILES: string[];
   findBundledMinilm: (sidecarExe: string) => string | null;
+  findForbiddenRuntime: (sidecarExe: string) => string | null;
   minilmCandidates: (sidecarExe: string) => string[];
 };
 
@@ -66,5 +68,21 @@ describe('packaged sidecar MiniLM layout', () => {
       writeFileSync(join(snapshot, name), 'stub');
     }
     expect(findBundledMinilm(sidecarExe)).toBeNull();
+  });
+
+  it('rejects a freeze that still contains Torch', () => {
+    const root = mkdtempSync(join(tmpdir(), 'vera-minilm-torch-'));
+    const sidecarExe = join(root, 'vera-sidecar');
+    writeFileSync(sidecarExe, '');
+    mkdirSync(join(root, '_internal', 'torch'), { recursive: true });
+    expect(findForbiddenRuntime(sidecarExe)).toBe(join(root, '_internal', 'torch'));
+  });
+
+  it('accepts an ONNX-only freeze', () => {
+    const root = mkdtempSync(join(tmpdir(), 'vera-minilm-onnx-only-'));
+    const sidecarExe = join(root, 'vera-sidecar');
+    writeFileSync(sidecarExe, '');
+    writeMinilmSnapshot(join(root, 'sentence_transformers_models', 'all-MiniLM-L6-v2'));
+    expect(findForbiddenRuntime(sidecarExe)).toBeNull();
   });
 });

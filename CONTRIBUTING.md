@@ -45,16 +45,20 @@ tags):
 
 ```bash
 uv sync --extra app --extra sidecar --extra onnx
-uv run --extra ml python packages/vera-app/scripts/export_minilm_onnx.py --dest packages/vera-app/build/minilm-export/all-MiniLM-L6-v2
+UV_PROJECT_ENVIRONMENT=.venv-minilm-export uv run --extra ml python packages/vera-app/scripts/export_minilm_onnx.py --dest packages/vera-app/build/minilm-export/all-MiniLM-L6-v2
 npm --prefix packages/vera-app run build:sidecar
 node packages/vera-app/scripts/verify-packaged-sidecar.cjs
 ```
 
 `export_minilm_onnx.py` writes a VERA-owned MiniLM graph (compare it with
 `compare_minilm_onnx.py` before bumping `EXPECTED_MODEL_SHA256` in
-`vendor_minilm.py`). `build:sidecar` copies that verified snapshot into
-gitignored `packages/vera-app/build/` (later builds reuse it). Torch is not
-frozen into the sidecar.
+`vendor_minilm.py`). Export uses a throwaway venv (`UV_PROJECT_ENVIRONMENT`)
+so Sentence Transformers / Torch are not installed into the freeze
+interpreter. `build:sidecar` copies that verified snapshot into gitignored
+`packages/vera-app/build/` (later builds reuse it) and PyInstaller
+`--exclude-module` drops `torch` and `sentence_transformers` even if the
+project venv still has the `ml` extra. `verify-packaged-sidecar.cjs` fails if
+those packages are present in the freeze.
 
 ## Formatting and blame
 

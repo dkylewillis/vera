@@ -354,13 +354,15 @@ PyInstaller with the project virtualenv when it is available (honoring
 `VERA_SIDECAR_PYTHON` or `VERA_APP_PYTHON`) and otherwise falls back to
 `uv run --extra app --extra sidecar --extra onnx`. Bundled Tesseract
 English data is passed as an absolute path so the build works from any
-directory. The build copies `vera-ingest-pymupdf`
+directory. PyInstaller `--exclude-module` drops `torch` and
+`sentence_transformers` so a freeze venv that also has the `ml` extra still
+ships ONNX MiniLM only. The build copies `vera-ingest-pymupdf`
 package metadata and the sidecar registers the default
 `pymupdf` pipeline on import so Convert works in frozen builds
 where `importlib.metadata` entry points are otherwise empty. After a freeze,
 `node packages/vera-app/scripts/verify-packaged-sidecar.cjs` asserts
-`describe_ingest_pipelines` reports `pymupdf` (and not Docling) and that MiniLM
-weights are present.
+`describe_ingest_pipelines` reports `pymupdf` (and not Docling), that MiniLM
+weights are present, and that Torch is absent.
 
 From the repo root:
 

@@ -8,6 +8,13 @@ const defaultSidecar = process.platform === "win32"
   : path.join(appDir, "build", "sidecar", "vera-sidecar", "vera-sidecar");
 
 const REQUIRED_MINILM_FILES = ["config.json", "model.onnx", "tokenizer.json"];
+const FORBIDDEN_RUNTIME_PACKAGES = [
+  "torch",
+  "torchvision",
+  "torchaudio",
+  "sentence_transformers",
+  "transformers",
+];
 
 function minilmCandidates(sidecarExe) {
   const sidecarDir = path.dirname(sidecarExe);
@@ -26,7 +33,28 @@ function findBundledMinilm(sidecarExe) {
   return null;
 }
 
+function findForbiddenRuntime(sidecarExe) {
+  const sidecarDir = path.dirname(sidecarExe);
+  const roots = [sidecarDir, path.join(sidecarDir, "_internal")];
+  for (const root of roots) {
+    if (!fs.existsSync(root)) continue;
+    for (const name of FORBIDDEN_RUNTIME_PACKAGES) {
+      const candidate = path.join(root, name);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  }
+  return null;
+}
+
 function runDescribeChecks(sidecarPath) {
+  const forbidden = findForbiddenRuntime(sidecarPath);
+  if (forbidden) {
+    console.error(
+      "Packaged sidecar must not include Torch / Sentence Transformers. Found:\n  " + forbidden,
+    );
+    process.exit(1);
+  }
+
   const minilmPath = findBundledMinilm(sidecarPath);
   if (!minilmPath) {
     console.error(
@@ -154,8 +182,10 @@ function main() {
 
 module.exports = {
   REQUIRED_MINILM_FILES,
+  FORBIDDEN_RUNTIME_PACKAGES,
   defaultSidecar,
   findBundledMinilm,
+  findForbiddenRuntime,
   minilmCandidates,
 };
 

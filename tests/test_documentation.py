@@ -392,8 +392,9 @@ def test_hardening_json_contracts_are_documented():
     assert not (hooks_dir / "hook-docling_parse.py").is_file()
     assert not (hooks_dir / "hook-vera_ingest_docling.py").is_file()
     assert "onnxruntime" in sidecar_build
-    assert '"sentence_transformers"' not in sidecar_build
-    assert '"torch"' not in sidecar_build
+    assert "--exclude-module" in sidecar_build
+    assert '"torch"' in sidecar_build
+    assert '"sentence_transformers"' in sidecar_build
     assert "--collect-all" in sidecar_build
     assert "model.onnx" in sidecar_build
     verify_sidecar = (
@@ -401,6 +402,8 @@ def test_hardening_json_contracts_are_documented():
     ).read_text(encoding="utf-8")
     assert "model.onnx" in verify_sidecar
     assert "model.safetensors" not in verify_sidecar
+    assert "FORBIDDEN_RUNTIME_PACKAGES" in verify_sidecar
+    assert "torch" in verify_sidecar
     sidecar_py = (ROOT / "packages" / "vera-app" / "src" / "vera_app" / "sidecar.py").read_text(
         encoding="utf-8"
     )
@@ -425,7 +428,12 @@ def test_hardening_json_contracts_are_documented():
     )
     assert "onnxruntime" in vera_doc_pyproject
     assert "tokenizers" in vera_doc_pyproject
-    assert "--exclude-module" not in sidecar_build
+    sidecar_release = (ROOT / ".github" / "workflows" / "sidecar-release.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "UV_PROJECT_ENVIRONMENT" in sidecar_release
+    assert "--extra ml" in sidecar_release
+    assert "UV_PROJECT_ENVIRONMENT" in (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
     assert "onnxruntime" in (ROOT / "packages" / "vera-app" / "pyproject.toml").read_text(
         encoding="utf-8"
     ) or "vera-doc[onnx]" in (ROOT / "packages" / "vera-app" / "pyproject.toml").read_text(
