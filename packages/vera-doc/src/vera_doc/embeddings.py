@@ -288,14 +288,14 @@ def _sentence_transformers_factory(model_id: str, **config: Any) -> EmbeddingFun
         onnx_source = resolve_onnx_minilm_source(model_name)
         if onnx_source is not None:
             try:
-                embedder = OnnxMiniLMEmbedder(
+                onnx_embedder = OnnxMiniLMEmbedder(
                     MINILM_HUB_NAME,
                     source=onnx_source,
                     device=options.device,
                     batch_size=options.batch_size,
                 )
                 print(f"MiniLM runtime=onnx snapshot={onnx_source}", file=sys.stderr)
-                return embedder
+                return onnx_embedder
             except ImportError:
                 logger.info(
                     "ONNX MiniLM dependencies are not installed; "

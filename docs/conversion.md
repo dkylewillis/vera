@@ -182,8 +182,8 @@ recorded in the archive. Both built-in embedders use L2 normalization. Search
 uses the recorded model, so CLI machines that search a MiniLM archive still
 need `vera-doc[onnx]` plus a MiniLM ONNX snapshot (`VERA_ONNX_MINILM_HOME`,
 `app:dev`'s vendored graph, or the graph the Windows installer vendors).
-When the `onnx` extra is installed, MiniLM does not fall back to Sentence
-Transformers. Install `vera-doc[ml]` without the `onnx` extra if you want
+When the `onnx` extra is installed, MiniLM does not fall back to Sentence Transformers.
+Install `vera-doc[ml]` without the `onnx` extra if you want
 MiniLM via Sentence Transformers from the Hub. The packaged desktop sidecar
 already includes ONNX Runtime and the pinned graph.
 
