@@ -84,14 +84,17 @@ vera export manual.vera exported.pdf
 ```
 
 The default embedding model is a deterministic local hashing embedder: no
-model downloads, no API keys, and no network access. For stronger retrieval
-quality, install Sentence Transformers support and select a model at convert
-time:
+model downloads, no API keys, and no network access. MiniLM neural embeddings
+use ONNX Runtime:
 
 ```bash
-python -m pip install "vera-doc[ml]"
+python -m pip install "vera-doc[onnx]"
+# Point at a VERA-exported MiniLM graph (the Windows installer vendors one)
+# export VERA_ONNX_MINILM_HOME=/path/to/minilm-parent
 vera convert manual.pdf --model sentence-transformers:all-MiniLM-L6-v2
 ```
+
+Other Sentence Transformers Hub models still use `vera-doc[ml]`.
 
 See the [getting started guide](docs/getting-started.md) for the full
 walkthrough and [CLI recipes](docs/examples.md) for more patterns.
@@ -337,9 +340,11 @@ vera convert manual.pdf --model hashing --embedder-option dimension=256    # pro
 ```
 
 Built-in providers are `hashing` (deterministic lexical hashing; no extra
-dependencies or network access) and `sentence-transformers` (local neural
-embeddings via the `ml` extra; the Windows installer also freezes this
-provider and vendors `all-MiniLM-L6-v2` weights). Third-party providers register through the
+dependencies or network access) and `sentence-transformers` (MiniLM via the
+`onnx` extra / ONNX Runtime in the Windows installer; other Hub models via
+the `ml` extra). The installer vendors a VERA-exported `all-MiniLM-L6-v2`
+graph; archive identity stays `sentence-transformers/all-MiniLM-L6-v2`.
+Third-party providers register through the
 `vera.embedders` entry-point group or `register_embedder()`, and can advertise
 option schemas, model presets, and required credential environment variables
 so hosts can preflight them without storing secrets in configuration. Unknown

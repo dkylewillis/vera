@@ -6,6 +6,16 @@ Notable changes to VERA software, CLI, and Python APIs.
 format remains **0.2**. Existing archives are compatible; you do not need to
 reconvert files created with 0.2 tooling in order to search or inspect them.
 
+## [Unreleased]
+
+### Changed
+
+- Packaged MiniLM uses ONNX Runtime instead of PyTorch / Sentence Transformers.
+  Archive identity stays `sentence-transformers/all-MiniLM-L6-v2`. The installer
+  vendors a VERA-exported fp32 graph (SHA256-pinned via `export_minilm_onnx.py`
+  and `compare_minilm_onnx.py`). CLI MiniLM is `vera-doc[onnx]`; other Hub
+  Sentence Transformers models remain `vera-doc[ml]`.
+
 ## [0.3.0] — 2026-08
 
 ### Added

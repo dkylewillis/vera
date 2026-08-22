@@ -19,7 +19,10 @@ python -m pip install "vera-doc>=0.3.0"
 ```
 
 Python 3.10 or newer is required. The default hashing embedder needs no model
-download or API key.
+download or API key. MiniLM (`all-MiniLM-L6-v2`) uses the optional `onnx`
+extra (`onnxruntime` + `tokenizers`) plus a VERA-exported ONNX snapshot
+(`VERA_ONNX_MINILM_HOME`, or the graph vendored in the Windows installer).
+Other Hub Sentence Transformers models use the `ml` extra.
 
 ## Quick start
 
@@ -429,7 +432,7 @@ Built-in model specs resolve through `get_embedder()`:
 | Spec | Provider |
 |------|----------|
 | `hashing` / `vera-hashing-384` / `hashing:vera-hashing-384` | Built-in hashing embedder |
-| `sentence-transformers:all-MiniLM-L6-v2` | Sentence Transformers (`ml` extra; Windows installer vendors these weights) |
+| `sentence-transformers:all-MiniLM-L6-v2` | MiniLM via ONNX Runtime (`onnx` extra; Windows installer vendors a VERA-exported graph) |
 | `sentence-transformers/all-MiniLM-L6-v2` | Legacy alias for the same model |
 | `all-MiniLM-L6-v2` | Legacy alias for the same model |
 

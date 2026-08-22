@@ -67,9 +67,10 @@ retrieval implementation.
 ## `vera-app`
 
 Owns the Electron/React desktop app and Python sidecar. Depends directly on
-`vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and
-`sentence-transformers`; it does not use the CLI as a backend. The packaged
-Windows installer freezes PyMuPDF plus MiniLM. The Docling CLI extra is
+`vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, ONNX Runtime, and
+`tokenizers`; it does not use the CLI as a backend. The packaged
+Windows installer freezes PyMuPDF plus a VERA-exported MiniLM ONNX graph.
+The Docling CLI extra is
 not bundled in the installer.
 
 ## `vera-lab`

@@ -2,6 +2,7 @@ import importlib
 import io
 import json
 import queue
+import sys
 import threading
 from pathlib import Path
 
@@ -64,23 +65,12 @@ def test_sidecar_main_logs_process_start(monkeypatch, capsys):
     assert "timing step=sidecar_start" in err
 
 
-def test_sidecar_warms_torch_before_stdin_loop(monkeypatch):
+def test_sidecar_start_does_not_import_torch(monkeypatch):
     sidecar = importlib.import_module("vera_app.sidecar")
-    order: list[str] = []
-    monkeypatch.setattr(
-        sidecar,
-        "_warmup_sentence_transformers",
-        lambda: order.append("warmup"),
-    )
-
-    class _Stdin:
-        def __iter__(self):
-            order.append("stdin")
-            return iter(())
-
-    monkeypatch.setattr(sidecar.sys, "stdin", _Stdin())
+    monkeypatch.delitem(sys.modules, "torch", raising=False)
+    monkeypatch.setattr(sidecar.sys, "stdin", io.StringIO(""))
     assert sidecar.main() == 0
-    assert order == ["warmup", "stdin"]
+    assert "torch" not in sys.modules
 
 
 @pytest.fixture

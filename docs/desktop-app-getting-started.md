@@ -63,9 +63,9 @@ the sidecar `describe_ingest_pipelines` action supplies descriptors, and
 a Tesseract OCR language dropdown of bundled/downloadable codes plus Custom
 for combinations such as `eng+spa`). These settings are independent of the Chat
 model and are persisted in app settings. `npm run app:dev` installs the `app`
-and `ml` extras into the workspace environment. The source-run
+extra into the workspace environment. The source-run
 sidecar matches packaged releases: one Python process with PyMuPDF,
-hashing, and Sentence Transformers MiniLM. Plugins are ordinary pip packages in **the same environment**
+hashing, and ONNX MiniLM. Plugins are ordinary pip packages in **the same environment**
 (`vera.ingest_pipelines` / `vera.embedders`); CLI users can
 `pip install "vera-cli[docling]>=0.3.0"` or `pip install -e <clone>` after
 `vera-ingest` 0.3.x. An unavailable selection is disabled or fails with the
@@ -221,7 +221,7 @@ npm run app:release
 This rebuilds the app and Python sidecar and writes `VERA Setup <version>.exe`
 into `%LOCALAPPDATA%\Vera\desktop-release` (and clears any leftover
 `packages/vera-app/release` directory).
-Sidecar freeze vendors MiniLM from Hugging Face into gitignored
+Sidecar freeze vendors a VERA-exported MiniLM ONNX graph into gitignored
 `packages/vera-app/build/` (later builds reuse that snapshot).
 
 ## Plugins in the same environment
@@ -231,9 +231,9 @@ Search, Ask, indexing, and PyMuPDF conversion all run in
 the sidecar. Extra converters are pip packages in that environment, not a
 second interpreter. The 0.3.0 sidecar does not run Docling conversion.
 
-The packaged Windows installer freezes PyMuPDF, hashing, and Sentence
-Transformers into `vera-sidecar.exe`. MiniLM
-(`all-MiniLM-L6-v2`) weights ship inside Setup.exe, so **Local semantic
+The packaged Windows installer freezes PyMuPDF, hashing, and ONNX Runtime
+into `vera-sidecar.exe`. MiniLM
+(`all-MiniLM-L6-v2`) ONNX weights ship inside Setup.exe, so **Local semantic
 (MiniLM)** does not download those files on
 first use. Docling / **Advanced layout (slower)** is not part of the 0.3.0
 desktop app; install `vera-cli[docling]` and convert from the CLI. Hosted
@@ -253,13 +253,13 @@ pipeline is not listed in the 0.3.0 desktop Convert view.
 
 Ingest plugins register under `vera.ingest_pipelines`; embedders register
 under `vera.embedders`. Desktop Convert calls `preflight_embedder` before writing an
-archive. Sentence Transformers is frozen into the Windows sidecar with
-vendored MiniLM weights. Source-run `app:dev` installs MiniLM via `--extra ml`
-and, when present, loads `packages/vera-app/build/minilm`. The sidecar imports
-Torch at startup on the main thread so the first Convert does not deadlock
-on Windows. A
-missing `sentence_transformers` module in a checkout means that extra is not
-installed — run `uv sync --extra ml` and restart the app. See
+archive. MiniLM runs on ONNX Runtime in the Windows sidecar with a
+VERA-exported, SHA256-pinned graph. Source-run `app:dev` installs MiniLM via
+`--extra app` / `--extra onnx` and, when present, loads
+`packages/vera-app/build/minilm`. Other Sentence Transformers models still
+need `uv sync --extra ml`. A missing `onnxruntime` module in a checkout means
+that extra is not installed — run `uv sync --extra onnx` (or `--extra app`)
+and restart the app. See
 [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md) and
 [Creating an embedding provider](creating-an-embedding-provider.md).
 Convert and embed always run in-process in the sidecar; see

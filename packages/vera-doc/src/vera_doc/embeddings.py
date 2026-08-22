@@ -4,7 +4,6 @@ import hashlib
 import logging
 import os
 import re
-import sys
 import threading
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -23,14 +22,22 @@ from .embedder_descriptors import (
     generic_embedder_descriptor,
 )
 from .embedder_options import EmbedderOptions
+from .onnx_minilm import (
+    BUNDLED_MINILM_DIRNAME,
+    BUNDLED_MINILM_MODEL_ID,
+    MINILM_HUB_NAME,
+    OnnxMiniLMEmbedder,
+    minilm_bundle_home,
+    resolve_onnx_minilm_source,
+    sentence_transformers_available,
+)
 
 logger = logging.getLogger(__name__)
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
 _HASHING_NAME_RE = re.compile(r"^vera-hashing-(\d+)$")
 SENTENCE_TRANSFORMERS_HOME_ENV = "VERA_SENTENCE_TRANSFORMERS_HOME"
-BUNDLED_MINILM_MODEL_ID = "all-MiniLM-L6-v2"
-BUNDLED_SENTENCE_TRANSFORMERS_DIRNAME = "sentence_transformers_models"
+BUNDLED_SENTENCE_TRANSFORMERS_DIRNAME = BUNDLED_MINILM_DIRNAME
 _ENTRY_POINT_GROUP = "vera.embedders"
 _DESCRIPTOR_ENTRY_POINT_GROUP = "vera.embedder_descriptors"
 _MODELS_ENTRY_POINT_GROUP = "vera.embedder_models"
@@ -117,7 +124,9 @@ class SentenceTransformersOptions(EmbedderOptions):
         metadata={
             "label": "Device",
             "description": (
-                "Optional torch device (for example cpu or cuda). "
+                "Optional runtime device. Bundled MiniLM uses ONNX Runtime "
+                "(cpu, or cuda when onnxruntime-gpu is installed). Other "
+                "Sentence Transformers models use a torch device. "
                 "Leave blank to use CPU. "
                 "Convert-time only — search may use the default device."
             ),
@@ -131,7 +140,7 @@ class SentenceTransformersOptions(EmbedderOptions):
         metadata={
             "label": "Batch size",
             "description": (
-                "Texts encoded per Sentence Transformers batch. "
+                "Texts encoded per batch. "
                 "Convert-time only — search may use the default batch size."
             ),
             "minimum": 1,
@@ -177,26 +186,8 @@ def looks_like_sentence_transformers_model(path: Path) -> bool:
 
 
 def sentence_transformers_home() -> Path | None:
-    """Return the directory that may contain vendored Sentence Transformers snapshots."""
-    env = os.environ.get(SENTENCE_TRANSFORMERS_HOME_ENV, "").strip()
-    if env:
-        candidate = Path(env)
-        if candidate.is_dir():
-            return candidate
-    meipass = getattr(sys, "_MEIPASS", None)
-    if meipass:
-        bundled = Path(meipass) / BUNDLED_SENTENCE_TRANSFORMERS_DIRNAME
-        if bundled.is_dir():
-            return bundled
-    if getattr(sys, "frozen", False):
-        exe_dir = Path(sys.executable).resolve().parent
-        for bundled in (
-            exe_dir / BUNDLED_SENTENCE_TRANSFORMERS_DIRNAME,
-            exe_dir / "_internal" / BUNDLED_SENTENCE_TRANSFORMERS_DIRNAME,
-        ):
-            if bundled.is_dir():
-                return bundled
-    return None
+    """Return the directory that may contain a vendored MiniLM snapshot."""
+    return minilm_bundle_home()
 
 
 def resolve_sentence_transformers_source(model_id: str) -> str:
@@ -221,7 +212,9 @@ def resolve_sentence_transformers_source(model_id: str) -> str:
 
 
 def bundled_minilm_available() -> bool:
-    """True when the installer-vendored MiniLM snapshot is on disk."""
+    """True when a vendored MiniLM snapshot (ONNX or Sentence Transformers) is on disk."""
+    if resolve_onnx_minilm_source(BUNDLED_MINILM_MODEL_ID) is not None:
+        return True
     source = resolve_sentence_transformers_source(BUNDLED_MINILM_MODEL_ID)
     return looks_like_sentence_transformers_model(Path(source))
 
@@ -272,7 +265,7 @@ def _hashing_factory(model_id: str = "vera-hashing-384", **config: Any) -> Hashi
     return HashingEmbedder(dimension=options.dimension, model_name=name)
 
 
-def _sentence_transformers_factory(model_id: str, **config: Any) -> SentenceTransformerEmbedder:
+def _sentence_transformers_factory(model_id: str, **config: Any) -> EmbeddingFunction:
     model_id = (model_id or "").strip()
     if not model_id:
         raise UnknownEmbeddingModelError(
@@ -284,12 +277,41 @@ def _sentence_transformers_factory(model_id: str, **config: Any) -> SentenceTran
     else:
         model_name = f"sentence-transformers/{model_id}"
     options = SentenceTransformersOptions.from_mapping(config)
-    return SentenceTransformerEmbedder(
-        model_name,
-        source=resolve_sentence_transformers_source(model_name),
-        device=options.device,
-        batch_size=options.batch_size,
+    short_id = (
+        model_id[len("sentence-transformers/") :]
+        if model_id.startswith("sentence-transformers/")
+        else model_id
     )
+    if short_id == BUNDLED_MINILM_MODEL_ID:
+        onnx_source = resolve_onnx_minilm_source(model_name)
+        if onnx_source is not None:
+            try:
+                return OnnxMiniLMEmbedder(
+                    MINILM_HUB_NAME,
+                    source=onnx_source,
+                    device=options.device,
+                    batch_size=options.batch_size,
+                )
+            except ImportError:
+                logger.info(
+                    "onnxruntime is not installed; falling back to Sentence Transformers for MiniLM"
+                )
+    try:
+        return SentenceTransformerEmbedder(
+            model_name,
+            source=resolve_sentence_transformers_source(model_name),
+            device=options.device,
+            batch_size=options.batch_size,
+        )
+    except ImportError as exc:
+        if short_id == BUNDLED_MINILM_MODEL_ID:
+            raise UnknownEmbeddingModelError(
+                "all-MiniLM-L6-v2 needs vera-doc[onnx] (ONNX Runtime + tokenizer) "
+                "with a vendored MiniLM graph, or vera-doc[ml] (sentence-transformers)."
+            ) from exc
+        raise UnknownEmbeddingModelError(
+            f"{model_name} requires vera-doc[ml] (sentence-transformers)."
+        ) from exc
 
 
 def _hashing_descriptor() -> EmbedderDescriptor:
@@ -318,8 +340,9 @@ def _sentence_transformers_descriptor() -> EmbedderDescriptor:
         provider="sentence-transformers",
         label="sentence-transformers — local neural embeddings",
         description=(
-            "Sentence Transformers models via the optional ml extra (for example all-MiniLM-L6-v2). "
-            "The desktop installer freezes this provider and vendors all-MiniLM-L6-v2 weights."
+            "Local neural embeddings. Bundled all-MiniLM-L6-v2 runs on ONNX Runtime; "
+            "other Hub models need the optional ml extra (sentence-transformers). "
+            "Archive identity stays sentence-transformers/all-MiniLM-L6-v2."
         ),
         default_model_id="all-MiniLM-L6-v2",
         example_specs=(
@@ -336,9 +359,9 @@ def _sentence_transformers_descriptor() -> EmbedderDescriptor:
         ),
         fields=fields_from_dataclass(SentenceTransformersOptions),
         notes=(
-            "CLI and source-run installs need vera-doc[ml] (or sentence-transformers). "
-            "The Windows installer includes all-MiniLM-L6-v2 weights, so that model "
-            "does not download on first use. Other model ids may still fetch from the Hub. "
+            "MiniLM uses a VERA-exported ONNX graph (vera-doc[onnx]) with SHA256-pinned "
+            "weights in the Windows installer. Other model ids need vera-doc[ml] "
+            "(sentence-transformers) and may fetch from the Hub. "
             "device and batch_size are convert-time options; search uses defaults.",
         ),
     )
@@ -356,20 +379,24 @@ def _hashing_models() -> tuple[EmbeddingModelInfo, ...]:
 
 
 def _sentence_transformers_models() -> tuple[EmbeddingModelInfo, ...]:
-    return (
+    models = [
         EmbeddingModelInfo(
             model_id="all-MiniLM-L6-v2",
             label="all-MiniLM-L6-v2",
             spec="sentence-transformers:all-MiniLM-L6-v2",
-            description="Compact general-purpose Sentence Transformers model.",
+            description="Compact general-purpose MiniLM (ONNX Runtime in the desktop app).",
         ),
-        EmbeddingModelInfo(
-            model_id="all-MiniLM-L12-v2",
-            label="all-MiniLM-L12-v2",
-            spec="sentence-transformers:all-MiniLM-L12-v2",
-            description="Larger MiniLM variant for slightly stronger retrieval.",
-        ),
-    )
+    ]
+    if sentence_transformers_available():
+        models.append(
+            EmbeddingModelInfo(
+                model_id="all-MiniLM-L12-v2",
+                label="all-MiniLM-L12-v2",
+                spec="sentence-transformers:all-MiniLM-L12-v2",
+                description="Larger MiniLM variant for slightly stronger retrieval.",
+            )
+        )
+    return tuple(models)
 
 
 def register_embedder(

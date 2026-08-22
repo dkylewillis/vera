@@ -22,9 +22,10 @@ python -m pip install ./packages/vera-doc
 ```
 
 Python 3.10 or newer is required. The default hashing embedder works locally
-without a model download or API key. Neural embeddings are available through
-the optional `ml` extra; the Windows desktop installer also freezes
-Sentence Transformers and vendors `all-MiniLM-L6-v2` weights. Additional
+without a model download or API key. MiniLM neural embeddings use the
+optional `onnx` extra (ONNX Runtime). The Windows installer freezes
+ONNX Runtime and vendors a VERA-exported `all-MiniLM-L6-v2` graph. Other
+Hub Sentence Transformers models use the `ml` extra. Additional
 providers can be registered with
 `register_embedder` or discovered through the `vera.embedders` entry-point
 group (optional `vera.embedder_descriptors` for schema-driven options);

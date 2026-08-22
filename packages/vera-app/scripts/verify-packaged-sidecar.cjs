@@ -7,7 +7,7 @@ const defaultSidecar = process.platform === "win32"
   ? path.join(appDir, "build", "sidecar", "vera-sidecar", "vera-sidecar.exe")
   : path.join(appDir, "build", "sidecar", "vera-sidecar", "vera-sidecar");
 
-const REQUIRED_MINILM_FILES = ["config.json", "modules.json", "model.safetensors", "tokenizer.json"];
+const REQUIRED_MINILM_FILES = ["config.json", "model.onnx", "tokenizer.json"];
 
 function minilmCandidates(sidecarExe) {
   const sidecarDir = path.dirname(sidecarExe);
@@ -42,6 +42,7 @@ function runDescribeChecks(sidecarPath) {
     windowsHide: true,
     env: {
       ...process.env,
+      VERA_ONNX_MINILM_HOME: path.dirname(minilmPath),
       VERA_SENTENCE_TRANSFORMERS_HOME: path.dirname(minilmPath),
     },
   });

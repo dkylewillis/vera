@@ -26,7 +26,10 @@ jobs:
           cache-dependency-path: packages/vera-app/package-lock.json
 
       - name: Sync sidecar build environment
-        run: uv sync --extra app --extra sidecar --extra ml
+        run: uv sync --extra app --extra sidecar --extra onnx
+
+      - name: Export MiniLM ONNX graph
+        run: uv run --extra ml python packages/vera-app/scripts/export_minilm_onnx.py --dest packages/vera-app/build/minilm-export/all-MiniLM-L6-v2
 
       - name: Install app dependencies
         run: npm --prefix packages/vera-app install

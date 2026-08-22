@@ -27,8 +27,9 @@ Download `VERA Setup <version>.exe` from the
    `describe_ingest_pipelines` / `PipelineConfigForm`. Convert lists PyMuPDF
    as the 0.3.0 ingest pipeline. Convert embedding presets are hashing
    (default) and **Local semantic
-   (MiniLM)**; MiniLM weights ship in the
-   Windows installer. Hosted embedders
+   (MiniLM)**; MiniLM is ONNX Runtime under the same
+   `sentence-transformers/all-MiniLM-L6-v2` identity, and the installer
+   vendors a VERA-exported, SHA256-pinned graph. Hosted embedders
    are a 0.3.1 follow-up. Right-click a `.vera`
    archive and choose **Reconvert…** to replace it with a different ingest
    pipeline or embedding model.
@@ -46,7 +47,7 @@ Search and conversion do not require a model-provider account. A provider is
 only required for generated Ask responses.
 
 Source-run and packaged conversions use one sidecar interpreter with PyMuPDF,
-hashing, and Sentence Transformers MiniLM. Extra ingest and embedding
+hashing, and ONNX MiniLM. Extra ingest and embedding
 plugins are pip packages in that
 same environment (`python -m pip install` or `python -m pip install -e
 <clone>`). See
@@ -76,6 +77,6 @@ The supported packaged target is currently Windows. Use the CLI
 provider-owned chunking and OCR controls. Packaged and `app:dev` Convert both
 report `pymupdf`, plus hashing and MiniLM embedders. `app:dev` loads MiniLM
 from `packages/vera-app/build/minilm` when that snapshot exists; packaged
-builds vendor it. The sidecar imports Torch on the main thread at start so
-Convert does not deadlock on Windows. Docling is not listed;
+builds vendor a VERA-exported ONNX graph. The sidecar does not import Torch.
+Docling is not listed;
 use `vera-cli[docling]` from the CLI.

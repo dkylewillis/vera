@@ -8,7 +8,7 @@ guide. Agents working in this repository should also read [AGENTS.md](AGENTS.md)
 Python 3.10+, dependencies managed with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv sync --extra dev --extra ml --extra app --extra mcp
+uv sync --extra dev --extra onnx --extra ml --extra app --extra mcp
 ```
 
 Add `--extra docling` when you need the optional CLI Docling pipeline and its tests.
@@ -40,13 +40,17 @@ Windows packaged-sidecar release gate (optional locally; CI runs it on `v*`
 tags):
 
 ```bash
-uv sync --extra app --extra sidecar --extra ml
+uv sync --extra app --extra sidecar --extra onnx
+uv run --extra ml python packages/vera-app/scripts/export_minilm_onnx.py --dest packages/vera-app/build/minilm-export/all-MiniLM-L6-v2
 npm --prefix packages/vera-app run build:sidecar
 node packages/vera-app/scripts/verify-packaged-sidecar.cjs
 ```
 
-`build:sidecar` vendors MiniLM from Hugging
-Face into gitignored `packages/vera-app/build/` (later builds reuse the snapshot).
+`export_minilm_onnx.py` writes a VERA-owned MiniLM graph (compare it with
+`compare_minilm_onnx.py` before bumping `EXPECTED_MODEL_SHA256` in
+`vendor_minilm.py`). `build:sidecar` copies that verified snapshot into
+gitignored `packages/vera-app/build/` (later builds reuse it). Torch is not
+frozen into the sidecar.
 
 ## Formatting and blame
 

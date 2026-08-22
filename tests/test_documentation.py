@@ -224,6 +224,8 @@ def test_hardening_json_contracts_are_documented():
     assert "Tesseract `--ocr-language`" in conversion
     assert "--embedder-option" in conversion
     assert "embedder_options" in conversion
+    assert "vera-doc[onnx]" in conversion
+    assert "VERA_ONNX_MINILM_HOME" in conversion
     assert (
         "describe_embedding_providers" in conversion
         or "creating-an-embedding-provider.md" in conversion
@@ -302,19 +304,16 @@ def test_hardening_json_contracts_are_documented():
     assert "credential_env" in desktop_architecture
     assert "skipped_semantic_model_groups" in desktop_architecture
     assert "## Convert in one sidecar" in desktop_architecture
+    assert "VERA_ONNX_MINILM_HOME" in desktop_architecture
     assert "VERA_SENTENCE_TRANSFORMERS_HOME" in desktop_architecture
     assert "all-MiniLM-L6-v2" in desktop_architecture
     assert "HF_HOME" in desktop_architecture
-    assert "stdin.readline" in desktop_architecture
-    assert "import_sentence_transformers" in (DOCS / "troubleshooting.md").read_text(
-        encoding="utf-8"
-    )
+    assert "onnxruntime" in desktop_architecture
     assert "Discovering PDFs" in (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
     assert "one interpreter" in desktop
-    assert "sentence_transformers" in desktop
+    assert "onnxruntime" in desktop
     assert "is not frozen into the Windows sidecar" not in desktop
     assert "MiniLM" in desktop
-    assert "weights" in desktop
     assert "desktop-app-architecture.md#convert-in-one-sidecar" in desktop
     assert "python/plugin-host/vera_plugin_host" not in (
         ROOT / "packages" / "vera-app" / "package.json"
@@ -371,6 +370,7 @@ def test_hardening_json_contracts_are_documented():
     assert "configurePluginRuntime" not in main_ts
     assert "DOCLING_ARTIFACTS_PATH" not in main_ts
     assert "PYTHONUNBUFFERED" in main_ts
+    assert "VERA_ONNX_MINILM_HOME" in main_ts
     assert "VERA_SENTENCE_TRANSFORMERS_HOME" in main_ts
     assert not (ROOT / "packages" / "vera-app" / "src" / "vera_app" / "runtime.py").is_file()
     assert "Docling" in desktop
@@ -379,15 +379,53 @@ def test_hardening_json_contracts_are_documented():
     )
     assert "copy-metadata" in sidecar_build
     assert "vendor_minilm.py" in sidecar_build
+    assert (ROOT / "packages" / "vera-app" / "scripts" / "export_minilm_onnx.py").is_file()
+    assert (ROOT / "packages" / "vera-app" / "scripts" / "compare_minilm_onnx.py").is_file()
     assert "vendor_docling_models.py" not in sidecar_build
     assert "docling-artifacts" not in sidecar_build
     hooks_dir = ROOT / "packages" / "vera-app" / "scripts" / "hooks"
-    assert (hooks_dir / "hook-sentence_transformers.py").is_file()
+    assert (hooks_dir / "hook-onnxruntime.py").is_file()
+    assert not (hooks_dir / "hook-sentence_transformers.py").is_file()
     assert not (hooks_dir / "hook-docling_parse.py").is_file()
     assert not (hooks_dir / "hook-vera_ingest_docling.py").is_file()
-    assert "sentence_transformers" in sidecar_build
+    assert "onnxruntime" in sidecar_build
+    assert '"sentence_transformers"' not in sidecar_build
+    assert '"torch"' not in sidecar_build
+    assert "--collect-all" in sidecar_build
+    assert "model.onnx" in sidecar_build
+    verify_sidecar = (
+        ROOT / "packages" / "vera-app" / "scripts" / "verify-packaged-sidecar.cjs"
+    ).read_text(encoding="utf-8")
+    assert "model.onnx" in verify_sidecar
+    assert "model.safetensors" not in verify_sidecar
+    sidecar_py = (ROOT / "packages" / "vera-app" / "src" / "vera_app" / "sidecar.py").read_text(
+        encoding="utf-8"
+    )
+    assert "_warmup_sentence_transformers" not in sidecar_py
+    export_src = (ROOT / "packages" / "vera-app" / "scripts" / "export_minilm_onnx.py").read_text(
+        encoding="utf-8"
+    )
+    compare_src = (ROOT / "packages" / "vera-app" / "scripts" / "compare_minilm_onnx.py").read_text(
+        encoding="utf-8"
+    )
+    vendor_src = (ROOT / "packages" / "vera-app" / "scripts" / "vendor_minilm.py").read_text(
+        encoding="utf-8"
+    )
+    assert "last_hidden_state" in export_src
+    assert "tokenizer.json" in export_src
+    assert "tokenizer_config.json" in export_src
+    assert "EXPECTED_MODEL_SHA256" in vendor_src
+    assert "model.onnx" in vendor_src
+    assert "0.9999" in compare_src
+    vera_doc_pyproject = (ROOT / "packages" / "vera-doc" / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+    assert "onnxruntime" in vera_doc_pyproject
+    assert "tokenizers" in vera_doc_pyproject
     assert "--exclude-module" not in sidecar_build
-    assert "sentence-transformers" in (ROOT / "packages" / "vera-app" / "pyproject.toml").read_text(
+    assert "onnxruntime" in (ROOT / "packages" / "vera-app" / "pyproject.toml").read_text(
+        encoding="utf-8"
+    ) or "vera-doc[onnx]" in (ROOT / "packages" / "vera-app" / "pyproject.toml").read_text(
         encoding="utf-8"
     )
     assert "ensure_registered" in (
@@ -418,7 +456,7 @@ def test_hardening_json_contracts_are_documented():
     assert "may change before 1.0" in ingest_guide
     assert "without importing optional runtime" in ingest_guide
     assert "same environment" in ingest_guide
-    assert "sentence-transformers" in ingest_guide
+    assert "onnxruntime" in ingest_guide
     assert "list_ingest_pipeline_load_errors" in ingest_guide
     assert "clamp `overlap` to `chunk_size - 1`" in ingest_guide
     assert "may change before 1.0" in guide
@@ -677,7 +715,7 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "Advanced layout (slower)" in packages_overview
     app_section = packages_overview.split("## `vera-app`", 1)[1].split("## `", 1)[0]
     assert "vera-ingest-docling" not in app_section
-    assert "sentence-transformers" in app_section
+    assert "ONNX" in app_section or "MiniLM" in app_section
     assert "vera-ingest-docling" in app_pkg
     assert "not bundled in the installer" in docling_pkg
     assert "all-MiniLM-L6-v2" in desktop
