@@ -109,7 +109,7 @@ flowchart LR
 ```
 
 The sidecar registers the default `pymupdf` pipeline. Packaged Windows builds
-freeze PyMuPDF, ONNX Runtime, and `tokenizers` into one sidecar, and vendor a
+freeze PyMuPDF, `onnxruntime`, and `tokenizers` into one sidecar, and vendor a
 VERA-exported `all-MiniLM-L6-v2` ONNX graph in the installer. Archive identity
 stays `sentence-transformers/all-MiniLM-L6-v2`. Hugging Face tokens,
 packaged `HF_HOME` (a writable cache under `userData` unless already set),

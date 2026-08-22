@@ -111,7 +111,8 @@ class TestPooling:
         vectors = np.array([[3.0, 4.0], [0.0, 0.0]], dtype=np.float32)
         out = l2_normalize(vectors)
         assert pytest.approx(float(np.linalg.norm(out[0])), abs=1e-6) == 1.0
-        assert pytest.approx(float(np.linalg.norm(out[1])), abs=1e-5) == 1.0
+        # Zero rows stay zero after divide-by-eps, matching F.normalize.
+        assert pytest.approx(float(np.linalg.norm(out[1])), abs=1e-6) == 0.0
 
     def test_pad_encodings_truncates_to_256(self):
         class _Enc:
