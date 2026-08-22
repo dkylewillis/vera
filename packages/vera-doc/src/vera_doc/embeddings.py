@@ -4,6 +4,7 @@ import hashlib
 import logging
 import os
 import re
+import sys
 import threading
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -28,6 +29,7 @@ from .onnx_minilm import (
     MINILM_HUB_NAME,
     OnnxMiniLMEmbedder,
     minilm_bundle_home,
+    onnx_minilm_deps_available,
     resolve_onnx_minilm_source,
     sentence_transformers_available,
 )
@@ -286,23 +288,36 @@ def _sentence_transformers_factory(model_id: str, **config: Any) -> EmbeddingFun
         onnx_source = resolve_onnx_minilm_source(model_name)
         if onnx_source is not None:
             try:
-                return OnnxMiniLMEmbedder(
+                onnx_embedder = OnnxMiniLMEmbedder(
                     MINILM_HUB_NAME,
                     source=onnx_source,
                     device=options.device,
                     batch_size=options.batch_size,
                 )
+                print(f"MiniLM runtime=onnx snapshot={onnx_source}", file=sys.stderr)
+                return onnx_embedder
             except ImportError:
                 logger.info(
-                    "onnxruntime is not installed; falling back to Sentence Transformers for MiniLM"
+                    "ONNX MiniLM dependencies are not installed; "
+                    "falling back to Sentence Transformers for MiniLM"
                 )
+        elif onnx_minilm_deps_available():
+            raise UnknownEmbeddingModelError(
+                "all-MiniLM-L6-v2 uses ONNX Runtime, but no MiniLM graph was found "
+                "(need model.onnx and tokenizer.json). Set VERA_ONNX_MINILM_HOME or run "
+                "packages/vera-app/scripts/vendor_minilm.py (app:dev vendors this automatically). "
+                "Sentence Transformers is not used for MiniLM when the onnx extra is installed."
+            )
     try:
-        return SentenceTransformerEmbedder(
+        embedder = SentenceTransformerEmbedder(
             model_name,
             source=resolve_sentence_transformers_source(model_name),
             device=options.device,
             batch_size=options.batch_size,
         )
+        if short_id == BUNDLED_MINILM_MODEL_ID:
+            print("MiniLM runtime=sentence-transformers", file=sys.stderr)
+        return embedder
     except ImportError as exc:
         if short_id == BUNDLED_MINILM_MODEL_ID:
             raise UnknownEmbeddingModelError(

@@ -190,26 +190,35 @@ function packagedSidecarExecutable(): string {
   return join(dir, fallback);
 }
 
+function looksLikeOnnxMinilmHome(home: string): boolean {
+  const nested = join(home, 'all-MiniLM-L6-v2');
+  return [nested, home].some(
+    (dir) => existsSync(join(dir, 'model.onnx')) && existsSync(join(dir, 'tokenizer.json')),
+  );
+}
+
 function minilmHome(): string | undefined {
   const onnxEnv = process.env.VERA_ONNX_MINILM_HOME?.trim();
-  if (onnxEnv && existsSync(onnxEnv)) return onnxEnv;
+  if (onnxEnv && looksLikeOnnxMinilmHome(onnxEnv)) return onnxEnv;
   const fromEnv = process.env.VERA_SENTENCE_TRANSFORMERS_HOME?.trim();
-  if (fromEnv && existsSync(fromEnv)) return fromEnv;
+  if (fromEnv && looksLikeOnnxMinilmHome(fromEnv)) return fromEnv;
   if (!app.isPackaged) {
     const devVendor = join(process.cwd(), 'build', 'minilm');
-    if (existsSync(join(devVendor, 'all-MiniLM-L6-v2', 'model.onnx'))) {
+    if (looksLikeOnnxMinilmHome(devVendor)) {
       return devVendor;
     }
-    return onnxEnv || fromEnv || undefined;
+    console.warn(
+      'MiniLM ONNX snapshot missing at packages/vera-app/build/minilm/all-MiniLM-L6-v2/model.onnx. ' +
+        'Ask/Convert MiniLM will not use ONNX. `npm run app:dev` vendors this graph before launch.',
+    );
+    return undefined;
   }
   const sidecarDir = dirname(packagedSidecarExecutable());
   const candidates = [
     join(sidecarDir, 'sentence_transformers_models'),
     join(sidecarDir, '_internal', 'sentence_transformers_models'),
   ];
-  return candidates.find((candidate) =>
-    existsSync(join(candidate, 'all-MiniLM-L6-v2', 'model.onnx')),
-  );
+  return candidates.find((candidate) => looksLikeOnnxMinilmHome(candidate));
 }
 
 function userDataHfHome(): string {

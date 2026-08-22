@@ -148,7 +148,9 @@ commands write or replace local files and require normal user authorization:
   Extra ingest plugins are pip packages in the same environment
   (`python -m pip install` or `python -m pip install -e <clone>`). MiniLM
   convert/search needs `vera-doc[onnx]` (ONNX Runtime) and a VERA-exported
-  snapshot, or `vera-doc[ml]` for other Sentence Transformers models. The
+  snapshot. When the `onnx` extra is installed, MiniLM does not fall back to
+  Sentence Transformers. Use `vera-doc[ml]` for other Sentence Transformers
+  models (or for MiniLM only when the `onnx` extra is absent). The
   0.3.0 packaged desktop app converts with PyMuPDF only; Docling is the
   `vera-cli[docling]` extra, not Advanced layout in Convert.
 - `convert --overwrite` replaces existing batch outputs.

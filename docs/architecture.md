@@ -97,8 +97,10 @@ providers, sessions, and application state. It depends on `vera-doc`,
 `vera-ingest`, and `vera-ingest-pymupdf`
 (including
 viewer helpers), not on `vera-cli`. Packaged conversions keep one frozen
-sidecar for search, Ask, and PyMuPDF. Extra ingest and embedding
-plugins are pip packages in that same environment.
+sidecar for search, Ask, and PyMuPDF. MiniLM (`all-MiniLM-L6-v2`) runs on
+ONNX Runtime; `npm run app:dev` vendors that graph before launch. When the
+`onnx` extra is installed, a missing MiniLM snapshot does not fall back to Sentence Transformers.
+Extra ingest and embedding plugins are pip packages in that same environment.
 
 ### `vera-lab`
 

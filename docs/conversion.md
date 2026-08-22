@@ -180,10 +180,12 @@ bare alias `all-MiniLM-L6-v2` still work.
 The model name, vector dimension, and stored-vector normalization policy are
 recorded in the archive. Both built-in embedders use L2 normalization. Search
 uses the recorded model, so CLI machines that search a MiniLM archive still
-need `vera-doc[onnx]` plus a MiniLM ONNX snapshot (`VERA_ONNX_MINILM_HOME`, or
-the graph the Windows installer vendors), or `vera-doc[ml]` so Sentence
-Transformers can load MiniLM from the Hub. The packaged desktop sidecar already
-includes ONNX Runtime and the pinned graph.
+need `vera-doc[onnx]` plus a MiniLM ONNX snapshot (`VERA_ONNX_MINILM_HOME`,
+`app:dev`'s vendored graph, or the graph the Windows installer vendors).
+When the `onnx` extra is installed, MiniLM does not fall back to Sentence Transformers.
+Install `vera-doc[ml]` without the `onnx` extra if you want
+MiniLM via Sentence Transformers from the Hub. The packaged desktop sidecar
+already includes ONNX Runtime and the pinned graph.
 
 Prefer `provider:model-id` specs. An unrecognized provider or model raises an
 error at convert time instead of silently falling back to hashing. Third-party
