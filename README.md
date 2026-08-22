@@ -446,9 +446,10 @@ grounded question answering over documents. From a repository checkout,
 **File > Settings**. Packaged conversions use one sidecar with PyMuPDF.
 **File > Open convert log...** opens
 timed convert steps in `userData/logs/sidecar.log` (same file in
-`app:dev` and packaged VERA). `app:dev` loads MiniLM from
-`packages/vera-app/build/minilm` when that snapshot exists; packaged builds
-vendor it. Extra ingest and embedding plugins
+`app:dev` and packaged VERA). `app:dev` vendors MiniLM ONNX into
+`packages/vera-app/build/minilm` before launch; it does not load Sentence
+Transformers for MiniLM when the `onnx` extra is installed. Packaged builds
+vendor the same graph. Extra ingest and embedding plugins
 are pip packages in that same environment. It is built on the
 same packages described above. Download it from
 [GitHub Releases](https://github.com/dkylewillis/vera/releases/latest) and see

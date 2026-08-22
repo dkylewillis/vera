@@ -363,6 +363,9 @@ def test_hardening_json_contracts_are_documented():
     assert "registers the default" in desktop_architecture and "pymupdf" in desktop_architecture
     app_dev = (ROOT / "scripts" / "app-dev.js").read_text(encoding="utf-8")
     assert "--extra" in app_dev and '"app"' in app_dev
+    assert '"onnx"' in app_dev
+    assert "vendor_minilm.py" in app_dev
+    assert "snapshotReady" in app_dev
     assert '"docling"' not in app_dev
     main_ts = (ROOT / "packages" / "vera-app" / "electron" / "main.ts").read_text(encoding="utf-8")
     assert "vera-ingest-pymupdf" in main_ts
@@ -741,6 +744,15 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "Open convert log" in app_pkg
     assert "Open convert log" in readme
     assert "logs/sidecar.log" in readme
+    assert "vendors MiniLM ONNX" in readme
+    assert "does not silently" in desktop
+    assert "does not fall back to Sentence Transformers" in (DOCS / "architecture.md").read_text(
+        encoding="utf-8"
+    )
+    assert "MiniLM runtime=onnx" in (
+        ROOT / "packages" / "vera-doc" / "src" / "vera_doc" / "embeddings.py"
+    ).read_text(encoding="utf-8")
+    assert "Loading weights" in troubleshooting
 
 
 def test_index_ask_and_embedder_operational_docs():
@@ -778,6 +790,7 @@ def test_index_ask_and_embedder_operational_docs():
     assert "quality" in desktop and "permissive" in desktop
     assert "provider_error_detail" in architecture
     assert "does not call `preflight_embedder`" in conversion
+    assert "does not fall back to Sentence Transformers" in conversion
     assert "does not call `preflight_embedder`" in architecture
     assert "single `.vera` archive" in evaluation
     assert "list_embedder_load_errors" in python_api

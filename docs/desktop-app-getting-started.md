@@ -254,12 +254,13 @@ pipeline is not listed in the 0.3.0 desktop Convert view.
 Ingest plugins register under `vera.ingest_pipelines`; embedders register
 under `vera.embedders`. Desktop Convert calls `preflight_embedder` before writing an
 archive. MiniLM runs on ONNX Runtime in the Windows sidecar with a
-VERA-exported, SHA256-pinned graph. Source-run `app:dev` installs MiniLM via
-`--extra app` / `--extra onnx` and, when present, loads
-`packages/vera-app/build/minilm`. Other Sentence Transformers models still
-need `uv sync --extra ml`. A missing `onnxruntime` module in a checkout means
-that extra is not installed — run `uv sync --extra onnx` (or `--extra app`)
-and restart the app. See
+VERA-exported, SHA256-pinned graph. `npm run app:dev` vendors that graph
+into `packages/vera-app/build/minilm` before Electron starts (exporting
+once with `--extra ml` if the snapshot is missing). It does not silently
+fall back to Sentence Transformers when the `onnx` extra is installed.
+Other Sentence Transformers models still need `uv sync --extra ml`. A missing
+`onnxruntime` module in a checkout means that extra is not installed —
+run `uv sync --extra onnx` (or `--extra app`) and restart the app. See
 [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md) and
 [Creating an embedding provider](creating-an-embedding-provider.md).
 Convert and embed always run in-process in the sidecar; see

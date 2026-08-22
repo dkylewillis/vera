@@ -22,6 +22,8 @@ Python 3.10 or newer is required. The default hashing embedder needs no model
 download or API key. MiniLM (`all-MiniLM-L6-v2`) uses the optional `onnx`
 extra (`onnxruntime` + `tokenizers`) plus a VERA-exported ONNX snapshot
 (`VERA_ONNX_MINILM_HOME`, or the graph vendored in the Windows installer).
+When the `onnx` extra is installed, MiniLM does not fall back to Sentence
+Transformers.
 Other Hub Sentence Transformers models use the `ml` extra.
 
 ## Quick start

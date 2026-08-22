@@ -114,8 +114,8 @@ VERA-exported `all-MiniLM-L6-v2` ONNX graph in the installer. Archive identity
 stays `sentence-transformers/all-MiniLM-L6-v2`. Hugging Face tokens,
 packaged `HF_HOME` (a writable cache under `userData` unless already set),
 `VERA_ONNX_MINILM_HOME`, and `VERA_SENTENCE_TRANSFORMERS_HOME` (alias for the
-bundled MiniLM snapshot, or `packages/vera-app/build/minilm` when that folder
-exists in `app:dev`) are forwarded on spawn. `app:dev` leaves `HF_HOME` unset.
+bundled MiniLM snapshot) are forwarded on spawn. `app:dev` vendors
+`packages/vera-app/build/minilm` before launch. `app:dev` leaves `HF_HOME` unset.
 Convert stays on **Discovering PDFs** until `resolve_embedder` finishes.
 Convert gates conversion on `preflight_embedder`.
 Docling is a CLI extra (`vera-cli[docling]`) and is not listed in Convert.
@@ -346,7 +346,8 @@ npm run app:dist
 ```
 
 `npm run app:dev` starts Electron against the workspace sidecar with the
-`app` extra (ONNX MiniLM). Convert uses PyMuPDF in that sidecar. `npm run app:dist`
+`app` extra (ONNX MiniLM) after vendoring `packages/vera-app/build/minilm`.
+Convert uses PyMuPDF in that sidecar. `npm run app:dist`
 packages the Python
 sidecar through `packages/vera-app/scripts/build-sidecar.cjs`, which runs
 PyInstaller with the project virtualenv when it is available (honoring
