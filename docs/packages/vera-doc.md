@@ -23,8 +23,10 @@ python -m pip install ./packages/vera-doc
 
 Python 3.10 or newer is required. The default hashing embedder works locally
 without a model download or API key. MiniLM neural embeddings use the
-optional `onnx` extra (ONNX Runtime). The Windows installer freezes
-ONNX Runtime and vendors a VERA-exported `all-MiniLM-L6-v2` graph. Other
+optional `onnx` extra (ONNX Runtime) plus a MiniLM ONNX snapshot. When that
+extra is installed, MiniLM does not fall back to Sentence Transformers. The
+Windows installer freezes ONNX Runtime and vendors a VERA-exported
+`all-MiniLM-L6-v2` graph. Other
 Hub Sentence Transformers models use the `ml` extra. Additional
 providers can be registered with
 `register_embedder` or discovered through the `vera.embedders` entry-point
