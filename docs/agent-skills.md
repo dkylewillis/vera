@@ -74,13 +74,14 @@ python -m vera_cli --help
 
 Optional capabilities:
 
-- Neural embedding models require the `vera-doc` `ml` extra.
+- MiniLM neural embeddings require the `vera-doc` `onnx` extra.
+- Other Sentence Transformers models require the `vera-doc` `ml` extra.
 - The zero-dependency hashing embedder is the default and needs neither extra.
 
 For a repository checkout:
 
 ```bash
-uv sync --extra dev --extra ml --extra app
+uv sync --extra dev --extra onnx --extra ml --extra app
 uv run vera --help
 ```
 

@@ -7,11 +7,12 @@ console entry point is `vera`; `python -m vera_cli` invokes the same parser.
 
 - Python: 3.10 or newer.
 - Published CLI: `pip install "vera-cli>=0.3.0"`.
-- Neural embedding models require the `ml` extra from `vera-doc`.
+- Neural MiniLM embeddings require the `onnx` extra from `vera-doc`.
+  Other Sentence Transformers models require the `ml` extra.
 - `vera mcp` requires `pip install "vera-cli[mcp]>=0.3.0"` or
   `pip install "vera-mcp>=0.3.0"`.
 - A repository checkout can use:
-  `uv sync --extra dev --extra ml --extra app --extra mcp`.
+  `uv sync --extra dev --extra onnx --extra ml --extra app --extra mcp`.
 
 Check `vera --help` first. If it is not on `PATH`, try
 `python -m vera_cli --help`.
@@ -33,9 +34,10 @@ Options:
   (`hashing`, `vera-hashing-384`, `all-MiniLM-L6-v2`,
   `sentence-transformers/...`). Unknown providers raise and the command
   exits non-zero instead of silently falling back to hashing. CLI and
-  source-run installs need the `ml` extra for Sentence Transformers. The
-  Windows desktop installer freezes that provider and vendors
-  `all-MiniLM-L6-v2` weights.
+  source-run installs need the `onnx` extra for MiniLM (ONNX Runtime). Other
+  Sentence Transformers models need the `ml` extra. The Windows desktop
+  installer vendors a VERA-exported `all-MiniLM-L6-v2` ONNX graph. Archive
+  identity stays `sentence-transformers/all-MiniLM-L6-v2`.
 - `--parser PARSER` defaults to `pymupdf`. Accepts ingest pipeline specs
   `provider[:variant]` (requires `vera-ingest-pymupdf` for the default; for
   example `docling` or `docling:hybrid` when `vera-ingest-docling` is

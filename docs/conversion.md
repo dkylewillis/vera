@@ -160,19 +160,19 @@ vera convert "input.pdf" --model hashing
 It is deterministic, local, and requires no machine-learning package. Equivalent
 specs include `vera-hashing-384` and `hashing:vera-hashing-384`.
 
-For neural embeddings, install the optional dependency and name a
-Sentence Transformers model:
+For neural embeddings, MiniLM uses ONNX Runtime (`vera-doc[onnx]`). Other
+Sentence Transformers models still use the `ml` extra:
 
 ```bash
-python -m pip install "vera-cli>=0.3.0" "vera-doc[ml]>=0.3.0"
+python -m pip install "vera-cli>=0.3.0" "vera-doc[onnx]>=0.3.0"
 vera convert "input.pdf" --model sentence-transformers:all-MiniLM-L6-v2
 ```
 
-The packaged Windows app already includes Sentence Transformers and vendors
-`all-MiniLM-L6-v2` weights in the installer (Convert label **Local semantic
-(MiniLM)**), so that model does not download on first desktop use. CLI and
-source-run installs still use the `ml` extra and may download other model ids
-from the Hub on first resolve.
+The packaged Windows app already includes ONNX Runtime and vendors a
+VERA-exported `all-MiniLM-L6-v2` graph in the installer (Convert label
+**Local semantic (MiniLM)**), so that model does not download on first
+desktop use. CLI MiniLM uses the `onnx` extra. Other model ids still use the
+`ml` extra and may download from the Hub on first resolve.
 
 Legacy slash-form names such as `sentence-transformers/all-MiniLM-L6-v2` and the
 bare alias `all-MiniLM-L6-v2` still work.
@@ -180,7 +180,10 @@ bare alias `all-MiniLM-L6-v2` still work.
 The model name, vector dimension, and stored-vector normalization policy are
 recorded in the archive. Both built-in embedders use L2 normalization. Search
 uses the recorded model, so CLI machines that search a MiniLM archive still
-need the `ml` extra. The packaged desktop sidecar already has it.
+need `vera-doc[onnx]` plus a MiniLM ONNX snapshot (`VERA_ONNX_MINILM_HOME`, or
+the graph the Windows installer vendors), or `vera-doc[ml]` so Sentence
+Transformers can load MiniLM from the Hub. The packaged desktop sidecar already
+includes ONNX Runtime and the pinned graph.
 
 Prefer `provider:model-id` specs. An unrecognized provider or model raises an
 error at convert time instead of silently falling back to hashing. Third-party

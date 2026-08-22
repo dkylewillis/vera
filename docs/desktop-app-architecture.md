@@ -109,16 +109,14 @@ flowchart LR
 ```
 
 The sidecar registers the default `pymupdf` pipeline. Packaged Windows builds
-freeze PyMuPDF, Torch, and `sentence_transformers` into one sidecar, and vendor
-`all-MiniLM-L6-v2` weights in the installer. Hugging Face tokens,
-packaged `HF_HOME` (a writable cache under `userData` unless already set), and
-`VERA_SENTENCE_TRANSFORMERS_HOME` (the bundled MiniLM snapshot, or
-`packages/vera-app/build/minilm` when that folder exists in `app:dev`) are
-forwarded on spawn. `app:dev` leaves `HF_HOME` unset. The sidecar imports
-`sentence_transformers` on the main thread at `sidecar_start` before the
-stdin loop; a convert-worker import deadlocks on Windows while
-`stdin.readline()` is blocked. Convert
-stays on **Discovering PDFs** until `resolve_embedder` finishes.
+freeze PyMuPDF, ONNX Runtime, and `tokenizers` into one sidecar, and vendor a
+VERA-exported `all-MiniLM-L6-v2` ONNX graph in the installer. Archive identity
+stays `sentence-transformers/all-MiniLM-L6-v2`. Hugging Face tokens,
+packaged `HF_HOME` (a writable cache under `userData` unless already set),
+`VERA_ONNX_MINILM_HOME`, and `VERA_SENTENCE_TRANSFORMERS_HOME` (alias for the
+bundled MiniLM snapshot, or `packages/vera-app/build/minilm` when that folder
+exists in `app:dev`) are forwarded on spawn. `app:dev` leaves `HF_HOME` unset.
+Convert stays on **Discovering PDFs** until `resolve_embedder` finishes.
 Convert gates conversion on `preflight_embedder`.
 Docling is a CLI extra (`vera-cli[docling]`) and is not listed in Convert.
 The sidecar sets `PYTHONUNBUFFERED=1`
@@ -348,12 +346,12 @@ npm run app:dist
 ```
 
 `npm run app:dev` starts Electron against the workspace sidecar with the
-`app` and `ml` extras. Convert uses PyMuPDF in that sidecar. `npm run app:dist`
+`app` extra (ONNX MiniLM). Convert uses PyMuPDF in that sidecar. `npm run app:dist`
 packages the Python
 sidecar through `packages/vera-app/scripts/build-sidecar.cjs`, which runs
 PyInstaller with the project virtualenv when it is available (honoring
 `VERA_SIDECAR_PYTHON` or `VERA_APP_PYTHON`) and otherwise falls back to
-`uv run --extra app --extra sidecar --extra ml`. Bundled Tesseract
+`uv run --extra app --extra sidecar --extra onnx`. Bundled Tesseract
 English data is passed as an absolute path so the build works from any
 directory. The build copies `vera-ingest-pymupdf`
 package metadata and the sidecar registers the default

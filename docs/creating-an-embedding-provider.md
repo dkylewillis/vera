@@ -65,9 +65,11 @@ entries are not retried until `reset_embedding_registry()` runs.
 
 Install the package in the same environment as VERA (`python -m pip install`
 or `python -m pip install -e <clone>`), then restart the app. Bundled
-`hashing` wins on duplicate names. Sentence Transformers is the workspace
-`ml` extra for CLI and source-run installs. The Windows installer freezes
-`sentence_transformers` and vendors `all-MiniLM-L6-v2` weights.
+`hashing` wins on duplicate names. MiniLM uses the workspace `onnx` extra
+(ONNX Runtime) for CLI and source-run installs. Other Sentence Transformers
+models use the `ml` extra. The Windows installer freezes ONNX Runtime and
+vendors a VERA-exported `all-MiniLM-L6-v2` graph. Archive identity stays
+`sentence-transformers/all-MiniLM-L6-v2`.
 
 ## Minimal example (DIY hosted provider)
 

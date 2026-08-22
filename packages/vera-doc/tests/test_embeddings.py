@@ -32,6 +32,7 @@ from vera_doc.embeddings import (
     serialize_vector,
     unregister_embedder,
 )
+from vera_doc.onnx_minilm import ONNX_MINILM_HOME_ENV
 
 
 class TestCosineSimilarity:
@@ -417,6 +418,10 @@ class TestEmbedderCacheConcurrency:
 
 
 class TestBundledSentenceTransformers:
+    @pytest.fixture(autouse=True)
+    def _isolate_onnx_home(self, monkeypatch):
+        monkeypatch.delenv(ONNX_MINILM_HOME_ENV, raising=False)
+
     def test_rejects_incomplete_snapshot(self, tmp_path):
         empty = tmp_path / "empty"
         empty.mkdir()

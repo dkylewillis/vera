@@ -52,7 +52,7 @@ synchronize the workspace:
 ```bash
 git clone https://github.com/dkylewillis/vera.git
 cd vera
-uv sync --extra dev --extra ml
+uv sync --extra dev --extra onnx --extra ml
 ```
 
 ## Quick example

@@ -32,8 +32,9 @@ Options:
 
 - `--model MODEL` (`hashing`; accepts `provider:model-id` specs such as
   `sentence-transformers:all-MiniLM-L6-v2`; unknown providers exit with an
-  error; CLI needs the `ml` extra, while the Windows installer vendors
-  MiniLM weights)
+  error; MiniLM needs the `onnx` extra, other Sentence Transformers models
+  need the `ml` extra, and the Windows installer vendors a VERA-exported
+  MiniLM graph)
 - `--parser PARSER` (`pymupdf`; accepts `provider[:variant]` specs such as
   `docling` / `docling:hybrid` when `vera-cli[docling]` is installed; unknown
   providers exit with an error; the 0.3.0 Windows installer does not include

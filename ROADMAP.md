@@ -87,10 +87,10 @@ already in 0.3.0.
 
 ### Packaging and local models
 
-- [x] Bundle Sentence Transformers and vendor `all-MiniLM-L6-v2` weights in
-  the Windows installer (no first-use Hub download for that model).
-- [x] Verify MiniLM files and `sentence-transformers` in packaged sidecar
-  describe checks.
+- [x] Bundle ONNX Runtime MiniLM and vendor a VERA-exported `all-MiniLM-L6-v2`
+  graph in the Windows installer (no first-use Hub download; no Torch).
+- [x] Verify MiniLM files and the `sentence-transformers` provider name in
+  packaged sidecar describe checks.
 - [ ] Add release tests that convert and search with every bundled provider.
   Follow-up after 0.3.0; not a 0.3.0 blocker.
 

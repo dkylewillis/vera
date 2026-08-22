@@ -19,9 +19,10 @@ pip install "vera-cli[docling]>=0.3.0"
 ```
 
 The 0.3.0 Windows app does not freeze this pipeline or list **Advanced layout
-(slower)** in Convert. CLI and source-run
-installs still need `vera-doc[ml]` / `uv sync --extra ml` for neural
-embeddings; those extras are independent of this Docling package.
+(slower)** in Convert. CLI MiniLM embeddings use `vera-doc[onnx]` /
+`uv sync --extra onnx` plus a VERA-exported snapshot (or the installer graph).
+Other Sentence Transformers models still need `vera-doc[ml]` /
+`uv sync --extra ml`. Those extras are independent of this Docling package.
 
 The package pins Docling to the current supported minor range with the
 `rapidocr` extra (RapidOCR + `onnxruntime`) and pulls a larger machine-learning

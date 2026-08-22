@@ -186,7 +186,7 @@ implementation code or tests.
 
 ## Cursor Cloud specific instructions
 
-The startup update script already runs `uv sync --extra dev --extra ml --extra app --extra mcp --extra docling`
+The startup update script already runs `uv sync --extra dev --extra ml --extra app --extra mcp --extra docling --extra onnx`
 and `npm --prefix packages/vera-app install`, so dependencies are ready. Notes below are
 non-obvious caveats for this environment; standard commands live in the sections above,
 [README.md](README.md), and [docs/desktop-app-getting-started.md](docs/desktop-app-getting-started.md).
@@ -210,12 +210,12 @@ non-obvious caveats for this environment; standard commands live in the sections
   **Convert PDF** view. Convert lists PyMuPDF only. Docling is a CLI extra
   (`uv sync --extra docling`; `vera convert --parser docling`), not a desktop
   pipeline in 0.3.0. The packaged
-  Windows sidecar freezes Sentence Transformers and vendors
-  `all-MiniLM-L6-v2` weights (`VERA_SENTENCE_TRANSFORMERS_HOME`);
+  Windows sidecar freezes ONNX Runtime and vendors a VERA-exported
+  `all-MiniLM-L6-v2` graph (`VERA_ONNX_MINILM_HOME` /
+  `VERA_SENTENCE_TRANSFORMERS_HOME`);
   packaged `HF_HOME` stays under userData. `app:dev` leaves `HF_HOME` unset
   and points MiniLM at `packages/vera-app/build/minilm` when that snapshot
-  exists. The sidecar imports Torch on the main thread at start (before
-  stdin); a convert-worker import deadlocks on Windows. Convert
+  exists. Convert
   timing lines (`elapsed_ms`) go to
   sidecar stderr and are teed to `userData/logs/sidecar.log`; open it from
   **File > Open convert log...**. Ask is

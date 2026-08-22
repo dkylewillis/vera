@@ -66,16 +66,17 @@ match.
 ## A neural-model archive fails to search
 
 Archives record the embedding model used during conversion. Search must load
-that same provider to embed the query. Install the optional machine-learning
-dependency when the archive used Sentence Transformers:
+that same provider to embed the query. Install the optional ONNX extra for
+MiniLM archives, or the `ml` extra for other Sentence Transformers models:
 
 ```bash
-python -m pip install "vera-doc[ml]"
+python -m pip install "vera-doc[onnx]"
+python -m pip install "vera-doc[ml]"   # other Hub Sentence Transformers models
 ```
 
-The required Sentence Transformers model may also need to be available in the
-runtime environment. The packaged desktop app already includes
-`sentence_transformers` and `all-MiniLM-L6-v2` weights. The default hashing
+MiniLM (`all-MiniLM-L6-v2`) uses ONNX Runtime. Other Sentence Transformers
+models still need `vera-doc[ml]`. The packaged desktop app already includes
+ONNX Runtime and a VERA-exported MiniLM graph. The default hashing
 model does not require this extra.
 
 Unknown model or provider names raise `UnknownEmbeddingModelError` at convert
@@ -290,9 +291,10 @@ the same environment (`python -m pip install` or `python -m pip install -e
 If Search reports skipped semantic model groups, the convert-time embedder is
 not available in this sidecar. Hosted embedders are a 0.3.1 follow-up. A
 source-run or CLI convert that fails with
-`No module named 'sentence_transformers'` needs `uv sync --extra ml` in the
-environment that runs VERA. The packaged Windows sidecar already includes
-that module and MiniLM weights.
+`No module named 'onnxruntime'` needs `uv sync --extra onnx` in the
+environment that runs VERA. Other Sentence Transformers models still need
+`uv sync --extra ml`. The packaged Windows sidecar already includes
+ONNX Runtime and MiniLM weights.
 
 A plugin can be installed and still missing from Convert. Broken
 `vera.ingest_pipelines` entry points are logged as warnings and omitted from
@@ -318,10 +320,9 @@ visible while it is still running.
 
 ## Convert stays on Discovering PDFs
 
-Convert reports **Discovering PDFs** until MiniLM is resolved. The sidecar
-imports `sentence_transformers` on the main thread at `sidecar_start` so that
-import does not deadlock against `stdin.readline()` on Windows. Check
-`sidecar.log` for `import_sentence_transformers phase=sidecar_start`.
+Convert reports **Discovering PDFs** until MiniLM is resolved. Check
+`sidecar.log` for `resolve_embedder` timing. MiniLM no longer imports Torch
+at sidecar start.
 
 ## Figures are missing or have no caption
 
@@ -417,7 +418,7 @@ From an initialized checkout, prefer:
 On a fresh machine:
 
 ```bash
-uv sync --extra dev --extra ml --extra app --extra mcp
+uv sync --extra dev --extra onnx --extra ml --extra app --extra mcp
 uv run --extra dev python -m pytest -q
 ```
 
