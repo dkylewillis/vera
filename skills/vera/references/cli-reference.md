@@ -34,10 +34,12 @@ Options:
   (`hashing`, `vera-hashing-384`, `all-MiniLM-L6-v2`,
   `sentence-transformers/...`). Unknown providers raise and the command
   exits non-zero instead of silently falling back to hashing. CLI and
-  source-run installs need the `onnx` extra for MiniLM (ONNX Runtime). Other
-  Sentence Transformers models need the `ml` extra. The Windows desktop
-  installer vendors a VERA-exported `all-MiniLM-L6-v2` ONNX graph. Archive
-  identity stays `sentence-transformers/all-MiniLM-L6-v2`.
+  source-run installs need the `onnx` extra for MiniLM (ONNX Runtime) plus a
+  MiniLM ONNX snapshot (`VERA_ONNX_MINILM_HOME` or the `app:dev` vendor path).
+  When the `onnx` extra is installed, MiniLM does not fall back to Sentence
+  Transformers. Other Sentence Transformers models need the `ml` extra. The
+  Windows desktop installer vendors a VERA-exported `all-MiniLM-L6-v2` ONNX
+  graph. Archive identity stays `sentence-transformers/all-MiniLM-L6-v2`.
 - `--parser PARSER` defaults to `pymupdf`. Accepts ingest pipeline specs
   `provider[:variant]` (requires `vera-ingest-pymupdf` for the default; for
   example `docling` or `docling:hybrid` when `vera-ingest-docling` is

@@ -15,6 +15,7 @@ from vera_doc import ChunkRecord, VeraDocument
 from vera_doc.embeddings import (
     BUNDLED_MINILM_MODEL_ID,
     SENTENCE_TRANSFORMERS_HOME_ENV,
+    UnknownEmbeddingModelError,
     bundled_minilm_available,
     clear_embedder_cache,
     cosine_similarity,
@@ -170,10 +171,50 @@ class TestModelListing:
         else:
             assert "all-MiniLM-L12-v2" not in ids
 
+    def test_minilm_does_not_fall_back_to_st_when_onnx_extra_installed(self, tmp_path, monkeypatch):
+        pytest.importorskip("onnxruntime")
+        pytest.importorskip("tokenizers")
+        monkeypatch.delenv(ONNX_MINILM_HOME_ENV, raising=False)
+        monkeypatch.setenv(SENTENCE_TRANSFORMERS_HOME_ENV, str(tmp_path))
+        monkeypatch.setattr(sys, "frozen", False, raising=False)
+        monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "missing-meipass"), raising=False)
+        clear_embedder_cache()
+        with pytest.raises(UnknownEmbeddingModelError, match="ONNX Runtime"):
+            get_embedder("sentence-transformers:all-MiniLM-L6-v2")
+
+    def test_minilm_factory_uses_onnx_when_snapshot_exists(self, tmp_path, monkeypatch, capsys):
+        model_dir = tmp_path / BUNDLED_MINILM_MODEL_ID
+        model_dir.mkdir()
+        (model_dir / "model.onnx").write_bytes(b"stub")
+        (model_dir / "tokenizer.json").write_text("{}", encoding="utf-8")
+        monkeypatch.setenv(ONNX_MINILM_HOME_ENV, str(tmp_path))
+        monkeypatch.delenv(SENTENCE_TRANSFORMERS_HOME_ENV, raising=False)
+
+        class DummyOnnx:
+            model_name = MINILM_HUB_NAME
+
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+            def embed(self, texts: list[str]) -> list[np.ndarray]:
+                return []
+
+        def boom(*args, **kwargs):
+            raise AssertionError(
+                "Sentence Transformers should not load MiniLM when an ONNX snapshot exists"
+            )
+
+        monkeypatch.setattr("vera_doc.embeddings.OnnxMiniLMEmbedder", DummyOnnx)
+        monkeypatch.setattr("vera_doc.embeddings.SentenceTransformerEmbedder", boom)
+        clear_embedder_cache()
+        embedder = get_embedder("sentence-transformers:all-MiniLM-L6-v2")
+        assert isinstance(embedder, DummyOnnx)
+        assert "MiniLM runtime=onnx" in capsys.readouterr().err
+
 
 @pytest.mark.skipif(_onnx_snapshot() is None, reason="vendored MiniLM ONNX snapshot is not present")
 class TestOnnxMiniLMGoldens:
-    def test_goldens_match_onnx_embedder(self, monkeypatch):
+    def test_goldens_match_onnx_embedder(self, monkeypatch, capsys):
         snapshot = _onnx_snapshot()
         assert snapshot is not None
         pytest.importorskip("onnxruntime")
@@ -183,6 +224,7 @@ class TestOnnxMiniLMGoldens:
         embedder = get_embedder("sentence-transformers:all-MiniLM-L6-v2")
         assert isinstance(embedder, OnnxMiniLMEmbedder)
         assert embedder.model_name == MINILM_HUB_NAME
+        assert "MiniLM runtime=onnx" in capsys.readouterr().err
         payload = json.loads(_GOLDENS.read_text(encoding="utf-8"))
         texts = [item["text"] for item in payload["items"]]
         vectors = embedder.embed(texts)

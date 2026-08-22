@@ -75,8 +75,8 @@ npm run app:dev
 The supported packaged target is currently Windows. Use the CLI
 `--pipeline-option` flags (or Convert-view pipeline settings) for
 provider-owned chunking and OCR controls. Packaged and `app:dev` Convert both
-report `pymupdf`, plus hashing and MiniLM embedders. `app:dev` loads MiniLM
-from `packages/vera-app/build/minilm` when that snapshot exists; packaged
+report `pymupdf`, plus hashing and MiniLM embedders. `app:dev` vendors MiniLM
+into `packages/vera-app/build/minilm` before launch; packaged
 builds vendor a VERA-exported ONNX graph. The sidecar does not import Torch.
 Docling is not listed;
 use `vera-cli[docling]` from the CLI.

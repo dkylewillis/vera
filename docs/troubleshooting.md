@@ -322,7 +322,12 @@ visible while it is still running.
 
 Convert reports **Discovering PDFs** until MiniLM is resolved. Check
 `sidecar.log` for `resolve_embedder` timing. MiniLM no longer imports Torch
-at sidecar start.
+at sidecar start. Sidecar stderr `MiniLM runtime=onnx` means ONNX Runtime is
+in use. `Loading weights: 0/103` is Hugging Face safetensors via Sentence
+Transformers — that MiniLM path is used only when the `onnx` extra is not
+installed. `npm run app:dev` vendors the ONNX graph first; a missing graph
+with the `onnx` extra installed is an error, not a silent Sentence
+Transformers load.
 
 ## Figures are missing or have no caption
 

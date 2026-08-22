@@ -14,7 +14,9 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   Archive identity stays `sentence-transformers/all-MiniLM-L6-v2`. The installer
   vendors a VERA-exported fp32 graph (SHA256-pinned via `export_minilm_onnx.py`
   and `compare_minilm_onnx.py`). CLI MiniLM is `vera-doc[onnx]`; other Hub
-  Sentence Transformers models remain `vera-doc[ml]`.
+  Sentence Transformers models remain `vera-doc[ml]`. `app:dev` vendors the ONNX
+  snapshot before launch. MiniLM no longer falls back to Sentence Transformers
+  when the `onnx` extra is installed but the ONNX graph is missing.
 
 ## [0.3.0] — 2026-08
 

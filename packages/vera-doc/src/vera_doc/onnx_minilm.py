@@ -214,3 +214,28 @@ def sentence_transformers_available() -> bool:
     except ImportError:
         return False
     return True
+
+
+def onnxruntime_available() -> bool:
+    try:
+        import onnxruntime  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def tokenizers_available() -> bool:
+    try:
+        import tokenizers  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def onnx_minilm_deps_available() -> bool:
+    """True when MiniLM can run on ONNX Runtime (not merely that onnxruntime exists).
+
+    Docling's RapidOCR extra also installs ``onnxruntime``. Requiring tokenizers
+    keeps that from blocking the Sentence Transformers MiniLM path.
+    """
+    return onnxruntime_available() and tokenizers_available()

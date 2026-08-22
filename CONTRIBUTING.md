@@ -19,6 +19,10 @@ The desktop app also needs Node.js 22+:
 npm --prefix packages/vera-app install
 ```
 
+`npm run app:dev` vendors the MiniLM ONNX graph into
+`packages/vera-app/build/minilm` before Electron starts (one-time export with
+`--extra ml` if that snapshot is missing).
+
 ## Checks
 
 Run these before opening a pull request:

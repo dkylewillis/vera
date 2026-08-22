@@ -197,7 +197,9 @@ non-obvious caveats for this environment; standard commands live in the sections
   `/workspace/.venv`.
 - Standard checks: `uv run --extra dev python -m pytest -q` (or `npm test`) for Python,
   `npm run app:typecheck` and `npm --prefix packages/vera-app run test:unit` for the app.
-- Desktop app: `npm run app:dev` works on Linux, macOS, and Windows. Electron
+- Desktop app: `npm run app:dev` works on Linux, macOS, and Windows. It vendors
+  the MiniLM ONNX graph into `packages/vera-app/build/minilm` before Electron
+  starts. Electron
   spawns the Python sidecar as `python -m vera_app.sidecar`, so set
   `VERA_APP_PYTHON=/workspace/.venv/bin/python` (the venv Python has numpy/pymupdf/pdfplumber);
   otherwise the sidecar fails to import its deps. In the cloud VM also set `DISPLAY=:1` and
@@ -214,8 +216,7 @@ non-obvious caveats for this environment; standard commands live in the sections
   `all-MiniLM-L6-v2` graph (`VERA_ONNX_MINILM_HOME` /
   `VERA_SENTENCE_TRANSFORMERS_HOME`);
   packaged `HF_HOME` stays under userData. `app:dev` leaves `HF_HOME` unset
-  and points MiniLM at `packages/vera-app/build/minilm` when that snapshot
-  exists. Convert
+  and vendors MiniLM into `packages/vera-app/build/minilm` before launch. Convert
   timing lines (`elapsed_ms`) go to
   sidecar stderr and are teed to `userData/logs/sidecar.log`; open it from
   **File > Open convert log...**. Ask is
