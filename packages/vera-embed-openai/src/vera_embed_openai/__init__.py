@@ -19,8 +19,8 @@ from .options import (
     PROVIDER,
     OpenAIOptions,
     describe_provider,
-    list_models as _list_models,
 )
+from .options import list_models as _list_models
 from .provider import (
     MAX_INPUT_TOKENS,
     MAX_REQUEST_TOKENS,
