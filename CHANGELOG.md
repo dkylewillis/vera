@@ -40,13 +40,19 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Packaged MiniLM uses ONNX Runtime instead of PyTorch / Sentence Transformers.
   Archive identity stays `sentence-transformers/all-MiniLM-L6-v2`. The installer
   vendors a VERA-exported fp32 graph (SHA256-pinned via `export_minilm_onnx.py`
-  and `compare_minilm_onnx.py`). CLI MiniLM is `vera-doc[onnx]`; other Hub
-  Sentence Transformers models remain `vera-doc[ml]`. `app:dev` vendors the ONNX
-  snapshot before launch. MiniLM no longer falls back to Sentence Transformers
-  when the `onnx` extra is installed but the ONNX graph is missing. Sidecar
+  and `compare_minilm_onnx.py`). `app:dev` vendors the ONNX
+  snapshot before launch. Sidecar
   freeze `--exclude-module`s Torch / Sentence Transformers even when the
   project venv has the `ml` extra; MiniLM export in release CI uses a throwaway
   venv.
+
+- MiniLM selects its runtime by what is actually available: ONNX Runtime when a
+  VERA-exported graph is present, Sentence Transformers otherwise. Installing
+  the `onnx` extra no longer makes MiniLM fail when no graph is vendored, so
+  `pip install "vera-doc[ml]"` is enough for MiniLM on the CLI and a checkout
+  synced with `--extra onnx --extra ml` works without
+  `VERA_ONNX_MINILM_HOME`. The packaged app and `app:dev` are unaffected —
+  both vendor a graph and still never load Sentence Transformers.
 
 ## [0.3.0] — 2026-08
 

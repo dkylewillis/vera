@@ -74,11 +74,11 @@ entries are not retried until `reset_embedding_registry()` runs.
 Install the package in the same environment as VERA (`python -m pip install`
 or `python -m pip install -e <clone>`), then restart the app. Bundled
 `hashing` wins on duplicate names. MiniLM uses the workspace `onnx` extra
-(ONNX Runtime) for CLI and source-run installs. Other Sentence Transformers
-models use the `ml` extra. When the `onnx` extra is installed, MiniLM does
-not fall back to Sentence Transformers. The Windows installer freezes ONNX
+(ONNX Runtime) when a MiniLM graph is present and the `ml` extra
+(Sentence Transformers) otherwise. Other Sentence Transformers
+models always use the `ml` extra. The Windows installer freezes ONNX
 Runtime and vendors a VERA-exported `all-MiniLM-L6-v2` graph. Archive identity
-stays `sentence-transformers/all-MiniLM-L6-v2`.
+stays `sentence-transformers/all-MiniLM-L6-v2` under either runtime.
 
 ## Official OpenAI package
 

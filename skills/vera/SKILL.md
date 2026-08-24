@@ -154,10 +154,10 @@ commands write or replace local files and require normal user authorization:
   or a manual `TESSDATA_PREFIX` install.
   Extra ingest plugins are pip packages in the same environment
   (`python -m pip install` or `python -m pip install -e <clone>`). MiniLM
-  convert/search needs `vera-doc[onnx]` (ONNX Runtime) and a VERA-exported
-  snapshot. When the `onnx` extra is installed, MiniLM does not fall back to
-  Sentence Transformers. Use `vera-doc[ml]` for other Sentence Transformers
-  models (or for MiniLM only when the `onnx` extra is absent). The
+  convert/search needs `vera-doc[ml]` (Sentence Transformers), or
+  `vera-doc[onnx]` (ONNX Runtime) plus a VERA-exported snapshot. MiniLM uses
+  ONNX Runtime when a snapshot is present and Sentence Transformers otherwise.
+  Use `vera-doc[ml]` for all other Sentence Transformers models. The
   0.3.0 packaged desktop app converts with PyMuPDF only; Docling is the
   `vera-cli[docling]` extra, not Advanced layout in Convert. OpenAI embeddings
   ship with `vera-cli` as `vera-embed-openai`; set `OPENAI_API_KEY`. Hashing

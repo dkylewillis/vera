@@ -34,10 +34,11 @@ Options:
   (`hashing`, `vera-hashing-384`, `all-MiniLM-L6-v2`,
   `sentence-transformers/...`). Unknown providers raise and the command
   exits non-zero instead of silently falling back to hashing. CLI and
-  source-run installs need the `onnx` extra for MiniLM (ONNX Runtime) plus a
+  source-run installs need the `ml` extra for MiniLM, or the `onnx` extra
+  (ONNX Runtime) plus a
   MiniLM ONNX snapshot (`VERA_ONNX_MINILM_HOME` or the `app:dev` vendor path).
-  When the `onnx` extra is installed, MiniLM does not fall back to Sentence
-  Transformers. Other Sentence Transformers models need the `ml` extra. The
+  MiniLM uses ONNX Runtime when a snapshot is present and Sentence
+  Transformers otherwise. Other Sentence Transformers models need the `ml` extra. The
   Windows desktop installer vendors a VERA-exported `all-MiniLM-L6-v2` ONNX
   graph. Archive identity stays `sentence-transformers/all-MiniLM-L6-v2`.
   OpenAI embeddings ship with `vera-cli` as `vera-embed-openai`

@@ -259,8 +259,9 @@ under `vera.embedders`. Desktop Convert calls `preflight_embedder` before writin
 archive. MiniLM runs on ONNX Runtime in the Windows sidecar with a
 VERA-exported, SHA256-pinned graph. `npm run app:dev` vendors that graph
 into `packages/vera-app/build/minilm` before Electron starts (exporting
-once with `--extra ml` if the snapshot is missing). It does not silently
-fall back to Sentence Transformers when the `onnx` extra is installed.
+once with `--extra ml` if the snapshot is missing), so the app does not
+load Sentence Transformers for MiniLM. Without that graph MiniLM falls back
+to Sentence Transformers, which is how CLI installs run it.
 Other Sentence Transformers models still need `uv sync --extra ml`. A missing
 `onnxruntime` module in a checkout means that extra is not installed —
 run `uv sync --extra onnx` (or `--extra app`) and restart the app. See

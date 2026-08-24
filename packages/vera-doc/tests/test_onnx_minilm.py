@@ -171,15 +171,45 @@ class TestModelListing:
         else:
             assert "all-MiniLM-L12-v2" not in ids
 
-    def test_minilm_does_not_fall_back_to_st_when_onnx_extra_installed(self, tmp_path, monkeypatch):
+    def test_minilm_falls_back_to_st_when_no_onnx_graph_is_present(self, tmp_path, monkeypatch):
         pytest.importorskip("onnxruntime")
         pytest.importorskip("tokenizers")
+        pytest.importorskip("sentence_transformers")
         monkeypatch.delenv(ONNX_MINILM_HOME_ENV, raising=False)
         monkeypatch.setenv(SENTENCE_TRANSFORMERS_HOME_ENV, str(tmp_path))
         monkeypatch.setattr(sys, "frozen", False, raising=False)
         monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "missing-meipass"), raising=False)
+
+        class DummySentenceTransformer:
+            model_name = MINILM_HUB_NAME
+
+            def __init__(self, *args, **kwargs) -> None:
+                pass
+
+            def embed(self, texts: list[str]) -> list[np.ndarray]:
+                return []
+
+        monkeypatch.setattr(
+            "vera_doc.embeddings.SentenceTransformerEmbedder", DummySentenceTransformer
+        )
         clear_embedder_cache()
-        with pytest.raises(UnknownEmbeddingModelError, match="ONNX Runtime"):
+        embedder = get_embedder("sentence-transformers:all-MiniLM-L6-v2")
+        assert isinstance(embedder, DummySentenceTransformer)
+
+    def test_minilm_error_names_both_extras_when_no_runtime_is_available(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.delenv(ONNX_MINILM_HOME_ENV, raising=False)
+        monkeypatch.setenv(SENTENCE_TRANSFORMERS_HOME_ENV, str(tmp_path))
+        monkeypatch.setattr(sys, "frozen", False, raising=False)
+        monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path / "missing-meipass"), raising=False)
+
+        def missing(*args, **kwargs):
+            raise ImportError("sentence-transformers is not installed")
+
+        monkeypatch.setattr("vera_doc.embeddings.SentenceTransformerEmbedder", missing)
+        clear_embedder_cache()
+        with pytest.raises(UnknownEmbeddingModelError, match=r"vera-doc\[ml\]"):
             get_embedder("sentence-transformers:all-MiniLM-L6-v2")
 
     def test_minilm_factory_uses_onnx_when_snapshot_exists(self, tmp_path, monkeypatch, capsys):

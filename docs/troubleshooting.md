@@ -66,18 +66,18 @@ match.
 ## A neural-model archive fails to search
 
 Archives record the embedding model used during conversion. Search must load
-that same provider to embed the query. Install the optional ONNX extra for
-MiniLM archives, or the `ml` extra for other Sentence Transformers models:
+that same provider to embed the query. Install the `ml` extra for any Sentence
+Transformers archive, including MiniLM:
 
 ```bash
-python -m pip install "vera-doc[onnx]"
-python -m pip install "vera-doc[ml]"   # other Hub Sentence Transformers models
+python -m pip install "vera-doc[ml]"
 ```
 
-MiniLM (`all-MiniLM-L6-v2`) uses ONNX Runtime. Other Sentence Transformers
-models still need `vera-doc[ml]`. The packaged desktop app already includes
-ONNX Runtime and a VERA-exported MiniLM graph. The default hashing
-model does not require this extra.
+MiniLM (`all-MiniLM-L6-v2`) prefers ONNX Runtime when a VERA-exported graph is
+available and falls back to Sentence Transformers otherwise, so `vera-doc[ml]`
+is enough on the CLI. `vera-doc[onnx]` avoids the Torch dependency but needs a
+graph via `VERA_ONNX_MINILM_HOME`; the packaged desktop app ships both. The
+default hashing model does not require any extra.
 
 Unknown model or provider names raise `UnknownEmbeddingModelError` at convert
 time and never create hashing vectors under a different name. If a custom name

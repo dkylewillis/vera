@@ -789,8 +789,8 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "Open convert log" in readme
     assert "logs/sidecar.log" in readme
     assert "vendors MiniLM ONNX" in readme
-    assert "does not silently" in desktop
-    assert "does not fall back to Sentence Transformers" in (DOCS / "architecture.md").read_text(
+    assert "does not\nload Sentence Transformers for MiniLM" in desktop
+    assert "falls back to Sentence Transformers" in (DOCS / "architecture.md").read_text(
         encoding="utf-8"
     )
     assert "MiniLM runtime=onnx" in (
@@ -834,7 +834,7 @@ def test_index_ask_and_embedder_operational_docs():
     assert "quality" in desktop and "permissive" in desktop
     assert "provider_error_detail" in architecture
     assert "does not call `preflight_embedder`" in conversion
-    assert "does not fall back to Sentence Transformers" in conversion
+    assert "falls back to Sentence Transformers" in conversion
     assert "does not call `preflight_embedder`" in architecture
     assert "single `.vera` archive" in evaluation
     assert "list_embedder_load_errors" in python_api

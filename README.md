@@ -89,16 +89,27 @@ vera figures manual.vera --out-dir ./figures --json
 
 The default embedding model is a deterministic local hashing embedder: no
 model downloads, no API keys, and no network access. MiniLM neural embeddings
-use ONNX Runtime:
+use Sentence Transformers:
 
 ```bash
-python -m pip install "vera-doc[onnx]"
-# Point at a VERA-exported MiniLM graph (the Windows installer vendors one)
-# export VERA_ONNX_MINILM_HOME=/path/to/minilm-parent
+python -m pip install "vera-doc[ml]"
 vera convert manual.pdf --model sentence-transformers:all-MiniLM-L6-v2
 ```
 
-Other Sentence Transformers Hub models still use `vera-doc[ml]`.
+Other Sentence Transformers Hub models also use `vera-doc[ml]`.
+
+MiniLM can instead run on ONNX Runtime, which avoids the Torch dependency and
+is how the desktop app ships it. That needs `vera-doc[onnx]` plus a
+VERA-exported graph (the Windows installer vendors one):
+
+```bash
+python -m pip install "vera-doc[onnx]"
+# export VERA_ONNX_MINILM_HOME=/path/to/minilm-parent
+```
+
+MiniLM prefers ONNX Runtime whenever a graph is available and falls back to
+Sentence Transformers otherwise. Archive identity is
+`sentence-transformers/all-MiniLM-L6-v2` under either runtime.
 
 See the [getting started guide](docs/getting-started.md) for the full
 walkthrough and [CLI recipes](docs/examples.md) for more patterns.
@@ -459,8 +470,8 @@ grounded question answering over documents. From a repository checkout,
 **File > Open convert log...** opens
 timed convert steps in `userData/logs/sidecar.log` (same file in
 `app:dev` and packaged VERA). `app:dev` vendors MiniLM ONNX into
-`packages/vera-app/build/minilm` before launch; it does not load Sentence
-Transformers for MiniLM when the `onnx` extra is installed. Packaged builds
+`packages/vera-app/build/minilm` before launch, so the app runs MiniLM on ONNX
+Runtime and never loads Sentence Transformers. Packaged builds
 vendor the same graph. Extra ingest and embedding plugins
 are pip packages in that same environment. It is built on the
 same packages described above. Download it from

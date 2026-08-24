@@ -29,7 +29,6 @@ from .onnx_minilm import (
     MINILM_HUB_NAME,
     OnnxMiniLMEmbedder,
     minilm_bundle_home,
-    onnx_minilm_deps_available,
     resolve_onnx_minilm_source,
     sentence_transformers_available,
 )
@@ -301,13 +300,6 @@ def _sentence_transformers_factory(model_id: str, **config: Any) -> EmbeddingFun
                     "ONNX MiniLM dependencies are not installed; "
                     "falling back to Sentence Transformers for MiniLM"
                 )
-        elif onnx_minilm_deps_available():
-            raise UnknownEmbeddingModelError(
-                "all-MiniLM-L6-v2 uses ONNX Runtime, but no MiniLM graph was found "
-                "(need model.onnx and tokenizer.json). Set VERA_ONNX_MINILM_HOME or run "
-                "packages/vera-app/scripts/vendor_minilm.py (app:dev vendors this automatically). "
-                "Sentence Transformers is not used for MiniLM when the onnx extra is installed."
-            )
     try:
         embedder = SentenceTransformerEmbedder(
             model_name,
@@ -321,8 +313,8 @@ def _sentence_transformers_factory(model_id: str, **config: Any) -> EmbeddingFun
     except ImportError as exc:
         if short_id == BUNDLED_MINILM_MODEL_ID:
             raise UnknownEmbeddingModelError(
-                "all-MiniLM-L6-v2 needs vera-doc[onnx] (ONNX Runtime + tokenizer) "
-                "with a vendored MiniLM graph, or vera-doc[ml] (sentence-transformers)."
+                "all-MiniLM-L6-v2 needs vera-doc[ml] (sentence-transformers), or "
+                "vera-doc[onnx] (ONNX Runtime + tokenizer) with a vendored MiniLM graph."
             ) from exc
         raise UnknownEmbeddingModelError(
             f"{model_name} requires vera-doc[ml] (sentence-transformers)."

@@ -34,10 +34,11 @@ Options:
 - `--model MODEL` (`hashing`; accepts `provider:model-id` specs such as
   `sentence-transformers:all-MiniLM-L6-v2` or `openai:text-embedding-3-small`;
   unknown providers exit with an
-  error; MiniLM needs the `onnx` extra and an ONNX snapshot, other Sentence
+  error; MiniLM needs the `ml` extra, or the `onnx` extra plus an ONNX
+  snapshot, other Sentence
   Transformers models need the `ml` extra, and the Windows installer vendors a
-  VERA-exported MiniLM graph. When the `onnx` extra is installed, MiniLM does
-  not fall back to Sentence Transformers. OpenAI embeddings ship with
+  VERA-exported MiniLM graph. MiniLM uses ONNX Runtime when a graph is present
+  and Sentence Transformers otherwise. OpenAI embeddings ship with
   `vera-cli` as `vera-embed-openai`; set `OPENAI_API_KEY`. Archives converted
   with OpenAI are not portable for semantic search)
 - `--parser PARSER` (`pymupdf`; accepts `provider[:variant]` specs such as

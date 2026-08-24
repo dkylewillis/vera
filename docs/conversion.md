@@ -160,32 +160,35 @@ vera convert "input.pdf" --model hashing
 It is deterministic, local, and requires no machine-learning package. Equivalent
 specs include `vera-hashing-384` and `hashing:vera-hashing-384`.
 
-For neural embeddings, MiniLM uses ONNX Runtime (`vera-doc[onnx]`). Other
-Sentence Transformers models still use the `ml` extra:
+For neural embeddings, MiniLM and every other Sentence Transformers model use
+the `ml` extra:
 
 ```bash
-python -m pip install "vera-cli>=0.3.0" "vera-doc[onnx]>=0.3.0"
+python -m pip install "vera-cli>=0.3.0" "vera-doc[ml]>=0.3.0"
 vera convert "input.pdf" --model sentence-transformers:all-MiniLM-L6-v2
 ```
+
+MiniLM can also run on ONNX Runtime (`vera-doc[onnx]`), which skips the Torch
+dependency but needs a VERA-exported graph via `VERA_ONNX_MINILM_HOME`.
 
 The packaged Windows app already includes ONNX Runtime and vendors a
 VERA-exported `all-MiniLM-L6-v2` graph in the installer (Convert label
 **Local semantic (MiniLM)**), so that model does not download on first
-desktop use. CLI MiniLM uses the `onnx` extra. Other model ids still use the
-`ml` extra and may download from the Hub on first resolve.
+desktop use. CLI installs without a vendored graph run MiniLM on Sentence
+Transformers and may download from the Hub on first resolve.
 
 Legacy slash-form names such as `sentence-transformers/all-MiniLM-L6-v2` and the
 bare alias `all-MiniLM-L6-v2` still work.
 
 The model name, vector dimension, and stored-vector normalization policy are
 recorded in the archive. Both built-in embedders use L2 normalization. Search
-uses the recorded model, so CLI machines that search a MiniLM archive still
-need `vera-doc[onnx]` plus a MiniLM ONNX snapshot (`VERA_ONNX_MINILM_HOME`,
-`app:dev`'s vendored graph, or the graph the Windows installer vendors).
-When the `onnx` extra is installed, MiniLM does not fall back to Sentence Transformers.
-Install `vera-doc[ml]` without the `onnx` extra if you want
-MiniLM via Sentence Transformers from the Hub. The packaged desktop sidecar
-already includes ONNX Runtime and the pinned graph.
+uses the recorded model, so CLI machines that search a MiniLM archive need
+`vera-doc[ml]`, or `vera-doc[onnx]` plus a MiniLM ONNX snapshot
+(`VERA_ONNX_MINILM_HOME`, `app:dev`'s vendored graph, or the graph the Windows
+installer vendors). MiniLM runs on ONNX Runtime when a graph is present and
+falls back to Sentence Transformers otherwise, so `vera-doc[ml]` alone is
+enough on the CLI. The packaged desktop sidecar already includes ONNX Runtime
+and the pinned graph, so it never loads Sentence Transformers.
 
 Prefer `provider:model-id` specs. An unrecognized provider or model raises an
 error at convert time instead of silently falling back to hashing. Third-party
