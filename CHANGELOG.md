@@ -54,6 +54,12 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   `VERA_ONNX_MINILM_HOME`. The packaged app and `app:dev` are unaffected —
   both vendor a graph and still never load Sentence Transformers.
 
+### Fixed
+
+- `vera convert --json` and `vera search --json` report OpenAI embedder
+  failures (missing `OPENAI_API_KEY`, HTTP errors) as
+  `{"ok": false, "error": "..."}` instead of an uncaught traceback.
+
 ## [0.3.0] — 2026-08
 
 ### Added

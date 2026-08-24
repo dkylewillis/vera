@@ -8,7 +8,12 @@ from vera_doc import UnknownEmbeddingModelError
 from vera_doc.collection import build_library_index, library_index_status, update_library_index
 from vera_doc.corpus import VeraCorpus
 from vera_doc.document import VeraDocument
-from vera_embed_openai import ensure_registered as ensure_openai_embedder_registered
+from vera_embed_openai import (
+    OpenAIEmbedderError,
+)
+from vera_embed_openai import (
+    ensure_registered as ensure_openai_embedder_registered,
+)
 from vera_ingest import (
     UnknownIngestPipelineError,
     batch_convert,
@@ -155,7 +160,7 @@ def cmd_convert(args) -> int:
         else:
             print(str(exc), file=sys.stderr)
         return 2
-    except (ValueError, FileNotFoundError) as exc:
+    except (ValueError, FileNotFoundError, OpenAIEmbedderError) as exc:
         if args.json:
             print(json.dumps({"ok": False, "error": str(exc)}))
         else:
@@ -201,12 +206,19 @@ def cmd_search(args) -> int:
         else VeraDocument.open(args.file)
     )
     try:
-        results = target.search(
-            text=args.query,
-            mode=args.mode,
-            top_k=args.top_k,
-            context_chunks=args.context_chunks,
-        )
+        try:
+            results = target.search(
+                text=args.query,
+                mode=args.mode,
+                top_k=args.top_k,
+                context_chunks=args.context_chunks,
+            )
+        except OpenAIEmbedderError as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(str(exc), file=sys.stderr)
+            return 1
         if args.json:
             payload = []
             for result in results:

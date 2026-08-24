@@ -137,7 +137,8 @@ Single-file JSON:
 }
 ```
 
-Empty-OCR, missing input, or validation failure with `--json`:
+Empty-OCR, missing input, validation failure, or OpenAI embedder failure
+(missing `OPENAI_API_KEY`, HTTP errors) with `--json`:
 
 ```json
 {
@@ -146,9 +147,9 @@ Empty-OCR, missing input, or validation failure with `--json`:
 }
 ```
 
-Exit 1. `FileNotFoundError` uses the same `{ok, error}` object. Without `--json`,
-the message is printed to stderr. Unknown `--parser` / `--model` uses the same
-JSON object and exits 2.
+Exit 1. `FileNotFoundError` and `OpenAIEmbedderError` use the same `{ok, error}`
+object. Without `--json`, the message is printed to stderr. Unknown `--parser` /
+`--model` uses the same JSON object and exits 2.
 
 Directory JSON:
 

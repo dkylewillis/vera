@@ -385,8 +385,9 @@ Check the command:
 - `validate`, `index status`, `eval`, and failed `export` can return structured
   JSON with exit status 1;
 - `convert --json` returns `{"ok": false, "error": "..."}` for extraction or
-  validation failure and a missing input path (exit 1), and for an unknown
-  `--parser` / `--model` (exit 2); directory conversion prints a batch report
+  validation failure, a missing input path, and OpenAI embedder failures such
+  as a missing `OPENAI_API_KEY` (exit 1), and for an unknown `--parser` /
+  `--model` (exit 2); directory conversion prints a batch report
   and exits 1 when any file failed or an existing output was malformed;
 - `ocr-languages download` returns structured JSON with exit status 2 for an
   unknown or unregistered code;

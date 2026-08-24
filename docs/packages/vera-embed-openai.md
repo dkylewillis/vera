@@ -40,7 +40,10 @@ convert("manual.pdf", "manual.vera", model="openai:text-embedding-3-small")
 
 Keep the API key in `OPENAI_API_KEY`. The desktop app stores it under
 **File > Settings → Embeddings** using the same encrypted env-secret store
-as other sidecar credentials. Optional `OPENAI_BASE_URL` (default
+as other sidecar credentials. Missing `OPENAI_API_KEY` or embeddings HTTP
+failures raise `OpenAIEmbedderError`; `vera convert --json` and
+`vera search --json` report that as `{"ok": false, "error": "..."}` (exit 1).
+Optional `OPENAI_BASE_URL` (default
 `https://api.openai.com/v1`) points at Azure, OpenRouter, or a local
 OpenAI-compatible server. Archives still record `openai:<model-id>`, so two
 endpoints that embed different models under the same id are indistinguishable

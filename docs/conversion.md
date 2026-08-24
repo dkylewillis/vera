@@ -214,7 +214,8 @@ as `batch_size` use `scope: convert` so search can resolve
 
 `vera-cli` and the desktop app bundle [`vera-embed-openai`](packages/vera-embed-openai.md).
 Hashing remains the default. Set `OPENAI_API_KEY` (desktop: **File > Settings
-→ Embeddings**):
+→ Embeddings**). A missing key makes `vera convert --json` / `vera search --json`
+exit 1 with `{"ok": false, "error": "..."}` instead of a traceback:
 
 ```bash
 set OPENAI_API_KEY=...

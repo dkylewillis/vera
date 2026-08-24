@@ -66,7 +66,8 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Embedding model spec: provider:model-id "
             "(e.g. hashing, hashing:vera-hashing-384, "
-            "sentence-transformers:all-MiniLM-L6-v2). "
+            "sentence-transformers:all-MiniLM-L6-v2, "
+            "openai:text-embedding-3-small). "
             "Unknown providers exit with an error."
         ),
     )
