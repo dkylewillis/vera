@@ -109,7 +109,7 @@ describe('createConversionController', () => {
       'Checking embedder',
     );
     expect(setConversionError).toHaveBeenCalledWith(
-      'Embedding provider is not ready. This build does not include hosted embedders; OPENAI_API_KEY cannot be configured here yet.',
+      'Embedding provider is not ready. Set OPENAI_API_KEY under File > Settings → Embeddings, then convert again.',
     );
     expect(dispatchBackgroundTask).not.toHaveBeenCalled();
   });

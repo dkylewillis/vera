@@ -341,6 +341,7 @@ registry pattern:
 ```bash
 vera convert manual.pdf --model hashing                                     # default: offline, deterministic
 vera convert manual.pdf --model sentence-transformers:all-MiniLM-L6-v2     # local neural model
+vera convert manual.pdf --model openai:text-embedding-3-small              # bundled hosted API; set OPENAI_API_KEY
 vera convert manual.pdf --model hashing --embedder-option dimension=256    # provider-owned options
 ```
 
@@ -349,7 +350,11 @@ dependencies or network access) and `sentence-transformers` (MiniLM via the
 `onnx` extra / ONNX Runtime in the Windows installer; other Hub models via
 the `ml` extra). The installer vendors a VERA-exported `all-MiniLM-L6-v2`
 graph; archive identity stays `sentence-transformers/all-MiniLM-L6-v2`.
-Third-party providers register through the
+OpenAI embeddings ship as the official `vera-embed-openai` plugin (bundled
+with `vera-cli` and the desktop sidecar). Archives converted with it are
+**not portable for semantic search** — the recipient needs their own
+`OPENAI_API_KEY`. Voyage and Ollama are not bundled. Third-party providers
+register through the
 `vera.embedders` entry-point group or `register_embedder()`, and can advertise
 option schemas, model presets, and required credential environment variables
 so hosts can preflight them without storing secrets in configuration. Unknown
@@ -366,6 +371,7 @@ dependencies pointing at the storage engine:
 ```text
 vera-ingest-pymupdf ──> vera-ingest ─┐
 vera-ingest-docling ──> vera-ingest ─┤
+vera-embed-openai ───────────────────┤
 vera-cli ────────────────────────────┼──> vera-doc
 vera-app ────────────────────────────┤
 vera-mcp ────────────────────────────┘
@@ -377,6 +383,7 @@ vera-mcp ───────────────────────�
 | [`vera-ingest`](https://pypi.org/project/vera-ingest/) | `import vera_ingest` | Provider-neutral conversion: the pipeline registry, shared block/chunk types, chunking helpers, atomic archive writing, and viewer helpers for pages, figures, and regions |
 | [`vera-ingest-pymupdf`](https://pypi.org/project/vera-ingest-pymupdf/) | plugin | Default PDF pipeline: PyMuPDF/pdfplumber parsing, table extraction, selective OCR |
 | [`vera-ingest-docling`](https://pypi.org/project/vera-ingest-docling/) | plugin | Optional Docling pipeline with layout models and hybrid chunking |
+| [`vera-embed-openai`](https://pypi.org/project/vera-embed-openai/) | plugin | Official OpenAI embeddings (stdlib HTTPS; bundled with CLI and desktop) |
 | [`vera-cli`](https://pypi.org/project/vera-cli/) | `vera` | The command line: argument parsing, text/JSON output contracts, exit codes, and retrieval evaluation |
 | [`vera-mcp`](https://pypi.org/project/vera-mcp/) | `vera mcp` | Thin MCP adapter exposing search, inspection, figures, pages, and regions as agent tools |
 | `vera-app` | — | Electron/React desktop application with a Python sidecar, built on the same packages |

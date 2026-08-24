@@ -421,6 +421,15 @@ def test_hardening_json_contracts_are_documented():
         encoding="utf-8"
     )
     assert "_warmup_sentence_transformers" not in sidecar_py
+    assert "vera-embed-openai" in main_ts
+    assert "OPENAI_API_KEY" in main_ts
+    assert "vera-embed-openai" in sidecar_build
+    assert "vera_embed_openai" in sidecar_build
+    assert 'embedderNames.includes("openai")' in verify_sidecar
+    assert "ensure_openai_embedder_registered" in sidecar_py
+    assert "ensure_registered" in (
+        ROOT / "packages" / "vera-embed-openai" / "src" / "vera_embed_openai" / "__init__.py"
+    ).read_text(encoding="utf-8")
     export_src = (ROOT / "packages" / "vera-app" / "scripts" / "export_minilm_onnx.py").read_text(
         encoding="utf-8"
     )
@@ -455,6 +464,8 @@ def test_hardening_json_contracts_are_documented():
     assert "ensure_registered" in (
         ROOT / "packages" / "vera-ingest-pymupdf" / "src" / "vera_ingest_pymupdf" / "__init__.py"
     ).read_text(encoding="utf-8")
+    publish_pypi = (ROOT / ".github" / "workflows" / "publish-pypi.yml").read_text(encoding="utf-8")
+    assert "vera-embed-openai" in publish_pypi
     assert "PyMuPDF ingest pipeline" in desktop
     assert "ingest_pipeline" in desktop
     assert "vera-ingest-docling" in conversion or "docling:hybrid" in conversion
@@ -464,6 +475,16 @@ def test_hardening_json_contracts_are_documented():
     assert "File > Settings" in desktop
     assert "Hugging Face" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
     assert "File > Settings" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
+    assert "Settings → Embeddings" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
+    assert "not portable" in conversion
+    assert "vera-embed-openai" in conversion
+    assert "OPENAI_API_KEY" in conversion
+    assert "Settings → Embeddings" in desktop
+    assert "vera-embed-openai" in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "dimension probe" not in guide
+    assert "from openai import OpenAI" not in guide
+    assert "vera-embed-openai" in guide
+    assert "Do not call the network from `__init__`" in guide
     assert "Advanced pipeline options" in (DOCS / "packages" / "vera-app.md").read_text(
         encoding="utf-8"
     )
@@ -475,6 +496,7 @@ def test_hardening_json_contracts_are_documented():
     assert "IngestRequest" in python_api
     assert "may change before 1.0" in python_api
     assert "not bundled" in python_api
+    assert "vera-embed-openai" in python_api
     assert "register_ingest_pipeline" in python_api
     assert "register_embedder" in python_api
     assert "may change before 1.0" in ingest_guide
@@ -485,6 +507,7 @@ def test_hardening_json_contracts_are_documented():
     assert "clamp `overlap` to `chunk_size - 1`" in ingest_guide
     assert "may change before 1.0" in guide
     assert "not bundled" in guide
+    assert "vera-embed-openai" in guide
     assert "Plugin load errors:" in guide
     ingest_pkg = (DOCS / "packages" / "vera-ingest.md").read_text(encoding="utf-8")
     assert "register_ingest_pipeline" in ingest_pkg

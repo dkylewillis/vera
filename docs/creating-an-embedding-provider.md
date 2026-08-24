@@ -7,9 +7,10 @@ special-cases a hosted OpenAI or Voyage package. Write your own to add a new
 API, a local runtime, or an experimental embedder.
 
 Registry and descriptor APIs (`register_embedder`, descriptor/model listing
-helpers) are experimental and may change before 1.0. Hosted providers
-(OpenAI, Voyage, Ollama) are examples you can implement yourself; they are
-not bundled with VERA.
+helpers) are experimental and may change before 1.0. The official OpenAI
+plugin is [`vera-embed-openai`](packages/vera-embed-openai.md), bundled with
+`vera-cli` and the desktop sidecar. Voyage and Ollama are not bundled with
+VERA; they need a query-versus-document hint on `EmbeddingFunction` first.
 
 This guide mirrors [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md):
 a plain factory, one Options dataclass whose field `metadata` drives both
@@ -49,14 +50,21 @@ Archives store `model_name`, dimension, and normalization — not your
   encode them in `model_name` (hashing does this as `vera-hashing-<N>`).
 - **Do not put API keys in Options.** Advertise
   `capabilities.credential_env` (for example `OPENAI_API_KEY`) and read the
-  environment inside the factory. The desktop app will store secrets
-  separately; Options fields must stay non-secret.
+  environment inside the factory. The desktop app stores those secrets under
+  **File > Settings → Embeddings**; Options fields must stay non-secret.
 
 Use `preflight_embedder("openai:text-embedding-3-small")` to check that a
 required credential env var is present without loading model weights. Desktop
 Convert calls this automatically; CLI `vera convert` and `vera_ingest.convert()`
-do not. Official hosted embedding packages (OpenAI, Voyage, Ollama) and their
-Settings UI are 0.3.1 follow-ups. Options fields must stay non-secret.
+do not. Options fields must stay non-secret.
+
+**Do not call the network from `__init__`.** `VeraDocument.open(..., mode="write")`
+resolves `get_embedder(stored_model_name)` only to validate dimension, and
+`preflight_embedder` is deliberately network-free. A constructor that embeds a
+dummy string on every write-mode open bills an API call and can fail offline.
+Ship a static dimension table for known ids and probe unrecognized ids lazily
+(on first `embed()` or a `dimension` property). The official OpenAI package
+does both.
 
 If a `vera.embedders` entry point fails to import, the provider is absent from
 `list_embedding_providers()`. Inspect `vera_doc.embeddings.list_embedder_load_errors()`
@@ -72,21 +80,42 @@ not fall back to Sentence Transformers. The Windows installer freezes ONNX
 Runtime and vendors a VERA-exported `all-MiniLM-L6-v2` graph. Archive identity
 stays `sentence-transformers/all-MiniLM-L6-v2`.
 
+## Official OpenAI package
+
+Use [`vera-embed-openai`](packages/vera-embed-openai.md) as the reference
+implementation for a hosted API: stdlib `urllib` (no SDK), `credential_env =
+"OPENAI_API_KEY"`, convert-time `batch_size` / `timeout`, token-aware request
+splitting, L2 normalization, and a constructor that never touches the network.
+`vera-cli` and `vera-app` depend on it; the frozen sidecar calls
+`ensure_registered()`.
+
+```bash
+set OPENAI_API_KEY=...
+vera convert manual.pdf --model openai:text-embedding-3-small \
+  --embedder-option batch_size=64
+```
+
+Archives converted with it are **not portable for semantic or hybrid search**:
+a recipient needs their own `OPENAI_API_KEY`. Keyword search still works.
+
 ## Minimal example (DIY hosted provider)
 
-The OpenAI sketch below is an example you can implement yourself. OpenAI,
-Voyage, and Ollama are not bundled with VERA.
+The sketch below is a third-party pattern. Copy
+[`packages/vera-embed-openai`](https://github.com/dkylewillis/vera/tree/main/packages/vera-embed-openai)
+when you want the official OpenAI client; use this skeleton for another API.
+Voyage and Ollama are not bundled with VERA.
 
 ```text
-vera-openai-embeddings/
+vera-myhost-embeddings/
   pyproject.toml
-  src/vera_openai_embeddings/
+  src/vera_myhost_embeddings/
     __init__.py
     options.py
     provider.py
 ```
 
-`provider.py`:
+`provider.py` — factory reads the env secret; the constructor does **not**
+probe dimension over the network:
 
 ```python
 from __future__ import annotations
@@ -94,40 +123,33 @@ from __future__ import annotations
 import os
 
 import numpy as np
-from openai import OpenAI
 
-from .options import OpenAIOptions
+from .options import KNOWN_DIMENSIONS, MyHostOptions
 
 
-class OpenAIEmbedder:
+class MyHostEmbedder:
     normalization = "l2"
 
     def __init__(self, model_id: str, *, batch_size: int):
-        self.model_name = f"openai:{model_id}"
-        self._client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+        self.model_name = f"myhost:{model_id}"
+        self._api_key = os.environ["MYHOST_API_KEY"]
         self._model = model_id
         self._batch_size = batch_size
-        self.dimension = len(self.embed(["dimension probe"])[0])
+        self.dimension = KNOWN_DIMENSIONS[model_id]
 
     def embed(self, texts: list[str]) -> list[np.ndarray]:
         vectors = []
         for start in range(0, len(texts), self._batch_size):
-            response = self._client.embeddings.create(
-                model=self._model,
-                input=texts[start : start + self._batch_size],
-            )
-            vectors.extend(item.embedding for item in response.data)
-        normalized = []
-        for vector in vectors:
-            array = np.asarray(vector, dtype=np.float32)
-            norm = np.linalg.norm(array)
-            normalized.append(array / norm if norm else array)
-        return normalized
+            vectors.extend(self._embed_batch(texts[start : start + self._batch_size]))
+        return vectors
+
+    def _embed_batch(self, texts: list[str]) -> list[np.ndarray]:
+        raise NotImplementedError("POST the provider embeddings API here")
 
 
 def create_embedder(model_id: str, **config):
-    options = OpenAIOptions.from_mapping(config)
-    return OpenAIEmbedder(model_id, batch_size=options.batch_size)
+    options = MyHostOptions.from_mapping(config)
+    return MyHostEmbedder(model_id, batch_size=options.batch_size)
 ```
 
 `options.py` validates convert-time knobs and describes them for CLI/GUI
@@ -146,14 +168,16 @@ from vera_doc import (
 )
 from vera_doc.embedder_descriptors import fields_from_dataclass
 
+KNOWN_DIMENSIONS = {"alpha-small": 1536}
+
 
 @dataclass(frozen=True)
-class OpenAIOptions(EmbedderOptions):
+class MyHostOptions(EmbedderOptions):
     batch_size: int = field(
         default=128,
         metadata={
             "label": "Batch size",
-            "description": "Texts embedded per OpenAI request (convert-time).",
+            "description": "Texts embedded per request (convert-time).",
             "minimum": 1,
             "maximum": 2048,
             "scope": "convert",
@@ -163,37 +187,29 @@ class OpenAIOptions(EmbedderOptions):
 
 def describe_provider() -> EmbedderDescriptor:
     return EmbedderDescriptor(
-        provider="openai",
-        label="openai — hosted embeddings",
-        description="OpenAI embeddings API (text-embedding-3-* and similar).",
-        default_model_id="text-embedding-3-small",
-        example_specs=(
-            "openai:text-embedding-3-small",
-            "openai:text-embedding-3-large",
-        ),
+        provider="myhost",
+        label="myhost — hosted embeddings",
+        description="Example hosted embeddings API.",
+        default_model_id="alpha-small",
+        example_specs=("myhost:alpha-small",),
         capabilities=EmbedderCapabilities(
             requires_network=True,
             requires_api_key=True,
-            credential_env="OPENAI_API_KEY",
+            credential_env="MYHOST_API_KEY",
             local_model=False,
             configurable_dimension=False,
             supports_model_listing=True,
         ),
-        fields=fields_from_dataclass(OpenAIOptions),
+        fields=fields_from_dataclass(MyHostOptions),
     )
 
 
 def list_models() -> tuple[EmbeddingModelInfo, ...]:
     return (
         EmbeddingModelInfo(
-            model_id="text-embedding-3-small",
-            label="text-embedding-3-small",
-            spec="openai:text-embedding-3-small",
-        ),
-        EmbeddingModelInfo(
-            model_id="text-embedding-3-large",
-            label="text-embedding-3-large",
-            spec="openai:text-embedding-3-large",
+            model_id="alpha-small",
+            label="alpha-small",
+            spec="myhost:alpha-small",
         ),
     )
 ```
@@ -220,13 +236,13 @@ def create_descriptor():
 
 ```toml
 [project.entry-points."vera.embedders"]
-openai = "vera_openai_embeddings:create_embedder"
+myhost = "vera_myhost_embeddings:create_embedder"
 
 [project.entry-points."vera.embedder_descriptors"]
-openai = "vera_openai_embeddings:create_descriptor"
+myhost = "vera_myhost_embeddings:create_descriptor"
 
 [project.entry-points."vera.embedder_models"]
-openai = "vera_openai_embeddings:list_models"
+myhost = "vera_myhost_embeddings:list_models"
 ```
 
 After `pip install`, resolve and convert:
@@ -294,8 +310,8 @@ cross-field checks, or normalizing values. Use
 - Built-in hashing and Sentence Transformers providers in
   `packages/vera-doc/src/vera_doc/embeddings.py` — Options + descriptors +
   model lists live beside the factories.
-- This guide's OpenAI sketch — hosted API with env credentials and
-  convert-time `batch_size`.
+- Official OpenAI plugin in `packages/vera-embed-openai` — stdlib HTTPS,
+  static dimensions, token-aware batching, no network in the constructor.
 
 See also [Convert documents](conversion.md#embedding-models) and the
 [vera-doc package overview](packages/vera-doc.md).

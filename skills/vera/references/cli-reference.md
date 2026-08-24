@@ -40,6 +40,10 @@ Options:
   Transformers. Other Sentence Transformers models need the `ml` extra. The
   Windows desktop installer vendors a VERA-exported `all-MiniLM-L6-v2` ONNX
   graph. Archive identity stays `sentence-transformers/all-MiniLM-L6-v2`.
+  OpenAI embeddings ship with `vera-cli` as `vera-embed-openai`
+  (`openai:text-embedding-3-small` / `-large`); set `OPENAI_API_KEY`. Archives
+  converted with OpenAI are not portable for semantic search. Voyage and
+  Ollama are not bundled.
 - `--parser PARSER` defaults to `pymupdf`. Accepts ingest pipeline specs
   `provider[:variant]` (requires `vera-ingest-pymupdf` for the default; for
   example `docling` or `docling:hybrid` when `vera-ingest-docling` is

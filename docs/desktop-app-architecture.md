@@ -27,6 +27,7 @@ packages/
   vera-ingest/            # conversion registry and archive writer
   vera-ingest-pymupdf/    # default PDF pipeline
   vera-ingest-docling/    # optional CLI Docling pipeline
+  vera-embed-openai/      # official OpenAI embeddings plugin
   vera-cli/               # terminal interface
   vera-app/               # Electron desktop app plus Python sidecar
 ```
@@ -34,7 +35,9 @@ packages/
 Dependency direction stays one-way:
 
 ```text
+vera-cli -> vera-embed-openai -> vera-doc
 vera-cli -> vera-ingest-pymupdf -> vera-ingest -> vera-doc
+vera-app -> vera-embed-openai -> vera-doc
 vera-app -> vera-ingest-pymupdf -> vera-ingest -> vera-doc
 ```
 
@@ -106,10 +109,12 @@ flowchart LR
   sidecar --> pymupdf
   sidecar --> hashing
   sidecar --> minilm["MiniLM"]
+  sidecar --> openai["OpenAI"]
 ```
 
-The sidecar registers the default `pymupdf` pipeline. Packaged Windows builds
-freeze PyMuPDF, `onnxruntime`, and `tokenizers` into one sidecar, and vendor a
+The sidecar registers the default `pymupdf` pipeline and the bundled `openai`
+embedder. Packaged Windows builds
+freeze PyMuPDF, `onnxruntime`, `tokenizers`, and `vera-embed-openai` into one sidecar, and vendor a
 VERA-exported `all-MiniLM-L6-v2` ONNX graph in the installer. Archive identity
 stays `sentence-transformers/all-MiniLM-L6-v2`. Hugging Face tokens,
 packaged `HF_HOME` (a writable cache under `userData` unless already set),
@@ -126,8 +131,9 @@ into `userData/logs/sidecar.log`, rotated to
 `sidecar.log.1` at about 2 MB. **File > Open convert log...**, Convert
 **Open log**, and **Settings → Diagnostics** open that file. Search
 reports `skipped_semantic_model_groups` when a query embedder is unavailable.
-`list_embedding_models` and `credential_env` remain part of the descriptor
-contract so hosted providers can land in 0.3.1 without a protocol change.
+`list_embedding_models` and `credential_env` drive Convert presets and
+**File > Settings → Embeddings**. OpenAI is bundled; Voyage and Ollama still
+need a query-versus-document hint on `EmbeddingFunction` before they can ship.
 
 ## Active Libraries and Collection Indexes
 
@@ -356,12 +362,13 @@ PyInstaller with the project virtualenv when it is available (honoring
 English data is passed as an absolute path so the build works from any
 directory. PyInstaller `--exclude-module` drops `torch` and
 `sentence_transformers` so a freeze venv that also has the `ml` extra still
-ships ONNX MiniLM only. The build copies `vera-ingest-pymupdf`
-package metadata and the sidecar registers the default
-`pymupdf` pipeline on import so Convert works in frozen builds
-where `importlib.metadata` entry points are otherwise empty. After a freeze,
-`node packages/vera-app/scripts/verify-packaged-sidecar.cjs` asserts
-`describe_ingest_pipelines` reports `pymupdf` (and not Docling), that MiniLM
+ships ONNX MiniLM only. The build copies `vera-ingest-pymupdf` and
+`vera-embed-openai` package metadata. The sidecar registers the default
+`pymupdf` pipeline and the `openai` embedder on import so Convert works in
+frozen builds where `importlib.metadata` entry points are otherwise empty.
+After a freeze, `node packages/vera-app/scripts/verify-packaged-sidecar.cjs`
+asserts `describe_ingest_pipelines` reports `pymupdf` (and not Docling), that
+`describe_embedding_providers` includes `openai`, that MiniLM
 weights are present, and that Torch is absent.
 
 From the repo root:
@@ -416,5 +423,6 @@ export controls alongside the PDF.
 
 ## Near-Term App Work
 
-- Hosted embedding providers (OpenAI, Voyage, Ollama) and their credentials UI.
+- Voyage and Ollama embeddings after an optional query/document hint on
+  `EmbeddingFunction`.
 - Add recent document shortcuts.

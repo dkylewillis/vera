@@ -27,6 +27,7 @@ members = [
     "vera-app",
     "vera-cli",
     "vera-doc",
+    "vera-embed-openai",
     "vera-ingest",
     "vera-ingest-docling",
     "vera-ingest-pymupdf",
@@ -4787,6 +4788,7 @@ version = "0.3.0"
 source = { editable = "packages/vera-app" }
 dependencies = [
     { name = "vera-doc", extra = ["onnx"] },
+    { name = "vera-embed-openai" },
     { name = "vera-ingest" },
     { name = "vera-ingest-pymupdf" },
 ]
@@ -4794,6 +4796,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "vera-doc", extras = ["onnx"], editable = "packages/vera-doc" },
+    { name = "vera-embed-openai", editable = "packages/vera-embed-openai" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
 ]
@@ -4804,6 +4807,7 @@ version = "0.3.0"
 source = { editable = "packages/vera-cli" }
 dependencies = [
     { name = "vera-doc" },
+    { name = "vera-embed-openai" },
     { name = "vera-ingest" },
     { name = "vera-ingest-pymupdf" },
 ]
@@ -4819,6 +4823,7 @@ mcp = [
 [package.metadata]
 requires-dist = [
     { name = "vera-doc", editable = "packages/vera-doc" },
+    { name = "vera-embed-openai", editable = "packages/vera-embed-openai" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
     { name = "vera-ingest-docling", marker = "extra == 'docling'", editable = "packages/vera-ingest-docling" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
@@ -4855,6 +4860,22 @@ requires-dist = [
     { name = "tokenizers", marker = "extra == 'onnx'", specifier = ">=0.15" },
 ]
 provides-extras = ["ml", "onnx"]
+
+[[package]]
+name = "vera-embed-openai"
+version = "0.3.0"
+source = { editable = "packages/vera-embed-openai" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "vera-doc" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "vera-doc", editable = "packages/vera-doc" },
+]
 
 [[package]]
 name = "vera-ingest"
@@ -4938,6 +4959,7 @@ source = { editable = "." }
 dependencies = [
     { name = "vera-cli" },
     { name = "vera-doc" },
+    { name = "vera-embed-openai" },
     { name = "vera-ingest" },
     { name = "vera-ingest-pymupdf" },
 ]
@@ -4996,6 +5018,7 @@ requires-dist = [
     { name = "vera-cli", editable = "packages/vera-cli" },
     { name = "vera-doc", editable = "packages/vera-doc" },
     { name = "vera-doc", extras = ["onnx"], marker = "extra == 'onnx'", editable = "packages/vera-doc" },
+    { name = "vera-embed-openai", editable = "packages/vera-embed-openai" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
     { name = "vera-ingest-docling", marker = "extra == 'docling'", editable = "packages/vera-ingest-docling" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },

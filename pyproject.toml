@@ -9,6 +9,7 @@ dependencies = [
   "vera-ingest",
   "vera-ingest-pymupdf",
   "vera-cli",
+  "vera-embed-openai",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
@@ -45,6 +46,7 @@ members = [
   "packages/vera-ingest-docling",
   "packages/vera-mcp",
   "packages/vera-cli",
+  "packages/vera-embed-openai",
   "packages/vera-app",
   "packages/vera-lab",
 ]
@@ -56,6 +58,7 @@ vera-ingest-pymupdf = { workspace = true }
 vera-ingest-docling = { workspace = true }
 vera-mcp = { workspace = true }
 vera-cli = { workspace = true }
+vera-embed-openai = { workspace = true }
 vera-app = { workspace = true }
 vera-lab = { workspace = true }
 
@@ -90,6 +93,7 @@ known-first-party = [
   "vera_ingest_pymupdf",
   "vera_ingest_docling",
   "vera_cli",
+  "vera_embed_openai",
   "vera_mcp",
   "vera_app",
   "vera_lab",
@@ -115,6 +119,7 @@ pythonpath = [
   "packages/vera-ingest-docling/src",
   "packages/vera-mcp/src",
   "packages/vera-cli/src",
+  "packages/vera-embed-openai/src",
   "packages/vera-app/src",
   "packages/vera-lab/src",
   "tests",
@@ -126,6 +131,7 @@ testpaths = [
   "packages/vera-ingest-pymupdf/tests",
   "packages/vera-ingest-docling/tests",
   "packages/vera-cli/tests",
+  "packages/vera-embed-openai/tests",
   "packages/vera-mcp/tests",
   "packages/vera-app/tests",
   "packages/vera-lab/tests",

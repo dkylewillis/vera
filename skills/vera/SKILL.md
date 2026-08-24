@@ -159,7 +159,10 @@ commands write or replace local files and require normal user authorization:
   Sentence Transformers. Use `vera-doc[ml]` for other Sentence Transformers
   models (or for MiniLM only when the `onnx` extra is absent). The
   0.3.0 packaged desktop app converts with PyMuPDF only; Docling is the
-  `vera-cli[docling]` extra, not Advanced layout in Convert.
+  `vera-cli[docling]` extra, not Advanced layout in Convert. OpenAI embeddings
+  ship with `vera-cli` as `vera-embed-openai`; set `OPENAI_API_KEY`. Hashing
+  remains the default. Archives converted with OpenAI are not portable for
+  semantic search.
 - `convert --overwrite` replaces existing batch outputs.
 - `index build` and `index update` write `.vera-index/` and delete previous
   generation directories after a successful publish.

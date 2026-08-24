@@ -51,7 +51,8 @@ current on-disk format. Do not expect further 0.2.x package releases from
 - [x] Persist the selected conversion embedding model.
 - [x] Use the selected model for single-file and batch conversion.
 - [x] Show installed embedding providers as model-spec suggestions.
-- [x] Offer Convert-view presets for hashing and Sentence Transformers MiniLM.
+- [x] Offer Convert-view presets for hashing, Sentence Transformers MiniLM,
+      and OpenAI `text-embedding-3-*`.
 - [x] Advertise provider-owned options through `EmbedderOptions` dataclass
   metadata and `vera.embedder_descriptors` (parallel to ingest pipelines).
 - [x] Accept `embedder_options` / `--embedder-option KEY=VALUE` and expose
@@ -66,24 +67,34 @@ current on-disk format. Do not expect further 0.2.x package releases from
   (`list_embedding_models`).
 - [x] Drive Convert UI embedding forms from descriptors
   (`EmbedderConfigForm` over `PipelineConfigForm`).
-- [ ] Store hosted embedding-provider credentials securely in the desktop
-  app (`credential_env` via encrypted env secrets) — 0.3.1.
+- [x] Store hosted embedding-provider credentials securely in the desktop
+      app (`credential_env` via encrypted env secrets). Settings → Embeddings
+      stores `OPENAI_API_KEY`.
 
 ### Official embedding providers
 
-Hosted providers below are follow-ups after 0.3.0 (0.3.1 or later), not
-0.3.0 blockers. The descriptor/`credential_env` pattern they will use is
-already in 0.3.0.
+OpenAI ships as the official `vera-embed-openai` plugin (stdlib HTTP, frozen
+into the Windows sidecar). Voyage and Ollama wait on an optional
+query-versus-document hint on `EmbeddingFunction`: convert and search share
+one `embed(texts)` today, and those providers need `input_type` or
+`search_document:` / `search_query:` prefixes.
 
-- [ ] Add a lightweight OpenAI-compatible embeddings provider.
+- [x] Add a lightweight OpenAI embeddings provider (`vera-embed-openai`).
 - [ ] Add Voyage AI embeddings for applications that use Claude for answers.
-- [ ] Add an Ollama embeddings provider for local models.
+      Blocked until `EmbeddingFunction` can hint query vs document.
+- [ ] Add an Ollama embeddings provider for local models. Same protocol
+      prerequisite as Voyage. A generic `openai-compatible` provider with a
+      required explicit endpoint is cleaner than overloading `OPENAI_BASE_URL`.
 - [x] Define supported configuration for endpoints, timeouts, and batch sizes
   via provider `Options` + descriptors (built-ins advertise dimension /
   device / batch_size; hosted plugins follow the same pattern; secrets use
   `credential_env`).
 - [x] Document which providers are bundled with each desktop release
-  (hashing + MiniLM in the Windows sidecar; hosted embedders in 0.3.1).
+      (hashing + MiniLM + OpenAI in the Windows sidecar).
+- [ ] Cancellation and progress during embed. Convert currently passes every
+      chunk to `embedder.embed(...)` in one call; Cancel is ignored until that
+      returns, and there is no per-batch progress. A protocol hook is a
+      follow-up, not a plugin-local fix.
 
 ### Packaging and local models
 

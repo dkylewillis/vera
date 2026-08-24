@@ -275,7 +275,12 @@ export function ConvertPanel({
             );
           })}
           {embeddingDescriptors
-            .filter((item) => item.provider !== 'hashing' && item.provider !== 'sentence-transformers')
+            .filter((item) => {
+              const covered = new Set(
+                EMBEDDING_MODEL_PRESETS.map((preset) => preset.requiresProvider || embeddingProviderFromSpec(preset.value)),
+              );
+              return !covered.has(item.provider);
+            })
             .map((item) => {
               const spec = item.default_model_id
                 ? `${item.provider}:${item.default_model_id}`
@@ -318,8 +323,8 @@ export function ConvertPanel({
       ) : null}
       <p className="sideMuted">
         {embeddingProviders.includes('sentence-transformers')
-          ? 'Local semantic (MiniLM) is bundled in the desktop app. The installer vendors a VERA-exported ONNX MiniLM graph, so first use does not download and does not need PyTorch. Hashing stays the default. The conversion embedding model is independent of Chat.'
-          : <>MiniLM is not available in this sidecar. From the repo root run <code>uv sync --extra app</code> (or <code>uv sync --extra onnx</code> for the CLI) and restart the app. Other Sentence Transformers models need <code>uv sync --extra ml</code>. Hosted embedders ship in a later 0.3.1 release.</>}
+          ? 'Local semantic (MiniLM) is bundled in the desktop app. The installer vendors a VERA-exported ONNX MiniLM graph, so first use does not download and does not need PyTorch. Hashing stays the default. OpenAI embeddings are bundled too: they bill per conversion and need OPENAI_API_KEY under File > Settings → Embeddings for convert and later semantic search. Those archives are not portable for semantic search: a recipient needs their own key. Keyword search still works without a key. The conversion embedding model is independent of Chat.'
+          : <>MiniLM is not available in this sidecar. From the repo root run <code>uv sync --extra app</code> (or <code>uv sync --extra onnx</code> for the CLI) and restart the app. Other Sentence Transformers models need <code>uv sync --extra ml</code>.</>}
         {' '}Custom specs are saved when the field loses focus.
       </p>
       <label className="miniCheck">

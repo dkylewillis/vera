@@ -37,7 +37,8 @@ Install the CLI from PyPI:
 python -m pip install "vera-cli>=0.3.0"
 ```
 
-That pulls in `vera-doc`, `vera-ingest`, and `vera-ingest-pymupdf`. Library-only
+That pulls in `vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and
+`vera-embed-openai`. Library-only
 installs (include the pymupdf plugin for a working default PDF convert path):
 
 ```bash
@@ -91,6 +92,8 @@ with VeraDocument.open("knowledge.vera") as document:
   writing.
 - [**vera-ingest-pymupdf**](packages/vera-ingest-pymupdf.md) — default PDF
   parsing and selective OCR.
+- [**vera-embed-openai**](packages/vera-embed-openai.md) — official OpenAI
+  embeddings plugin.
 - [**vera-cli**](packages/vera-cli.md) — run complete workflows from the
   `vera` command.
 - [**vera-mcp**](packages/vera-mcp.md) — expose retrieval to MCP-capable

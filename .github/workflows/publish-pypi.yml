@@ -22,6 +22,7 @@ jobs:
           - package: vera-ingest
           - package: vera-ingest-pymupdf
           - package: vera-ingest-docling
+          - package: vera-embed-openai
           - package: vera-mcp
           - package: vera-cli
     steps:
