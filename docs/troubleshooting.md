@@ -411,6 +411,9 @@ Install the optional dependency:
 python -m pip install "vera-cli[mcp]"
 ```
 
+Install the extra, not a bare `mcp` package. `vera-mcp` requires `mcp>=1.0,<2`
+because SDK 2.x removed `mcp.server.fastmcp`.
+
 Ensure the MCP client launches the command from that environment. See
 [MCP integration](mcp.md).
 

@@ -1,5 +1,7 @@
 """Tests for structured block parsing, heading-aware chunking, and figures."""
 
+from pathlib import Path
+
 import pytest
 
 from helpers.pdfs import make_structured_pdf
@@ -7,7 +9,7 @@ from vera_doc import VeraDocument
 from vera_ingest import convert
 from vera_ingest.chunking import build_chunks_from_blocks
 from vera_ingest.types import ParsedBlock
-from vera_ingest.viewer import figures, figures_for, get_blocks
+from vera_ingest.viewer import export_figures, figures, figures_for, get_blocks
 from vera_ingest_pymupdf.parser import parse_pdf_structured
 
 
@@ -241,6 +243,43 @@ class TestFiguresAPI:
         result = vera_doc.search("detention impervious", mode="keyword", top_k=1)[0]
         assert result.page_start == 2
         assert figures_for(vera_doc, result) == []
+
+    def test_export_figures_writes_png_without_data(self, vera_doc, tmp_path):
+        outdir = tmp_path / "figures"
+        items = export_figures(vera_doc, outdir)
+        assert len(items) == 1
+        item = items[0]
+        assert "data" not in item
+        written = Path(item["path"])
+        assert written.parent == outdir.resolve()
+        assert written.name == f"{item['asset_id']}.png"
+        assert written.read_bytes().startswith(b"\x89PNG")
+        assert item["mime_type"].startswith("image/")
+
+    def test_export_figures_rejects_unknown_asset_id(self, vera_doc, tmp_path):
+        with pytest.raises(ValueError, match="was not found"):
+            export_figures(vera_doc, tmp_path / "figures", asset_ids=["image_block_missing"])
+
+    def test_export_figures_rejects_non_figure_attachment(self, vera_doc, tmp_path):
+        source_id = vera_doc.metadata.get("source_attachment_id")
+        assert source_id
+        with pytest.raises(ValueError, match="was not found"):
+            export_figures(vera_doc, tmp_path / "figures", asset_ids=[str(source_id)])
+
+    def test_export_figures_rejects_unsafe_asset_id(self, vera_doc, tmp_path, monkeypatch):
+        items = figures(vera_doc, include_data=True)
+        items[0]["asset_id"] = "../evil"
+        from vera_ingest import viewer as viewer_mod
+
+        monkeypatch.setattr(viewer_mod, "figures", lambda *args, **kwargs: items)
+        with pytest.raises(ValueError, match="safe relative name"):
+            viewer_mod.export_figures(vera_doc, tmp_path / "figures")
+
+    def test_export_figures_rejects_file_as_directory(self, vera_doc, tmp_path):
+        target = tmp_path / "not-a-dir"
+        target.write_text("nope", encoding="utf-8")
+        with pytest.raises(ValueError, match="not a directory"):
+            export_figures(vera_doc, target)
 
 
 def make_captioned_pdf(path):

@@ -35,7 +35,7 @@ output to stdout.
 
 - [MCP setup and client configuration](../mcp.md#configure-a-client).
 - [MCP tools](../mcp.md#tools) — search, corpus search, inspect, validate,
-  figures, pages, and regions.
+  figures, figure image fetch, pages, and regions.
 - [Recommended agent behavior](../mcp.md#recommended-agent-behavior).
 - [Portable Agent Skill](../agent-skills.md).
 - [MCP troubleshooting](../mcp.md#troubleshooting).

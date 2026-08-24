@@ -539,6 +539,84 @@ If no original was stored, JSON mode prints:
 
 and exits 1.
 
+### `vera figures FILE`
+
+`FILE` is a single `.vera` archive. The command does not search a directory.
+
+Options:
+
+- `--out-dir DIR` writes image files under that directory and adds `path` to
+  each figure object. Omitted, the command lists metadata only.
+- `--asset-id ID` limits output to one figure attachment id and is repeatable.
+- `--page-start N` includes figures on or after this 1-based page.
+- `--page-end N` includes figures on or before this 1-based page.
+- `--json` emits one JSON object.
+
+List-only success (`--out-dir` omitted). There is no `path` field:
+
+```json
+{
+  "ok": true,
+  "file": "manual.vera",
+  "out_dir": null,
+  "figures": [
+    {
+      "block_id": "block_000042",
+      "page_number": 1,
+      "bbox": [72, 120, 272, 270],
+      "page_width": 612,
+      "page_height": 792,
+      "asset_id": "image_block_000042",
+      "mime_type": "image/png",
+      "filename": "image_000001.png",
+      "caption": "Figure 3: Detention pond sizing diagram"
+    }
+  ]
+}
+```
+
+With `--out-dir`, files are named `{asset_id}.{ext}` (`ext` from mime type or
+stored filename) and each object gains `path`. JSON never includes image
+bytes or `data`.
+
+```json
+{
+  "ok": true,
+  "file": "manual.vera",
+  "out_dir": "figures",
+  "figures": [
+    {
+      "block_id": "block_000042",
+      "page_number": 1,
+      "bbox": [72, 120, 272, 270],
+      "page_width": 612,
+      "page_height": 792,
+      "asset_id": "image_block_000042",
+      "mime_type": "image/png",
+      "filename": "image_000001.png",
+      "caption": "Figure 3: Detention pond sizing diagram",
+      "path": "figures/image_block_000042.png"
+    }
+  ]
+}
+```
+
+A missing or non-figure `--asset-id` prints:
+
+```json
+{
+  "ok": false,
+  "error": "Figure 'image_block_missing' was not found"
+}
+```
+
+and exits 1. An empty list with no filter is success (exit 0). `--out-dir`
+must be a directory; a file path exits 1 with a structured error. An unsafe
+`asset_id` (absolute, `..`, or path separators) also exits 1.
+
+Search `--figures` still returns metadata only. Use this command (or MCP
+`vera_get_figure`) when you need the stored raster.
+
 ### `vera eval FILE QUERIES`
 
 `FILE` is a single `.vera` archive. The command does not search a directory or
@@ -601,12 +679,15 @@ Runs the long-lived stdio MCP server. It does not accept `--json`; protocol
 messages use stdout, so do not mix ordinary output into that stream.
 
 MCP provides `vera_search`, `vera_corpus_search`, `vera_inspect`,
-`vera_validate`, `vera_figures`, `vera_get_page`, and
+`vera_validate`, `vera_figures`, `vera_get_figure`, `vera_get_page`, and
 `vera_get_chunk_regions`. `vera_search` and `vera_corpus_search` default
 `top_k` to `10`, matching `vera search` and `VeraDocument.search`.
 `vera_inspect` and `vera_validate` include both `file` (requested) and
-`path` (opened). The final three tools have no direct standalone CLI
-equivalent. See the repository's agent-skills guide for MCP setup.
+`path` (opened). `vera_get_figure` returns native image content for one
+`asset_id` plus citation metadata; a missing id returns `{"error": "..."}`.
+`vera_get_page` and `vera_get_chunk_regions` have no direct standalone CLI
+equivalent. `vera figures` is the CLI equivalent of `vera_figures` listing.
+See the repository's agent-skills guide for MCP setup.
 
 ### `vera ocr-languages list [LANGUAGE]`
 
@@ -676,7 +757,8 @@ exit code before deciding how to interpret output:
 
 - Exit 0: parse stdout as JSON when `--json` was supplied.
 - Exit 1 with structured JSON: expected negative result from `validate`,
-  `index status`, `eval`, `export` without an embedded source, or `convert`
+  `index status`, `eval`, `export` without an embedded source, `figures` when a
+  requested `--asset-id` is missing or is not a figure, or `convert`
   when extraction/validation fails or the input path is missing (`{ok: false,
   error}`).
 - Exit 1 with stderr traceback: most path, dependency, or runtime failures.
@@ -694,12 +776,14 @@ negative-result cases.
 
 ## Filesystem effects
 
-- Read-only: `search`, `inspect`, `validate`, `eval`, `ocr-languages list`.
+- Read-only: `search`, `inspect`, `validate`, `eval`, `ocr-languages list`,
+  and `figures` without `--out-dir`.
 - Writes archives: `convert`; existing single outputs can be replaced.
   `convert --ocr-allow-download` (and `ocr-languages download`) can also
   write into the OCR language cache directory.
 - Writes collection artifacts: `index build`, `index update`.
 - Writes source files: `export`.
+- Writes figure image files: `figures --out-dir`.
 - Writes to the OCR language cache directory: `ocr-languages download`.
 - Long-running process: `mcp`.
 - Network access: `convert --ocr-allow-download` and `ocr-languages

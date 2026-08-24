@@ -320,3 +320,21 @@ MCP belongs to the separately installable `vera-mcp` package:
 ```python
 from vera_mcp import build_server
 ```
+
+## Figures
+
+List stored figure metadata or write image files:
+
+```python
+from vera_doc import VeraDocument
+from vera_ingest.viewer import export_figures, figures
+
+with VeraDocument.open("manual.vera") as document:
+    listing = figures(document)
+    written = export_figures(document, "./figures")
+```
+
+`export_figures()` writes `{asset_id}.{ext}` under the directory and returns
+the listing plus `path`. Requested ids that are missing or not figure
+attachments raise `ValueError`. Search JSON and MCP `vera_figures` stay
+metadata-only; MCP `vera_get_figure` returns native image content.

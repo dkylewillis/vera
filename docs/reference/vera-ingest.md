@@ -40,6 +40,7 @@ conversion to `.vera` archives. PDF parsing/OCR live in plugins such as
         - regions_for
         - result_payload
         - get_source_document
+        - export_figures
         - export_source_document
       heading_level: 2
       show_if_no_docstring: true

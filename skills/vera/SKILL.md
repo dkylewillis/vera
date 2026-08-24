@@ -79,7 +79,12 @@ rollback history. `vera eval` opens one `.vera` archive, not a directory.
 - Use `--mode semantic` for paraphrases, intent, purpose, and wording mismatch.
 - Add `--context-chunks 1` when a hit depends on nearby definitions, exceptions,
   or preceding steps.
-- Add `--figures` for figures, tables, charts, diagrams, maps, and captions.
+- Add `--figures` for charts, diagrams, maps, and captions. That flag returns
+  metadata (`asset_id`, caption, page), not pixels. Fetch a stored raster with
+  `vera figures FILE --out-dir DIR --json` (attach the `path`) or MCP
+  `vera_get_figure`. Tables are usually markdown in chunk text, not figures.
+  A missing `asset_id` means no stored raster (vector drawings, decorative
+  marks); do not crop the PDF by hand.
 - Add `--regions` only when page bounding boxes are needed for visual grounding.
 - Increase `--top-k` to 10 for broad coverage; split compound questions into
   separate searches.
@@ -100,8 +105,10 @@ Search again when a result only shares generic vocabulary, lacks the exact
 identifier, or conflicts with another result.
 
 For figures, cite the caption and page. `--figures` returns metadata and
-captions, not image pixels. Do not claim to have visually inspected an image
-unless a separate vision-capable tool actually read it.
+captions, not image pixels. To inspect a stored image, write it with
+`vera figures FILE --out-dir DIR --json` and attach the file, or call MCP
+`vera_get_figure`. Do not claim to have visually inspected an image unless
+those bytes were actually read.
 
 ## Inspect and validate
 
@@ -168,7 +175,7 @@ request that only asks to search or explain a document.
 
 - Always inspect the exit code before trusting output.
 - Do not assume all nonzero exits lack JSON. `validate`, `index status`, `eval`,
-  a failed `export`, and a failed `convert` can print useful JSON while returning 1.
+  a failed `export`, a failed `figures`, and a failed `convert` can print useful JSON while returning 1.
   `convert --json` also prints `{"ok": false, "error": "..."}` and exits 2 for an
   unknown `--parser` / `--model`.
 - Most other missing-path and runtime failures are unstructured tracebacks on

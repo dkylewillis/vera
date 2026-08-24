@@ -133,13 +133,22 @@ sub-question as evidence for another.
    vera search "manual.vera" "pipe sizing chart" --top-k 5 --json --figures
    ```
 
-3. Read the result text, caption, page, and surrounding heading.
-4. Add `--context-chunks 1` if the caption lacks definitions, units, or scope.
-5. Cite the caption and page.
+3. Read the result text, caption, page, `asset_id`, and surrounding heading.
+4. To **see** a stored raster, write it and attach the file:
 
-Figure metadata does not include image bytes. State that the answer is based on
-caption and nearby extracted text unless a separate vision-capable tool has
-actually opened the image.
+   ```bash
+   vera figures "manual.vera" --asset-id "image_block_000042" --out-dir "./figures" --json
+   ```
+
+   Over MCP, call `vera_get_figure` with the same `asset_id`. Clients that
+   render MCP Image content will show the pixels.
+5. Add `--context-chunks 1` if the caption lacks definitions, units, or scope.
+6. Cite the caption and page.
+
+`--figures` / `vera_figures` do not include image bytes. Tables extracted as
+selectable text are markdown in the chunk, not figure attachments. If search
+returns no `asset_id` for a diagram, the archive has no stored raster (often
+vector art); do not crop the source PDF as a fallback.
 
 ## Visual grounding
 

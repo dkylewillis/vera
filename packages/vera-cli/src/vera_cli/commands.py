@@ -15,7 +15,10 @@ from vera_ingest import (
     convert,
 )
 from vera_ingest.viewer import (
+    ensure_requested_figures,
+    export_figures,
     export_source_document,
+    figures,
     get_source_document,
     result_payload,
 )
@@ -359,6 +362,64 @@ def cmd_export(args) -> int:
         )
     else:
         print(f"Exported {path}")
+    return 0
+
+
+def cmd_figures(args) -> int:
+    doc = VeraDocument.open(args.file)
+    try:
+        requested = list(args.asset_id) if args.asset_id else None
+        try:
+            if args.out_dir:
+                items = export_figures(
+                    doc,
+                    args.out_dir,
+                    asset_ids=requested,
+                    page_start=args.page_start,
+                    page_end=args.page_end,
+                )
+            else:
+                items = figures(
+                    doc,
+                    page_start=args.page_start,
+                    page_end=args.page_end,
+                    attachment_ids=requested,
+                )
+                ensure_requested_figures(requested, items)
+        except ValueError as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(f"Error: {exc}", file=sys.stderr)
+            return 1
+    finally:
+        doc.close()
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "file": args.file,
+                    "out_dir": args.out_dir,
+                    "figures": items,
+                }
+            )
+        )
+        return 0
+    if args.out_dir:
+        noun = "figure" if len(items) == 1 else "figures"
+        print(f"Wrote {len(items)} {noun} to {args.out_dir}")
+    elif not items:
+        print("No figures")
+        return 0
+    for item in items:
+        location = item.get("path") or item.get("asset_id")
+        page = item.get("page_number")
+        caption = item.get("caption") or ""
+        line = f"{location}  page {page}"
+        if caption:
+            line = f"{line}  {caption}"
+        print(line)
     return 0
 
 

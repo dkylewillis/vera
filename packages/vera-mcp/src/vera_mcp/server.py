@@ -41,7 +41,7 @@ def _archive_locator(file: str, document: VeraDocument) -> dict[str, str]:
 def build_server():
     """Create the FastMCP server with VERA tools registered."""
     try:
-        from mcp.server.fastmcp import FastMCP
+        from mcp.server.fastmcp import FastMCP, Image
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError(
             "The MCP server requires the vera-mcp package and its 'mcp' dependency"
@@ -154,6 +154,29 @@ def build_server():
         doc = _open(file)
         try:
             return figures(doc, page_start=page_start, page_end=page_end)
+        finally:
+            doc.close()
+
+    @server.tool(structured_output=False)
+    def vera_get_figure(file: str, asset_id: str):
+        """Return one stored figure as image content plus citation metadata.
+
+        Image bytes are MCP Image content. Metadata (caption, page, bbox, mime
+        type) is JSON text. A missing or non-figure asset id returns an error
+        object rather than attachment bytes.
+        """
+        doc = _open(file)
+        try:
+            items = figures(doc, include_data=True, attachment_ids=[asset_id])
+            if not items:
+                return {"error": f"Figure {asset_id} not found"}
+            figure = items[0]
+            data = figure.pop("data")
+            mime = str(figure.get("mime_type") or "image/png")
+            fmt = mime.split("/", 1)[-1] if "/" in mime else mime
+            if fmt == "jpg":
+                fmt = "jpeg"
+            return [figure, Image(data=data, format=fmt)]
         finally:
             doc.close()
 

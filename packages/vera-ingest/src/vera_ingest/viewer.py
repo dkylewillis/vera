@@ -123,6 +123,114 @@ def export_source_document(
     return str(target)
 
 
+_IMAGE_EXTENSIONS = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
+
+
+def _figure_extension(mime_type: str | None, filename: str | None) -> str:
+    """Return a leading-dot image extension for a stored figure."""
+    if filename:
+        suffix = Path(filename).suffix.lower()
+        if suffix == ".jpeg":
+            return ".jpg"
+        if suffix in {".png", ".jpg", ".gif", ".webp"}:
+            return suffix
+    mime = (mime_type or "").strip().lower()
+    if mime in _IMAGE_EXTENSIONS:
+        return _IMAGE_EXTENSIONS[mime]
+    if mime.startswith("image/"):
+        subtype = mime.split("/", 1)[1]
+        if subtype.isalnum():
+            return f".{subtype}"
+    return ".bin"
+
+
+def _safe_asset_stem(asset_id: str) -> str:
+    """Return a basename-only asset id, rejecting traversal."""
+    raw = str(asset_id)
+    candidate = Path(raw)
+    if (
+        not raw
+        or raw in {".", ".."}
+        or "/" in raw
+        or "\\" in raw
+        or candidate.is_absolute()
+        or any(part == ".." for part in candidate.parts)
+        or candidate.name != raw
+    ):
+        raise ValueError(f"Figure asset id {raw!r} is not a safe relative name")
+    return raw
+
+
+def _missing_figure_error(missing: list[str]) -> ValueError:
+    if len(missing) == 1:
+        return ValueError(f"Figure {missing[0]!r} was not found")
+    listed = ", ".join(repr(item) for item in missing)
+    return ValueError(f"Figures not found: {listed}")
+
+
+def ensure_requested_figures(
+    requested: Iterable[str] | None,
+    items: list[dict[str, Any]],
+) -> None:
+    """Raise ``ValueError`` when a requested asset id is missing or not a figure."""
+    if requested is None:
+        return
+    wanted = [str(item_id) for item_id in requested]
+    if not wanted:
+        return
+    found = {item["asset_id"] for item in items}
+    missing = [item_id for item_id in wanted if item_id not in found]
+    if missing:
+        raise _missing_figure_error(missing)
+
+
+def export_figures(
+    document: VeraDocument,
+    directory: str | os.PathLike[str],
+    *,
+    asset_ids: Iterable[str] | None = None,
+    page_start: int | None = None,
+    page_end: int | None = None,
+) -> list[dict[str, Any]]:
+    """Write figure attachments under ``directory`` and return metadata plus paths.
+
+    Output names are ``{asset_id}.{ext}``. ``ext`` comes from the stored mime
+    type or filename. Requested ids that are missing or not figure attachments
+    raise ``ValueError`` so a source PDF id cannot leak. Raw ``data`` is never
+    included in the returned dicts.
+    """
+    root = Path(directory)
+    if root.exists() and not root.is_dir():
+        raise ValueError(f"Export path {str(directory)!r} is not a directory")
+    root.mkdir(parents=True, exist_ok=True)
+    requested = None if asset_ids is None else list(dict.fromkeys(str(item) for item in asset_ids))
+    items = figures(
+        document,
+        page_start=page_start,
+        page_end=page_end,
+        include_data=True,
+        attachment_ids=requested,
+    )
+    ensure_requested_figures(requested, items)
+    exported: list[dict[str, Any]] = []
+    for item in items:
+        data = item.pop("data")
+        name = _safe_asset_stem(str(item["asset_id"])) + _figure_extension(
+            item.get("mime_type"),
+            item.get("filename"),
+        )
+        target = _confine_to_directory(root / name, root)
+        target.write_bytes(data)
+        exported.append({**item, "path": str(target)})
+    return exported
+
+
 def get_page(document: VeraDocument, page_number: int) -> dict[str, Any] | None:
     """Return ingest-provided viewer data for one page."""
     for page in _viewer_payload(document, "viewer_pages_attachment_id"):

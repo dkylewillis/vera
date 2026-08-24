@@ -81,6 +81,10 @@ vera validate manual.vera
 
 # Recover the embedded original PDF
 vera export manual.vera exported.pdf
+
+# List stored figures, or write their PNGs for an agent to attach
+vera figures manual.vera --json
+vera figures manual.vera --out-dir ./figures --json
 ```
 
 The default embedding model is a deterministic local hashing embedder: no
@@ -112,6 +116,7 @@ full command surface is scriptable by agents and applications:
 | `vera inspect` | Report pages, chunks, embedding model, parser, and archive metadata |
 | `vera validate` | Verify schema, hashes, embeddings, and index integrity |
 | `vera export` | Recover the original source document from the archive |
+| `vera figures` | List stored figures, or write their image files to a directory |
 | `vera eval` | Score retrieval quality against a query set (hit rate, MRR) |
 | `vera ocr-languages` | List or fetch Tesseract OCR language data |
 | `vera mcp` | Serve everything above to AI agents over MCP (stdio) |
@@ -164,9 +169,9 @@ Three integration surfaces share the same retrieval engine:
   search, inspect, and validate archives. This repository's own
   [AGENTS.md](AGENTS.md) teaches coding agents the workflow.
 - **MCP server** — `vera mcp` exposes `vera_search`, `vera_corpus_search`,
-  `vera_inspect`, `vera_validate`, `vera_figures`, `vera_get_page`, and
-  `vera_get_chunk_regions` as tools over stdio. Works with any MCP client;
-  see [Connect an MCP client](docs/mcp.md).
+  `vera_inspect`, `vera_validate`, `vera_figures`, `vera_get_figure`,
+  `vera_get_page`, and `vera_get_chunk_regions` as tools over stdio. Works with
+  any MCP client; see [Connect an MCP client](docs/mcp.md).
 - **Agent Skill** — a portable [SKILL.md](skills/vera/SKILL.md) package with a
   complete [CLI reference](skills/vera/references/cli-reference.md) that drops
   into Agent-Skills-compatible tools (Cursor and others). See
