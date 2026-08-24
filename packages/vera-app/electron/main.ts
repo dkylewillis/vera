@@ -359,6 +359,7 @@ class PythonSidecar {
         join(process.cwd(), '..', 'vera-doc', 'src'),
         join(process.cwd(), '..', 'vera-ingest', 'src'),
         join(process.cwd(), '..', 'vera-ingest-pymupdf', 'src'),
+        join(process.cwd(), '..', 'vera-embed-openai', 'src'),
       ];
       env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
     }
@@ -550,6 +551,12 @@ function storedEnvSecrets(): Record<string, string> {
   return secrets;
 }
 
+const KNOWN_EMBEDDER_ENV = ['OPENAI_API_KEY'];
+
+function envSecretPresent(name: string): boolean {
+  return Boolean(storedEnvSecrets()[name] || (process.env[name] || '').trim());
+}
+
 function applyEmbedderSecretEnv(env: NodeJS.ProcessEnv): void {
   for (const [name, value] of Object.entries(storedEnvSecrets())) {
     env[name] = value;
@@ -584,7 +591,7 @@ function clearEnvSecret(name: string): CredentialResult {
     writeApiKeys(keys);
   }
   sidecar.restart();
-  return { ok: true, has_api_key: Boolean(storedEnvSecrets()[envName] || process.env[envName]) };
+  return { ok: true, has_api_key: envSecretPresent(envName) };
 }
 
 function withRuntime(settings: AppSettings): AppSettings {
@@ -597,7 +604,9 @@ function withRuntime(settings: AppSettings): AppSettings {
     })),
     has_hf_token: Boolean(resolveHfToken()),
     has_env_secrets: Object.fromEntries(
-      Object.keys(storedEnvSecrets()).map((name) => [name, true]),
+      [...new Set([...Object.keys(storedEnvSecrets()), ...KNOWN_EMBEDDER_ENV])]
+        .filter((name) => envSecretPresent(name))
+        .map((name) => [name, true]),
     ),
   };
 }

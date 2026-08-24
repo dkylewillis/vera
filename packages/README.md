@@ -14,6 +14,7 @@ Published on PyPI:
 | [`vera-ingest`](https://pypi.org/project/vera-ingest/) | `import vera_ingest` | Conversion registry and shared ingest types |
 | [`vera-ingest-pymupdf`](https://pypi.org/project/vera-ingest-pymupdf/) | `import vera_ingest_pymupdf` | Default PyMuPDF PDF ingest pipeline |
 | [`vera-ingest-docling`](https://pypi.org/project/vera-ingest-docling/) | `import vera_ingest_docling` | Optional Docling ingest pipeline |
+| [`vera-embed-openai`](https://pypi.org/project/vera-embed-openai/) | `import vera_embed_openai` | Official OpenAI embeddings plugin |
 | [`vera-cli`](https://pypi.org/project/vera-cli/) | `vera` | CLI and evaluation |
 | [`vera-mcp`](https://pypi.org/project/vera-mcp/) | `vera mcp` | MCP adapter |
 
@@ -51,10 +52,17 @@ Optional CLI/library plugin that depends on `vera-ingest` and Docling.
 Registers the `docling` / `docling:hybrid` ingest pipeline. `vera-cli`
 installs it through the `docling` extra. It is not bundled into packaged desktop releases. The 0.3.0 Convert view does not list **Advanced layout (slower)**.
 
+## `vera-embed-openai`
+
+Official OpenAI embeddings plugin. Registers the `openai` provider with
+stdlib HTTPS (no OpenAI SDK). Pulled in by `vera-cli` and `vera-app` so
+hosted conversion works out of the box. Archives converted with it are not
+portable for semantic search.
+
 ## `vera-cli`
 
 Publishes `vera_cli` and the `vera` command. Depends on `vera-doc`,
-`vera-ingest`, and `vera-ingest-pymupdf`. Owns argument parsing, output
+`vera-ingest`, `vera-ingest-pymupdf`, and `vera-embed-openai`. Owns argument parsing, output
 contracts, exit codes, and retrieval evaluation. The optional `mcp` extra
 adds `vera-mcp`.
 
@@ -67,9 +75,9 @@ retrieval implementation.
 ## `vera-app`
 
 Owns the Electron/React desktop app and Python sidecar. Depends directly on
-`vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, ONNX Runtime, and
-`tokenizers`; it does not use the CLI as a backend. The packaged
-Windows installer freezes PyMuPDF plus a VERA-exported MiniLM ONNX graph
+`vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, ONNX Runtime,
+`tokenizers`, and `vera-embed-openai`; it does not use the CLI as a backend. The packaged
+Windows installer freezes PyMuPDF, OpenAI embeddings, plus a VERA-exported MiniLM ONNX graph
 (not Torch). The Docling CLI extra is
 not bundled in the installer.
 
@@ -85,6 +93,7 @@ pipeline provider.
 ```text
 vera-ingest-pymupdf ──> vera-ingest ─┐
 vera-ingest-docling ──> vera-ingest ─┤
+vera-embed-openai ───────────────────┤
 vera-cli ─────────────────────────────┼──> vera-doc
 vera-app ─────────────────────────────┤
 vera-mcp ─────────────────────────────┘

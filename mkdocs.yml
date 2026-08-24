@@ -61,6 +61,7 @@ plugins:
             - packages/vera-ingest/src
             - packages/vera-ingest-pymupdf/src
             - packages/vera-ingest-docling/src
+            - packages/vera-embed-openai/src
             - packages/vera-cli/src
             - packages/vera-mcp/src
             - packages/vera-app/src
@@ -141,6 +142,8 @@ nav:
       - Overview: packages/vera-ingest-pymupdf.md
   - vera-ingest-docling:
       - Overview: packages/vera-ingest-docling.md
+  - vera-embed-openai:
+      - Overview: packages/vera-embed-openai.md
   - vera-lab:
       - Overview: packages/vera-lab.md
   - vera-cli:

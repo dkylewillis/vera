@@ -1,18 +1,16 @@
 [project]
-name = "vera-cli"
+name = "vera-embed-openai"
 version = "0.3.0"
-description = "Command-line interface for VERA documents"
+description = "Official OpenAI embeddings provider for VERA"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "vera-doc>=0.3.0",
-  "vera-ingest>=0.3.0",
-  "vera-ingest-pymupdf>=0.3.0",
-  "vera-embed-openai>=0.3.0",
+  "numpy>=1.24",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
-keywords = ["semantic-search", "document", "sqlite", "cli"]
+keywords = ["openai", "embeddings", "semantic-search", "vera"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "License :: OSI Approved :: Apache Software License",
@@ -23,18 +21,20 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/dkylewillis/vera"
 Repository = "https://github.com/dkylewillis/vera"
-Documentation = "https://dkylewillis.github.io/vera/packages/vera-cli/"
+Documentation = "https://dkylewillis.github.io/vera/packages/vera-embed-openai/"
 
-[project.optional-dependencies]
-mcp = ["vera-mcp>=0.3.0"]
-docling = ["vera-ingest-docling>=0.3.0"]
+[project.entry-points."vera.embedders"]
+openai = "vera_embed_openai:create_embedder"
 
-[project.scripts]
-vera = "vera_cli:main"
+[project.entry-points."vera.embedder_descriptors"]
+openai = "vera_embed_openai:create_descriptor"
+
+[project.entry-points."vera.embedder_models"]
+openai = "vera_embed_openai:list_models"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/vera_cli"]
+packages = ["src/vera_embed_openai"]

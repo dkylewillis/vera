@@ -20,6 +20,16 @@ export const EMBEDDING_MODEL_PRESETS: ConvertPresetOption[] = [
     label: 'Local semantic (MiniLM)',
     requiresProvider: 'sentence-transformers',
   },
+  {
+    value: 'openai:text-embedding-3-small',
+    label: 'OpenAI text-embedding-3-small',
+    requiresProvider: 'openai',
+  },
+  {
+    value: 'openai:text-embedding-3-large',
+    label: 'OpenAI text-embedding-3-large',
+    requiresProvider: 'openai',
+  },
 ];
 
 /** Optional pipelines that should appear disabled with an install hint when missing. */
@@ -60,11 +70,11 @@ export function embeddingSelectOptions(
   const known = new Set(descriptors.map((item) => item.provider));
   const presets = EMBEDDING_MODEL_PRESETS.filter((preset) => {
     const provider = preset.requiresProvider || embeddingProviderFromSpec(preset.value);
-    return !known.has(provider) || preset.value === 'hashing';
+    return !known.has(provider) || preset.value === 'hashing' || provider === 'openai';
   });
   const extra = installed.filter((option) => {
     const provider = option.requiresProvider || embeddingProviderFromSpec(option.value);
-    return provider !== 'hashing' && provider !== 'sentence-transformers';
+    return provider !== 'hashing' && provider !== 'sentence-transformers' && provider !== 'openai';
   });
   return [...presets, ...extra];
 }

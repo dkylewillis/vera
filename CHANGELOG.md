@@ -8,6 +8,20 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+### Added
+
+- Official `vera-embed-openai` plugin: stdlib HTTPS client for
+  `text-embedding-3-small`, `text-embedding-3-large`, and
+  `text-embedding-ada-002`. `vera-cli` and `vera-app` depend on it the same
+  way they depend on PyMuPDF; the frozen sidecar registers it via
+  `ensure_registered()`. See [docs/packages/vera-embed-openai.md](docs/packages/vera-embed-openai.md).
+- Desktop **Settings → Embeddings** stores `OPENAI_API_KEY` through the
+  existing encrypted env-secret IPC. Convert presets include the two
+  `text-embedding-3-*` models; hashing remains the default.
+- Archives converted with a hosted embedder are not portable for semantic
+  search: the recipient needs their own `OPENAI_API_KEY`. Keyword search
+  still works.
+
 ### Changed
 
 - Packaged MiniLM uses ONNX Runtime instead of PyTorch / Sentence Transformers.
@@ -66,8 +80,8 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   plugins page and no `vera_plugin_host`. Convert drives `EmbedderConfigForm`
   from descriptors, persists `embedder_configs`, and gates conversion on
   `preflight_embedder`. Search reports `skipped_semantic_model_groups` when a
-  query embedder is unavailable. Hosted embedding providers (OpenAI, Voyage,
-  Ollama) follow in 0.3.1.
+  query embedder is unavailable. Hosted embedding providers were not part of
+  0.3.0; OpenAI now ships as `vera-embed-openai` (see Unreleased).
 - Desktop convert timing log: sidecar stderr (including `elapsed_ms` convert
   steps) is teed to `userData/logs/sidecar.log` in both `app:dev`
   and packaged VERA. **File > Open convert log...**, Convert **Open log**, and
@@ -192,5 +206,5 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Clamp chunk overlap below `chunk_size` so carry never overruns.
 - Consume the skip flag; do not leak it into pipeline options.
 
-Hosted embedding providers (OpenAI, Voyage, Ollama) follow in 0.3.1. See
-[ROADMAP.md](ROADMAP.md).
+Voyage and Ollama embeddings remain pending (they need a query-versus-document
+hint). OpenAI ships as `vera-embed-openai`. See [ROADMAP.md](ROADMAP.md).

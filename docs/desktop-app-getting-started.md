@@ -55,7 +55,8 @@ native File menu to open an existing archive or document library.
 Desktop conversions default to the PyMuPDF ingest pipeline and the
 offline `hashing` embedder. The Convert view exposes dropdowns for
 `ingest_pipeline` (PyMuPDF in 0.3.0) and
-embedding model presets such as `sentence-transformers:all-MiniLM-L6-v2`, plus
+embedding model presets such as `sentence-transformers:all-MiniLM-L6-v2` and
+`openai:text-embedding-3-small`, plus
 a custom `provider:model-id` field. Chunking and OCR controls are schema-driven:
 the sidecar `describe_ingest_pipelines` action supplies descriptors, and
 `PipelineConfigForm` renders only advertised fields under a collapsed
@@ -65,7 +66,8 @@ for combinations such as `eng+spa`). These settings are independent of the Chat
 model and are persisted in app settings. `npm run app:dev` installs the `app`
 extra into the workspace environment. The source-run
 sidecar matches packaged releases: one Python process with PyMuPDF,
-hashing, and ONNX MiniLM. Plugins are ordinary pip packages in **the same environment**
+hashing, ONNX MiniLM, and OpenAI embeddings. Save `OPENAI_API_KEY` under
+**File > Settings → Embeddings**. Plugins are ordinary pip packages in **the same environment**
 (`vera.ingest_pipelines` / `vera.embedders`); CLI users can
 `pip install "vera-cli[docling]>=0.3.0"` or `pip install -e <clone>` after
 `vera-ingest` 0.3.x. An unavailable selection is disabled or fails with the
@@ -232,14 +234,14 @@ Search, Ask, indexing, and PyMuPDF conversion all run in
 the sidecar. Extra converters are pip packages in that environment, not a
 second interpreter. The 0.3.0 sidecar does not run Docling conversion.
 
-The packaged Windows installer freezes PyMuPDF, hashing, and ONNX Runtime
-into `vera-sidecar.exe`. MiniLM
+The packaged Windows installer freezes PyMuPDF, hashing, ONNX Runtime, and
+`vera-embed-openai` into `vera-sidecar.exe`. MiniLM
 (`all-MiniLM-L6-v2`) ONNX weights ship inside Setup.exe, so **Local semantic
 (MiniLM)** does not download those files on
 first use. Docling / **Advanced layout (slower)** is not part of the 0.3.0
-desktop app; install `vera-cli[docling]` and convert from the CLI. Hosted
-embedding providers
-(OpenAI, Voyage, Ollama) are a 0.3.1 follow-up.
+desktop app; install `vera-cli[docling]` and convert from the CLI. OpenAI
+embeddings are bundled; save `OPENAI_API_KEY` under **File > Settings →
+Embeddings**. Voyage and Ollama are not bundled.
 
 CLI users who want Docling install it into the VERA environment:
 
@@ -301,7 +303,8 @@ Convert and embed always run in-process in the sidecar; see
   `python -m pip install -e <clone>`), then restart the app. Raw `PYTHONPATH`
   folders are not discovered. If Search warns that semantic groups were
   skipped, the embedder used at convert time is not available in this
-  sidecar. Hosted embedders are not included until 0.3.1.
+  sidecar. OpenAI embeddings are bundled (`OPENAI_API_KEY` under **File >
+  Settings → Embeddings**); Voyage and Ollama are not.
 
 ## Provider request errors
 

@@ -115,7 +115,8 @@ This lets the app deliver faster, more consistent, and more explainable answers 
 Libraries (folder-scoped Search/Ask with persistent collection indexes) and
 LLM Ask are already shipped. Remaining product follow-ups:
 
-- Hosted embedding providers (OpenAI, Voyage, Ollama) in 0.3.1
+- Voyage and Ollama embeddings after an optional query/document hint on
+  `EmbeddingFunction`. OpenAI already ships as `vera-embed-openai`.
 - Advanced reranking and confidence scoring
 - Evaluation dashboard for groundedness and retrieval quality
 - Role-based governance and audit trails

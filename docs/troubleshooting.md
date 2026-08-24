@@ -289,7 +289,8 @@ The desktop app uses one sidecar interpreter. Install extra pip plugins into
 the same environment (`python -m pip install` or `python -m pip install -e
 <clone>`), then restart the app. Raw `PYTHONPATH` folders are not discovered.
 If Search reports skipped semantic model groups, the convert-time embedder is
-not available in this sidecar. Hosted embedders are a 0.3.1 follow-up. A
+not available in this sidecar. OpenAI embeddings are bundled (`OPENAI_API_KEY`
+under **File > Settings → Embeddings**); Voyage and Ollama are not. A
 source-run or CLI convert that fails with
 `No module named 'onnxruntime'` needs `uv sync --extra onnx` in the
 environment that runs VERA. Other Sentence Transformers models still need
@@ -360,8 +361,9 @@ entry names the model, indexed dimension, and load or dimension error.
 
 Install the missing provider in the process that embeds the query (CLI
 environment or desktop sidecar). Keyword results from
-the same search remain usable. Hosted embedding providers are not included
-until 0.3.1.
+the same search remain usable. OpenAI archives need `OPENAI_API_KEY` at search
+time as well; keyword hits still work without it. Voyage and Ollama are not
+bundled.
 
 ## vera-lab cannot open an archive
 

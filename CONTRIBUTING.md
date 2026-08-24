@@ -83,6 +83,7 @@ point inward at the storage engine:
 ```text
 vera-ingest-pymupdf ─┐
 vera-ingest-docling ─┤
+vera-embed-openai ───┤
 vera-ingest ─────────┼──> vera-doc
 vera-cli ────────────┤
 vera-app ────────────┤
@@ -94,6 +95,7 @@ vera-lab (dev only) ─┘
 - Ingest core: `packages/vera-ingest/src/vera_ingest`
 - Default PDF pipeline: `packages/vera-ingest-pymupdf/src/vera_ingest_pymupdf`
 - Optional Docling pipeline: `packages/vera-ingest-docling/src/vera_ingest_docling`
+- Official OpenAI embedder: `packages/vera-embed-openai/src/vera_embed_openai`
 - MCP: `packages/vera-mcp/src/vera_mcp`
 - CLI: `packages/vera-cli/src/vera_cli`
 - Ingest layout lab (dev): `packages/vera-lab/src/vera_lab`

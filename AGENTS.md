@@ -57,8 +57,9 @@ vera convert manual.pdf manual.vera --json
 vera convert scan.pdf scan.vera --parser docling --json
 vera convert scan.pdf scan.vera --parser docling --pipeline-option pdf_backend=pypdfium2 --json
 
-# Provider-owned embedder options (hashing dimension, future hosted providers)
+# Provider-owned embedder options (hashing dimension; OpenAI batch_size)
 vera convert manual.pdf --model hashing --embedder-option dimension=256 --json
+vera convert manual.pdf --model openai:text-embedding-3-small --json
 
 # Batch-convert a nested PDF library beside its source files
 vera convert ./proposals --recursive --json
@@ -209,7 +210,11 @@ non-obvious caveats for this environment; standard commands live in the sections
   (OpenAI/OpenRouter/Ollama/LM Studio) — there is no offline/extractive answer mode, so Ask is
   blocked without a provider/API key. For fully offline testing use the left-sidebar **Search**
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
-  **Convert PDF** view. Convert lists PyMuPDF only. Docling is a CLI extra
+  **Convert PDF** view. Convert lists PyMuPDF only. OpenAI embeddings are
+  bundled (`openai:text-embedding-3-small` / `-large`); hashing remains the
+  default. Save `OPENAI_API_KEY` under **File > Settings → Embeddings** (or
+  export it for CLI convert). Archives converted with OpenAI are not portable
+  for semantic search. Docling is a CLI extra
   (`uv sync --extra docling`; `vera convert --parser docling`), not a desktop
   pipeline in 0.3.0. The packaged
   Windows sidecar freezes ONNX Runtime and vendors a VERA-exported

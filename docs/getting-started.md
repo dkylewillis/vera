@@ -22,7 +22,8 @@ Install the CLI and its dependencies:
 python -m pip install "vera-cli>=0.3.0"
 ```
 
-That installs `vera-doc`, `vera-ingest`, and `vera-ingest-pymupdf` as well.
+That installs `vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and
+`vera-embed-openai` as well.
 Add MCP support with:
 
 ```bash
@@ -61,7 +62,7 @@ Contributors can clone the repository and install workspace packages:
 ```bash
 git clone https://github.com/dkylewillis/vera.git
 cd vera
-python -m pip install ./packages/vera-doc ./packages/vera-ingest ./packages/vera-ingest-pymupdf ./packages/vera-cli
+python -m pip install ./packages/vera-doc ./packages/vera-ingest ./packages/vera-ingest-pymupdf ./packages/vera-embed-openai ./packages/vera-cli
 ```
 
 Or with `uv`:

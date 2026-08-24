@@ -38,6 +38,7 @@ describe('SettingsModal', () => {
     expect(html).toContain('id="settings-title"');
     expect(html).toContain('Settings');
     expect(html).toContain('LLM Providers');
+    expect(html).toContain('Embeddings');
     expect(html).toContain('Hugging Face');
     expect(html).toContain('Diagnostics');
     expect(html).not.toContain('Python plugins');
@@ -71,5 +72,37 @@ describe('SettingsModal', () => {
     expect(html).toContain('Show convert log in folder');
     expect(html).toContain('app:dev');
     expect(html).not.toContain('Paste OpenAI key');
+  });
+
+  it('opens the Embeddings section with hosted credential fields', () => {
+    const html = renderToStaticMarkup(
+      <SettingsModal
+        providers={[]}
+        activeProviderId=""
+        activeModel=""
+        activeModeId=""
+        embeddingModel="hashing"
+        ingestPipeline="pymupdf"
+        ingestPipelineConfigs={{}}
+        embedderConfigs={{}}
+        embeddingDescriptors={[
+          {
+            provider: 'openai',
+            label: 'openai — hosted embeddings',
+            description: 'OpenAI embeddings API',
+            installed: true,
+            fields: [],
+            capabilities: { requires_api_key: true, credential_env: 'OPENAI_API_KEY' },
+          },
+        ]}
+        initialSection="embeddings"
+        onPersist={async () => settings}
+        onRefresh={async () => settings}
+        onClose={() => undefined}
+      />,
+    );
+    expect(html).toContain('OPENAI_API_KEY');
+    expect(html).toContain('Paste OPENAI_API_KEY');
+    expect(html).toContain('bill per conversion');
   });
 });
