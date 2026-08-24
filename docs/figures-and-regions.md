@@ -62,6 +62,29 @@ Each search result gains a `figures` array. A figure includes:
 
 The CLI returns metadata and captions, not image bytes.
 
+Write stored figure files:
+
+```bash
+vera figures "manual.vera" --out-dir "./figures" --json
+```
+
+Each figure object then includes `path` (`{asset_id}.{ext}` under `--out-dir`).
+JSON never includes image bytes. A missing `--asset-id` exits 1 with
+`{"ok": false, "error": "..."}`.
+
+Python:
+
+```python
+from vera_ingest.viewer import export_figures, figures
+
+doc = VeraDocument.open("manual.vera")
+try:
+    listing = figures(doc)
+    written = export_figures(doc, "./figures", asset_ids=[listing[0]["asset_id"]])
+finally:
+    doc.close()
+```
+
 VERA first returns figures directly associated with the result's source blocks.
 For older archives without that association, it falls back to figures on the
 result's page range.
@@ -183,8 +206,10 @@ regions = regions_for(corpus.document(result.file), result)
 
 MCP clients can use:
 
-- `vera_search` with `include_figures` or `include_regions`;
-- `vera_figures` to list figures in an optional page range;
+- `vera_search` with `include_figures` or `include_regions` (metadata only);
+- `vera_figures` to list figures in an optional page range (metadata only);
+- `vera_get_figure` to fetch one stored raster as native image content by
+  `asset_id`;
 - `vera_get_chunk_regions` to resolve one chunk ID.
 
 See [MCP integration](mcp.md).
@@ -192,9 +217,11 @@ See [MCP integration](mcp.md).
 ## Limitations
 
 - Figure metadata does not imply that the pixels were visually interpreted.
+  Fetch `vera_get_figure` or `vera figures --out-dir` when you need the image.
 - Captions depend on PDF layout extraction and proximity.
 - Tables represented as selectable text may be text blocks rather than image
   assets.
+- Vector drawings and decorative marks often have no figure attachment.
 - Regions identify source blocks, not individual words or characters.
 - Convert and the desktop source viewer are PDF-only today. Planned
   Markdown previews for flow documents, typed region `kind` values, and

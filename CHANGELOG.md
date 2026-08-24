@@ -8,7 +8,23 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+### Added
+
+- `vera figures FILE` lists stored figure metadata (captions, pages, bboxes,
+  `asset_id`) and, with `--out-dir`, writes `{asset_id}.{ext}` image files and
+  adds `path` to JSON. Missing or non-figure `--asset-id` values exit 1 with
+  `{"ok": false, "error": "..."}`.
+- MCP `vera_get_figure(file, asset_id)` returns native image content plus
+  citation metadata. `vera_figures` and `vera_search(include_figures=...)`
+  stay metadata-only.
+- `vera_ingest.export_figures()` writes figure attachments under a directory
+  with the same path-safety rules as `export_source_document()`.
+
 ### Changed
+
+- `vera-mcp` depends on `mcp>=1.0,<2`. MCP Python SDK 2.x removed
+  `mcp.server.fastmcp`; a fresh unbounded install could not start `vera mcp`.
+  Install `vera-cli[mcp]`, not a bare `mcp` 2.x package.
 
 - Packaged MiniLM uses ONNX Runtime instead of PyTorch / Sentence Transformers.
   Archive identity stays `sentence-transformers/all-MiniLM-L6-v2`. The installer

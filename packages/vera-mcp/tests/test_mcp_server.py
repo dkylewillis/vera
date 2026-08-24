@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from helpers.pdfs import make_pdf
+from helpers.pdfs import make_pdf, make_structured_pdf
 from vera_ingest import convert
 
 
@@ -35,6 +35,7 @@ async def test_tools_are_registered(server):
         "vera_inspect",
         "vera_validate",
         "vera_figures",
+        "vera_get_figure",
         "vera_get_page",
     } <= names
 
@@ -138,10 +139,79 @@ async def test_get_chunk_regions_tool(server, vera_file):
 
 def _payload(call_result):
     """Extract the structured payload from a FastMCP call_tool result."""
-    content, structured = call_result
-    if structured is not None:
-        return structured.get("result", structured)
-    return json.loads(content[0].text)
+    if isinstance(call_result, tuple):
+        content, structured = call_result
+        if structured is not None:
+            return structured.get("result", structured)
+        return json.loads(content[0].text)
+    return json.loads(call_result[0].text)
+
+
+@pytest.fixture(scope="module")
+def vera_file_with_figures(tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("mcp-figures")
+    pdf = tmp / "manual.pdf"
+    out = tmp / "manual.vera"
+    make_structured_pdf(pdf)
+    convert(str(pdf), str(out), model="hashing")
+    return out
+
+
+def _tool_content(call_result):
+    if isinstance(call_result, tuple):
+        return call_result[0]
+    return call_result
+
+
+@pytest.mark.anyio
+async def test_get_figure_returns_image_content(server, vera_file_with_figures):
+    listed = _payload(await server.call_tool("vera_figures", {"file": str(vera_file_with_figures)}))
+    assert listed
+    asset_id = listed[0]["asset_id"]
+    result = await server.call_tool(
+        "vera_get_figure",
+        {"file": str(vera_file_with_figures), "asset_id": asset_id},
+    )
+    content = _tool_content(result)
+    types = {getattr(block, "type", None) for block in content}
+    assert "image" in types
+    assert "text" in types
+    image = next(block for block in content if getattr(block, "type", None) == "image")
+    assert image.mimeType.startswith("image/")
+    assert image.data
+    text = next(block for block in content if getattr(block, "type", None) == "text")
+    metadata = json.loads(text.text)
+    assert metadata["asset_id"] == asset_id
+    assert "data" not in metadata
+
+
+@pytest.mark.anyio
+async def test_get_figure_missing_asset_returns_error(server, vera_file_with_figures):
+    payload = _payload(
+        await server.call_tool(
+            "vera_get_figure",
+            {"file": str(vera_file_with_figures), "asset_id": "image_block_missing"},
+        )
+    )
+    assert payload == {"error": "Figure image_block_missing not found"}
+
+
+@pytest.mark.anyio
+async def test_get_figure_rejects_non_figure_attachment(server, vera_file_with_figures):
+    from vera_doc.document import VeraDocument
+
+    doc = VeraDocument.open(str(vera_file_with_figures))
+    try:
+        source_id = str(doc.metadata["source_attachment_id"])
+    finally:
+        doc.close()
+    payload = _payload(
+        await server.call_tool(
+            "vera_get_figure",
+            {"file": str(vera_file_with_figures), "asset_id": source_id},
+        )
+    )
+    assert payload == {"error": f"Figure {source_id} not found"}
 
 
 @pytest.mark.anyio

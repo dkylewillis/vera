@@ -4926,7 +4926,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "mcp", specifier = ">=1.0" },
+    { name = "mcp", specifier = ">=1.0,<2" },
     { name = "vera-doc", editable = "packages/vera-doc" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
 ]

@@ -12,6 +12,7 @@ vera index update
 vera index status
 vera validate
 vera export
+vera figures
 vera eval
 vera mcp
 vera ocr-languages list
@@ -165,6 +166,23 @@ existing directory.
 
 Options: `--json`.
 
+## `vera figures FILE`
+
+List stored figure attachments, or write their image files to a directory.
+
+`FILE` is a single `.vera` archive.
+
+Options:
+
+- `--out-dir DIR` writes `{asset_id}.{ext}` files and adds `path` to JSON
+- `--asset-id ID` limits to one attachment id (repeatable)
+- `--page-start N` / `--page-end N` (1-based page filter)
+- `--json`
+
+Without `--out-dir` the JSON has `out_dir: null` and no `path` fields. Image
+bytes are never included. A missing or non-figure `--asset-id` exits 1 with
+`{"ok": false, "error": "..."}`.
+
 ## `vera eval FILE QUERIES`
 
 Evaluate retrieval against expected pages or terms. `FILE` is a single
@@ -217,6 +235,8 @@ Do not assume nonzero output is unstructured:
 - `index status` returns a report when the index is stale or missing;
 - `eval` returns a report when a query misses;
 - `export` returns an error object when no source is stored;
+- `figures` returns an error object when a requested `--asset-id` is missing
+  or is not a figure attachment;
 - `convert` returns `{"ok": false, "error": "..."}` when extraction or
   validation fails, the input path is missing (exit 1), or `--parser` /
   `--model` is unknown (exit 2). Directory conversion also prints a batch

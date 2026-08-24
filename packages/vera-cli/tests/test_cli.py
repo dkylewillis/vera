@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 import vera_cli.commands as cli_commands
-from helpers.pdfs import make_pdf
+from helpers.pdfs import make_pdf, make_structured_pdf
 from vera_cli import str_to_bool
 from vera_cli.main import build_parser
 
@@ -636,3 +636,99 @@ def test_export_rejects_unsafe_stored_filenames(tmp_path, monkeypatch):
     monkeypatch.setattr(viewer_mod, "get_source_document", lambda document: source)
     with pytest.raises(ValueError, match="safe relative name"):
         viewer_mod.export_source_document(object(), str(tmp_path))
+
+
+def _convert_structured(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_structured_pdf(pdf)
+    converted = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "convert",
+            str(pdf),
+            str(out),
+            "--model",
+            "hashing",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert json.loads(converted.stdout)["ok"] is True
+    return out
+
+
+def test_cli_figures_json_lists_metadata_without_path(tmp_path):
+    out = _convert_structured(tmp_path)
+    listed = subprocess.run(
+        [sys.executable, "-m", "vera_cli", "figures", str(out), "--json"],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    payload = json.loads(listed.stdout)
+    assert payload["ok"] is True
+    assert payload["file"] == str(out)
+    assert payload["out_dir"] is None
+    assert len(payload["figures"]) == 1
+    figure = payload["figures"][0]
+    assert "data" not in figure
+    assert "path" not in figure
+    assert figure["asset_id"].startswith("image_")
+    assert figure["mime_type"].startswith("image/")
+
+
+def test_cli_figures_out_dir_writes_png(tmp_path):
+    out = _convert_structured(tmp_path)
+    dest = tmp_path / "exported-figures"
+    listed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "figures",
+            str(out),
+            "--out-dir",
+            str(dest),
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    payload = json.loads(listed.stdout)
+    assert payload["ok"] is True
+    assert payload["out_dir"] == str(dest)
+    figure = payload["figures"][0]
+    written = Path(figure["path"])
+    assert written.is_file()
+    assert written.read_bytes().startswith(b"\x89PNG")
+    assert "data" not in figure
+
+
+def test_cli_figures_missing_asset_id_exits_1(tmp_path):
+    out = _convert_structured(tmp_path)
+    listed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "figures",
+            str(out),
+            "--asset-id",
+            "image_block_missing",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+    )
+    payload = json.loads(listed.stdout)
+    assert listed.returncode == 1
+    assert payload == {
+        "ok": False,
+        "error": "Figure 'image_block_missing' was not found",
+    }

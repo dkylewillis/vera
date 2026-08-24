@@ -41,6 +41,7 @@ from .types import (
     ensure_ingest_request,
 )
 from .viewer import (
+    export_figures,
     export_source_document,
     figures,
     figures_for,
@@ -77,6 +78,7 @@ __all__ = [
     "describe_ingest_pipeline",
     "detect_heading",
     "ensure_ingest_request",
+    "export_figures",
     "export_source_document",
     "figures",
     "figures_for",

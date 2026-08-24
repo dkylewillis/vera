@@ -71,8 +71,19 @@ remove punctuation and broaden short identifiers.
 vera search "manual.vera" "pipe sizing chart" --top-k 5 --figures --json
 ```
 
-Use the returned caption and page as the citation. The CLI returns figure
-metadata, not image bytes.
+The CLI returns metadata and captions, not image bytes.
+
+Write stored rasters when you need to look at them:
+
+```bash
+vera figures "manual.vera" --out-dir "./figures" --json
+```
+
+Each object then includes `path`. Attach that file. MCP clients should call
+`vera_get_figure` with the `asset_id` instead of writing files.
+
+Tables extracted as selectable text are markdown in the hit, not figure
+attachments.
 
 ## Get source highlight regions
 

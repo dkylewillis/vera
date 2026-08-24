@@ -40,6 +40,7 @@ vera --help
 vera convert "manual.pdf" "manual.vera"
 vera validate "manual.vera"
 vera search "manual.vera" "detention requirements" --top-k 5 --json
+vera figures "manual.vera" --out-dir "./figures" --json
 ```
 
 All one-shot commands support `--json`. `vera mcp` is a long-running stdio

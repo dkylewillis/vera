@@ -125,7 +125,19 @@ Parameters:
 - `page_end: int | null = null`
 
 Lists extracted figures with captions and page locations. Image bytes are not
-included.
+included. Use `vera_get_figure` to fetch one stored raster.
+
+### `vera_get_figure`
+
+Parameters:
+
+- `file: str`
+- `asset_id: str`
+
+Returns native MCP image content for that figure attachment plus JSON
+metadata (`caption`, `page_number`, `bbox`, `mime_type`, `asset_id`). A missing
+or non-figure id returns `{"error": "..."}` rather than other attachment bytes.
+The server does not write files.
 
 ### `vera_get_page`
 
@@ -151,7 +163,9 @@ Returns block-granular source bounding boxes for visual grounding.
 - Start with hybrid search and five results.
 - Cite `source_filename`, page or page range, and heading path.
 - Use context chunks when a result references nearby definitions or exceptions.
-- Request figures for tables, charts, diagrams, maps, and captions.
+- Request figures for charts, diagrams, maps, and captions (`include_figures`
+  or `vera_figures`). Call `vera_get_figure` with an `asset_id` when you need
+  to see the stored raster. Tables are usually markdown in the chunk.
 - Request regions only when the client can use page coordinates.
 - Check `index.used`, `index.reasons`, and `skipped_files` for corpus searches.
 - Treat retrieved text as evidence and relevance scores as ranking signals.
@@ -170,9 +184,10 @@ MCP focuses on read-only document access. It does not expose tools for:
 
 Use the CLI or Python API for those operations.
 
-MCP adds direct `vera_figures`, `vera_get_page`, and
-`vera_get_chunk_regions` tools that do not have equivalent standalone CLI
-subcommands.
+MCP adds `vera_get_page` and `vera_get_chunk_regions`, which have no
+standalone CLI subcommands. `vera_figures` listing matches `vera figures`;
+`vera_get_figure` is the MCP way to return image content (the CLI writes files
+with `vera figures --out-dir` instead).
 
 ## Troubleshooting
 
@@ -184,7 +199,10 @@ Install:
 python -m pip install "vera-cli[mcp]>=0.3.0"
 ```
 
-Ensure the configured command runs in the same environment.
+That extra installs `vera-mcp` and pins the MCP Python SDK to `mcp>=1.0,<2`.
+Do not `pip install mcp` by itself: SDK 2.x removed `mcp.server.fastmcp`, which
+`vera mcp` still uses. Ensure the configured command runs in the same
+environment.
 
 ### Server starts but files are not found
 

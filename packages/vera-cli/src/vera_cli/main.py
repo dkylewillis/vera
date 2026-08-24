@@ -6,6 +6,7 @@ from .commands import (
     cmd_convert,
     cmd_eval,
     cmd_export,
+    cmd_figures,
     cmd_index_build,
     cmd_index_status,
     cmd_index_update,
@@ -256,6 +257,34 @@ def build_parser() -> argparse.ArgumentParser:
     )
     export_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     export_p.set_defaults(func=cmd_export)
+
+    figures_p = sub.add_parser("figures", help="List or export figure attachments from a VERA file")
+    figures_p.add_argument("file", help="Path to a .vera file")
+    figures_p.add_argument(
+        "--out-dir",
+        default=None,
+        help="Write figure image files to this directory and include paths in JSON",
+    )
+    figures_p.add_argument(
+        "--asset-id",
+        action="append",
+        default=None,
+        help="Limit to one figure attachment id (repeatable)",
+    )
+    figures_p.add_argument(
+        "--page-start",
+        type=int,
+        default=None,
+        help="Include figures on or after this 1-based page number",
+    )
+    figures_p.add_argument(
+        "--page-end",
+        type=int,
+        default=None,
+        help="Include figures on or before this 1-based page number",
+    )
+    figures_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    figures_p.set_defaults(func=cmd_figures)
 
     mcp_p = sub.add_parser(
         "mcp", help="Run the MCP server (stdio) exposing VERA tools to AI agents"
