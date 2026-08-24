@@ -475,7 +475,9 @@ def test_hardening_json_contracts_are_documented():
     assert "File > Settings" in desktop
     assert "Hugging Face" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
     assert "File > Settings" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
-    assert "Settings → Embeddings" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
+    assert "Settings → Embeddings" in (DOCS / "packages" / "vera-app.md").read_text(
+        encoding="utf-8"
+    )
     assert "not portable" in conversion
     assert "vera-embed-openai" in conversion
     assert "OPENAI_API_KEY" in conversion

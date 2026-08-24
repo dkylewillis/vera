@@ -182,7 +182,9 @@ def _post_embeddings(
                 continue
             raise last_error from exc
         except (json.JSONDecodeError, TypeError, ValueError, KeyError) as exc:
-            raise OpenAIEmbedderError(f"OpenAI embeddings returned an invalid payload: {exc}") from exc
+            raise OpenAIEmbedderError(
+                f"OpenAI embeddings returned an invalid payload: {exc}"
+            ) from exc
     raise last_error or OpenAIEmbedderError("OpenAI embeddings request failed")
 
 

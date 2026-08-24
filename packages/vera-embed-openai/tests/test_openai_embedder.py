@@ -86,8 +86,7 @@ def test_embeddings_url_joins_v1_and_embeddings():
     assert embeddings_url("https://api.openai.com/v1") == "https://api.openai.com/v1/embeddings"
     assert embeddings_url("https://api.openai.com") == "https://api.openai.com/v1/embeddings"
     assert (
-        embeddings_url("https://example.test/v1/embeddings")
-        == "https://example.test/v1/embeddings"
+        embeddings_url("https://example.test/v1/embeddings") == "https://example.test/v1/embeddings"
     )
 
 
