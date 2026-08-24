@@ -406,7 +406,7 @@ export function createConversionController(getHost: () => ConversionHost) {
       const missing = preflight.missing_credential_env?.trim();
       host.setConversionError(
         missing
-          ? `Embedding provider is not ready. This build does not include hosted embedders; ${missing} cannot be configured here yet.`
+          ? `Embedding provider is not ready. Set ${missing} under File > Settings → Embeddings, then convert again.`
           : (preflight.detail || 'Embedding provider is not ready.'),
       );
       return;

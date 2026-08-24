@@ -39,11 +39,15 @@ const pyinstallerArgs = [
   "--copy-metadata",
   "vera-ingest-pymupdf",
   "--copy-metadata",
+  "vera-embed-openai",
+  "--copy-metadata",
   "vera-ingest",
   "--copy-metadata",
   "onnxruntime",
   "--hidden-import",
   "vera_ingest_pymupdf",
+  "--hidden-import",
+  "vera_embed_openai",
   "--hidden-import",
   "onnxruntime",
   "--hidden-import",
@@ -70,6 +74,7 @@ const sourcePaths = [
   path.join(repoRoot, "packages", "vera-doc", "src"),
   path.join(repoRoot, "packages", "vera-ingest", "src"),
   path.join(repoRoot, "packages", "vera-ingest-pymupdf", "src"),
+  path.join(repoRoot, "packages", "vera-embed-openai", "src"),
 ];
 const env = {
   ...process.env,
@@ -78,6 +83,7 @@ const env = {
 
 const CRITICAL_MISSING_PREFIXES = [
   "vera_ingest_pymupdf",
+  "vera_embed_openai",
   "onnxruntime",
   "tokenizers",
 ];

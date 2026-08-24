@@ -473,127 +473,22 @@ them as `embedder_options={...}`, `get_embedder(..., batch_size=64)`, or CLI
 `--embedder-option KEY=VALUE`. See
 [Creating an embedding provider plugin](../../docs/creating-an-embedding-provider.md).
 
-### OpenAI embedding plugin example
+### Official OpenAI plugin
 
-VERA does not bundle hosted providers. Prefer the Options + descriptor
-authoring model in
+OpenAI embeddings ship as the `vera-embed-openai` package — a
+`vera.embedders` plugin, not a `vera-doc` builtin. `vera-cli` and the desktop
+sidecar depend on it. Keep secrets in `OPENAI_API_KEY`, not in Options fields.
+The constructor does not probe the API; known models use a static dimension
+table. See
+[vera-embed-openai](https://dkylewillis.github.io/vera/packages/vera-embed-openai/)
+and
 [Creating an embedding provider plugin](../../docs/creating-an-embedding-provider.md).
-Keep secrets in the environment (`OPENAI_API_KEY`), not in Options fields.
-This minimal sketch shows the factory + entry points:
-
-```toml
-# pyproject.toml
-[project]
-name = "vera-openai-embeddings"
-dependencies = ["openai>=1", "vera-doc"]
-
-[project.entry-points."vera.embedders"]
-openai = "vera_openai_embeddings:create_embedder"
-
-[project.entry-points."vera.embedder_descriptors"]
-openai = "vera_openai_embeddings:create_descriptor"
-
-[project.entry-points."vera.embedder_models"]
-openai = "vera_openai_embeddings:list_models"
-```
-
-```python
-# vera_openai_embeddings.py
-import os
-from dataclasses import dataclass, field
-
-import numpy as np
-from openai import OpenAI
-
-from vera_doc import (
-    EmbedderCapabilities,
-    EmbedderDescriptor,
-    EmbedderOptions,
-    EmbeddingModelInfo,
-)
-from vera_doc.embedder_descriptors import fields_from_dataclass
-
-
-@dataclass(frozen=True)
-class OpenAIOptions(EmbedderOptions):
-    batch_size: int = field(
-        default=128,
-        metadata={
-            "label": "Batch size",
-            "minimum": 1,
-            "maximum": 2048,
-            "scope": "convert",
-        },
-    )
-
-
-class OpenAIEmbedder:
-    normalization = "l2"
-
-    def __init__(self, model_id: str, *, batch_size: int):
-        self.model_name = f"openai:{model_id}"
-        self._client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-        self._model = model_id
-        self._batch_size = batch_size
-        self.dimension = len(self.embed(["dimension probe"])[0])
-
-    def embed(self, texts: list[str]) -> list[np.ndarray]:
-        vectors = []
-        for start in range(0, len(texts), self._batch_size):
-            response = self._client.embeddings.create(
-                model=self._model,
-                input=texts[start : start + self._batch_size],
-            )
-            vectors.extend(item.embedding for item in response.data)
-        normalized = []
-        for vector in vectors:
-            array = np.asarray(vector, dtype=np.float32)
-            norm = np.linalg.norm(array)
-            normalized.append(array / norm if norm else array)
-        return normalized
-
-
-def create_embedder(model_id: str, **config):
-    options = OpenAIOptions.from_mapping(config)
-    return OpenAIEmbedder(model_id, batch_size=options.batch_size)
-
-
-def create_descriptor() -> EmbedderDescriptor:
-    return EmbedderDescriptor(
-        provider="openai",
-        label="openai — hosted embeddings",
-        description="OpenAI embeddings API.",
-        default_model_id="text-embedding-3-small",
-        example_specs=("openai:text-embedding-3-small",),
-        capabilities=EmbedderCapabilities(
-            requires_network=True,
-            requires_api_key=True,
-            credential_env="OPENAI_API_KEY",
-            local_model=False,
-            supports_model_listing=True,
-        ),
-        fields=fields_from_dataclass(OpenAIOptions),
-    )
-
-
-def list_models():
-    return (
-        EmbeddingModelInfo(
-            model_id="text-embedding-3-small",
-            label="text-embedding-3-small",
-            spec="openai:text-embedding-3-small",
-        ),
-    )
-```
-
-After installing the plugin and setting `OPENAI_API_KEY`, use it from the CLI:
 
 ```bash
+set OPENAI_API_KEY=...
 vera convert "manual.pdf" --model openai:text-embedding-3-small \
   --embedder-option batch_size=64
 ```
-
-Or pass provider-specific settings from Python:
 
 ```python
 from vera_doc import get_embedder, preflight_embedder
@@ -606,6 +501,9 @@ embedder = get_embedder(
 )
 convert("manual.pdf", "manual.vera", embedding_function=embedder)
 ```
+
+Voyage and Ollama are not bundled; they need a query-versus-document hint on
+`EmbeddingFunction` first.
 
 ### Claude applications
 

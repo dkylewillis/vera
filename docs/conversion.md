@@ -207,10 +207,11 @@ the factory runs. Convert-time knobs such
 as `batch_size` use `scope: convert` so search can resolve
 `get_embedder(stored_model_name)` with defaults.
 
-### Hosted provider plugins
+### Official OpenAI embeddings
 
-VERA does not bundle hosted embedding providers. Install a plugin that
-registers the desired provider, then use its `provider:model-id` spec:
+`vera-cli` and the desktop app bundle [`vera-embed-openai`](packages/vera-embed-openai.md).
+Hashing remains the default. Set `OPENAI_API_KEY` (desktop: **File > Settings
+→ Embeddings**):
 
 ```bash
 set OPENAI_API_KEY=...
@@ -218,13 +219,31 @@ vera convert "input.pdf" --model openai:text-embedding-3-small \
   --embedder-option batch_size=64
 ```
 
-The plugin's embedder must record the full spec (for example,
+The plugin records the full spec (for example
 `openai:text-embedding-3-small`) as `model_name`, so later semantic searches
-load the matching provider. See
+load the matching provider.
+
+**Archives converted with a hosted embedder are not portable for semantic or
+hybrid search.** Search resolves `get_embedder(stored_model_name)`, so a
+recipient needs their own `OPENAI_API_KEY` and a reachable API. Keyword search
+still works. Corpus search reports `skipped_semantic_model_groups` when the
+query embedder cannot load.
+
+OpenAI conversion bills per request. Desktop Convert Cancel does not interrupt
+an in-flight embeddings HTTP batch; conversion checks cancellation after
+`embed()` returns.
+
+Optional `OPENAI_BASE_URL` (default `https://api.openai.com/v1`) points at
+Azure, OpenRouter, or a local OpenAI-compatible server. Two archives can then
+record the same `openai:<model-id>` while holding vectors from different
+models; search cannot detect that. A separate `openai-compatible` provider
+with a required explicit endpoint is out of scope.
+
+Voyage and Ollama are not bundled. They need a query-versus-document hint on
+`EmbeddingFunction` (`input_type` / `search_document:` prefixes); convert and
+search share one `embed(texts)` today. See
 [Creating an embedding provider plugin](creating-an-embedding-provider.md)
-for the Options + descriptor authoring model and the
-[OpenAI plugin example](https://github.com/dkylewillis/vera/blob/main/packages/vera-doc/README.md#openai-embedding-plugin-example)
-for a complete entry-point sketch.
+for the Options + descriptor authoring model.
 
 Claude is an LLM rather than an embedding provider: Anthropic's Claude API has
 no embeddings endpoint. A Claude application can use a separate provider such
@@ -321,14 +340,16 @@ vera convert "input.pdf" --parser docling:hybrid
 
 Unknown pipeline names fail before parsing with an install-the-plugin message;
 VERA never silently falls back to PyMuPDF. The packaged desktop app bundles
-PyMuPDF and Docling in one sidecar. Extra pip plugins install into the same
-environment (`python -m pip install` or `python -m pip install -e <clone>`).
+PyMuPDF and OpenAI embeddings in one sidecar; Docling is a CLI extra. Extra
+pip plugins install into the same environment (`python -m pip install` or
+`python -m pip install -e <clone>`).
 The desktop Convert view persists `embedder_options` / `embedder_configs` and
 gates conversion on `preflight_embedder` so an archive is never written with a
 model Search cannot resolve. CLI convert still rejects unknown `--model` /
 `--parser` values before parsing, but it does not call `preflight_embedder`.
 Embedder `credential_env` secrets stay in the environment, not
-Options. Hosted embedding providers follow in 0.3.1.
+Options. OpenAI embeddings ship as `vera-embed-openai`; Voyage and Ollama
+do not.
 On Docling memory errors
 (`bad_alloc`), VERA retries failed pages with a fresh converter and falls back
 to the `pypdfium2` PDF backend when needed (whole document, then page batches

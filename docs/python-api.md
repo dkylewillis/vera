@@ -13,6 +13,7 @@ Install source ingestion separately when needed:
 ```bash
 python -m pip install "vera-ingest>=0.3.0"
 python -m pip install "vera-ingest-pymupdf>=0.3.0"
+python -m pip install "vera-embed-openai>=0.3.0"
 ```
 
 ## Create and search a database
@@ -282,8 +283,9 @@ creates `ChunkRecord` objects and optional attachments, then writes them through
 
 Registry and descriptor APIs (`register_ingest_pipeline`, `register_embedder`,
 and their describe/list helpers) are experimental and may change before 1.0.
-Hosted embedding providers (OpenAI, Voyage, Ollama) are examples you can
-implement yourself; they are not bundled with VERA. See
+OpenAI embeddings ship as the bundled `vera-embed-openai` plugin. Voyage and
+Ollama are examples you can implement yourself; they are not bundled with
+VERA (they need a query-versus-document hint on `EmbeddingFunction`). See
 [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md) and
 [Creating an embedding provider plugin](creating-an-embedding-provider.md).
 

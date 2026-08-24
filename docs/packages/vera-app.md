@@ -1,10 +1,10 @@
 # vera-app
 
 `vera-app` is the VERA desktop product: an Electron and React interface backed
-by a local Python sidecar. It composes `vera-doc` for retrieval and
-`vera-ingest` / `vera-ingest-pymupdf` for conversion;
-it does not use the CLI as its backend. `vera-ingest-docling` is an optional
-CLI extra, not bundled in the installer.
+by a local Python sidecar. It composes `vera-doc` for retrieval,
+`vera-ingest` / `vera-ingest-pymupdf` for conversion, and `vera-embed-openai`
+for hosted OpenAI embeddings; it does not use the CLI as its backend.
+`vera-ingest-docling` is an optional CLI extra, not bundled in the installer.
 
 See the [product overview](../desktop-app-overview.md) for the intended
 workflow and audience.
@@ -26,11 +26,12 @@ Download `VERA Setup <version>.exe` from the
    **Advanced pipeline options** for schema-driven settings from
    `describe_ingest_pipelines` / `PipelineConfigForm`. Convert lists PyMuPDF
    as the 0.3.0 ingest pipeline. Convert embedding presets are hashing
-   (default) and **Local semantic
-   (MiniLM)**; MiniLM is ONNX Runtime under the same
+   (default), **Local semantic
+   (MiniLM)**, and OpenAI `text-embedding-3-*`. MiniLM is ONNX Runtime under the same
    `sentence-transformers/all-MiniLM-L6-v2` identity, and the installer
-   vendors a VERA-exported, SHA256-pinned graph. Hosted embedders
-   are a 0.3.1 follow-up. Right-click a `.vera`
+   vendors a VERA-exported, SHA256-pinned graph. Save `OPENAI_API_KEY` under
+   **File > Settings → Embeddings**. Archives converted with OpenAI are not
+   portable for semantic search. Right-click a `.vera`
    archive and choose **Reconvert…** to replace it with a different ingest
    pipeline or embedding model.
 2. Use **File > Open Folder** to activate a document library.
@@ -43,11 +44,12 @@ Download `VERA Setup <version>.exe` from the
    convert steps.
 6. Select a citation in an answer to inspect the highlighted source passage.
 
-Search and conversion do not require a model-provider account. A provider is
-only required for generated Ask responses.
+Search and conversion do not require a model-provider account unless you
+choose a hosted embedder such as OpenAI. A Chat provider is only required
+for generated Ask responses.
 
 Source-run and packaged conversions use one sidecar interpreter with PyMuPDF,
-hashing, and ONNX MiniLM. Extra ingest and embedding
+hashing, ONNX MiniLM, and OpenAI embeddings. Extra ingest and embedding
 plugins are pip packages in that
 same environment (`python -m pip install` or `python -m pip install -e
 <clone>`). See

@@ -913,9 +913,11 @@ def test_sidecar_forwards_embedding_model_and_lists_providers(monkeypatch):
     assert captured["model"] == "openai:text-embedding-3-small"
     assert providers["ok"] is True
     assert "hashing" in providers["result"]["providers"]
+    assert "openai" in providers["result"]["providers"]
     assert described["ok"] is True
     assert "providers" in described["result"]
     assert isinstance(described["result"]["providers"], list)
+    assert any(item.get("provider") == "openai" for item in described["result"]["providers"])
     assert models["ok"] is True
     assert models["result"]["provider"] == "hashing"
     assert models["result"]["models"][0]["model_id"] == "vera-hashing-384"

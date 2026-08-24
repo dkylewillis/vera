@@ -13,9 +13,10 @@ import {
   Search,
   Settings,
   Trash2,
+  Sparkles,
   X,
 } from 'lucide-react';
-import type { AppSettings, ProviderProfile } from '../types';
+import type { AppSettings, EmbedderDescriptor, ProviderProfile } from '../types';
 import {
   defaultEnabledModels,
   emptyProvider,
@@ -115,7 +116,7 @@ type ProviderRowInfo = {
   profile: ProviderProfile | null;
 };
 
-export type SettingsSectionId = 'providers' | 'huggingface' | 'diagnostics';
+export type SettingsSectionId = 'providers' | 'embeddings' | 'huggingface' | 'diagnostics';
 
 const SETTINGS_SECTIONS: {
   id: SettingsSectionId;
@@ -128,6 +129,12 @@ const SETTINGS_SECTIONS: {
     label: 'LLM Providers',
     description: 'Hosted, local, and custom models used by Chat and Ask.',
     icon: MessageSquareText,
+  },
+  {
+    id: 'embeddings',
+    label: 'Embeddings',
+    description: 'API keys for hosted embedding providers used by Convert and Search.',
+    icon: Sparkles,
   },
   {
     id: 'huggingface',
@@ -152,7 +159,9 @@ export function SettingsModal({
   ingestPipeline,
   ingestPipelineConfigs,
   embedderConfigs,
+  embeddingDescriptors = [],
   hasHfToken = false,
+  hasEnvSecrets = {},
   convertLogPath = '',
   initialSection = 'providers',
   onPersist,
@@ -167,7 +176,9 @@ export function SettingsModal({
   ingestPipeline: string;
   ingestPipelineConfigs: AppSettings['ingest_pipeline_configs'];
   embedderConfigs: AppSettings['embedder_configs'];
+  embeddingDescriptors?: EmbedderDescriptor[];
   hasHfToken?: boolean;
+  hasEnvSecrets?: Record<string, boolean>;
   convertLogPath?: string;
   initialSection?: SettingsSectionId;
   onPersist: (next: AppSettings) => Promise<AppSettings>;
@@ -182,6 +193,8 @@ export function SettingsModal({
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
   const [hfTokenInput, setHfTokenInput] = useState('');
   const [hfTokenStored, setHfTokenStored] = useState(hasHfToken);
+  const [envSecretInputs, setEnvSecretInputs] = useState<Record<string, string>>({});
+  const [envSecretsStored, setEnvSecretsStored] = useState<Record<string, boolean>>(hasEnvSecrets);
   const [modelInput, setModelInput] = useState('');
   const [modelFilter, setModelFilter] = useState('');
   const [message, setMessage] = useState('');
@@ -387,6 +400,51 @@ export function SettingsModal({
       setMessage(result.has_api_key
         ? 'App token cleared; process environment still provides HF_TOKEN'
         : 'Hugging Face token cleared');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const embeddingCredentialProviders = embeddingDescriptors.filter(
+    (item) => item.capabilities?.requires_api_key && item.capabilities.credential_env,
+  );
+
+  async function saveEmbeddingSecret(envName: string) {
+    const value = (envSecretInputs[envName] || '').trim();
+    if (!value) {
+      setMessage(`Enter a value for ${envName} first`);
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await window.vera.saveEnvSecret(envName, value);
+      if (!result.ok) {
+        setMessage(result.error || `Unable to save ${envName}`);
+        return;
+      }
+      setEnvSecretInputs((current) => ({ ...current, [envName]: '' }));
+      const refreshed = await onRefresh();
+      setEnvSecretsStored(refreshed.has_env_secrets || {});
+      setMessage(`${envName} saved`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function clearEmbeddingSecret(envName: string) {
+    setBusy(true);
+    try {
+      const result = await window.vera.clearEnvSecret(envName);
+      if (!result.ok) {
+        setMessage(result.error || `Unable to clear ${envName}`);
+        return;
+      }
+      setEnvSecretInputs((current) => ({ ...current, [envName]: '' }));
+      const refreshed = await onRefresh();
+      setEnvSecretsStored(refreshed.has_env_secrets || {});
+      setMessage(result.has_api_key
+        ? `${envName} cleared from the app; the process environment still provides it`
+        : `${envName} cleared`);
     } finally {
       setBusy(false);
     }
@@ -730,6 +788,59 @@ export function SettingsModal({
                   <Plus size={14} />Local / custom endpoint
                   <small>Point VERA at any OpenAI-compatible endpoint (vLLM, llama.cpp, etc.)</small>
                 </button>
+              </div>
+            ) : null}
+
+            {section === 'embeddings' ? (
+              <div className="settingsForm">
+                <p className="providerItemDescription">
+                  Hosted embedders such as OpenAI bill per conversion and need an API key
+                  for later semantic or hybrid search of those archives. Keyword search
+                  still works without a key. Secrets are stored like LLM API keys and
+                  injected as environment variables when the sidecar starts.
+                </p>
+                {embeddingCredentialProviders.length === 0 ? (
+                  <p className="mutedText">No hosted embedding providers that require an API key are installed in this sidecar.</p>
+                ) : embeddingCredentialProviders.map((descriptor) => {
+                  const envName = descriptor.capabilities?.credential_env?.trim() || '';
+                  const stored = Boolean(envSecretsStored[envName]);
+                  const input = envSecretInputs[envName] || '';
+                  return (
+                    <label className="field" key={descriptor.provider}>
+                      <span>{descriptor.label || descriptor.provider} ({envName})</span>
+                      {stored && !input ? (
+                        <div className="editorActions">
+                          <span className="connectedTag"><CheckCircle2 size={13} />Key saved</span>
+                          <button className="secondaryAction compactAction" onClick={() => void clearEmbeddingSecret(envName)} disabled={busy}>
+                            <Trash2 size={13} />Clear key
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="pathInput">
+                          <input
+                            type="password"
+                            value={input}
+                            onChange={(event) => setEnvSecretInputs((current) => ({ ...current, [envName]: event.target.value }))}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                void saveEmbeddingSecret(envName);
+                              }
+                            }}
+                            placeholder={`Paste ${envName}`}
+                            autoComplete="off"
+                            disabled={busy}
+                          />
+                          {input.trim() ? (
+                            <button type="button" className="secondaryAction compactAction" onClick={() => void saveEmbeddingSecret(envName)} disabled={busy}>
+                              <KeyRound size={13} />Save
+                            </button>
+                          ) : null}
+                        </div>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
             ) : null}
 

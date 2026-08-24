@@ -8,6 +8,7 @@ inward toward the storage and search engine:
 ```text
 vera-ingest-pymupdf ─┐
 vera-ingest-docling ─┤
+vera-embed-openai ───┤
 vera-ingest ─────────┼──> vera-doc
 vera-cli ────────────┤
 vera-app ────────────┤
@@ -78,6 +79,14 @@ and do not change the 0.2 archive schema.
 ingest plugins are ordinary pip packages in the same environment. See
 [vera-ingest-docling](packages/vera-ingest-docling.md).
 
+### `vera-embed-openai`
+
+`vera-embed-openai` is the official OpenAI embeddings plugin. It registers
+`openai` under `vera.embedders` with stdlib `urllib` (no OpenAI SDK).
+`vera-cli` and `vera-app` depend on it, and the packaged sidecar freezes it
+beside PyMuPDF. Secrets stay in `OPENAI_API_KEY`. See
+[vera-embed-openai](packages/vera-embed-openai.md).
+
 ### `vera-cli`
 
 `vera-cli` publishes the `vera` console script and `vera_cli` module. It owns
@@ -94,10 +103,10 @@ helpers. The optional `vera-cli[mcp]` extra installs it for `vera mcp`.
 
 `vera-app` owns the Electron/React desktop application, Python sidecar, LLM
 providers, sessions, and application state. It depends on `vera-doc`,
-`vera-ingest`, and `vera-ingest-pymupdf`
+`vera-ingest`, `vera-ingest-pymupdf`, and `vera-embed-openai`
 (including
 viewer helpers), not on `vera-cli`. Packaged conversions keep one frozen
-sidecar for search, Ask, and PyMuPDF. MiniLM (`all-MiniLM-L6-v2`) runs on
+sidecar for search, Ask, PyMuPDF, and OpenAI embeddings. MiniLM (`all-MiniLM-L6-v2`) runs on
 ONNX Runtime; `npm run app:dev` vendors that graph before launch. When the
 `onnx` extra is installed, a missing MiniLM snapshot does not fall back to Sentence Transformers.
 Extra ingest and embedding plugins are pip packages in that same environment.
@@ -187,6 +196,10 @@ packages/
       recovery.py
       pipeline.py
       options.py
+  vera-embed-openai/
+    src/vera_embed_openai/
+      options.py
+      provider.py
   vera-cli/
     src/vera_cli/
       commands.py

@@ -67,6 +67,7 @@ def test_sibling_packages_do_not_import_vera_doc_private_modules() -> None:
         ROOT / "packages" / "vera-ingest-pymupdf" / "src",
         ROOT / "packages" / "vera-ingest-docling" / "src",
         ROOT / "packages" / "vera-cli" / "src",
+        ROOT / "packages" / "vera-embed-openai" / "src",
         ROOT / "packages" / "vera-mcp" / "src",
         ROOT / "packages" / "vera-app" / "src",
         ROOT / "packages" / "vera-lab" / "src",

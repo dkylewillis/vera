@@ -125,6 +125,7 @@ function App() {
   const [pipelineOptions, setPipelineOptions] = useState<PipelineOptions>({});
   const [embedderOptions, setEmbedderOptions] = useState<PipelineOptions>({});
   const [hasHfToken, setHasHfToken] = useState(false);
+  const [hasEnvSecrets, setHasEnvSecrets] = useState<Record<string, boolean>>({});
   const [convertLogPath, setConvertLogPath] = useState('');
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1393,6 +1394,7 @@ function App() {
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
     setEmbedderConfigs(saved.embedder_configs || {});
     setHasHfToken(Boolean(saved.has_hf_token));
+    setHasEnvSecrets(saved.has_env_secrets || {});
     return saved;
   }
 
@@ -1407,6 +1409,7 @@ function App() {
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
     setEmbedderConfigs(saved.embedder_configs || {});
     setHasHfToken(Boolean(saved.has_hf_token));
+    setHasEnvSecrets(saved.has_env_secrets || {});
     return saved;
   }
 
@@ -1638,6 +1641,7 @@ function App() {
       setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
       setEmbedderConfigs(saved.embedder_configs || {});
       setHasHfToken(Boolean(saved.has_hf_token));
+      setHasEnvSecrets(saved.has_env_secrets || {});
     },
     setEmbeddingProviders,
     setEmbeddingDescriptors,
@@ -2350,7 +2354,9 @@ function App() {
           ingestPipeline={ingestPipeline}
           ingestPipelineConfigs={ingestPipelineConfigs}
           embedderConfigs={embedderConfigs}
+          embeddingDescriptors={embeddingDescriptors}
           hasHfToken={hasHfToken}
+          hasEnvSecrets={hasEnvSecrets}
           convertLogPath={convertLogPath}
           onPersist={persistSettings}
           onRefresh={refreshSettings}

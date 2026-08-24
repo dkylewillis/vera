@@ -55,7 +55,8 @@ describe('convertPresets', () => {
     expect(isKnownEmbeddingPreset('sentence-transformers:all-MiniLM-L6-v2')).toBe(true);
     expect(EMBEDDING_MODEL_PRESETS.find((item) => item.value === 'sentence-transformers:all-MiniLM-L6-v2')?.label)
       .toBe('Local semantic (MiniLM)');
-    expect(isKnownEmbeddingPreset('openai:text-embedding-3-small')).toBe(false);
+    expect(isKnownEmbeddingPreset('openai:text-embedding-3-small')).toBe(true);
+    expect(isKnownEmbeddingPreset('openai:text-embedding-3-large')).toBe(true);
   });
 
   it('parses provider names from embedding specs', () => {
@@ -84,12 +85,14 @@ describe('convertPresets', () => {
         source: 'external',
       },
     ]);
-    expect(options.some((item) => item.value === 'openai:text-embedding-3-small' && item.source === 'external')).toBe(true);
+    expect(options.some((item) => item.value === 'openai:text-embedding-3-small')).toBe(true);
+    expect(options.some((item) => item.value === 'openai:text-embedding-3-large')).toBe(true);
   });
 
   it('maps unknown models to the custom select value', () => {
     expect(embeddingSelectValue('hashing')).toBe('hashing');
-    expect(embeddingSelectValue('openai:text-embedding-3-small')).toBe(CUSTOM_EMBEDDING_VALUE);
+    expect(embeddingSelectValue('openai:text-embedding-3-small')).toBe('openai:text-embedding-3-small');
+    expect(embeddingSelectValue('voyage:voyage-3')).toBe(CUSTOM_EMBEDDING_VALUE);
   });
 
   it('gates optional providers on sidecar availability', () => {

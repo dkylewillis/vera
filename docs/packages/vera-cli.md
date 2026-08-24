@@ -1,10 +1,10 @@
 # vera-cli
 
 `vera-cli` publishes the `vera` console command and the `vera_cli` Python
-package. It depends on `vera-doc`, `vera-ingest`, and `vera-ingest-pymupdf`,
-and owns argument parsing, human and JSON output, exit codes, and retrieval
-evaluation. The optional `docling` extra installs `vera-ingest-docling` for
-`--parser docling`.
+package. It depends on `vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and
+`vera-embed-openai`, and owns argument parsing, human and JSON output, exit
+codes, and retrieval evaluation. The optional `docling` extra installs
+`vera-ingest-docling` for `--parser docling`.
 
 Use the CLI for complete document workflows rather than assembling the Python
 packages directly.
@@ -25,6 +25,7 @@ python -m pip install \
   ./packages/vera-doc \
   ./packages/vera-ingest \
   ./packages/vera-ingest-pymupdf \
+  ./packages/vera-embed-openai \
   ./packages/vera-cli
 ```
 

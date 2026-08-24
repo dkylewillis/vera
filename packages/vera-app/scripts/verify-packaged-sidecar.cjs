@@ -156,6 +156,10 @@ function runDescribeChecks(sidecarPath) {
       finish(1, `Sidecar omitted sentence-transformers (got ${embedderNames.join(", ") || "none"})`);
       return;
     }
+    if (!embedderNames.includes("openai")) {
+      finish(1, `Sidecar omitted openai embedder (got ${embedderNames.join(", ") || "none"})`);
+      return;
+    }
 
     console.log(JSON.stringify({
       sidecar: sidecarPath,
