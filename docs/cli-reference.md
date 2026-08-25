@@ -242,7 +242,8 @@ Do not assume nonzero output is unstructured:
 - `figures` returns an error object when a requested `--asset-id` is missing
   or is not a figure attachment;
 - `convert` returns `{"ok": false, "error": "..."}` when extraction or
-  validation fails, the input path is missing (exit 1), or `--parser` /
+  validation fails, the input path is missing, or an OpenAI embedder fails
+  (missing `OPENAI_API_KEY`, HTTP errors) (exit 1), or `--parser` /
   `--model` is unknown (exit 2). Directory conversion also prints a batch
   report and exits 1 when any file failed or an existing output was
   malformed;

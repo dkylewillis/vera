@@ -485,6 +485,43 @@ def test_cli_rejects_non_positive_ocr_dpi():
         raise AssertionError("non-positive OCR DPI should be rejected")
 
 
+def test_convert_help_mentions_openai_model():
+    listed = subprocess.run(
+        [sys.executable, "-m", "vera_cli", "convert", "--help"],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert "openai:text-embedding-3-small" in listed.stdout
+
+
+def test_cli_convert_openai_missing_key_json(tmp_path, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    listed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "convert",
+            str(pdf),
+            str(out),
+            "--model",
+            "openai:text-embedding-3-small",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+    )
+    assert listed.returncode == 1
+    payload = json.loads(listed.stdout)
+    assert payload["ok"] is False
+    assert "OPENAI_API_KEY" in payload["error"]
+    assert "Traceback" not in listed.stderr
+
+
 def test_cli_pipeline_option_strings_are_not_float_coerced(tmp_path, monkeypatch):
     pdf = tmp_path / "scan.pdf"
     output = tmp_path / "scan.vera"

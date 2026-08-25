@@ -5,12 +5,12 @@ specific release dates, and priorities may change as the project develops.
 
 ## Release branches
 
-- `main` is the development line for VERA **0.3.x**. Tag `v0.3.0` from
-  `main`. The last published 0.2 release is **v0.2.5**; `main` is no longer
-  a 0.2 maintenance branch.
-- The historical `v0.3` integration branch is tree-identical to `main` and
-  is not the source of new 0.3 work. CI still runs on `v0.3` for existing
-  open work; new changes should land on `main`.
+- `main` is the development line for VERA **0.3.x**. **v0.3.0** is published
+  (PyPI and GitHub Releases, including `VERA.Setup.0.3.0.exe`). Unreleased
+  work on `main` is the next 0.3.x; do not republish 0.3.0. The last 0.2
+  release is **v0.2.5**.
+- The historical `v0.3` integration branch has been deleted. CI and docs
+  workflows run on `main`. New changes should land on `main`.
 
 Package and application versions do not automatically change the `.vera`
 format version. The archive format remains 0.2 unless a feature changes its
