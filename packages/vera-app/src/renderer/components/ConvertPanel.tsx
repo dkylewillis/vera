@@ -248,7 +248,7 @@ export function ConvertPanel({
           ? (activePipelineDescriptor.description || 'Pipeline ready for conversion.')
           : (pipelineInstallHint(ingestPipeline, ingestPipelineDescriptors)
             || 'Choose an ingest pipeline.')}
-        {' '}PyMuPDF is the default ingest pipeline. Optional layout-aware conversion remains a CLI extra (`vera-cli[docling]`), not part of the 0.3.0 desktop app.
+        {' '}PyMuPDF is the default ingest pipeline. Optional layout-aware conversion remains a CLI extra (`vera-cli[docling]`), not part of the 0.3.x desktop app.
       </p>
       <label className="field">
         <span>Embedding model</span>

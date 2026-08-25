@@ -69,7 +69,7 @@ class TestVeraDocumentShouldFix:
     def test_creator_library_uses_package_version(self, tmp_path):
         path = tmp_path / "created.vera"
         with VeraDocument.create(path) as document:
-            assert document._metadata_values()["creator_library"] == "vera-doc/0.3.0"
+            assert document._metadata_values()["creator_library"] == "vera-doc/0.3.1"
 
     def test_delete_requires_ids_where_or_delete_all(self, tmp_path):
         path = tmp_path / "delete.vera"

@@ -622,6 +622,7 @@ def test_release_0_3_versioning_and_install_pins():
     assert "UnknownEmbeddingModelError" in changelog
     assert "falling back to PyMuPDF" in changelog
     assert "format remains **0.2**" in changelog
+    assert "## [0.3.1]" in changelog
     assert "### Desktop" in changelog
     assert "Open Folder" in changelog
     assert "saveVera" in changelog

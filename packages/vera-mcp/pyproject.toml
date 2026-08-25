@@ -1,12 +1,12 @@
 [project]
 name = "vera-mcp"
-version = "0.3.0"
+version = "0.3.1"
 description = "Model Context Protocol integration for VERA archives"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-doc>=0.3.0",
-  "vera-ingest>=0.3.0",
+  "vera-doc>=0.3.1",
+  "vera-ingest>=0.3.1",
   "mcp>=1.0,<2",
 ]
 authors = [{name = "Kyle Willis"}]

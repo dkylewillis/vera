@@ -1,11 +1,11 @@
 [project]
 name = "vera-ingest"
-version = "0.3.0"
+version = "0.3.1"
 description = "Source ingestion, chunking, and conversion adapters for VERA"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-doc>=0.3.0",
+  "vera-doc>=0.3.1",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}

@@ -1,11 +1,11 @@
 [project]
 name = "vera-lab"
-version = "0.3.0"
+version = "0.3.1"
 description = "Contributor tool for visualizing ingest pipeline layout and chunks"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-ingest>=0.3.0",
+  "vera-ingest>=0.3.1",
   "pymupdf>=1.23",
 ]
 authors = [{name = "Kyle Willis"}]

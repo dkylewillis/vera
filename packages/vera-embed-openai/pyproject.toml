@@ -1,11 +1,11 @@
 [project]
 name = "vera-embed-openai"
-version = "0.3.0"
+version = "0.3.1"
 description = "Official OpenAI embeddings provider for VERA"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-doc>=0.3.0",
+  "vera-doc>=0.3.1",
   "numpy>=1.24",
 ]
 authors = [{name = "Kyle Willis"}]

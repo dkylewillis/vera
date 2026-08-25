@@ -1,11 +1,11 @@
 [project]
 name = "vera-ingest-docling"
-version = "0.3.0"
+version = "0.3.1"
 description = "Optional Docling HybridChunker ingest pipeline for VERA"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-ingest>=0.3.0",
+  "vera-ingest>=0.3.1",
   # rapidocr extra pulls RapidOCR + onnxruntime (required for Docling OCR).
   "docling[rapidocr]>=2.118,<2.119",
 ]

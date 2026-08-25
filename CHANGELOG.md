@@ -8,6 +8,8 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-08-24
+
 ### Added
 
 - `vera figures FILE` lists stored figure metadata (captions, pages, bboxes,
@@ -106,7 +108,7 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   from descriptors, persists `embedder_configs`, and gates conversion on
   `preflight_embedder`. Search reports `skipped_semantic_model_groups` when a
   query embedder is unavailable. Hosted embedding providers were not part of
-  0.3.0; OpenAI now ships as `vera-embed-openai` (see Unreleased).
+  0.3.0; OpenAI now ships as `vera-embed-openai` (see 0.3.1).
 - Desktop convert timing log: sidecar stderr (including `elapsed_ms` convert
   steps) is teed to `userData/logs/sidecar.log` in both `app:dev`
   and packaged VERA. **File > Open convert log...**, Convert **Open log**, and

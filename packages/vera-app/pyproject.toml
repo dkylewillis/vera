@@ -1,14 +1,14 @@
 [project]
 name = "vera-app"
-version = "0.3.0"
+version = "0.3.1"
 description = "Python sidecar for the VERA desktop app"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-doc[onnx]>=0.3.0",
-  "vera-ingest>=0.3.0",
-  "vera-ingest-pymupdf>=0.3.0",
-  "vera-embed-openai>=0.3.0",
+  "vera-doc[onnx]>=0.3.1",
+  "vera-ingest>=0.3.1",
+  "vera-ingest-pymupdf>=0.3.1",
+  "vera-embed-openai>=0.3.1",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}

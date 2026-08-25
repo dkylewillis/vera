@@ -142,7 +142,7 @@ function runDescribeChecks(sidecarPath) {
       return;
     }
     if (providers.includes("docling")) {
-      finish(1, `Sidecar included Docling; 0.3.0 packaged Convert is PyMuPDF-only (got ${providers.join(", ")})`);
+      finish(1, `Sidecar included Docling; 0.3.x packaged Convert is PyMuPDF-only (got ${providers.join(", ")})`);
       return;
     }
 

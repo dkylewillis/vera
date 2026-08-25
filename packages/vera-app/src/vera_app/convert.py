@@ -45,7 +45,7 @@ def require_ready_embedder(model: str) -> None:
         raise ValueError(result.detail or "Embedding provider is not ready")
 
 
-# 0.3.0 desktop Convert ships PyMuPDF only. The Docling plugin remains a CLI extra.
+# 0.3.x desktop Convert ships PyMuPDF only. The Docling plugin remains a CLI extra.
 _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS = frozenset({"docling"})
 
 
@@ -58,7 +58,7 @@ def _reject_excluded_desktop_parser(request: Request) -> None:
     if _pipeline_provider(parser) not in _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS:
         return
     raise ValueError(
-        "Docling is not available in the desktop app in 0.3.0. "
+        "Docling is not available in the desktop app in 0.3.x. "
         "Convert PDFs with PyMuPDF here, or use the CLI extra: "
         'pip install "vera-cli[docling]>=0.3.0"'
     )

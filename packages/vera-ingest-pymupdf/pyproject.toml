@@ -1,11 +1,11 @@
 [project]
 name = "vera-ingest-pymupdf"
-version = "0.3.0"
+version = "0.3.1"
 description = "Default PyMuPDF PDF ingest pipeline for VERA"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera-ingest>=0.3.0",
+  "vera-ingest>=0.3.1",
   "pymupdf>=1.23",
   "pdfplumber>=0.11",
 ]

@@ -32,7 +32,7 @@ def _package_version() -> str:
     try:
         return package_version("vera-doc")
     except PackageNotFoundError:
-        return "0.3.0"
+        return "0.3.1"
 
 
 def _utc_now() -> str:
