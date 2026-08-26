@@ -11,7 +11,7 @@ copied, shared, or handed to an LLM agent and searched in place — no vector
 database, embedding service, or retrieval server is required.
 
 ```bash
-pip install "vera-cli>=0.3.0"
+pip install "vera-cli>=0.3.1"
 vera convert manual.pdf manual.vera
 vera search manual.vera "when is stormwater detention required?" --json
 ```
