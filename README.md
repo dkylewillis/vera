@@ -21,20 +21,7 @@ vera search manual.vera "when is stormwater detention required?" --json
 Semantic search over a document normally requires a multi-stage pipeline —
 parsing, chunking, embedding, and indexing — plus a running vector database to
 hold the result. Every application that wants to search the same document
-repeats all of it:
-
-```text
-Typical retrieval pipeline              VERA
-──────────────────────────              ────
-Source document                         Source document
-    ↓                                       ↓
-Parse ──┐                               vera convert
-Chunk   │  repeated per                     ↓  (full pipeline, run once)
-Embed   │  application; results         .vera file
-Index   │  live in a separate               ↓
-    ↓ ──┘  vector database              local search from any
-Search                                  machine, application, or agent
-```
+repeats all of it.
 
 VERA moves the pipeline output into the file itself. A `.vera` archive stores
 the parsed document together with its retrieval layer: chunks, embeddings, a
@@ -53,7 +40,7 @@ Install the CLI (Python 3.10+). It bundles storage, the default PDF pipeline,
 and offline OCR data:
 
 ```bash
-python -m pip install "vera-cli>=0.3.0"
+python -m pip install "vera-cli>=0.3.1"
 ```
 
 ### What 0.3 means
