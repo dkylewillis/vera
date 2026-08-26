@@ -19,7 +19,7 @@ archives stay compatible.
 Install the CLI and its dependencies:
 
 ```bash
-python -m pip install "vera-cli>=0.3.0"
+python -m pip install "vera-cli>=0.3.1"
 ```
 
 That installs `vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and
@@ -27,7 +27,7 @@ That installs `vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and
 Add MCP support with:
 
 ```bash
-python -m pip install "vera-cli[mcp]>=0.3.0"
+python -m pip install "vera-cli[mcp]>=0.3.1"
 ```
 
 Verify that the console script is available:

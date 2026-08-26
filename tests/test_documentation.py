@@ -607,14 +607,14 @@ def test_release_0_3_versioning_and_install_pins():
     assert "### What 0.3 means" in readme
     assert "archive format remains **0.2**" in readme
     assert "archive format remains **0.2**" in getting_started
-    assert "vera-cli>=0.3.0" in readme
-    assert "vera-cli>=0.3.0" in getting_started
+    assert "vera-cli>=0.3.1" in readme
+    assert "vera-cli>=0.3.1" in getting_started
     assert "vera-doc>=0.3.0" in (PACKAGES / "vera-doc" / "README.md").read_text(encoding="utf-8")
     skill_cli = (ROOT / "skills" / "vera" / "references" / "cli-reference.md").read_text(
         encoding="utf-8"
     )
     human_cli = (DOCS / "cli-reference.md").read_text(encoding="utf-8")
-    assert "vera-cli>=0.3.0" in skill_cli
+    assert "vera-cli>=0.3.1" in skill_cli
     assert "Windows installer vendors Heron" not in human_cli
     assert "vendors those snapshots so packaged Advanced" not in skill_cli
     assert ">=0.2.4" not in readme
@@ -781,7 +781,7 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "`chunks_fts`" in validate_docs
     assert "vera ocr-languages list" in changelog
     assert "vera-lab" in changelog
-    assert "vera-cli>=0.3.0" in intro
+    assert "vera-cli>=0.3.1" in intro
     assert "Open convert log" in desktop
     assert "logs/sidecar.log" in desktop
     assert "Open convert log" in troubleshooting

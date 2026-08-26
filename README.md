@@ -1,7 +1,7 @@
 # VERA — Vector-Embedded Retrieval Archive
 
 [![Latest release](https://img.shields.io/github/v/release/dkylewillis/vera)](https://github.com/dkylewillis/vera/releases/latest)
-[![PyPI - vera-doc](https://img.shields.io/pypi/v/vera-doc?label=vera-doc)](https://pypi.org/project/vera-doc/)
+[![PyPI - vera-cli](https://img.shields.io/pypi/v/vera-cli?label=vera-cli)](https://pypi.org/project/vera-cli/)
 [![License](https://img.shields.io/github/license/dkylewillis/vera)](LICENSE)
 
 A `.vera` file is a portable embedded vector database: one self-contained
@@ -21,7 +21,7 @@ vera search manual.vera "when is stormwater detention required?" --json
 Semantic search over a document normally requires a multi-stage pipeline —
 parsing, chunking, embedding, and indexing — plus a running vector database to
 hold the result. Every application that wants to search the same document
-repeats all of it.
+repeats that pipeline.
 
 VERA moves the pipeline output into the file itself. A `.vera` archive stores
 the parsed document together with its retrieval layer: chunks, embeddings, a

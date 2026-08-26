@@ -6,11 +6,11 @@ console entry point is `vera`; `python -m vera_cli` invokes the same parser.
 ## Runtime and installation
 
 - Python: 3.10 or newer.
-- Published CLI: `pip install "vera-cli>=0.3.0"`.
+- Published CLI: `pip install "vera-cli>=0.3.1"`.
 - Neural MiniLM embeddings require the `onnx` extra from `vera-doc`.
   Other Sentence Transformers models require the `ml` extra.
-- `vera mcp` requires `pip install "vera-cli[mcp]>=0.3.0"` or
-  `pip install "vera-mcp>=0.3.0"`.
+- `vera mcp` requires `pip install "vera-cli[mcp]>=0.3.1"` or
+  `pip install "vera-mcp>=0.3.1"`.
 - A repository checkout can use:
   `uv sync --extra dev --extra onnx --extra ml --extra app --extra mcp`.
 
