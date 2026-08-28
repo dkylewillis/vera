@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   findSiblingPdfPath,
+  findSiblingSourcePath,
   reconvertExportGate,
   reconvertInspectFailedMessage,
   reconvertMissingSourceMessage,
   reconvertPipelineOptionsFromInspect,
   reconvertPrefillFromInspect,
   resolveReconvertPdf,
+  resolveReconvertSource,
 } from './reconvert';
 
 describe('resolveReconvertPdf', () => {
@@ -43,6 +45,34 @@ describe('resolveReconvertPdf', () => {
 
   it('is unavailable for non-archive paths', () => {
     expect(resolveReconvertPdf('C:\\library\\manual.pdf')).toEqual({ status: 'unavailable' });
+  });
+});
+
+describe('resolveReconvertSource', () => {
+  const veraPath = 'C:\\library\\notes.vera';
+
+  it('prefers a listed sibling Markdown file from inspect', () => {
+    expect(resolveReconvertSource(veraPath, {
+      sourceFileName: 'notes.md',
+      entries: [
+        { path: 'C:\\library\\notes.pdf', type: 'pdf' },
+        { path: 'C:\\library\\notes.md', type: 'md' },
+      ],
+    })).toEqual({ status: 'ready', sourcePath: 'C:\\library\\notes.md' });
+  });
+
+  it('matches a listed Markdown sibling by stem when inspect has no filename', () => {
+    expect(findSiblingSourcePath(veraPath, [
+      { path: 'C:\\library\\Notes.MD', type: 'md' },
+    ])).toBe('C:\\library\\Notes.MD');
+  });
+
+  it('asks to export the embedded Markdown when no sibling is present', () => {
+    expect(resolveReconvertSource(veraPath, {
+      sourceFileName: 'notes.md',
+      entries: [{ path: veraPath, type: 'vera' }],
+      siblingExists: false,
+    })).toEqual({ status: 'export', sourcePath: 'C:\\library\\notes.md' });
   });
 });
 
@@ -151,5 +181,9 @@ describe('reconvertInspectFailedMessage', () => {
 describe('reconvertMissingSourceMessage', () => {
   it('names the expected sibling PDF', () => {
     expect(reconvertMissingSourceMessage('C:\\docs\\manual.vera')).toContain('manual.pdf');
+  });
+
+  it('names the expected sibling Markdown file', () => {
+    expect(reconvertMissingSourceMessage('C:\\docs\\notes.vera', 'notes.md')).toContain('notes.md');
   });
 });

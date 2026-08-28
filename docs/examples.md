@@ -7,6 +7,7 @@ These recipes use the `vera` console script. Substitute
 
 ```bash
 vera convert "ordinance.pdf" "ordinance.vera" --model hashing
+vera convert "notes.md" "notes.vera" --model hashing
 vera inspect "ordinance.vera"
 vera validate "ordinance.vera"
 vera search "ordinance.vera" "minimum parking required for restaurant" --mode hybrid --top-k 5

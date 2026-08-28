@@ -98,7 +98,7 @@ def cmd_convert(args) -> int:
         if input_path.is_dir():
             if args.output:
                 message = (
-                    "Directory conversion creates each .vera beside its PDF; "
+                    "Directory conversion creates each .vera beside its source file; "
                     "do not provide an output path."
                 )
                 if args.json:
@@ -127,7 +127,7 @@ def cmd_convert(args) -> int:
                 print(json.dumps({"ok": unsuccessful == 0, **report}))
             else:
                 print(
-                    f"Found {report['discovered']} PDFs: {report['converted']} converted, "
+                    f"Found {report['discovered']} files: {report['converted']} converted, "
                     f"{report['skipped']} skipped, {report['malformed']} malformed, "
                     f"{report['failed']} failed"
                 )

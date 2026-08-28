@@ -1,15 +1,16 @@
 # Basic usage
 
-This guide covers the common path: convert a PDF, inspect the archive, then
+This guide covers the common path: convert a PDF or Markdown file, inspect the archive, then
 search it from the CLI or Python.
 
-## Step 1 — Convert a PDF
+## Step 1 — Convert a PDF or Markdown file
 
 ```bash
 vera convert manual.pdf manual.vera --model hashing
+vera convert notes.md notes.vera --model hashing
 ```
 
-Directory conversion writes each `.vera` beside its source PDF:
+Directory conversion writes each `.vera` beside its source file:
 
 ```bash
 vera convert ./proposals --recursive

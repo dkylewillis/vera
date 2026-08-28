@@ -13,6 +13,7 @@ database, embedding service, or retrieval server is required.
 ```bash
 pip install "vera-cli>=0.3.1"
 vera convert manual.pdf manual.vera
+vera convert notes.md notes.vera
 vera search manual.vera "when is stormwater detention required?" --json
 ```
 
@@ -108,7 +109,7 @@ full command surface is scriptable by agents and applications:
 
 | Command | What it does |
 |---------|--------------|
-| `vera convert` | Convert a PDF (or a whole directory) into `.vera` archives, with selective OCR |
+| `vera convert` | Convert a PDF, Markdown file, or a directory of sources into `.vera` archives |
 | `vera search` | Hybrid, semantic, or keyword search over a file or a folder-as-corpus |
 | `vera index` | Build, update, and check a persistent library index over many archives |
 | `vera inspect` | Report pages, chunks, embedding model, parser, and archive metadata |

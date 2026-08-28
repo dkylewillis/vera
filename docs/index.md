@@ -58,10 +58,11 @@ uv sync --extra dev --extra onnx --extra ml
 
 ## Quick example
 
-Convert a PDF and search it from the CLI:
+Convert a PDF or Markdown file and search it from the CLI:
 
 ```bash
 vera convert manual.pdf manual.vera
+vera convert notes.md notes.vera
 vera search manual.vera "stormwater detention requirements" --top-k 5 --json
 ```
 

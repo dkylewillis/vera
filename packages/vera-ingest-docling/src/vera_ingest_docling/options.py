@@ -135,6 +135,7 @@ def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
             ocr_supported=True,
             ocr_engine="rapidocr",
             ocr_dpi_supported=False,
+            source_formats=("pdf",),
         ),
         fields=fields_from_dataclass(DoclingOptions),
         notes=(

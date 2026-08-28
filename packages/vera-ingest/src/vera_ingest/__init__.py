@@ -13,6 +13,15 @@ from .descriptors import (
     PipelineField,
     PipelineFieldChoice,
 )
+from .formats import (
+    installed_source_formats,
+    pick_parser_for_suffix,
+    pipeline_source_formats,
+    resolve_ingest_parser,
+    source_mime_type,
+    source_suffix,
+)
+from .markdown import ensure_registered as ensure_markdown_pipeline_registered
 from .pipeline import (
     PLUGIN_API_VERSION,
     IngestPipeline,
@@ -78,6 +87,7 @@ __all__ = [
     "describe_ingest_pipeline",
     "detect_heading",
     "ensure_ingest_request",
+    "ensure_markdown_pipeline_registered",
     "export_figures",
     "export_source_document",
     "figures",
@@ -87,14 +97,20 @@ __all__ = [
     "get_ingest_pipeline",
     "get_page",
     "get_source_document",
+    "installed_source_formats",
     "invoke_ingest_pipeline",
     "list_ingest_pipeline_descriptors",
     "list_ingest_pipeline_load_errors",
     "list_ingest_pipelines",
+    "pick_parser_for_suffix",
+    "pipeline_source_formats",
     "prepare_pipeline_options",
     "regions_for",
     "result_payload",
     "register_ingest_pipeline",
     "register_ingest_pipeline_descriptor",
     "reset_ingest_pipeline_registry",
+    "resolve_ingest_parser",
+    "source_mime_type",
+    "source_suffix",
 ]

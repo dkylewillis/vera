@@ -43,18 +43,21 @@ describe('syncCollapsedFolders', () => {
 
 describe('partitionExplorerSelection', () => {
   it('splits mixed paths by extension', () => {
-    expect(partitionExplorerSelection(['a.vera', 'b.pdf', 'c.VERA', 'notes.txt'])).toEqual({
+    expect(partitionExplorerSelection(['a.vera', 'b.pdf', 'c.VERA', 'notes.txt', 'guide.md'])).toEqual({
       vera: ['a.vera', 'c.VERA'],
       pdf: ['b.pdf'],
+      md: ['guide.md'],
     });
   });
 });
 
 describe('explorerEntryType', () => {
-  it('recognizes archive and PDF extensions', () => {
+  it('recognizes archive, PDF, and Markdown extensions', () => {
     expect(explorerEntryType('manual.vera')).toBe('vera');
     expect(explorerEntryType('manual.PDF')).toBe('pdf');
-    expect(explorerEntryType('readme.md')).toBeNull();
+    expect(explorerEntryType('readme.md')).toBe('md');
+    expect(explorerEntryType('notes.markdown')).toBe('md');
+    expect(explorerEntryType('notes.txt')).toBeNull();
   });
 });
 

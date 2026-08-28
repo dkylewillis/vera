@@ -34,7 +34,7 @@ export function conversionProgressTaskUpdate(
     currentItem: currentFile || undefined,
   };
   if (event.phase === 'discovering') {
-    return { ...base, message: 'Discovering PDFs…' };
+    return { ...base, message: 'Discovering files…' };
   }
   if (event.phase === 'preparing') {
     return {
@@ -45,7 +45,7 @@ export function conversionProgressTaskUpdate(
   if (!total) {
     return {
       ...base,
-      message: mode === 'batch' ? 'No PDFs found to convert.' : 'Converting…',
+      message: mode === 'batch' ? 'No source files found to convert.' : 'Converting…',
     };
   }
   if (completed >= total) {
@@ -68,6 +68,8 @@ export function buildBatchConvertPayload(options: {
   pipelineOptions: PipelineOptions;
   embedderOptions?: PipelineOptions;
 }): Record<string, unknown> {
+  const selectedArePdfs = options.selectedPaths.length > 0
+    && options.selectedPaths.every((path) => path.toLowerCase().endsWith('.pdf'));
   return {
     action: SIDECAR_ACTIONS.batchConvert,
     ...(options.selectedPaths.length
@@ -75,7 +77,7 @@ export function buildBatchConvertPayload(options: {
       : { directory: options.directory, recursive: options.batchRecursive }),
     overwrite: options.batchOverwrite,
     model: options.embeddingModel,
-    parser: options.ingestPipeline,
+    ...(selectedArePdfs ? { parser: options.ingestPipeline } : {}),
     store_original: options.storeOriginal,
     pipeline_options: options.pipelineOptions,
     ...(options.embedderOptions && Object.keys(options.embedderOptions).length
@@ -86,10 +88,10 @@ export function buildBatchConvertPayload(options: {
 
 export function conversionMissingTargetMessage(convertMode: ConvertMode): string {
   return convertMode === 'selected'
-    ? 'Select one or more PDFs in Explorer (click, Ctrl/Cmd+click, or Shift+click).'
-    : 'Choose the directory containing the PDFs to convert.';
+    ? 'Select one or more PDFs or Markdown files in Explorer (click, Ctrl/Cmd+click, or Shift+click).'
+    : 'Choose the directory containing the PDFs or Markdown files to convert.';
 }
 
 export function conversionFailedMessage(hasSelectedPaths: boolean): string {
-  return hasSelectedPaths ? 'Selected PDF conversion failed' : 'PDF directory conversion failed';
+  return hasSelectedPaths ? 'Selected file conversion failed' : 'Directory conversion failed';
 }

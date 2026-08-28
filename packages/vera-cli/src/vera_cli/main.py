@@ -55,10 +55,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    convert_p = sub.add_parser("convert", help="Convert a PDF or a directory of PDFs to VERA files")
-    convert_p.add_argument("input", help="PDF file or directory containing PDFs")
+    convert_p = sub.add_parser(
+        "convert", help="Convert a PDF, Markdown file, or a directory of sources to VERA files"
+    )
     convert_p.add_argument(
-        "output", nargs="?", default=None, help="Output .vera path for a single PDF"
+        "input", help="PDF, Markdown file, or directory containing supported source files"
+    )
+    convert_p.add_argument(
+        "output", nargs="?", default=None, help="Output .vera path for a single source file"
     )
     convert_p.add_argument(
         "--model",
@@ -73,10 +77,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert_p.add_argument(
         "--parser",
-        default="pymupdf",
+        default=None,
         help=(
             "Ingest pipeline spec: provider[:variant] "
-            "(default pymupdf; optional docling or docling:hybrid when "
+            "(omitted: choose from the file extension; PDF -> pymupdf, "
+            "Markdown -> markdown; optional docling or docling:hybrid when "
             "vera-ingest-docling is installed). Unknown providers exit with an error."
         ),
     )
@@ -166,7 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     convert_p.add_argument(
         "--recursive",
         action="store_true",
-        help="Discover PDFs recursively when input is a directory",
+        help="Discover supported source files recursively when input is a directory",
     )
     convert_p.add_argument(
         "--overwrite",

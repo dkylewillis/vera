@@ -24,6 +24,7 @@ import { DocumentInfoPanel } from './components/DocumentInfoPanel';
 import { ExplorerPanel } from './components/ExplorerPanel';
 import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexModal';
 import { PdfSourceViewer } from './components/PdfSourceViewer';
+import { MarkdownSourceViewer } from './components/MarkdownSourceViewer';
 import { ModelManager, SettingsModal } from './components/ProviderManagers';
 import { embedderAsPipelineDescriptor } from './components/EmbedderConfigForm';
 import { mergePipelineFieldValues } from './components/PipelineConfigForm';
@@ -43,6 +44,7 @@ import {
   formatPages,
   isPathInsideFolder,
   isPdfSource,
+  isMarkdownSource,
   sameFsPath,
   showInFolderLabel,
   type ExplorerSelection,
@@ -2308,6 +2310,13 @@ function App() {
                   highlightFigures={viewerHighlights.figures}
                   targetPage={viewerHighlights.targetPage}
                   jumpVersion={citationJumpVersion}
+                />
+              </div>
+            ) : sourceDocument && isMarkdownSource(sourceDocument) ? (
+              <div className="sourceViewer">
+                <MarkdownSourceViewer
+                  source={sourceDocument}
+                  highlightRegions={viewerHighlights.regions}
                 />
               </div>
             ) : sourceDocument ? (

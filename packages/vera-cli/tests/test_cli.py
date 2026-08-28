@@ -60,6 +60,54 @@ def test_cli_convert_inspect_search(tmp_path):
     assert "parking" in searched.stdout.lower()
 
 
+def test_cli_convert_markdown(tmp_path):
+    source = tmp_path / "notes.md"
+    out = tmp_path / "notes.vera"
+    source.write_text("# Detention\n\nPonds must detain the 25-year storm.\n", encoding="utf-8")
+
+    converted = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "convert",
+            str(source),
+            str(out),
+            "--model",
+            "hashing",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    payload = json.loads(converted.stdout)
+    assert payload["ok"] is True
+    assert Path(payload["output"]).resolve() == out.resolve()
+
+    searched = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "search",
+            str(out),
+            "Ponds must detain",
+            "--mode",
+            "keyword",
+            "--top-k",
+            "1",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    report = json.loads(searched.stdout)
+    assert "detain" in report["results"][0]["text"].lower()
+    assert "Detention" in (report["results"][0].get("heading_path") or "")
+
+
 def test_cli_json_output_for_agents(tmp_path):
     """Every command supports --json so agents can consume structured output."""
     pdf = tmp_path / "manual.pdf"

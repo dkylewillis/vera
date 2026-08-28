@@ -127,6 +127,7 @@ def describe_pipeline(variant: str = "default") -> PipelineDescriptor:
             ocr_supported=True,
             ocr_engine="tesseract",
             ocr_dpi_supported=True,
+            source_formats=("pdf",),
         ),
         fields=fields_from_dataclass(PyMuPDFOptions),
     )

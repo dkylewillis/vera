@@ -86,7 +86,7 @@ export interface FolderEntry {
   path: string;
   name: string;
   relativePath: string;
-  type: 'vera' | 'pdf';
+  type: 'vera' | 'pdf' | 'md';
 }
 
 export interface WorkspaceFolderResult {

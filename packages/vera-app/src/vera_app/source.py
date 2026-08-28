@@ -111,11 +111,37 @@ def copy_file_to_cache(
     return cache_path
 
 
-def sibling_pdf(path: Path) -> Path | None:
-    sibling = path.with_suffix(".pdf")
-    if sibling.is_file() and sibling.resolve() != path.resolve():
-        return sibling
+def sibling_source_file(path: Path) -> tuple[Path, str] | None:
+    """Return a same-stem source file beside an archive, if one exists."""
+    pdf = path.with_suffix(".pdf")
+    if pdf.is_file() and pdf.resolve() != path.resolve():
+        return pdf, "application/pdf"
+    stem = path.with_suffix("")
+    for suffix in (".md", ".markdown"):
+        sibling = stem.with_suffix(suffix)
+        if sibling.is_file() and sibling.resolve() != path.resolve():
+            return sibling, "text/markdown"
     return None
+
+
+def source_from_path(
+    path: Path,
+    cache_dir: Path,
+    mime_type: str,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
+    """Copy a filesystem source file into the source cache without hashing its bytes."""
+    if cancel:
+        cancel.raise_if_cancelled()
+    if not path.is_file():
+        raise FileNotFoundError(f"Source file not found: {path}")
+    stat = path.stat()
+    digest = hashlib.sha256(
+        f"{path.resolve()}|{stat.st_size}|{stat.st_mtime_ns}".encode()
+    ).hexdigest()
+    cache_path = source_cache_path(cache_dir, digest, path.name)
+    copied = copy_file_to_cache(path, cache_path, stat.st_size, cancel)
+    return source_result(path.name, mime_type, digest, stat.st_size, copied)
 
 
 def source_from_pdf(
@@ -132,13 +158,7 @@ def source_from_pdf(
         header = handle.read(5)
     if not header.startswith(b"%PDF"):
         raise ValueError(f"Not a PDF file: {path}")
-    stat = path.stat()
-    digest = hashlib.sha256(
-        f"{path.resolve()}|{stat.st_size}|{stat.st_mtime_ns}".encode()
-    ).hexdigest()
-    cache_path = source_cache_path(cache_dir, digest, path.name)
-    copied = copy_file_to_cache(path, cache_path, stat.st_size, cancel)
-    return source_result(path.name, "application/pdf", digest, stat.st_size, copied)
+    return source_from_path(path, cache_dir, "application/pdf", cancel)
 
 
 def extract_attachment_to_cache(
@@ -176,11 +196,11 @@ def source(
     request: Request,
     cancel: CancellationToken | None = None,
 ) -> dict[str, Any]:
-    """Materialize a source PDF for the document viewer.
+    """Materialize a source document for the document viewer.
 
     Large manuals used to exceed the renderer watchdog because this path loaded
     the embedded original into Python, re-hashed it, and only then checked the
-    on-disk cache. Cache hits and sibling PDFs now skip that work.
+    on-disk cache. Cache hits and sibling source files now skip that work.
     """
     if cancel:
         cancel.raise_if_cancelled()
@@ -188,7 +208,9 @@ def source(
     cache_dir = source_cache_dir(request)
     if path.suffix.lower() == ".pdf":
         return source_from_pdf(path, cache_dir, cancel)
-    sibling = sibling_pdf(path)
+    if path.suffix.lower() in {".md", ".markdown"}:
+        return source_from_path(path, cache_dir, "text/markdown", cancel)
+    sibling = sibling_source_file(path)
     doc = open_document(str(path))
     try:
         attachment_id = doc.metadata.get("source_attachment_id")
@@ -197,15 +219,15 @@ def source(
             if not infos:
                 raise ValueError("Original source document is not stored in this archive")
             info = infos[0]
-            filename = str(info.get("filename") or "source.pdf")
+            filename = str(info.get("filename") or "source.bin")
             mime_type = str(info.get("media_type") or "application/octet-stream")
             digest = str(info.get("checksum") or "")
             size = int(info["size"])
             cache_path = source_cache_path(cache_dir, digest, filename)
             if source_cache_hit(cache_path, size):
                 return source_result(filename, mime_type, digest, size, cache_path)
-            if sibling is not None and sibling.stat().st_size == size:
-                copied = copy_file_to_cache(sibling, cache_path, size, cancel)
+            if sibling is not None and sibling[1] == mime_type and sibling[0].stat().st_size == size:
+                copied = copy_file_to_cache(sibling[0], cache_path, size, cancel)
                 return source_result(filename, mime_type, digest, size, copied)
             extracted = extract_attachment_to_cache(
                 doc,
@@ -216,7 +238,7 @@ def source(
             )
             return source_result(filename, mime_type, digest, size, extracted)
         if sibling is not None:
-            return source_from_pdf(sibling, cache_dir, cancel)
+            return source_from_path(sibling[0], cache_dir, sibling[1], cancel)
         raise ValueError("Original source document is not stored in this archive")
     finally:
         doc.close()

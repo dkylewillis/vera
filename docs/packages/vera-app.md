@@ -2,7 +2,8 @@
 
 `vera-app` is the VERA desktop product: an Electron and React interface backed
 by a local Python sidecar. It composes `vera-doc` for retrieval,
-`vera-ingest` / `vera-ingest-pymupdf` for conversion, and `vera-embed-openai`
+`vera-ingest` / `vera-ingest-pymupdf` for PDF conversion (Markdown ingest is
+bundled in `vera-ingest`), and `vera-embed-openai`
 for hosted OpenAI embeddings; it does not use the CLI as its backend.
 `vera-ingest-docling` is an optional CLI extra, not bundled in the installer.
 
@@ -21,11 +22,11 @@ Download `VERA Setup <version>.exe` from the
 
 ## First workflow
 
-1. Open **Convert PDF** and convert selected PDFs or a directory, or
-   right-click a folder and choose **Convert PDFs…**. Expand
+1. Open **Convert** and convert selected PDFs or Markdown files, or a directory, or
+   right-click a folder and choose **Convert…**. Expand
    **Advanced pipeline options** for schema-driven settings from
    `describe_ingest_pipelines` / `PipelineConfigForm`. Convert lists PyMuPDF
-   as the 0.3.0 ingest pipeline. Convert embedding presets are hashing
+   and the bundled Markdown pipeline. Convert embedding presets are hashing
    (default), **Local semantic
    (MiniLM)**, and OpenAI `text-embedding-3-*`. MiniLM is ONNX Runtime under the same
    `sentence-transformers/all-MiniLM-L6-v2` identity, and the installer

@@ -18,6 +18,7 @@ import {
   explorerRowTone,
   explorerSelectionAfterFileList,
   partitionExplorerSelection,
+  convertibleSelection,
   pruneExplorerSelectionForFilter,
   visibleExplorerEntries,
   type ExplorerFileFilter,
@@ -141,8 +142,8 @@ export function ExplorerPanel({
     };
     onFileSelectionChange(next);
   }
-  const folderMenuPdfCount = folderContextMenu
-    ? folders.find((folder) => folder.path === folderContextMenu.path)?.entries.filter((entry) => entry.type === 'pdf').length ?? 0
+  const folderMenuSourceCount = folderContextMenu
+    ? folders.find((folder) => folder.path === folderContextMenu.path)?.entries.filter((entry) => entry.type === 'pdf' || entry.type === 'md').length ?? 0
     : 0;
 
   useEffect(() => {
@@ -234,7 +235,7 @@ export function ExplorerPanel({
     }
     commitFileSelection({
       selectedFiles: partitioned.vera,
-      selectedPdfs: partitioned.pdf,
+      selectedPdfs: convertibleSelection(partitioned),
       selectionAnchorPath: next.anchor,
       explorerSelection: explorerSelection?.kind !== 'file'
         ? explorerSelection
@@ -255,7 +256,7 @@ export function ExplorerPanel({
     }
     commitFileSelection({
       selectedFiles: partitioned.vera,
-      selectedPdfs: partitioned.pdf,
+      selectedPdfs: convertibleSelection(partitioned),
       selectionAnchorPath: next.anchor,
       explorerSelection: explorerSelectionAfterFileList({
         selectedVera: partitioned.vera,
@@ -335,20 +336,20 @@ export function ExplorerPanel({
             <button
               ref={folderContextMenuFirstActionRef}
               role="menuitem"
-              disabled={convertLocked || folderMenuPdfCount === 0}
+              disabled={convertLocked || folderMenuSourceCount === 0}
               title={
                 convertLocked
                   ? 'Wait for conversion to finish'
-                  : folderMenuPdfCount === 0
-                    ? 'No PDF files in this folder'
-                    : 'Open Convert for every PDF in this folder'
+                  : folderMenuSourceCount === 0
+                    ? 'No PDF or Markdown files in this folder'
+                    : 'Open Convert for every PDF or Markdown file in this folder'
               }
               onClick={() => {
                 onConvertFolder(folderContextMenu.path);
                 setFolderContextMenu(null);
               }}
             >
-              Convert PDFs{folderMenuPdfCount > 0 ? ` (${folderMenuPdfCount})` : ''}…
+              Convert{folderMenuSourceCount > 0 ? ` (${folderMenuSourceCount})` : ''}…
             </button>
             <button
               role="menuitem"
@@ -402,7 +403,7 @@ export function ExplorerPanel({
             style={{ left: entryContextMenu.x, top: entryContextMenu.y }}
             onClick={(event) => event.stopPropagation()}
           >
-            {entryContextMenu.entry.type === 'vera' || entryContextMenu.entry.type === 'pdf' ? (
+            {entryContextMenu.entry.type === 'vera' || entryContextMenu.entry.type === 'pdf' || entryContextMenu.entry.type === 'md' ? (
               <button
                 ref={entryContextMenuActionRef}
                 role="menuitem"
@@ -430,7 +431,7 @@ export function ExplorerPanel({
                 Reconvert…
               </button>
             ) : null}
-            {entryContextMenu.entry.type === 'pdf' ? (
+            {entryContextMenu.entry.type === 'pdf' || entryContextMenu.entry.type === 'md' ? (
               <button
                 role="menuitem"
                 onClick={() => {
@@ -444,13 +445,13 @@ export function ExplorerPanel({
               >
                 Convert {
                   selectedPdfs.includes(entryContextMenu.entry.path) && selectedPdfs.length > 1
-                    ? `PDFs (${selectedPdfs.length})`
-                    : 'PDF'
+                    ? `files (${selectedPdfs.length})`
+                    : 'file'
                 }
               </button>
             ) : null}
             <button
-              ref={entryContextMenu.entry.type === 'vera' || entryContextMenu.entry.type === 'pdf' ? undefined : entryContextMenuActionRef}
+              ref={entryContextMenu.entry.type === 'vera' || entryContextMenu.entry.type === 'pdf' || entryContextMenu.entry.type === 'md' ? undefined : entryContextMenuActionRef}
               role="menuitem"
               onClick={() => {
                 void onRevealInFolder(entryContextMenu.entry.path);
@@ -491,6 +492,7 @@ export function ExplorerPanel({
               ['all', 'All'],
               ['vera', 'VERA'],
               ['pdf', 'PDFs'],
+              ['md', 'Markdown'],
             ] as const).map(([filter, label]) => (
               <button
                 type="button"
@@ -603,7 +605,7 @@ export function ExplorerPanel({
               {collapsedFolders.includes(folder.path) ? null : visibleEntries.length === 0 ? (
                 <p className="folderEmpty">
                   {explorerFileFilter === 'all'
-                    ? 'No .vera or .pdf files'
+                    ? 'No .vera, .pdf, or .md files'
                     : `No .${explorerFileFilter} files`}
                 </p>
               ) : (
@@ -646,7 +648,7 @@ export function ExplorerPanel({
                       aria-selected={listed || scopedDocument}
                       onClick={(event) => selectExplorerEntry(entry, event)}
                       onDoubleClick={() => {
-                        if (entry.type === 'vera' || entry.type === 'pdf') {
+                        if (entry.type === 'vera' || entry.type === 'pdf' || entry.type === 'md') {
                           void onPreview(entry);
                         }
                       }}

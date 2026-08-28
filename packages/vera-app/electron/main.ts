@@ -47,7 +47,7 @@ interface FolderEntry {
   path: string;
   name: string;
   relativePath: string;
-  type: 'vera' | 'pdf';
+  type: 'vera' | 'pdf' | 'md';
 }
 
 interface WorkspaceFolderResult {
@@ -808,7 +808,7 @@ function isWorkspaceFile(filePath: string, folderPath: string): boolean {
   return Boolean(relativePath)
     && !relativePath.startsWith('..')
     && !isAbsolute(relativePath)
-    && (lower.endsWith('.vera') || lower.endsWith('.pdf'));
+    && (lower.endsWith('.vera') || lower.endsWith('.pdf') || lower.endsWith('.md') || lower.endsWith('.markdown'));
 }
 
 async function showInFolder(targetPath: string): Promise<void> {
@@ -1152,10 +1152,14 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.pickPdf, async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const options: Electron.OpenDialogOptions = {
-      title: 'Open PDFs',
+      title: 'Open source files',
       buttonLabel: 'Select',
       properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
+      filters: [
+        { name: 'Documents', extensions: ['pdf', 'md', 'markdown'] },
+        { name: 'PDF Documents', extensions: ['pdf'] },
+        { name: 'Markdown', extensions: ['md', 'markdown'] },
+      ],
     };
     const result = owner
       ? await dialog.showOpenDialog(owner, options)

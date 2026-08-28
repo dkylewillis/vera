@@ -72,15 +72,17 @@ uv sync --extra dev
 uv run python -m vera_cli --help
 ```
 
-## Convert a PDF
+## Convert a PDF or Markdown file
 
 ```bash
 vera convert "manual.pdf" "manual.vera"
+vera convert "notes.md" "notes.vera"
 ```
 
 The default `hashing` embedding model is local and has no machine-learning
-dependency. The resulting archive contains parsed pages, chunks, embeddings,
-the keyword index, citation metadata, figures, and the original PDF.
+dependency. The resulting archive contains parsed pages or Markdown structure,
+chunks, embeddings, the keyword index, citation metadata, figures (PDF), and
+the original source file.
 
 If the output path is omitted, VERA uses the input filename with a `.vera`
 suffix:

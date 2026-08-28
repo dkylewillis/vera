@@ -47,6 +47,8 @@ const pyinstallerArgs = [
   "--hidden-import",
   "vera_ingest_pymupdf",
   "--hidden-import",
+  "vera_ingest.markdown",
+  "--hidden-import",
   "vera_embed_openai",
   "--hidden-import",
   "onnxruntime",

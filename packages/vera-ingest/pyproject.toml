@@ -9,13 +9,19 @@ dependencies = [
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
-keywords = ["pdf", "chunking", "semantic-search", "vera"]
+keywords = ["pdf", "markdown", "chunking", "semantic-search", "vera"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
   "Topic :: Text Processing :: Indexing",
 ]
+
+[project.entry-points."vera.ingest_pipelines"]
+markdown = "vera_ingest.markdown:create_pipeline"
+
+[project.entry-points."vera.ingest_pipeline_descriptors"]
+markdown = "vera_ingest.markdown:create_descriptor"
 
 [project.urls]
 Homepage = "https://github.com/dkylewillis/vera"

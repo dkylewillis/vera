@@ -75,7 +75,8 @@ and do not change the 0.2 archive schema.
 `vera-ingest-docling` is the official Docling pipeline that registers
 `docling` / `docling:hybrid`. CLI users install it with
 `pip install "vera-cli[docling]>=0.3.0"` or `uv sync --extra docling`. The
-0.3.0 desktop app does not freeze or list it; Convert is PyMuPDF-only. Extra
+0.3.x desktop app does not freeze or list it; Convert lists PyMuPDF and the
+bundled Markdown pipeline. Extra
 ingest plugins are ordinary pip packages in the same environment. See
 [vera-ingest-docling](packages/vera-ingest-docling.md).
 
@@ -106,7 +107,7 @@ providers, sessions, and application state. It depends on `vera-doc`,
 `vera-ingest`, `vera-ingest-pymupdf`, and `vera-embed-openai`
 (including
 viewer helpers), not on `vera-cli`. Packaged conversions keep one frozen
-sidecar for search, Ask, PyMuPDF, and OpenAI embeddings. MiniLM (`all-MiniLM-L6-v2`) runs on
+sidecar for search, Ask, PyMuPDF, Markdown ingest, and OpenAI embeddings. MiniLM (`all-MiniLM-L6-v2`) runs on
 ONNX Runtime; `npm run app:dev` vendors that graph before launch. When no
 MiniLM ONNX graph is present, MiniLM falls back to Sentence Transformers
 (`ml` extra), which is how CLI installs run it.

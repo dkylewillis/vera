@@ -45,7 +45,7 @@ def require_ready_embedder(model: str) -> None:
         raise ValueError(result.detail or "Embedding provider is not ready")
 
 
-# 0.3.x desktop Convert ships PyMuPDF only. The Docling plugin remains a CLI extra.
+# 0.3.x desktop Convert ships PyMuPDF and bundled Markdown. Docling remains a CLI extra.
 _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS = frozenset({"docling"})
 
 
@@ -53,13 +53,21 @@ def _pipeline_provider(name: str) -> str:
     return str(name or "").strip().lower().split(":", 1)[0]
 
 
+def requested_parser(request: Request) -> str | None:
+    raw = request.get("parser")
+    if not isinstance(raw, str):
+        return None
+    spec = raw.strip()
+    return spec or None
+
+
 def _reject_excluded_desktop_parser(request: Request) -> None:
-    parser = str(request.get("parser") or "pymupdf")
+    parser = requested_parser(request) or "pymupdf"
     if _pipeline_provider(parser) not in _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS:
         return
     raise ValueError(
         "Docling is not available in the desktop app in 0.3.x. "
-        "Convert PDFs with PyMuPDF here, or use the CLI extra: "
+        "Convert PDFs with PyMuPDF or Markdown here, or use the CLI extra: "
         'pip install "vera-cli[docling]>=0.3.0"'
     )
 
@@ -93,7 +101,7 @@ def handle_convert(
         input_path,
         str(request["output"]),
         model=str(request.get("model", "hashing")),
-        parser=str(request.get("parser", "pymupdf")),
+        parser=requested_parser(request),
         store_original=bool(request.get("store_original", True)),
         pipeline_options=pipeline_options,
         embedder_options=embedder_options,
@@ -139,7 +147,7 @@ def handle_batch_convert(
 
     directory = request.get("directory")
     progress_label = (
-        f"{len(paths)} selected PDF{'s' if len(paths) != 1 else ''}"
+        f"{len(paths)} selected file{'s' if len(paths) != 1 else ''}"
         if paths is not None
         else str(directory or "")
     )
@@ -164,7 +172,7 @@ def handle_batch_convert(
         recursive=bool(request.get("recursive", True)),
         overwrite=bool(request.get("overwrite", False)),
         model=str(request.get("model", "hashing")),
-        parser=str(request.get("parser", "pymupdf")),
+        parser=requested_parser(request),
         store_original=bool(request.get("store_original", True)),
         pipeline_options=(
             dict(request["pipeline_options"])

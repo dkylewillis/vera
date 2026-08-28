@@ -35,11 +35,18 @@ export function formatBox(box: number[] | undefined): string {
   return box.map((value) => Math.round(value)).join(', ');
 }
 
-/** `manual.vera` → `manual.pdf`. */
-export function siblingPdfPath(veraPath: string): string {
+export function siblingSourcePath(veraPath: string, sourceFileName?: string | null): string {
   const trimmed = veraPath.trim();
   if (!trimmed.toLowerCase().endsWith('.vera')) return '';
+  const cut = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  const dir = cut >= 0 ? trimmed.slice(0, cut + 1) : '';
+  if (sourceFileName?.trim()) return `${dir}${sourceFileName.trim()}`;
   return `${trimmed.slice(0, -5)}.pdf`;
+}
+
+/** `manual.vera` → `manual.pdf`. */
+export function siblingPdfPath(veraPath: string): string {
+  return siblingSourcePath(veraPath);
 }
 
 export function sameFsPath(left: string, right: string): boolean {
@@ -58,6 +65,16 @@ export function isPdfSource(source: SourceDocumentResult | null): boolean {
   return source.mime_type === 'application/pdf' || source.filename.toLowerCase().endsWith('.pdf');
 }
 
+export function isMarkdownSource(source: SourceDocumentResult | null): boolean {
+  if (!source) return false;
+  const mime = source.mime_type.toLowerCase();
+  const name = source.filename.toLowerCase();
+  return mime === 'text/markdown'
+    || mime === 'text/x-markdown'
+    || name.endsWith('.md')
+    || name.endsWith('.markdown');
+}
+
 export function showInFolderLabel(platform: string): string {
   if (platform === 'darwin') return 'Reveal in Finder';
   if (platform === 'win32') return 'Show in Explorer';
@@ -65,7 +82,7 @@ export function showInFolderLabel(platform: string): string {
 }
 
 export type ExplorerSelection =
-  | { kind: 'file'; path: string; type: 'vera' | 'pdf' }
+  | { kind: 'file'; path: string; type: 'vera' | 'pdf' | 'md' }
   | { kind: 'folder'; path: string };
 
 export interface ConvertPathDefaults {
@@ -77,7 +94,7 @@ function parentDirectory(filePath: string): string {
   return filePath.replace(/[/\\][^/\\]+$/, '');
 }
 
-/** Prefill Convert PDF directory fields from the latest Explorer selection. */
+/** Prefill Convert directory fields from the latest Explorer selection. */
 export function convertDefaultsFromSelection(
   selection: ExplorerSelection | null,
   fallbackFolderPath = '',

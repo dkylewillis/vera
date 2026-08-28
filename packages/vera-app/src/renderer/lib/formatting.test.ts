@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { convertDefaultsFromSelection, fileName, formatBytes, formatTimestamp, isPathInsideFolder, sameFsPath, siblingPdfPath, showInFolderLabel } from './formatting';
+import { convertDefaultsFromSelection, fileName, formatBytes, formatTimestamp, isPathInsideFolder, sameFsPath, siblingPdfPath, siblingSourcePath, showInFolderLabel } from './formatting';
 
 describe('showInFolderLabel', () => {
   it('uses platform-specific wording', () => {
@@ -50,6 +50,16 @@ describe('siblingPdfPath', () => {
 
   it('returns empty for non-archive paths', () => {
     expect(siblingPdfPath('manual.pdf')).toBe('');
+  });
+});
+
+describe('siblingSourcePath', () => {
+  it('uses a stored source filename when provided', () => {
+    expect(siblingSourcePath('C:\\docs\\manual.vera', 'notes.md')).toBe('C:\\docs\\notes.md');
+  });
+
+  it('defaults to a same-named PDF', () => {
+    expect(siblingSourcePath('C:\\docs\\manual.vera')).toBe('C:\\docs\\manual.pdf');
   });
 });
 

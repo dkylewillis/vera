@@ -1,6 +1,6 @@
 ---
 name: vera
-description: Searches, inspects, validates, converts, indexes, and exports VERA (.vera) document archives with citation-ready results. Use when answering questions from local documents, searching one archive or a document library, finding figures or page regions, checking archive integrity, converting PDFs, or operating vera-cli.
+description: Searches, inspects, validates, converts, indexes, and exports VERA (.vera) document archives with citation-ready results. Use when answering questions from local documents, searching one archive or a document library, finding figures or page regions, checking archive integrity, converting PDFs or Markdown, or operating vera-cli.
 license: Apache-2.0
 compatibility: Requires Python 3.10+, vera-cli on PATH or importable as vera_cli, and shell and local file access.
 metadata:
@@ -140,10 +140,12 @@ that no usable diagnostic exists.
 commands write or replace local files and require normal user authorization:
 
 - `convert` creates a validated `.vera` archive and publishes it atomically;
-  `--parser` selects an installed ingest pipeline (`pymupdf` by default from
-  `vera-ingest-pymupdf`; `docling` when `vera-cli[docling]` or
-  `vera-ingest-docling` is installed);
-  image-based low-text pages use selective local OCR by default. Use
+  omit `--parser` to choose an installed ingest pipeline from the file
+  extension (`pdf` → `pymupdf` from `vera-ingest-pymupdf`; `md`/`markdown` →
+  bundled `markdown`; `docling` when `vera-cli[docling]` or
+  `vera-ingest-docling` is installed). An explicit `--parser` that does not
+  advertise the file's extension fails; there is no silent fallback.
+  Image-based low-text PDF pages use selective local OCR by default. Use
   `--ocr off` only when explicitly requested, or `--ocr force` when automatic
   detection misses a scan. Prefer `--pipeline-option KEY=VALUE` for
   provider-owned settings; `--chunk-size`, `--overlap`, `--ocr`,
@@ -158,7 +160,8 @@ commands write or replace local files and require normal user authorization:
   `vera-doc[onnx]` (ONNX Runtime) plus a VERA-exported snapshot. MiniLM uses
   ONNX Runtime when a snapshot is present and Sentence Transformers otherwise.
   Use `vera-doc[ml]` for all other Sentence Transformers models. The
-  0.3.0 packaged desktop app converts with PyMuPDF only; Docling is the
+  0.3.x packaged desktop app converts PDFs with PyMuPDF and Markdown with the
+  bundled `markdown` pipeline; Docling is the
   `vera-cli[docling]` extra, not Advanced layout in Convert. OpenAI embeddings
   ship with `vera-cli` as `vera-embed-openai`; set `OPENAI_API_KEY`. Hashing
   remains the default. Archives converted with OpenAI are not portable for

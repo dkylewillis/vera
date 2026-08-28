@@ -112,7 +112,8 @@ flowchart LR
   sidecar --> openai["OpenAI"]
 ```
 
-The sidecar registers the default `pymupdf` pipeline and the bundled `openai`
+The sidecar registers the default `pymupdf` pipeline, the bundled `markdown`
+pipeline, and the bundled `openai`
 embedder. Packaged Windows builds
 freeze PyMuPDF, `onnxruntime`, `tokenizers`, and `vera-embed-openai` into one sidecar, and vendor a
 VERA-exported `all-MiniLM-L6-v2` ONNX graph in the installer. Archive identity
@@ -121,7 +122,7 @@ packaged `HF_HOME` (a writable cache under `userData` unless already set),
 `VERA_ONNX_MINILM_HOME`, and `VERA_SENTENCE_TRANSFORMERS_HOME` (alias for the
 bundled MiniLM snapshot) are forwarded on spawn. `app:dev` vendors
 `packages/vera-app/build/minilm` before launch. `app:dev` leaves `HF_HOME` unset.
-Convert stays on **Discovering PDFs** until `resolve_embedder` finishes.
+Convert stays on **Discovering files…** until `resolve_embedder` finishes.
 Convert gates conversion on `preflight_embedder`.
 Docling is a CLI extra (`vera-cli[docling]`) and is not listed in Convert.
 The sidecar sets `PYTHONUNBUFFERED=1`
@@ -194,8 +195,8 @@ generation/build/check timestamps, and per-model dimensions and counts. Its
 close action clears the viewer in the same way as closing a document preview.
 Libraries with at least 100
 discovered archives prompt to build or update an unavailable index on Search or
-Ask. Folder context menus expose **Convert PDFs…**, **Build index**, **Update
-index**, rescan, show-in-system-folder, and close. **Convert PDFs…** opens
+Ask. Folder context menus expose **Convert…**, **Build index**, **Update
+index**, rescan, show-in-system-folder, and close. **Convert…** opens
 Convert in directory mode for that folder so pipeline, embedding, overwrite,
 and nested-folder settings can be confirmed before converting. **Build index**
 and **Update index** from that menu start immediately: the folder badge spins
@@ -207,26 +208,26 @@ selection: click selects one file, Ctrl/Cmd+click adds or removes it, Shift+clic
 selects the range from the last anchor, and the checkbox sets that row's membership
 (check adds, uncheck removes). The row highlight and the Search/Ask selected-document
 count follow that same list (a previewed document uses a
-distinct marker, not the selected background). Selected `.vera` files become the Search/Ask scope; selected PDFs become
+distinct marker, not the selected background). Selected `.vera` files become the Search/Ask scope; selected PDFs and Markdown files become
 the Convert selection. Clicking a folder name clears the file selection and
 returns Search/Ask to the whole library. Clicking empty Explorer space or pressing Escape
-(while the sidebar has focus) clears file selection — PDF picks, `.vera`
+(while the sidebar has focus) clears file selection — PDF and Markdown picks, `.vera`
 checkboxes, and a single-document scope (restoring the parent library when
 possible) — and does not leave the last file looking selected. Clicking a `.vera` does not collapse
 the folder or replace the document viewer. Double-click or right-click **View in document
-viewer** / **Preview embedded source** loads that PDF or archive original in
-the source pane; right-clicking a PDF also offers **Convert PDF** /
-**Convert PDFs** for the current selection (one or more files). Right-clicking a
+viewer** / **Preview embedded source** loads that PDF, Markdown file, or archive original in
+the source pane; right-clicking a PDF or Markdown file also offers **Convert file** /
+**Convert files (N)** for the current selection (one or more files). Right-clicking a
 `.vera` archive offers **Reconvert…**, which opens Convert immediately with a
-preparing status (and footer activity) while the sibling PDF or embedded
+preparing status (and footer activity) while the sibling source or embedded
 original is resolved. Overwrite is enabled and the archive's current parser,
 embedding, and OCR options are prefilled so they can be changed before replacing
 the archive. Reconvert skips exporting an embedded original when inspect fails
-and no sibling PDF is listed (**Could not read archive metadata**). A second
+and no sibling source is listed (**Could not read archive metadata**). A second
 Reconvert click is ignored until that preparation finishes. The same menus can be opened from the keyboard with
 Shift+F10 or the Menu key, support arrow key navigation, and close with
 Escape. Show-in-folder opens a library directory in the OS file manager, or
-reveals a selected `.vera`/`.pdf` file in its parent folder. Explorer restores
+reveals a selected `.vera` / `.pdf` / `.md` file in its parent folder. Explorer restores
 collapse from the last session as soon as folders appear: the active library stays expanded
 and the rest stay collapsed, so every folder header remains visible without first
 flashing every tree open. Restoring the saved library does not wait for other folders'
@@ -241,7 +242,7 @@ performs recursive fan-out search and the app keeps a slower-search banner
 visible. Watcher events and completed directory conversions update badges but
 never start a build automatically. Explorer walks 32 directory levels below a
 library root (`LIST_FOLDER_MAX_DEPTH`; the root itself is depth 0) and omits
-deeper `.vera` / `.pdf` files from the listing. The folder-listing payload
+deeper `.vera` / `.pdf` / `.md` files from the listing. The folder-listing payload
 sets `truncated: true` when that cap is hit; Explorer currently does not display the flag.
 Double-clicking a library folder activates
 it and opens its Library Info view, clearing any document preview while leaving
@@ -292,21 +293,24 @@ is published, and a failed build does not replace it. After a successful
 publish, VERA deletes every other generation directory under
 `.vera-index/generations/`.
 
-## Batch PDF Conversion
+## Batch conversion
 
-The Convert PDF view supports an Explorer selection of one or more PDFs, or an
-entire directory. Opening the view (or switching Individual PDFs / PDF Directory)
-prefills from the latest Explorer selection: a non-empty PDF selection opens
-**Individual PDFs**, and a folder or active library seeds directory conversion.
-**Individual PDFs** also offers **Choose PDFs** to browse for one or more files
-without using Explorer. Directory conversion can include nested folders. Individual and directory modes
-create each `.vera` archive beside its source PDF using the same base filename
-(`proposal.pdf` becomes `proposal.vera`). Existing archives are validated
+The Convert view supports an Explorer selection of one or more PDFs or
+Markdown files, or an entire directory. Opening the view (or switching
+Individual files / Directory) prefills from the latest Explorer selection: a
+non-empty file selection opens **Individual files**, and a folder or active
+library seeds directory conversion.
+**Individual files** also offers **Choose files** to browse for one or more
+PDFs or Markdown files without using Explorer. Directory conversion can
+include nested folders. Individual and directory modes
+create each `.vera` archive beside its source file using the same base filename
+(`proposal.pdf` becomes `proposal.vera`; `notes.md` becomes `notes.vera`).
+Existing archives are validated
 before they are skipped; malformed outputs are reported separately, and
-overwrite must be selected explicitly. Conversion uses selective
+overwrite must be selected explicitly. PDF conversion uses selective
 PyMuPDF/Tesseract OCR (via `vera-ingest-pymupdf`) for image-based low-text
 pages with English language data bundled into that package and the packaged
-sidecar. Docling remains a CLI extra (`vera-cli[docling]`), not a Convert
+sidecar. Markdown uses the bundled `markdown` pipeline (no OCR). Docling remains a CLI extra (`vera-cli[docling]`), not a Convert
 pipeline. It publishes a validated
 temporary sibling atomically, preserves an existing destination after failure,
 and rejects PDFs with no searchable text after OCR with an OCR-specific

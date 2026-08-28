@@ -21,7 +21,7 @@ Check `vera --help` first. If it is not on `PATH`, try
 
 ### `vera convert INPUT [OUTPUT]`
 
-Convert one PDF or a directory of PDFs. CLI convert resolves the embedder with
+Convert one PDF, Markdown file, or a directory of supported sources. CLI convert resolves the embedder with
 `get_embedder` and does not call `preflight_embedder`; missing credential env
 vars surface when the factory runs. Desktop Convert still gates on
 `preflight_embedder`.
@@ -45,11 +45,14 @@ Options:
   (`openai:text-embedding-3-small` / `-large`); set `OPENAI_API_KEY`. Archives
   converted with OpenAI are not portable for semantic search. Voyage and
   Ollama are not bundled.
-- `--parser PARSER` defaults to `pymupdf`. Accepts ingest pipeline specs
-  `provider[:variant]` (requires `vera-ingest-pymupdf` for the default; for
-  example `docling` or `docling:hybrid` when `vera-ingest-docling` is
-  installed). Unknown providers exit with a non-zero status and an
-  install-the-plugin message; there is no silent fallback. First Docling
+- `--parser PARSER` omitted chooses an installed pipeline from the file
+  extension (`pdf` → `pymupdf`, `md`/`markdown` → `markdown`). Accepts ingest
+  pipeline specs `provider[:variant]` (requires `vera-ingest-pymupdf` for
+  PDFs; for example `docling` or `docling:hybrid` when `vera-ingest-docling`
+  is installed). An explicit parser that does not advertise the file's
+  extension exits with an error; there is no silent fallback. Unknown
+  providers exit with a non-zero status and an
+  install-the-plugin message. First Docling
   convert may download layout and table models into `DOCLING_ARTIFACTS_PATH`
   (or Hugging Face Hub; about 380 MB: Heron ONNX + TableFormer accurate).
   The 0.3.0 desktop app does not list or freeze this pipeline; use

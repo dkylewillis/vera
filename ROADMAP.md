@@ -169,9 +169,11 @@ the curated sidecar snapshot.
 
 ## Additional source formats and visual grounding
 
-Follow-ups after 0.3.0 (0.3.1 or later); not 0.3.0 blockers. Convert, batch
-discovery, and the desktop source viewer remain PDF-only until these land.
-Design notes: [Additional source formats and visual grounding](docs/multi-format-ingest.md).
+Markdown ingest ships: `vera convert notes.md` uses the bundled `markdown`
+pipeline in `vera-ingest`, directory discovery includes `.md` / `.markdown`,
+and the desktop source viewer highlights `text_span` lines. Follow-ups
+(DOCX, HTML, Excel, PPTX) remain after 0.3.x. Design notes:
+[Additional source formats and visual grounding](docs/multi-format-ingest.md).
 
 Package and application versions still do not change the `.vera` format.
 Locator shapes for Markdown, sheets, and slides belong in chunk
@@ -180,32 +182,34 @@ bump.
 
 ### Plugin identity
 
-- [ ] Keep ingest package and provider names tied to the engine
+- [x] Keep ingest package and provider names tied to the engine
   (`vera-ingest-docling` / `docling`), not the file type
-  (`vera-ingest-docling-pdf`).
-- [ ] Advertise supported types on `PipelineCapabilities.source_formats`
+  (`vera-ingest-docling-pdf`). Markdown lives inside `vera-ingest` as
+  provider `markdown`.
+- [x] Advertise supported types on `PipelineCapabilities.source_formats`
   and use that list in convert, batch discovery, and file pickers instead of
   hardcoding `.pdf`.
 - [ ] Grow formats inside the existing engine package (and optional extras
   for heavy dependencies), not a new plugin per extension.
-- [ ] Keep `provider[:variant]` variants as processing strategies
+- [x] Keep `provider[:variant]` variants as processing strategies
   (`docling:hybrid`), not as `docling:pdf` / `docling:docx`.
 
 ### Grounding surfaces
 
-- [ ] Keep PDF visual grounding as page + bbox overlays on the stored
+- [x] Keep PDF visual grounding as page + bbox overlays on the stored
   original PDF. Do not convert PDFs to Markdown in order to highlight them.
-- [ ] For flow documents (DOCX, HTML, Markdown, TXT), generate Markdown at
+- [ ] For flow documents (DOCX, HTML, TXT), generate Markdown at
   ingest, store that exact preview as a viewer attachment, and highlight it.
-  Keep `source_original` as the real source bytes.
+  Keep `source_original` as the real source bytes. Native `.md` already
+  stores the original Markdown and highlights `text_span` lines.
 - [ ] Prefer block/heading anchors in the stored Markdown over line numbers
   of generated text (line spans drift on reconvert).
 - [ ] Do not treat generated Markdown as the visual source of truth for
   Excel or PowerPoint. Markdown excerpts may still be searchable.
-- [ ] Add a `kind` on region locators (`page_bbox`, `text_span`, later
+- [x] Add a `kind` on region locators (`page_bbox`, `text_span`, later
   `sheet_range`) in chunk metadata. Missing `kind` plus a bbox stays
   `page_bbox` so existing archives keep working.
-- [ ] Dispatch the desktop viewer by source MIME: PDF overlay, stored
+- [x] Dispatch the desktop viewer by source MIME: PDF overlay, stored
   Markdown preview, or citation text when no overlay applies.
 
 ### Later native locators

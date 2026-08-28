@@ -322,7 +322,7 @@ def test_hardening_json_contracts_are_documented():
     assert "all-MiniLM-L6-v2" in desktop_architecture
     assert "HF_HOME" in desktop_architecture
     assert "onnxruntime" in desktop_architecture
-    assert "Discovering PDFs" in (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
+    assert "Discovering files" in (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
     assert "one interpreter" in desktop
     assert "onnxruntime" in desktop
     assert "is not frozen into the Windows sidecar" not in desktop
@@ -343,7 +343,7 @@ def test_hardening_json_contracts_are_documented():
     assert "**Reconvert…**" in desktop_architecture
     assert "opens Convert immediately" in desktop_architecture
     assert "the folder badge spins" in desktop_architecture
-    assert "**Convert PDFs…**" in desktop_architecture
+    assert "**Convert…**" in desktop_architecture
     assert "not for an explicit menu action" in desktop_architecture
     assert "Shift+click" in desktop_architecture
     assert "does not leave the last file looking selected" in desktop_architecture

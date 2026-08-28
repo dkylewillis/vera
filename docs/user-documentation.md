@@ -5,7 +5,7 @@ figures, and citation metadata in one portable `.vera` file.
 
 ## Start here
 
-- [Getting started](getting-started.md) — install VERA, convert a PDF, and run
+- [Getting started](getting-started.md) — install VERA, convert a PDF or Markdown file, and run
   the first cited search.
 - [Run the desktop app](desktop-app-getting-started.md) — install dependencies,
   start the development app, and create an unpacked build.
@@ -45,7 +45,7 @@ figures, and citation metadata in one portable `.vera` file.
 - [Ingest layout lab (vera-lab)](packages/vera-lab.md) — contributor HTML
   report for pipeline blocks, chunks, and figures
 - [Additional source formats and visual grounding](multi-format-ingest.md) —
-  planned non-PDF ingest, plugin naming, and Markdown/PDF viewer surfaces
+  Markdown ingest, plugin naming, and remaining format/viewer work
 - [Changelog](https://github.com/dkylewillis/vera/blob/main/CHANGELOG.md)
 - [Roadmap](https://github.com/dkylewillis/vera/blob/main/ROADMAP.md)
 

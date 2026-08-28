@@ -64,10 +64,14 @@ export interface FigureResult {
 }
 
 export interface RegionResult {
+  kind?: string;
+  block_id?: string;
   page_number?: number;
   bbox?: number[];
   page_width?: number;
   page_height?: number;
+  start?: { line?: number; column?: number };
+  end?: { line?: number; column?: number };
 }
 
 export interface ContextChunkResult {

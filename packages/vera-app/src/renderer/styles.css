@@ -3845,6 +3845,43 @@ input.viewerPageInput:focus {
   color: var(--text-strong);
 }
 
+.markdownSourceViewer {
+  min-height: 100%;
+  overflow: auto;
+  padding: 12px 16px 24px;
+}
+
+.markdownSourcePre {
+  margin: 0;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre;
+}
+
+.markdownSourceLine {
+  display: flex;
+  gap: 12px;
+  padding: 0 8px;
+  border-radius: 3px;
+}
+
+.markdownSourceLine.is-highlighted {
+  background: color-mix(in srgb, var(--accent, #c9a227) 22%, transparent);
+}
+
+.markdownSourceGutter {
+  flex: 0 0 3ch;
+  text-align: right;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.markdownSourceText {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* ── Context / region / figure cards ─────────────────── */
 
 .contextPanel {

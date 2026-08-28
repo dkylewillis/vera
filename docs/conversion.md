@@ -1,23 +1,26 @@
 # Convert documents
 
-`vera convert` turns PDFs into portable `.vera` archives. Conversion parses
-page layout, detects headings and figures, creates citation-ready chunks,
-computes embeddings, builds the FTS5 keyword index, and normally stores the
-original PDF. Batch discovery and the desktop source viewer are PDF-only in
-this release. Planned DOCX/HTML/Markdown ingest and a stored-Markdown
-preview for visual grounding are in
+`vera convert` turns PDFs and Markdown files into portable `.vera` archives.
+Conversion parses layout or Markdown structure, detects headings, creates
+citation-ready chunks, computes embeddings, builds the FTS5 keyword index, and
+normally stores the original file. Directory discovery uses each installed
+pipeline's `source_formats` (PDF via PyMuPDF, Markdown via the bundled
+`markdown` pipeline). Planned DOCX/HTML ingest and richer Markdown visual
+grounding are in
 [Additional source formats and visual grounding](multi-format-ingest.md).
 
-## Convert one PDF
+## Convert one PDF or Markdown file
 
 ```bash
 vera convert "input.pdf" "output.vera"
+vera convert "notes.md" "notes.vera"
 ```
 
 Omit the output to create a same-named archive:
 
 ```bash
 vera convert "input.pdf"
+vera convert "notes.md"
 ```
 
 Single-file conversion builds and validates a temporary sibling archive before
@@ -121,18 +124,18 @@ The report distinguishes discovered, converted, same-source-hash skips,
 malformed existing outputs, and conversion failures. `skipped_existing`
 lists only unchanged valid archives. `malformed_existing` entries include
 `input`, `output`, and validation `issues`. Batch conversion
-continues after an individual PDF fails and exits nonzero if any conversion
+continues after an individual file fails and exits nonzero if any conversion
 failed or malformed existing output was found.
 
 In the desktop app, right-click a folder in Explorer and choose
-**Convert PDFs…** to open Convert in **PDF Directory** mode for that folder.
+**Convert…** to open Convert in **Directory** mode for that folder.
 Confirm the ingest pipeline, embedding model, overwrite, and nested-folder
 options, then convert.
 
 ## Reconvert with a different parser or embedding
 
 Parser and embedding choices are stored in the archive at convert time.
-Changing them means converting the PDF again and replacing the `.vera` file.
+Changing them means converting the source file again and replacing the `.vera` file.
 
 ```bash
 vera convert "./proposals" --recursive --overwrite --parser docling --model hashing
@@ -140,12 +143,12 @@ vera convert "./proposals" --recursive --overwrite --parser docling --model hash
 
 In the desktop app, right-click a `.vera` file in Explorer and choose
 **Reconvert…**. Convert opens immediately with a preparing status while the
-sibling PDF is resolved (or the embedded original is restored). Overwrite is
+sibling source is resolved (or the embedded original is restored). Overwrite is
 enabled, and the archive's current ingest pipeline, embedding model, and OCR
 options are prefilled from inspect so you can change them before converting.
-If inspect fails and no sibling PDF is listed, Reconvert does **not** export
+If inspect fails and no sibling source is listed, Reconvert does **not** export
 an embedded original; Convert shows **Could not read archive metadata**. Place
-the matching `.pdf` next to the archive, or open Document Info and export the
+the matching `.pdf` or `.md` next to the archive, or open Document Info and export the
 original once the archive is readable. After replacement, update the library
 index if that folder is indexed.
 
@@ -396,9 +399,9 @@ is a dropdown of bundled and downloadable Tesseract codes (for example
 `Spanish (spa)`), with a **Custom…** option for combinations such as
 `eng+spa` or a manually installed `TESSDATA_PREFIX` code.
 
-## Storing the source PDF
+## Storing the original source
 
-The original PDF is stored by default, enabling later export and document
+The original source file is stored by default, enabling later export and document
 viewing. To omit it:
 
 ```bash
@@ -409,7 +412,7 @@ An archive created this way remains searchable, but:
 
 - `vera export` cannot restore the source;
 - validation reports the missing original document as a warning;
-- viewers cannot obtain the original PDF from the archive.
+- viewers cannot obtain the original source from the archive.
 
 ## Verify conversion
 
@@ -440,6 +443,8 @@ path = convert(
     # chunk_size=500, overlap=75, ocr_mode="auto", ocr_language="eng",
 )
 print(path)
+
+convert("notes.md", "notes.vera", model="hashing")
 ```
 
 New callers should pass `parser`, `pipeline_options`, and embedder settings

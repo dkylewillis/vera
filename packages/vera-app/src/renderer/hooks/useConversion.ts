@@ -12,15 +12,16 @@ import {
   type ConversionProgressMode,
   type ConvertMode,
 } from '../lib/conversion';
-import { convertDefaultsFromSelection, fileName, isPathInsideFolder, siblingPdfPath, type ExplorerSelection } from '../lib/formatting';
+import { convertDefaultsFromSelection, fileName, isPathInsideFolder, siblingSourcePath, type ExplorerSelection } from '../lib/formatting';
+import { explorerEntryType } from '../lib/explorer';
 import {
-  findSiblingPdfPath,
+  findSiblingSourcePath,
   reconvertExportGate,
   reconvertInspectFailedMessage,
   reconvertMissingSourceMessage,
   reconvertPipelineOptionsFromInspect,
   reconvertPrefillFromInspect,
-  resolveReconvertPdf,
+  resolveReconvertSource,
 } from '../lib/reconvert';
 import { SIDECAR_ACTIONS } from '../../shared/protocol';
 import type {
@@ -112,7 +113,7 @@ export function createConversionController(getHost: () => ConversionHost) {
     const host = getHost();
     if (paths?.length) {
       host.setSelectedPdfs(paths);
-      host.setExplorerSelection({ kind: 'file', path: paths[paths.length - 1], type: 'pdf' });
+      host.setExplorerSelection({ kind: 'file', path: paths[paths.length - 1], type: sourceSelectionType(paths[paths.length - 1]) });
     }
     host.setReconvertNotice(null);
     host.setConvertMode('selected');
@@ -136,7 +137,6 @@ export function createConversionController(getHost: () => ConversionHost) {
     if (host.conversionInProgress || reconvertInFlightRef.current) return;
     reconvertInFlightRef.current = true;
     const folder = host.folders.find((item) => item.path === folderPath);
-    const listedPdf = findSiblingPdfPath(entry.path, folder?.entries ?? []);
     snapshotConvertDefaultsForReconvert();
     host.setReconvertBusy(true);
     host.setConversionError(null);
@@ -145,19 +145,9 @@ export function createConversionController(getHost: () => ConversionHost) {
     host.setSideView('convert');
     host.setSidebarCollapsed(false);
     host.setReconvertNotice(`Preparing to reconvert “${fileName(entry.path)}”…`);
-    if (listedPdf) {
-      host.setSelectedPdfs([listedPdf]);
-      host.setExplorerSelection({ kind: 'file', path: listedPdf, type: 'pdf' });
-    }
     const reconvertCall = { scope: 'reconvert', timeoutMs: DEFAULT_ACTION_TIMEOUT_MS };
     let prepared = false;
     try {
-      const sibling = siblingPdfPath(entry.path);
-      const siblingExists = Boolean(listedPdf) || (sibling ? await window.vera.pathExists(sibling) : false);
-      const resolution = resolveReconvertPdf(entry.path, {
-        entries: folder?.entries ?? [],
-        siblingExists,
-      });
       const inspectResult = await host.call<InspectResult>(
         { action: SIDECAR_ACTIONS.inspect, path: entry.path },
         'Preparing reconvert',
@@ -165,11 +155,24 @@ export function createConversionController(getHost: () => ConversionHost) {
         reconvertCall,
       );
       const prefill = reconvertPrefillFromInspect(inspectResult);
+      const sourceFileName = inspectResult?.source_file_name?.trim() || null;
+      const listedSource = findSiblingSourcePath(
+        entry.path,
+        folder?.entries ?? [],
+        sourceFileName,
+      );
+      const sibling = siblingSourcePath(entry.path, sourceFileName);
+      const siblingExists = Boolean(listedSource) || (sibling ? await window.vera.pathExists(sibling) : false);
+      const resolution = resolveReconvertSource(entry.path, {
+        entries: folder?.entries ?? [],
+        siblingExists,
+        sourceFileName,
+      });
 
-      let pdfPath: string | null = listedPdf;
+      let sourcePath: string | null = listedSource;
       let restoredFromArchive = false;
       if (resolution.status === 'ready') {
-        pdfPath = resolution.pdfPath;
+        sourcePath = resolution.sourcePath;
       } else if (resolution.status === 'export') {
         const gate = reconvertExportGate({
           inspectOk: inspectResult !== null,
@@ -180,36 +183,36 @@ export function createConversionController(getHost: () => ConversionHost) {
           host.setConversionError(
             gate.reason === 'inspect-failed'
               ? reconvertInspectFailedMessage()
-              : reconvertMissingSourceMessage(entry.path),
+              : reconvertMissingSourceMessage(entry.path, sourceFileName),
           );
           return;
         }
         const exported = await host.call<ExportResult>(
-          { action: SIDECAR_ACTIONS.export, path: entry.path, output: resolution.pdfPath },
-          'Restoring embedded PDF',
+          { action: SIDECAR_ACTIONS.export, path: entry.path, output: resolution.sourcePath },
+          'Restoring embedded source',
           undefined,
           reconvertCall,
         );
         if (exported?.output) {
-          pdfPath = exported.output;
+          sourcePath = exported.output;
           restoredFromArchive = true;
           void host.refreshFolder(folderPath, { showBusy: false }).catch((error) => {
-            console.error('Unable to refresh folder after restoring source PDF', error);
+            console.error('Unable to refresh folder after restoring source file', error);
           });
         } else {
           host.setReconvertNotice(null);
-          host.setConversionError(reconvertMissingSourceMessage(entry.path));
+          host.setConversionError(reconvertMissingSourceMessage(entry.path, sourceFileName));
           return;
         }
       } else {
         host.setReconvertNotice(null);
-        host.setConversionError(reconvertMissingSourceMessage(entry.path));
+        host.setConversionError(reconvertMissingSourceMessage(entry.path, sourceFileName));
         return;
       }
 
-      if (!pdfPath) {
+      if (!sourcePath) {
         host.setReconvertNotice(null);
-        host.setConversionError(reconvertMissingSourceMessage(entry.path));
+        host.setConversionError(reconvertMissingSourceMessage(entry.path, sourceFileName));
         return;
       }
 
@@ -230,11 +233,11 @@ export function createConversionController(getHost: () => ConversionHost) {
         host.setStoreOriginal(true);
       }
 
-      host.setSelectedPdfs([pdfPath]);
-      host.setExplorerSelection({ kind: 'file', path: pdfPath, type: 'pdf' });
+      host.setSelectedPdfs([sourcePath]);
+      host.setExplorerSelection({ kind: 'file', path: sourcePath, type: sourceSelectionType(sourcePath) });
       host.setReconvertNotice(
         restoredFromArchive
-          ? 'Restored the embedded PDF beside this archive. Overwrite is on so Convert will replace the existing .vera. Choose a different pipeline or embedding if you want, then convert. Update the library index afterward if this folder is indexed.'
+          ? 'Restored the embedded source beside this archive. Overwrite is on so Convert will replace the existing .vera. Choose a different pipeline or embedding if you want, then convert. Update the library index afterward if this folder is indexed.'
           : 'Overwrite is on so Convert will replace the existing .vera. The pipeline and embedding below start from this archive — change them if you want, then convert. Update the library index afterward if this folder is indexed.',
       );
       prepared = true;
@@ -268,7 +271,7 @@ export function createConversionController(getHost: () => ConversionHost) {
       }
       return merged;
     });
-    host.setExplorerSelection({ kind: 'file', path: paths[paths.length - 1], type: 'pdf' });
+    host.setExplorerSelection({ kind: 'file', path: paths[paths.length - 1], type: sourceSelectionType(paths[paths.length - 1]) });
     host.setConvertMode('selected');
     host.setBatchConvertResult(null);
   }
@@ -495,6 +498,10 @@ export function createConversionController(getHost: () => ConversionHost) {
     skipCurrentConversion,
     batchConvertPdfs,
   };
+}
+
+function sourceSelectionType(path: string): 'pdf' | 'md' {
+  return explorerEntryType(path) === 'md' ? 'md' : 'pdf';
 }
 
 export function useConversion(host: ConversionHost): ConversionController {

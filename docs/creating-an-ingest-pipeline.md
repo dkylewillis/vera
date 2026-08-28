@@ -7,8 +7,10 @@ nothing in `vera-ingest`, `vera-cli`, or `vera-app` special-cases either one.
 Write your own to support a new source format, a different parsing engine, or
 an experimental chunking strategy. Name the package after the engine
 (`vera-ingest-example`), not the file type; advertise extensions on
-`PipelineCapabilities.source_formats`. Planned non-PDF ingest and Markdown
-grounding are in [Additional source formats and visual grounding](multi-format-ingest.md).
+`PipelineCapabilities.source_formats`. Convert, batch discovery, and file
+pickers use that list. Native Markdown ingest ships inside `vera-ingest`
+(provider `markdown`). Remaining formats and richer Markdown visual grounding
+are in [Additional source formats and visual grounding](multi-format-ingest.md).
 
 Registry and descriptor APIs (`register_ingest_pipeline`,
 `register_ingest_pipeline_descriptor`, `PipelineDescriptor`, and related
@@ -462,6 +464,7 @@ produced by each pipeline and compare hit rate / MRR — see
 - [Convert documents](conversion.md#pipeline-options) — the user-facing side
   of `--parser` and `--pipeline-option`.
 - [Additional source formats and visual grounding](multi-format-ingest.md) —
-  planned non-PDF ingest, `source_formats`, and Markdown/PDF viewer surfaces.
+  Markdown ingest, `source_formats`, remaining formats, and Markdown/PDF
+  viewer surfaces.
 - [`vera_ingest` API reference](reference/vera-ingest.md) — `IngestPipeline`,
   `IngestRequest`/`IngestResult`, registry, and descriptor types.

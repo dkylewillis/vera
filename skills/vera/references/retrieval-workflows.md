@@ -233,6 +233,7 @@ Single PDF:
 
 ```bash
 vera convert "manual.pdf" "manual.vera" --json
+vera convert "notes.md" "notes.vera" --json
 vera validate "manual.vera" --json
 vera search "manual.vera" "target question" --top-k 5 --json
 ```

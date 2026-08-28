@@ -22,11 +22,11 @@ export function syncCollapsedFolders(
   return folderPaths.filter((folderPath) => folderPath !== active);
 }
 
-export type ExplorerFileFilter = 'all' | 'vera' | 'pdf';
+export type ExplorerFileFilter = 'all' | 'vera' | 'pdf' | 'md';
 
 export type ExplorerListEntry = {
   path: string;
-  type: 'vera' | 'pdf';
+  type: 'vera' | 'pdf' | 'md';
 };
 
 export type FileListModifiers = {
@@ -40,11 +40,16 @@ export type FileListSelection = {
   anchor: string | null;
 };
 
-export function explorerEntryType(path: string): 'vera' | 'pdf' | null {
+export function explorerEntryType(path: string): 'vera' | 'pdf' | 'md' | null {
   const lower = path.toLowerCase();
   if (lower.endsWith('.vera')) return 'vera';
   if (lower.endsWith('.pdf')) return 'pdf';
+  if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'md';
   return null;
+}
+
+export function isConvertibleSource(type: string | null): type is 'pdf' | 'md' {
+  return type === 'pdf' || type === 'md';
 }
 
 /** File → Open Folder sends a directory; File → Open sends a `.vera` archive. */
@@ -62,7 +67,7 @@ export function routeOpenTarget(
 }
 
 export function explorerFileMatchesFilter(
-  type: 'vera' | 'pdf',
+  type: 'vera' | 'pdf' | 'md',
   filter: ExplorerFileFilter,
 ): boolean {
   return filter === 'all' || type === filter;
@@ -81,15 +86,21 @@ export function pruneExplorerSelectionForFilter(
   return { selected: next, anchor: nextAnchor };
 }
 
-export function partitionExplorerSelection(paths: string[]): { vera: string[]; pdf: string[] } {
+export function partitionExplorerSelection(paths: string[]): { vera: string[]; pdf: string[]; md: string[] } {
   const vera: string[] = [];
   const pdf: string[] = [];
+  const md: string[] = [];
   for (const path of paths) {
     const type = explorerEntryType(path);
     if (type === 'vera') vera.push(path);
     else if (type === 'pdf') pdf.push(path);
+    else if (type === 'md') md.push(path);
   }
-  return { vera, pdf };
+  return { vera, pdf, md };
+}
+
+export function convertibleSelection(partitioned: { pdf: string[]; md: string[] }): string[] {
+  return [...partitioned.pdf, ...partitioned.md];
 }
 
 export function visibleExplorerEntries(
@@ -208,7 +219,7 @@ export function explorerSelectionAfterFileList(options: {
   selectedVera: string[];
   selectedPdf: string[];
   clickedPath: string;
-  clickedType: 'vera' | 'pdf';
+  clickedType: 'vera' | 'pdf' | 'md';
   activeLibraryPath: string;
 }): ExplorerSelection | null {
   const { selectedVera, selectedPdf, clickedPath, clickedType, activeLibraryPath } = options;
@@ -217,8 +228,11 @@ export function explorerSelectionAfterFileList(options: {
   }
   const remainingVera = selectedVera[selectedVera.length - 1];
   if (remainingVera) return { kind: 'file', path: remainingVera, type: 'vera' };
-  const remainingPdf = selectedPdf[selectedPdf.length - 1];
-  if (remainingPdf) return { kind: 'file', path: remainingPdf, type: 'pdf' };
+  const remainingSource = selectedPdf[selectedPdf.length - 1];
+  if (remainingSource) {
+    const type = explorerEntryType(remainingSource);
+    if (type === 'pdf' || type === 'md') return { kind: 'file', path: remainingSource, type };
+  }
   const folder = activeLibraryPath.trim();
   return folder ? { kind: 'folder', path: folder } : null;
 }

@@ -54,8 +54,9 @@ vera inspect manual.vera --json
 # Is this file well-formed? (exit code 0 = valid, 1 = invalid)
 vera validate manual.vera --json
 
-# Create an .vera from a PDF
+# Create an .vera from a PDF or Markdown file
 vera convert manual.pdf manual.vera --json
+vera convert notes.md notes.vera --json
 
 # Docling (optional CLI extra: vera-cli[docling] or --extra docling; not in the 0.3.0 desktop app)
 vera convert scan.pdf scan.vera --parser docling --json
@@ -65,7 +66,7 @@ vera convert scan.pdf scan.vera --parser docling --pipeline-option pdf_backend=p
 vera convert manual.pdf --model hashing --embedder-option dimension=256 --json
 vera convert manual.pdf --model openai:text-embedding-3-small --json
 
-# Batch-convert a nested PDF library beside its source files
+# Batch-convert a nested PDF and Markdown library beside its source files
 vera convert ./proposals --recursive --json
 
 # List or fetch curated Tesseract OCR language data (non-English)
@@ -78,11 +79,12 @@ Conversion selectively OCRs image-based low-text pages through the default
 `--ocr auto|off|force`, `--ocr-language`, `--ocr-dpi` as compatibility aliases;
 prefer repeatable `--pipeline-option KEY=VALUE` for provider-owned settings)
 and publishes a validated temporary sibling atomically. PDFs with no searchable
-chunks after OCR fail with an OCR-specific message. Directory conversion
+chunks after OCR fail with an OCR-specific message. Markdown files with no
+searchable text fail with a generic empty-file message. Directory conversion
 skips an existing `.vera` only when it validates and its stored
-`source_file_hash` matches the current PDF, and reports malformed archives
+`source_file_hash` matches the current source file, and reports malformed archives
 in `malformed_existing`. Python `convert()` / `batch_convert()` callers should
-pass `parser` (default `pymupdf`), `pipeline_options`, and embedder settings
+pass `parser` (omitted: choose from the file extension), `pipeline_options`, and embedder settings
 (`model` / `embedding_function` / `embedder_options`); legacy kwargs such as
 `chunk_size`, `overlap`, `ocr_mode`, `ocr_language`, `ocr_dpi`, and
 `ocr_download` are compatibility aliases forwarded only when explicitly
@@ -133,9 +135,10 @@ dimension-incompatible. Result order is the rank; the CLI does not emit a
 4. **Use `--context-chunks N`** when an answer needs surrounding prose — results gain
   `before_chunks` and `after_chunks` arrays with citation-ready neighboring chunks.
 5. **Use `--regions`** when a viewer needs to highlight where a chunk came from —
-   results gain a `regions` array of
-   `{block_id, page_number, bbox, page_width, page_height}` (bbox in page points,
-   origin top-left).
+   results gain a `regions` array. PDF hits include
+   `{kind, block_id, page_number, bbox, page_width, page_height}` (bbox in page points,
+   origin top-left). Markdown hits use `{kind: "text_span", start, end}` line/column
+   locators instead of page bounding boxes.
 6. **Check exit codes.** Parse stdout as JSON on exit 0. `validate`, `index status`,
    `eval`, a failed `export`, a failed `figures`, and a failed `convert` can also print a structured JSON
    report on exit 1; `convert --json` uses the same `{ok, error}` object on exit 2
@@ -219,7 +222,8 @@ non-obvious caveats for this environment; standard commands live in the sections
   (OpenAI/OpenRouter/Ollama/LM Studio) — there is no offline/extractive answer mode, so Ask is
   blocked without a provider/API key. For fully offline testing use the left-sidebar **Search**
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
-  **Convert PDF** view. Convert lists PyMuPDF only. OpenAI embeddings are
+  **Convert** view. Convert lists PyMuPDF (PDF) and the bundled `markdown`
+  pipeline. OpenAI embeddings are
   bundled (`openai:text-embedding-3-small` / `-large`); hashing remains the
   default. Save `OPENAI_API_KEY` under **File > Settings → Embeddings** (or
   export it for CLI convert). Archives converted with OpenAI are not portable

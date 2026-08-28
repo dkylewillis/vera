@@ -1080,6 +1080,48 @@ def test_source_action_uses_sibling_when_original_is_not_stored(tmp_path):
     assert Path(response["result"]["cache_path"]).read_bytes() == pdf.read_bytes()
 
 
+def test_source_action_uses_sibling_markdown_when_original_is_not_stored(tmp_path):
+    source = tmp_path / "notes.md"
+    out = tmp_path / "notes.vera"
+    cache_dir = tmp_path / "source-cache"
+    body = "# Detention\n\nPonds must detain the 25-year storm.\n"
+    source.write_text(body, encoding="utf-8")
+    convert(str(source), str(out), model="hashing", store_original=False)
+
+    response = handle(
+        {
+            "id": "1",
+            "action": "source",
+            "path": str(out),
+            "cache_dir": str(cache_dir),
+        }
+    )
+    assert response["ok"] is True
+    assert response["result"]["mime_type"] == "text/markdown"
+    assert Path(response["result"]["cache_path"]).read_text(encoding="utf-8") == body
+
+
+def test_source_action_uses_sibling_markdown_when_original_is_not_stored(tmp_path):
+    source = tmp_path / "notes.md"
+    out = tmp_path / "notes.vera"
+    cache_dir = tmp_path / "source-cache"
+    body = "# Detention\n\nPonds must detain the 25-year storm.\n"
+    source.write_text(body, encoding="utf-8")
+    convert(str(source), str(out), model="hashing", store_original=False)
+
+    response = handle(
+        {
+            "id": "1",
+            "action": "source",
+            "path": str(out),
+            "cache_dir": str(cache_dir),
+        }
+    )
+    assert response["ok"] is True
+    assert response["result"]["mime_type"] == "text/markdown"
+    assert Path(response["result"]["cache_path"]).read_text(encoding="utf-8") == body
+
+
 def test_source_action_extracts_embedded_pdf_when_sibling_is_missing(tmp_path):
     pdf = tmp_path / "manual.pdf"
     out = tmp_path / "manual.vera"

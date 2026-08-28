@@ -36,12 +36,12 @@ describe('awaitConversionRequest', () => {
 describe('conversionProgressTaskUpdate', () => {
   it('reports discovery, empty, in-progress, and completion messages', () => {
     expect(conversionProgressTaskUpdate({ phase: 'discovering', completed: 0, total: 3, input: 'a.pdf' }, 'batch')).toMatchObject({
-      message: 'Discovering PDFs…',
+      message: 'Discovering files…',
       completed: 0,
       total: 3,
       currentItem: 'a.pdf',
     });
-    expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 0, total: 0 }, 'batch').message).toBe('No PDFs found to convert.');
+    expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 0, total: 0 }, 'batch').message).toBe('No source files found to convert.');
     expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 0, total: 0 }, 'single').message).toBe('Converting…');
     expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 1, total: 4 }, 'batch').message).toBe('2 of 4');
     expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 4, total: 4 }, 'batch').message).toBe('Converted 4 of 4');
@@ -92,14 +92,37 @@ describe('buildBatchConvertPayload', () => {
       overwrite: true,
       store_original: false,
     });
+    expect(buildBatchConvertPayload({
+      selectedPaths: [],
+      directory: 'C:\\docs',
+      batchRecursive: false,
+      batchOverwrite: true,
+      embeddingModel: 'hashing',
+      ingestPipeline: 'pymupdf',
+      storeOriginal: false,
+      pipelineOptions: {},
+    })).not.toHaveProperty('parser');
+  });
+
+  it('omits parser for Markdown so convert can auto-select the markdown pipeline', () => {
+    expect(buildBatchConvertPayload({
+      selectedPaths: ['C:\\docs\\notes.md'],
+      directory: 'C:\\docs',
+      batchRecursive: true,
+      batchOverwrite: false,
+      embeddingModel: 'hashing',
+      ingestPipeline: 'pymupdf',
+      storeOriginal: true,
+      pipelineOptions: {},
+    })).not.toHaveProperty('parser');
   });
 });
 
 describe('conversion messages', () => {
   it('explains missing convert targets and sidecar failures', () => {
-    expect(conversionMissingTargetMessage('selected')).toContain('Select one or more PDFs');
+    expect(conversionMissingTargetMessage('selected')).toContain('Select one or more PDFs or Markdown');
     expect(conversionMissingTargetMessage('batch')).toContain('Choose the directory');
-    expect(conversionFailedMessage(true)).toBe('Selected PDF conversion failed');
-    expect(conversionFailedMessage(false)).toBe('PDF directory conversion failed');
+    expect(conversionFailedMessage(true)).toBe('Selected file conversion failed');
+    expect(conversionFailedMessage(false)).toBe('Directory conversion failed');
   });
 });

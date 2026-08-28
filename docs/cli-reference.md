@@ -27,7 +27,7 @@ effects without duplicating that contract here.
 
 ## `vera convert INPUT [OUTPUT]`
 
-Convert one PDF or a directory of PDFs.
+Convert one PDF, Markdown file, or a directory of supported sources.
 
 Options:
 
@@ -41,9 +41,10 @@ Options:
   and Sentence Transformers otherwise. OpenAI embeddings ship with
   `vera-cli` as `vera-embed-openai`; set `OPENAI_API_KEY`. Archives converted
   with OpenAI are not portable for semantic search)
-- `--parser PARSER` (`pymupdf`; accepts `provider[:variant]` specs such as
+- `--parser PARSER` (omitted: choose from the file extension — PDF → `pymupdf`,
+  Markdown → `markdown`; accepts `provider[:variant]` specs such as
   `docling` / `docling:hybrid` when `vera-cli[docling]` is installed; unknown
-  providers exit with an error; the 0.3.0 Windows installer does not include
+  providers exit with an error; the 0.3.x Windows installer does not include
   Docling)
 - `--chunk-size N` (`500`; compatibility alias; PyMuPDF counts whitespace-split
   words, Docling counts whitespace tokens)
@@ -73,8 +74,8 @@ offline, zero-setup OCR; other selected languages either require
 `--ocr-allow-download` (or the equivalent `ocr_download` pipeline option) to
 auto-fetch curated language data, or a manually installed Tesseract
 `.traineddata` file with `TESSDATA_PREFIX` set. Directory conversion writes
-archives beside PDFs, skips an existing `.vera` only when it validates and
-its stored `source_file_hash` matches the current PDF, reports malformed
+archives beside source files, skips an existing `.vera` only when it validates and
+its stored `source_file_hash` matches the current source file, reports malformed
 outputs separately, and does not accept `OUTPUT`.
 Pipeline-owned defaults and validation live in each ingest plugin; advertised
 integer `minimum`/`maximum` bounds are enforced (for example `chunk_size`

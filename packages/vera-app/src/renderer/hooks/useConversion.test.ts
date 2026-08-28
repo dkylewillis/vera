@@ -60,7 +60,7 @@ describe('createConversionController', () => {
     await controller.batchConvertPdfs({ paths: [] });
 
     expect(setConversionError).toHaveBeenCalledWith(
-      'Select one or more PDFs in Explorer (click, Ctrl/Cmd+click, or Shift+click).',
+      'Select one or more PDFs or Markdown files in Explorer (click, Ctrl/Cmd+click, or Shift+click).',
     );
     expect(dispatchBackgroundTask).not.toHaveBeenCalled();
   });

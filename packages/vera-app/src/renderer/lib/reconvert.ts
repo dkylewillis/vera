@@ -1,6 +1,13 @@
-import { siblingPdfPath, sameFsPath } from './formatting';
+import { siblingPdfPath, siblingSourcePath, sameFsPath } from './formatting';
+import { explorerEntryType } from './explorer';
 import type { InspectResult, PipelineOptions } from '../types';
 
+export type ReconvertSourceResolution =
+  | { status: 'ready'; sourcePath: string }
+  | { status: 'export'; sourcePath: string }
+  | { status: 'unavailable' };
+
+/** @deprecated Use ReconvertSourceResolution; pdfPath aliases sourcePath. */
 export type ReconvertPdfResolution =
   | { status: 'ready'; pdfPath: string }
   | { status: 'export'; pdfPath: string }
@@ -16,14 +23,76 @@ export type ReconvertExportGate =
   | { allow: true }
   | { allow: false; reason: 'inspect-failed' | 'missing-source' };
 
+const CONVERTIBLE_TYPES = ['pdf', 'md'] as const;
+
+function sourceStem(path: string): string {
+  return path.replace(/\.(vera|pdf|md|markdown)$/i, '');
+}
+
+function expectedEntryType(sourceFileName?: string | null): 'pdf' | 'md' | null {
+  const name = sourceFileName?.trim();
+  if (!name) return null;
+  const type = explorerEntryType(name);
+  return type === 'pdf' || type === 'md' ? type : null;
+}
+
+/** Locate the sibling source already listed next to a `.vera` archive. */
+export function findSiblingSourcePath(
+  veraPath: string,
+  entries: Array<{ path: string; type: string }>,
+  sourceFileName?: string | null,
+): string | null {
+  const sibling = siblingSourcePath(veraPath, sourceFileName);
+  const expectedType = expectedEntryType(sourceFileName) ?? explorerEntryType(sibling);
+  if (sibling) {
+    const listed = entries.find((entry) => {
+      if (!sameFsPath(entry.path, sibling)) return false;
+      if (expectedType === 'pdf' || expectedType === 'md') return entry.type === expectedType;
+      return entry.type === 'pdf' || entry.type === 'md';
+    });
+    if (listed) return listed.path;
+  }
+  if (sourceFileName?.trim()) return null;
+  const veraStem = sourceStem(veraPath);
+  for (const type of CONVERTIBLE_TYPES) {
+    const listed = entries.find(
+      (entry) => entry.type === type && sameFsPath(sourceStem(entry.path), veraStem),
+    );
+    if (listed) return listed.path;
+  }
+  return null;
+}
+
 /** Locate the sibling PDF already listed next to a `.vera` archive. */
 export function findSiblingPdfPath(
   veraPath: string,
   entries: Array<{ path: string; type: string }>,
 ): string | null {
-  const sibling = siblingPdfPath(veraPath);
-  if (!sibling) return null;
-  return entries.find((entry) => entry.type === 'pdf' && sameFsPath(entry.path, sibling))?.path ?? null;
+  return findSiblingSourcePath(veraPath, entries);
+}
+
+/**
+ * Decide how Reconvert should obtain a source file: use a sibling on disk,
+ * export the embedded original to that sibling path, or give up.
+ */
+export function resolveReconvertSource(
+  veraPath: string,
+  options: {
+    entries?: Array<{ path: string; type: string }>;
+    siblingExists?: boolean;
+    sourceFileName?: string | null;
+  } = {},
+): ReconvertSourceResolution {
+  const sibling = siblingSourcePath(veraPath, options.sourceFileName);
+  if (!sibling) return { status: 'unavailable' };
+  const listed = findSiblingSourcePath(
+    veraPath,
+    options.entries ?? [],
+    options.sourceFileName,
+  );
+  if (listed) return { status: 'ready', sourcePath: listed };
+  if (options.siblingExists) return { status: 'ready', sourcePath: sibling };
+  return { status: 'export', sourcePath: sibling };
 }
 
 /**
@@ -35,14 +104,12 @@ export function resolveReconvertPdf(
   options: {
     entries?: Array<{ path: string; type: string }>;
     siblingExists?: boolean;
+    sourceFileName?: string | null;
   } = {},
 ): ReconvertPdfResolution {
-  const sibling = siblingPdfPath(veraPath);
-  if (!sibling) return { status: 'unavailable' };
-  const listed = findSiblingPdfPath(veraPath, options.entries ?? []);
-  if (listed) return { status: 'ready', pdfPath: listed };
-  if (options.siblingExists) return { status: 'ready', pdfPath: sibling };
-  return { status: 'export', pdfPath: sibling };
+  const resolved = resolveReconvertSource(veraPath, options);
+  if (resolved.status === 'unavailable') return resolved;
+  return { status: resolved.status, pdfPath: resolved.sourcePath };
 }
 
 export function reconvertPrefillFromInspect(
@@ -118,8 +185,11 @@ export function reconvertInspectFailedMessage(error?: string | null): string {
     : 'Could not read archive metadata.';
 }
 
-export function reconvertMissingSourceMessage(veraPath: string): string {
-  const sibling = siblingPdfPath(veraPath);
-  const name = sibling.split(/[/\\]/).pop() || 'the matching .pdf';
-  return `Reconvert needs ${name} beside this archive, or an embedded source PDF to restore. Place the PDF next to the .vera file, or export the original from Document Info.`;
+export function reconvertMissingSourceMessage(
+  veraPath: string,
+  sourceFileName?: string | null,
+): string {
+  const sibling = siblingSourcePath(veraPath, sourceFileName) || siblingPdfPath(veraPath);
+  const name = sibling.split(/[/\\]/).pop() || 'the matching source file';
+  return `Reconvert needs ${name} beside this archive, or an embedded original to restore. Place the source file next to the .vera file, or export the original from Document Info.`;
 }

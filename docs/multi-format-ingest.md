@@ -1,9 +1,10 @@
 # Additional source formats and visual grounding
 
-**Status:** planned after 0.3.0. Convert, batch discovery, and the desktop
-source viewer are PDF-only today. This page records the intended direction so
-plugin naming, locators, and viewers stay consistent when non-PDF ingest
-lands.
+**Status:** Markdown ingest ships. Convert, batch discovery, and the desktop
+source viewer handle PDF (PyMuPDF) and native Markdown (`markdown` pipeline
+in `vera-ingest`). DOCX, HTML, Excel, and PPTX remain planned. This page
+records the intended direction so plugin naming, locators, and viewers stay
+consistent as more formats land.
 
 See the [roadmap](https://github.com/dkylewillis/vera/blob/main/ROADMAP.md)
 for the checklist. Nothing here changes the `.vera` **0.2** schema.
@@ -14,6 +15,8 @@ Name ingest packages after the **engine**, not the file type:
 
 - `vera-ingest-pymupdf` registers provider `pymupdf`
 - `vera-ingest-docling` registers provider `docling`
+- Markdown lives inside `vera-ingest` as provider `markdown` (stdlib parser,
+  no extra package)
 
 `--parser` / `parser=` is `provider[:variant]`. The PyPI name is only how the
 plugin is installed. Two packages conflict only if they register the same
@@ -25,9 +28,9 @@ descriptor. Variants (`docling:hybrid`) stay processing strategies, not file
 types. Two engines may both handle PDF; the user picks `--parser`.
 
 `PipelineCapabilities.source_formats` is the metadata slot for “what this
-plugin can ingest” (the example pipeline already sets `("txt",)`; first-party
-pipelines currently default to `("pdf",)`). Convert, batch discovery, and
-file pickers should consult that list instead of hardcoding `.pdf`.
+plugin can ingest” (the example pipeline already sets `("txt",)`; PyMuPDF and
+Docling set `("pdf",)`; Markdown sets `("md", "markdown")`). Convert, batch
+discovery, and file pickers consult that list instead of hardcoding `.pdf`.
 
 ## Two grounding surfaces
 
@@ -99,7 +102,8 @@ archive (or later index extra columns). Neither change is a format 0.2 bump.
 source MIME (and archive metadata such as `source_mime_type`):
 
 - `application/pdf` — current page + bbox overlay
-- Markdown viewer attachment — heading/block highlight in the stored preview
+- `text/markdown` — line-numbered preview of the stored original with
+  `text_span` highlights
 - unknown — result text plus the citation string (already works)
 
 Pipeline capabilities can later advertise both `source_formats` and which

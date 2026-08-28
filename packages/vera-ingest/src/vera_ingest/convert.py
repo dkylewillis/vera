@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import mimetypes
 import os
 import sqlite3
 import tempfile
@@ -22,6 +21,13 @@ from vera_doc import (
 from vera_doc.validation import validate_document
 
 from .cancellation import clear_user_skip, is_user_skip_error, raise_if_cancelled
+from .formats import (
+    installed_source_formats,
+    pipeline_source_formats,
+    resolve_ingest_parser,
+    source_mime_type,
+    source_suffix,
+)
 from .pipeline import (
     get_ingest_pipeline,
     invoke_ingest_pipeline,
@@ -69,7 +75,7 @@ class _ConvertSettings:
 
     model: str = "hashing"
     embedding_function: EmbeddingFunction | None = None
-    parser: str = "pymupdf"
+    parser: str | None = None
     chunk_size: int | None = None
     overlap: int | None = None
     store_original: bool = True
@@ -100,7 +106,7 @@ class _ConvertSettings:
             if value is not None:
                 legacy[key] = value
         return prepare_pipeline_options(
-            spec=self.parser,
+            spec=self.parser or "pymupdf",
             pipeline_options=self.pipeline_options,
             legacy_options=legacy,
         )
@@ -158,13 +164,48 @@ def _validate_ingest_result(result: IngestResult) -> None:
             raise ValueError(f"Ingest chunk {chunk.chunk_id!r} has no readable text")
 
 
+def _regions_for_block(
+    block: IngestBlock,
+    block_id: str,
+    page_dimensions: dict[int, tuple[float | None, float | None]],
+) -> list[dict[str, Any]]:
+    """Copy contributing locators, including non-bbox ``text_span`` regions."""
+    if block.block_type == "image":
+        return []
+    explicit_regions = list(block.regions)
+    if not explicit_regions and block.bbox:
+        explicit_regions = [
+            {
+                "kind": "page_bbox",
+                "page_number": block.page_number,
+                "bbox": block.bbox,
+            }
+        ]
+    regions: list[dict[str, Any]] = []
+    for explicit in explicit_regions:
+        region = {**explicit, "block_id": block_id}
+        bbox = explicit.get("bbox")
+        if bbox is not None:
+            page_number = int(explicit.get("page_number", block.page_number))
+            width, height = page_dimensions.get(page_number, (None, None))
+            region["kind"] = explicit.get("kind") or "page_bbox"
+            region["page_number"] = page_number
+            region["bbox"] = list(bbox)
+            region["page_width"] = explicit.get("page_width", width)
+            region["page_height"] = explicit.get("page_height", height)
+        else:
+            region.setdefault("kind", "text_span")
+        regions.append(region)
+    return regions
+
+
 def convert(
     input_path: str,
     output_path: str,
     *,
     model: str = "hashing",
     embedding_function: EmbeddingFunction | None = None,
-    parser: str = "pymupdf",
+    parser: str | None = None,
     chunk_size: int | None = None,
     overlap: int | None = None,
     store_original: bool = True,
@@ -176,9 +217,9 @@ def convert(
     embedder_options: dict[str, Any] | None = None,
     cancel: Any | None = None,
 ) -> str:
-    """Convert a PDF into a validated ``.vera`` archive.
+    """Convert a source document into a validated ``.vera`` archive.
 
-    Parses the PDF, chunks extracted text, embeds chunks, and writes the
+    Parses the file, chunks extracted text, embeds chunks, and writes the
     result through :class:`~vera_doc.document.VeraDocument`. The archive is
     validated before the temporary file is published atomically.
 
@@ -194,7 +235,8 @@ def convert(
     line.
 
     Args:
-        input_path: Source PDF path.
+        input_path: Source document path (PDF, Markdown, or another format
+            advertised by an installed ingest pipeline).
         output_path: Destination ``.vera`` path.
         model: Embedding model spec (default ``"hashing"``). Ignored when
             ``embedding_function`` is provided. Accepts ``provider:model-id``
@@ -202,15 +244,16 @@ def convert(
         embedding_function: Optional custom embedder satisfying
             :class:`~vera_doc.EmbeddingFunction`. When omitted, ``model`` is
             resolved via :func:`~vera_doc.get_embedder` before parsing begins.
-        parser: Ingest pipeline spec in ``provider[:variant]`` form
-            (default ``"pymupdf"``).
+        parser: Ingest pipeline spec in ``provider[:variant]`` form. ``None``
+            (the default) selects an installed pipeline from the file
+            extension. An explicit spec must advertise that extension.
         chunk_size: Compatibility alias forwarded only when explicitly
             provided and the selected pipeline advertises a ``chunk_size``
             field. ``None`` (the default) means the pipeline default.
         overlap: Compatibility alias forwarded only when explicitly provided
-            and advertised by the selected pipeline (PyMuPDF). Ignored by
-            Docling. ``None`` means the pipeline default.
-        store_original: When ``True``, embed the original PDF as an attachment.
+            and advertised by the selected pipeline (PyMuPDF, Markdown).
+            Ignored by Docling. ``None`` means the pipeline default.
+        store_original: When ``True``, embed the original file as an attachment.
         ocr_mode: Compatibility OCR mode alias when explicitly provided and
             advertised by the pipeline. ``None`` means the pipeline default.
         ocr_language: Tesseract OCR language alias (PyMuPDF). Forwarded only
@@ -233,7 +276,8 @@ def convert(
 
     Raises:
         FileNotFoundError: When ``input_path`` does not exist.
-        ValueError: When no searchable text is extracted.
+        ValueError: When no searchable text is extracted, or ``parser`` does
+            not support the source file type.
         UnknownIngestPipelineError: When ``parser`` cannot be resolved.
         UnknownEmbeddingModelError: When ``model`` cannot be resolved.
     """
@@ -257,6 +301,8 @@ def convert(
         embedder_options=embedder_options,
         cancel=cancel,
     )
+    resolved_parser = resolve_ingest_parser(source, settings.parser)
+    settings = replace(settings, parser=resolved_parser)
     with timed_step("resolve_pipeline", parser=settings.parser):
         _, pipeline_variant = parse_ingest_pipeline_spec(settings.parser)
         pipeline = get_ingest_pipeline(settings.parser)
@@ -267,7 +313,7 @@ def convert(
     raise_if_cancelled(settings.cancel)
     source_data = source.read_bytes()
     source_hash = _sha256_bytes(source_data)
-    mime_type = mimetypes.guess_type(source.name)[0] or "application/pdf"
+    mime_type = source_mime_type(source)
     with timed_step("ingest", parser=settings.parser, file=source.name):
         ingest_result = invoke_ingest_pipeline(
             pipeline,
@@ -286,9 +332,12 @@ def convert(
     ]
     chunks = ingest_result.chunks
     if not chunks:
-        raise ValueError(
-            "No searchable text or chunks were extracted; the PDF may be scanned and requires OCR."
-        )
+        if source_suffix(source) == "pdf":
+            raise ValueError(
+                "No searchable text or chunks were extracted; "
+                "the PDF may be scanned and requires OCR."
+            )
+        raise ValueError("No searchable text or chunks were extracted from this file.")
     raise_if_cancelled(settings.cancel)
     target.parent.mkdir(parents=True, exist_ok=True)
     file_descriptor, temporary_name = tempfile.mkstemp(
@@ -406,31 +455,7 @@ def convert(
                 block = block_lookup.get(block_id)
                 if block is None:
                     continue
-                if block.block_type != "image":
-                    explicit_regions = block.regions
-                    if not explicit_regions and block.bbox:
-                        explicit_regions = [
-                            {
-                                "page_number": block.page_number,
-                                "bbox": block.bbox,
-                            }
-                        ]
-                    for explicit in explicit_regions:
-                        page_number = int(explicit["page_number"])
-                        width, height = page_dimensions.get(
-                            page_number,
-                            (None, None),
-                        )
-                        regions.append(
-                            {
-                                **explicit,
-                                "block_id": block_id,
-                                "page_number": page_number,
-                                "bbox": list(explicit["bbox"]),
-                                "page_width": explicit.get("page_width", width),
-                                "page_height": explicit.get("page_height", height),
-                            }
-                        )
+                regions.extend(_regions_for_block(block, block_id, page_dimensions))
                 image_attachment_id = image_attachment_by_block.get(block_id)
                 if image_attachment_id:
                     references.append(AttachmentRef(image_attachment_id, role="figure"))
@@ -481,32 +506,43 @@ def convert(
     return str(target)
 
 
-def _resolve_batch_pdfs(
+def _resolve_batch_sources(
     directory: str | None,
     *,
     paths: Sequence[str] | None,
     recursive: bool,
+    parser: str | None,
     cancel: Any | None,
 ) -> tuple[Path, list[Path]]:
-    """Return ``(report_root, pdfs)`` for directory discovery or an explicit list."""
+    """Return ``(report_root, sources)`` for directory discovery or an explicit list."""
+    suffixes = (
+        set(pipeline_source_formats(parser)) if parser else set(installed_source_formats())
+    )
+    if not suffixes:
+        raise ValueError("No installed ingest pipeline advertises source formats to convert.")
+
+    def is_source(path: Path) -> bool:
+        return path.is_file() and source_suffix(path) in suffixes
+
     if paths is not None:
         if not paths:
             raise ValueError("paths must not be empty when provided")
-        pdfs: list[Path] = []
+        sources: list[Path] = []
         for raw in paths:
             raise_if_cancelled(cancel)
             path = Path(raw).expanduser().resolve()
             if not path.is_file():
-                raise FileNotFoundError(f"PDF not found: {path}")
-            if path.suffix.lower() != ".pdf":
-                raise ValueError(f"Not a PDF file: {path}")
-            pdfs.append(path)
+                raise FileNotFoundError(f"Source file not found: {path}")
+            if source_suffix(path) not in suffixes:
+                supported = ", ".join(f".{item}" for item in sorted(suffixes))
+                raise ValueError(f"Not a supported source file ({supported}): {path}")
+            sources.append(path)
         try:
-            root = Path(os.path.commonpath([str(path.parent) for path in pdfs]))
+            root = Path(os.path.commonpath([str(path.parent) for path in sources]))
         except ValueError:
             # Different drives on Windows — fall back to the first parent.
-            root = pdfs[0].parent
-        return root, pdfs
+            root = sources[0].parent
+        return root, sources
 
     if directory is None or not str(directory).strip():
         raise ValueError("directory is required when paths is not provided")
@@ -514,24 +550,20 @@ def _resolve_batch_pdfs(
     if not root.is_dir():
         raise NotADirectoryError(str(root))
 
-    pdfs = []
+    sources = []
     if recursive:
         for current, directories, filenames in os.walk(root, followlinks=False):
             raise_if_cancelled(cancel)
             directories[:] = sorted(
                 name for name in directories if not (Path(current) / name).is_symlink()
             )
-            pdfs.extend(
-                Path(current) / name
-                for name in sorted(filenames)
-                if Path(name).suffix.lower() == ".pdf"
+            sources.extend(
+                Path(current) / name for name in sorted(filenames) if is_source(Path(current) / name)
             )
     else:
         raise_if_cancelled(cancel)
-        pdfs = sorted(
-            path for path in root.iterdir() if path.is_file() and path.suffix.lower() == ".pdf"
-        )
-    return root, pdfs
+        sources = sorted(path for path in root.iterdir() if is_source(path))
+    return root, sources
 
 
 def batch_convert(
@@ -542,7 +574,7 @@ def batch_convert(
     overwrite: bool = False,
     model: str = "hashing",
     embedding_function: EmbeddingFunction | None = None,
-    parser: str = "pymupdf",
+    parser: str | None = None,
     chunk_size: int | None = None,
     overlap: int | None = None,
     store_original: bool = True,
@@ -555,23 +587,23 @@ def batch_convert(
     progress: Callable[[int, int, str], None] | None = None,
     cancel: Any | None = None,
 ) -> dict[str, Any]:
-    """Convert PDFs from a directory scan or an explicit path list.
+    """Convert source files from a directory scan or an explicit path list.
 
     Args:
-        directory: Root directory to scan for PDFs when ``paths`` is omitted.
-        paths: Explicit PDF file paths to convert. When set, directory discovery
-            is skipped and ``recursive`` is ignored.
+        directory: Root directory to scan when ``paths`` is omitted. Discovery
+            uses the selected pipeline's ``source_formats``, or every installed
+            pipeline when ``parser`` is omitted.
+        paths: Explicit source file paths to convert. When set, directory
+            discovery is skipped and ``recursive`` is ignored.
         recursive: When ``True``, scan subdirectories (directory mode only).
         overwrite: When ``True``, replace existing ``.vera`` outputs. When
             ``False``, skip a sibling archive only when it validates and its
-            stored ``source_file_hash`` matches the current PDF. Stale or
+            stored ``source_file_hash`` matches the current source file. Stale or
             hash-less archives are reconverted.
         model: Embedding model spec passed to :func:`convert`.
         embedding_function: Optional custom embedder passed to :func:`convert`.
-        parser: Ingest pipeline spec passed to :func:`convert` (default
-            ``"pymupdf"``). Prefer this plus ``pipeline_options`` and embedder
-            settings for new callers; the OCR/chunk kwargs below are
-            compatibility aliases.
+        parser: Ingest pipeline spec passed to :func:`convert`. ``None``
+            (the default) selects a pipeline per file from its extension.
         chunk_size: Compatibility alias passed to :func:`convert`. ``None``
             means the pipeline default.
         overlap: Compatibility alias passed to :func:`convert`. ``None``
@@ -617,17 +649,19 @@ def batch_convert(
         embedder_options=embedder_options,
         cancel=cancel,
     )
-    # Resolve once up front so bad providers fail before discovery or PDF work.
-    with timed_step("resolve_pipeline", parser=settings.parser):
-        get_ingest_pipeline(settings.parser)
+    # Resolve an explicit parser up front so a bad provider fails before discovery.
+    if settings.parser:
+        with timed_step("resolve_pipeline", parser=settings.parser):
+            get_ingest_pipeline(settings.parser)
     with timed_step("resolve_embedder", model=settings.model):
         embedder = settings.resolve_embedder()
     file_settings = replace(settings, embedding_function=embedder)
 
-    root, pdfs = _resolve_batch_pdfs(
+    root, sources = _resolve_batch_sources(
         directory,
         paths=paths,
         recursive=recursive,
+        parser=settings.parser,
         cancel=settings.cancel,
     )
 
@@ -636,29 +670,29 @@ def batch_convert(
     skipped_by_user: list[str] = []
     malformed_existing: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
-    total = len(pdfs)
-    if progress and not pdfs:
+    total = len(sources)
+    if progress and not sources:
         progress(0, 0, "")
-    for index, pdf in enumerate(pdfs):
+    for index, source_file in enumerate(sources):
         try:
             raise_if_cancelled(settings.cancel)
             if progress:
                 # completed = files finished so far; input = file about to convert
-                progress(index, total, str(pdf))
-            output = pdf.with_suffix(".vera")
+                progress(index, total, str(source_file))
+            output = source_file.with_suffix(".vera")
             if output.exists() and not overwrite:
                 validation = _validate_output(output)
                 if not validation["ok"]:
                     malformed_existing.append(
                         {
-                            "input": str(pdf),
+                            "input": str(source_file),
                             "output": str(output),
                             "issues": validation["issues"],
                         }
                     )
                     continue
                 stored_hash = _stored_source_file_hash(output)
-                current_hash = _sha256_bytes(pdf.read_bytes())
+                current_hash = _sha256_bytes(source_file.read_bytes())
                 raise_if_cancelled(settings.cancel)
                 if stored_hash is not None and stored_hash == current_hash:
                     clear_user_skip(settings.cancel)
@@ -666,7 +700,7 @@ def batch_convert(
                     continue
             outputs.append(
                 convert(
-                    str(pdf),
+                    str(source_file),
                     str(output),
                     **file_settings.as_convert_kwargs(),
                 )
@@ -675,18 +709,18 @@ def batch_convert(
             if settings.cancel is not None and getattr(settings.cancel, "cancelled", False):
                 raise
             if _consume_user_skip(settings.cancel, exc):
-                skipped_by_user.append(str(pdf))
+                skipped_by_user.append(str(source_file))
                 continue
-            errors.append({"input": str(pdf), "error": str(exc)})
+            errors.append({"input": str(source_file), "error": str(exc)})
 
-    if progress and pdfs:
-        progress(total, total, str(pdfs[-1]))
+    if progress and sources:
+        progress(total, total, str(sources[-1]))
 
     return {
         "directory": str(root),
         "recursive": False if paths is not None else recursive,
         "overwrite": overwrite,
-        "discovered": len(pdfs),
+        "discovered": len(sources),
         "converted": len(outputs),
         "skipped": len(skipped_existing),
         "user_skipped": len(skipped_by_user),

@@ -81,21 +81,21 @@ the Convert view. **File > Open convert log...**, Convert **Open log**, and
 `%APPDATA%\@vera\app\logs\sidecar.log` in `app:dev`). Timed convert
 steps (`elapsed_ms`) go there so freeze vs `.venv` times can be
 compared; CLI `vera convert` still prints those lines on stderr only.
-Right-click a folder in Explorer and choose **Convert PDFs…**
+Right-click a folder in Explorer and choose **Convert…**
 to open directory conversion for that folder. To rebuild an existing archive with a different ingest
 pipeline or embedding model, right-click the `.vera` file in Explorer and
 choose **Reconvert…**; Convert opens immediately with a preparing status while
 the archive is read, then prefills the current pipeline, embedding, and OCR
-settings and turns overwrite on. If inspect fails and no sibling PDF is
+settings and turns overwrite on. If inspect fails and no sibling source is
 listed, Reconvert does not export an embedded original and shows
-**Could not read archive metadata**. Place the matching `.pdf` next to the
+**Could not read archive metadata**. Place the matching `.pdf` or `.md` next to the
 archive, or export the original from Document Info once the archive is
 readable.
 In Explorer, click a file to select it, Ctrl/Cmd+click to add or remove it, and
 Shift+click to select a range. The checkbox next to a file adds or removes that
 row from the same list — unchecking it deselects it, and the highlight and the
 Chat/Search “selected document” count stay in sync. Selected `.vera` files become the Search/Ask
-scope and selected PDFs become the Convert list. Click the folder name, empty
+scope and selected PDFs or Markdown files become the Convert list. Click the folder name, empty
 Explorer space, or press Escape to search the whole library again.
 Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,

@@ -251,6 +251,9 @@ convert(
 )
 ```
 
+Omit `parser` to select a pipeline from the file extension (`notes.md` uses
+`markdown`). An explicit spec must advertise that extension.
+
 New callers should pass `parser`, `pipeline_options`, and embedder settings
 (`model` / `embedding_function` / `embedder_options`). `model` accepts
 `provider:model-id` specs (and legacy aliases). Pass
@@ -260,8 +263,9 @@ Call `preflight_embedder(model)` yourself when you need credential-env checks
 before PDF work; `convert()` does not call it. Failed `vera.embedders` entry
 points are listed by `vera_doc.embeddings.list_embedder_load_errors()` until
 `reset_embedding_registry()` runs.
-`parser` accepts ingest pipeline specs `provider[:variant]` (default
-`pymupdf`). Optional plugins such as
+`parser` accepts ingest pipeline specs `provider[:variant]`. The default
+`None` selects an installed pipeline from the file extension. An explicit
+spec must advertise that extension. Optional plugins such as
 `vera-ingest-docling` register additional
 providers; unknown pipelines raise `UnknownIngestPipelineError`.
 Legacy kwargs (`chunk_size`, `overlap`, `ocr_mode`, `ocr_language`, `ocr_dpi`,

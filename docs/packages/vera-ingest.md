@@ -8,7 +8,8 @@ ingest-produced viewer helpers.
 PDF parsing and OCR live in provider plugins that register through the
 `vera.ingest_pipelines` entry-point group. The default
 [`vera-ingest-pymupdf`](vera-ingest-pymupdf.md) package provides the `pymupdf`
-pipeline; [`vera-ingest-docling`](vera-ingest-docling.md) provides Docling's
+pipeline; Markdown ingest ships inside `vera-ingest` as provider `markdown`;
+[`vera-ingest-docling`](vera-ingest-docling.md) provides Docling's
 hybrid chunker. Extra plugins are pip packages in the same environment as
 the CLI or desktop sidecar.
 
@@ -55,6 +56,8 @@ convert(
     model="hashing",
     store_original=True,
 )
+
+convert("notes.md", "notes.vera", model="hashing")
 ```
 
 Pass `embedding_function=` for a custom embedder, or use a
@@ -90,7 +93,7 @@ own default.
 - [Creating an ingest pipeline plugin](../creating-an-ingest-pipeline.md) — write and register
   a new pipeline provider.
 - [Additional source formats and visual grounding](../multi-format-ingest.md) —
-  planned non-PDF ingest, plugin naming, and Markdown/PDF viewer surfaces.
+  Markdown ingest, plugin naming, and Markdown/PDF viewer surfaces.
 - [Figures and regions](../figures-and-regions.md) — extracted visual metadata and
   [schema storage map](../figures-and-regions.md#storage-map-vera-02-schema).
 - [Conversion recipes](../examples.md) — single files, scans, and nested libraries.

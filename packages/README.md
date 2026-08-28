@@ -36,8 +36,9 @@ desktop, or evaluation modules.
 Publishes `vera_ingest` and depends on `vera-doc`. Owns the ingest-pipeline
 registry, shared descriptors/types, conversion orchestration, reusable
 chunking helpers, and ingest-produced viewer helpers. It emits ready-made
-`ChunkRecord` objects and optional opaque attachments. PDF providers register
-through `vera.ingest_pipelines`.
+`ChunkRecord` objects and optional opaque attachments. PDF and Markdown
+providers register through `vera.ingest_pipelines` (Markdown is bundled in
+this package; PyMuPDF and Docling are separate plugins).
 
 ## `vera-ingest-pymupdf`
 

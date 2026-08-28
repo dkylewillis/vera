@@ -12,14 +12,18 @@ from typing import Any
 from vera_embed_openai import (
     ensure_registered as ensure_openai_embedder_registered,
 )
+from vera_ingest.markdown import (
+    ensure_registered as ensure_markdown_pipeline_registered,
+)
 from vera_ingest_pymupdf import (
     ensure_registered as ensure_pymupdf_pipeline_registered,
 )
 
 # PyInstaller freezes and PYTHONPATH-only app runs often omit entry-point
-# metadata; the sidecar hard-depends on the default PDF pipeline and the
-# bundled OpenAI embedder.
+# metadata; the sidecar hard-depends on the default PDF and Markdown pipelines
+# and the bundled OpenAI embedder.
 ensure_pymupdf_pipeline_registered()
+ensure_markdown_pipeline_registered()
 ensure_openai_embedder_registered()
 
 from vera_app import convert as convert_handlers

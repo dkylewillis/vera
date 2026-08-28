@@ -48,7 +48,7 @@ python -m pip install ./packages/vera-mcp
     Use [`VeraDocument.open()`](vera-document.md) for search, inspection,
     figures, pages, highlight regions, and write-mode CRUD.
 
-=== "Convert PDFs"
+=== "Convert documents"
 
     Use [`vera_ingest.convert`](vera-ingest.md) or the `vera convert` CLI
     command.

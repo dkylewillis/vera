@@ -10,6 +10,7 @@ viewer conventions. Parsers emit `ParsedBlock`; convert with
 PDF conversion pipelines register through the `vera.ingest_pipelines`
 entry-point group. The default `pymupdf` provider ships as
 [`vera-ingest-pymupdf`](https://dkylewillis.github.io/vera/packages/vera-ingest-pymupdf/);
+Markdown ingest ships inside this package as provider `markdown`;
 Docling ships as the optional
 [`vera-ingest-docling`](https://dkylewillis.github.io/vera/packages/vera-ingest-docling/)
 package. Pipelines return a normalized `IngestResult`; `convert()` writes

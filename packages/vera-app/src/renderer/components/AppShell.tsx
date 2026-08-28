@@ -98,7 +98,7 @@ export function AppShell({
                 {([
                   ['explorer', 'Explorer', Folder],
                   ['chats', 'Chats', MessageSquareText],
-                  ['convert', 'Convert PDF', FileInput],
+                  ['convert', 'Convert', FileInput],
                 ] as const).map(([view, label, Icon]) => (
                   <button
                     className={`ghostIcon sideViewButton${sideView === view ? ' active' : ''}`}

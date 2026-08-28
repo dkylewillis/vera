@@ -8,6 +8,16 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+### Added
+
+- Markdown ingest: `vera convert notes.md` (and directory discovery of `.md` /
+  `.markdown`) uses a bundled `markdown` pipeline in `vera-ingest`. Convert
+  selects a pipeline from the file extension when `--parser` is omitted.
+  Explicit `--parser pymupdf` on a Markdown file fails instead of silently
+  switching. Search citations use heading paths and `text_span` locators;
+  the original Markdown is stored for export and desktop preview. Explorer,
+  Convert, and Reconvert treat PDFs and Markdown as convertible sources.
+
 ## [0.3.1] — 2026-08-24
 
 ### Added

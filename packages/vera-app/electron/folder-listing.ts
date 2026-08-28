@@ -8,7 +8,7 @@ export interface FolderListingEntry {
   path: string;
   name: string;
   relativePath: string;
-  type: 'vera' | 'pdf';
+  type: 'vera' | 'pdf' | 'md';
 }
 
 export interface FolderListing {
@@ -50,7 +50,13 @@ export function listFolderEntries(
         walk(full, depth + 1);
       } else {
         const lower = dirent.name.toLowerCase();
-        const type = lower.endsWith('.vera') ? 'vera' : lower.endsWith('.pdf') ? 'pdf' : null;
+        const type = lower.endsWith('.vera')
+          ? 'vera'
+          : lower.endsWith('.pdf')
+            ? 'pdf'
+            : (lower.endsWith('.md') || lower.endsWith('.markdown'))
+              ? 'md'
+              : null;
         if (!type) continue;
         entries.push({
           path: full,

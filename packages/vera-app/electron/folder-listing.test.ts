@@ -29,17 +29,20 @@ describe('listFolderEntries', () => {
     writeFileSync(join(root, 'root.vera'), '');
     writeFileSync(join(current, 'deep.vera'), '');
     writeFileSync(join(root, 'skip.txt'), '');
+    writeFileSync(join(root, 'notes.md'), '# Notes\n');
 
     const listed = listFolderEntries(root);
     expect(listed).not.toBeNull();
     expect(listed?.truncated).toBe(false);
     expect(listed?.entries.map((entry) => entry.relativePath)).toEqual([
       'd1/d2/d3/d4/d5/d6/deep.vera',
+      'notes.md',
       'root.vera',
     ]);
+    expect(listed?.entries.find((entry) => entry.relativePath === 'notes.md')?.type).toBe('md');
 
     const capped = listFolderEntries(root, 2);
     expect(capped?.truncated).toBe(true);
-    expect(capped?.entries.map((entry) => entry.relativePath)).toEqual(['root.vera']);
+    expect(capped?.entries.map((entry) => entry.relativePath)).toEqual(['notes.md', 'root.vera']);
   });
 });

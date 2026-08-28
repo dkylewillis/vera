@@ -319,9 +319,9 @@ also logs a
 start line (no `elapsed_ms`) so a long `resolve_pipeline` or MiniLM load is
 visible while it is still running.
 
-## Convert stays on Discovering PDFs
+## Convert stays on Discovering files
 
-Convert reports **Discovering PDFs** until MiniLM is resolved. Check
+Convert reports **Discovering files…** until MiniLM is resolved. Check
 `sidecar.log` for `resolve_embedder` timing. MiniLM no longer imports Torch
 at sidecar start. Sidecar stderr `MiniLM runtime=onnx` means ONNX Runtime is
 in use. `Loading weights: 0/103` is Hugging Face safetensors via Sentence
@@ -345,8 +345,8 @@ inside a layout block maps to the whole block. This is expected behavior.
 
 ## Loading source timed out
 
-The desktop viewer copies the original PDF into a local cache before PDF.js
-can render it. Large stormwater manuals can take a while on first open. VERA
+The desktop viewer copies the original source into a local cache before PDF.js
+or the Markdown preview can render it. Large stormwater manuals can take a while on first open. VERA
 now prefers a sibling `manual.pdf` next to `manual.vera` and reuses a cache
 file on later opens instead of extracting and re-hashing the embedded
 original. If the load still exceeds five minutes, cancel it from the viewer

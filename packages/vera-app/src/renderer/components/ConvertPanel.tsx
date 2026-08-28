@@ -131,7 +131,7 @@ export function ConvertPanel({
           className={convertMode === 'selected' ? 'active' : ''}
           onClick={() => onConvertModeChange('selected')}
         >
-          {selectedPdfs.length > 0 ? `Individual PDFs (${selectedPdfs.length})` : 'Individual PDFs'}
+          {selectedPdfs.length > 0 ? `Individual files (${selectedPdfs.length})` : 'Individual files'}
         </button>
         <button
           className={convertMode === 'batch' ? 'active' : ''}
@@ -145,13 +145,13 @@ export function ConvertPanel({
             if (directory) onBatchDirectoryChange(directory);
           }}
         >
-          PDF Directory
+          Directory
         </button>
       </div>
       {convertMode === 'selected' ? (
         <>
           <div className="selectedPdfList">
-            <span className="fieldLabel">{selectedPdfs.length} PDF{selectedPdfs.length === 1 ? '' : 's'} selected</span>
+            <span className="fieldLabel">{selectedPdfs.length} file{selectedPdfs.length === 1 ? '' : 's'} selected</span>
             {selectedPdfs.length > 0 ? (
               <ul>
                 {selectedPdfs.map((filePath) => (
@@ -170,7 +170,7 @@ export function ConvertPanel({
                 ))}
               </ul>
             ) : (
-              <p className="sideMuted">No PDFs selected yet.</p>
+              <p className="sideMuted">No files selected yet.</p>
             )}
           </div>
           <button
@@ -180,7 +180,7 @@ export function ConvertPanel({
             disabled={busy || convertLocked}
           >
             <FolderOpen size={16} />
-            Choose PDFs
+            Choose files
           </button>
           <button
             type="button"
@@ -194,13 +194,13 @@ export function ConvertPanel({
             <input type="checkbox" checked={batchOverwrite} onChange={(event) => onBatchOverwriteChange(event.target.checked)} />
             <span>Overwrite existing .vera files</span>
           </label>
-          <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Choose files here, or select them in Explorer (click, Ctrl/Cmd+click, or Shift+click).</p>
+          <p className="sideMuted">Each archive is created beside its source file with the same base filename. Choose PDFs or Markdown files here, or select them in Explorer (click, Ctrl/Cmd+click, or Shift+click).</p>
         </>
       ) : null}
       {convertMode === 'batch' ? (
         <>
           <label className="field">
-            <span>PDF directory</span>
+            <span>Source directory</span>
             <div className="pathInput">
               <Folder size={16} />
               <input value={batchDirectory} onChange={(event) => onBatchDirectoryChange(event.target.value)} placeholder="C:\\proposals" />
@@ -209,13 +209,13 @@ export function ConvertPanel({
           <button className="secondaryAction" onClick={onChooseDirectory} disabled={busy || convertLocked}><FolderOpen size={16} />Choose Directory</button>
           <label className="miniCheck">
             <input type="checkbox" checked={batchRecursive} onChange={(event) => onBatchRecursiveChange(event.target.checked)} />
-            <span>Include PDFs in nested folders</span>
+            <span>Include nested folders</span>
           </label>
           <label className="miniCheck">
             <input type="checkbox" checked={batchOverwrite} onChange={(event) => onBatchOverwriteChange(event.target.checked)} />
             <span>Overwrite existing .vera files</span>
           </label>
-          <p className="sideMuted">Each archive is created beside its PDF with the same base filename. Existing archives are skipped unless overwrite is enabled.</p>
+          <p className="sideMuted">Each archive is created beside its source file with the same base filename. Existing archives are skipped unless overwrite is enabled. Directory conversion discovers PDFs and Markdown files.</p>
         </>
       ) : null}
       <label className="field">
@@ -248,7 +248,7 @@ export function ConvertPanel({
           ? (activePipelineDescriptor.description || 'Pipeline ready for conversion.')
           : (pipelineInstallHint(ingestPipeline, ingestPipelineDescriptors)
             || 'Choose an ingest pipeline.')}
-        {' '}PyMuPDF is the default ingest pipeline. Optional layout-aware conversion remains a CLI extra (`vera-cli[docling]`), not part of the 0.3.x desktop app.
+        {' '}PyMuPDF is the default PDF ingest pipeline. Markdown files use the bundled markdown pipeline. Optional layout-aware PDF conversion remains a CLI extra (`vera-cli[docling]`), not part of the 0.3.x desktop app.
       </p>
       <label className="field">
         <span>Embedding model</span>
@@ -440,7 +440,7 @@ export function ConvertPanel({
         <div className="batchConvertReport">
           <strong>{batchConvertResult.converted} converted</strong>
           <span>
-            {batchConvertResult.discovered} PDFs found · {batchConvertResult.skipped} skipped
+            {batchConvertResult.discovered} files found · {batchConvertResult.skipped} skipped
             {batchConvertResult.user_skipped ? ` · ${batchConvertResult.user_skipped} user-skipped` : ''}
             {' · '}{batchConvertResult.malformed} malformed · {batchConvertResult.failed} failed
           </span>
