@@ -10,6 +10,14 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Added
 
+- `vera get FILE CHUNK_ID` fetches one stored chunk by id as citation-ready
+  JSON (`ok`, locator fields, `chunk_id`, `text`, and the same citation keys
+  as a search hit, without `score`). `--figures` and `--regions` match search
+  enrichment. An unknown or whitespace-only id exits 1 with
+  `{"ok": false, "error": "chunk not found: ..."}`. MCP `vera_get_chunk` returns
+  the same object. Shared `vera_ingest.viewer.chunk_payload()` flattens a
+  `ChunkRecord`; `result_payload()` layers retrieval scores on top.
+
 - Markdown ingest: `vera convert notes.md` (and directory discovery of `.md` /
   `.markdown`) uses a bundled `markdown` pipeline in `vera-ingest`. Convert
   selects a pipeline from the file extension when `--parser` is omitted.

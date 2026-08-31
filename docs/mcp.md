@@ -149,6 +149,21 @@ Parameters:
 Returns the full stored page text and dimensions. A missing page returns an
 `error` object rather than `null`.
 
+### `vera_get_chunk`
+
+Parameters:
+
+- `file: str`
+- `chunk_id: str`
+- `include_figures: bool = false`
+- `include_regions: bool = false`
+
+Returns one stored chunk as citation-ready JSON, matching
+`vera get FILE CHUNK_ID --json` (`ok`, `file`, `path`, `chunk_id`, `text`,
+and citation fields; no `score`). A missing or whitespace-only id returns
+`{"ok": false, "error": "chunk not found: ..."}` rather than raising. This
+differs from `vera_get_page`, which returns `{"error": "..."}` without `ok`.
+
 ### `vera_get_chunk_regions`
 
 Parameters:
@@ -162,6 +177,8 @@ Returns block-granular source bounding boxes for visual grounding.
 
 - Start with hybrid search and five results.
 - Cite `source_filename`, page or page range, and heading path.
+- Reload a known `chunk_id` with `vera_get_chunk` when verifying a quote or
+  when you need the stored chunk body rather than a search hit.
 - Use context chunks when a result references nearby definitions or exceptions.
 - Request figures for charts, diagrams, maps, and captions (`include_figures`
   or `vera_figures`). Call `vera_get_figure` with an `asset_id` when you need
@@ -185,7 +202,8 @@ MCP focuses on read-only document access. It does not expose tools for:
 Use the CLI or Python API for those operations.
 
 MCP adds `vera_get_page` and `vera_get_chunk_regions`, which have no
-standalone CLI subcommands. `vera_figures` listing matches `vera figures`;
+standalone CLI subcommands. `vera_get_chunk` matches `vera get`.
+`vera_figures` listing matches `vera figures`;
 `vera_get_figure` is the MCP way to return image content (the CLI writes files
 with `vera figures --out-dir` instead).
 

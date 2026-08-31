@@ -23,6 +23,7 @@ from typing import Any
 from vera_doc.corpus import VeraCorpus
 from vera_doc.document import VeraDocument
 from vera_ingest.viewer import (
+    chunk_payload,
     figures,
     get_chunk_regions,
     get_page,
@@ -189,6 +190,34 @@ def build_server():
             if page is None:
                 return {"error": f"Page {page_number} not found"}
             return page
+        finally:
+            doc.close()
+
+    @server.tool()
+    def vera_get_chunk(
+        file: str,
+        chunk_id: str,
+        include_figures: bool = False,
+        include_regions: bool = False,
+    ) -> dict[str, Any]:
+        """Fetch one stored chunk by id as citation-ready JSON."""
+        if not str(chunk_id).strip():
+            return {"ok": False, "error": f"chunk not found: {chunk_id}"}
+        doc = _open(file)
+        try:
+            try:
+                records = doc.get(ids=[chunk_id])
+                if not records:
+                    return {"ok": False, "error": f"chunk not found: {chunk_id}"}
+                payload = chunk_payload(
+                    records[0],
+                    document=doc,
+                    include_figures=include_figures,
+                    include_regions=include_regions,
+                )
+            except ValueError as exc:
+                return {"ok": False, "error": str(exc)}
+            return {"ok": True, **_archive_locator(file, doc), **payload}
         finally:
             doc.close()
 

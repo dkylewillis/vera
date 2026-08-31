@@ -7,6 +7,7 @@ from .commands import (
     cmd_eval,
     cmd_export,
     cmd_figures,
+    cmd_get,
     cmd_index_build,
     cmd_index_status,
     cmd_index_update,
@@ -185,6 +186,20 @@ def build_parser() -> argparse.ArgumentParser:
     inspect_p.add_argument("file")
     inspect_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     inspect_p.set_defaults(func=cmd_inspect)
+
+    get_p = sub.add_parser("get", help="Fetch one chunk by id from a VERA file")
+    get_p.add_argument("file", help="Path to a .vera file")
+    get_p.add_argument("chunk_id", help="Exact chunk id (case-sensitive)")
+    get_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    get_p.add_argument(
+        "--figures", action="store_true", help="Include figure metadata/captions in --json output"
+    )
+    get_p.add_argument(
+        "--regions",
+        action="store_true",
+        help="Include page/bbox highlight regions in --json output",
+    )
+    get_p.set_defaults(func=cmd_get)
 
     search_p = sub.add_parser(
         "search", help="Search a VERA file, or a directory of VERA files as one corpus"

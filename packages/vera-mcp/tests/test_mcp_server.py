@@ -37,6 +37,7 @@ async def test_tools_are_registered(server):
         "vera_figures",
         "vera_get_figure",
         "vera_get_page",
+        "vera_get_chunk",
     } <= names
 
 
@@ -135,6 +136,39 @@ async def test_get_chunk_regions_tool(server, vera_file):
     )
     assert regions
     assert regions[0]["page_number"] == search["results"][0]["page_start"]
+
+
+@pytest.mark.anyio
+async def test_get_chunk_tool_round_trips_search(server, vera_file):
+    search = _payload(
+        await server.call_tool(
+            "vera_search", {"file": str(vera_file), "query": "restaurant parking", "top_k": 1}
+        )
+    )
+    hit = search["results"][0]
+    payload = _payload(
+        await server.call_tool(
+            "vera_get_chunk", {"file": str(vera_file), "chunk_id": hit["chunk_id"]}
+        )
+    )
+    assert payload["ok"] is True
+    assert payload["chunk_id"] == hit["chunk_id"]
+    assert payload["text"] == hit["text"]
+    assert payload["file"] == str(vera_file)
+    assert Path(payload["path"]).resolve() == vera_file.resolve()
+    assert "score" not in payload
+    assert "semantic_score" not in payload
+    assert "keyword_score" not in payload
+    for key in ("page_start", "page_end", "heading_path", "source_filename", "document_id"):
+        assert payload.get(key) == hit.get(key)
+
+
+@pytest.mark.anyio
+async def test_get_chunk_missing_id_returns_error(server, vera_file):
+    payload = _payload(
+        await server.call_tool("vera_get_chunk", {"file": str(vera_file), "chunk_id": "chunk_zzzz"})
+    )
+    assert payload == {"ok": False, "error": "chunk not found: chunk_zzzz"}
 
 
 def _payload(call_result):

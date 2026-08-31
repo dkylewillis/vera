@@ -210,6 +210,7 @@ MCP clients can use:
 - `vera_figures` to list figures in an optional page range (metadata only);
 - `vera_get_figure` to fetch one stored raster as native image content by
   `asset_id`;
+- `vera_get_chunk` to fetch one stored chunk by id as citation-ready JSON;
 - `vera_get_chunk_regions` to resolve one chunk ID.
 
 See [MCP integration](mcp.md).

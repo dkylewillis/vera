@@ -51,6 +51,9 @@ vera figures manual.vera --out-dir ./figures --json
 # What's in this file?
 vera inspect manual.vera --json
 
+# Fetch one stored chunk by id (citation-ready text, no score)
+vera get manual.vera chunk_0042 --json
+
 # Is this file well-formed? (exit code 0 = valid, 1 = invalid)
 vera validate manual.vera --json
 
@@ -140,12 +143,15 @@ dimension-incompatible. Result order is the rank; the CLI does not emit a
    origin top-left). Markdown hits use `{kind: "text_span", start, end}` line/column
    locators instead of page bounding boxes.
 6. **Check exit codes.** Parse stdout as JSON on exit 0. `validate`, `index status`,
-   `eval`, a failed `export`, a failed `figures`, and a failed `convert` can also print a structured JSON
+   `eval`, a failed `export`, a failed `figures`, a failed `get`, and a failed `convert` can also print a structured JSON
    report on exit 1; `convert --json` uses the same `{ok, error}` object on exit 2
    for an unknown `--parser` / `--model`. Most other missing-path/runtime errors
    instead write an unstructured traceback to stderr.
 7. **Don't read the SQLite file directly** unless the CLI is unavailable — the schema
    is documented in the spec, but the CLI/MCP tools are the stable interface.
+8. **Reload a known `chunk_id` with `vera get`** when you need the stored chunk body
+   or to verify that a quoted span is still in `text`. Searching again is not a
+   substitute: rank can change, and keyword search can miss a short quote.
 
 For the complete reusable workflow, load [skills/vera/SKILL.md](skills/vera/SKILL.md).
 Its [CLI reference](skills/vera/references/cli-reference.md) documents every flag,
@@ -166,6 +172,7 @@ VERA ships an MCP server (stdio) exposing the same capabilities as tools:
 | `vera_figures` | List figures/images with captions, optionally by page range |
 | `vera_get_figure` | Fetch one stored figure as native image content plus citation metadata |
 | `vera_get_page` | Full text of a specific page |
+| `vera_get_chunk` | Fetch one stored chunk by id as citation-ready JSON |
 | `vera_get_chunk_regions` | Page numbers + bounding boxes a chunk's text came from (visual grounding) |
 
 Requires the integration package: `pip install "vera-cli[mcp]"` or `pip install vera-mcp`. Example VS Code config

@@ -41,6 +41,7 @@ vera --help
 vera convert "manual.pdf" "manual.vera"
 vera validate "manual.vera"
 vera search "manual.vera" "detention requirements" --top-k 5 --json
+vera get "manual.vera" "chunk_0042" --json
 vera figures "manual.vera" --out-dir "./figures" --json
 ```
 

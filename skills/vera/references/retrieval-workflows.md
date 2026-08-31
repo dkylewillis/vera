@@ -38,7 +38,9 @@ Examples:
    governing rule, rerun with `--context-chunks 1`.
 4. Run a second targeted query when the first result does not directly answer
    every part of the question.
-5. Answer with source, page, and heading citations.
+5. Answer with source, page, and heading citations. When verifying that a
+   quoted span is still in the stored chunk, reload it with
+   `vera get FILE CHUNK_ID --json` instead of searching again.
 
 Inspection is optional for simple Q&A. Use it first when the archive name is
 ambiguous or the user asks about document identity:

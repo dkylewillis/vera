@@ -174,6 +174,15 @@ def test_skill_inspect_json_example_includes_file_and_path():
     assert {"file", "path"} <= set(example)
 
 
+def test_skill_get_json_example_includes_citation_fields():
+    example = _first_json_fence_after(
+        CLI_REFERENCE.read_text(encoding="utf-8"),
+        "### `vera get FILE CHUNK_ID`",
+    )
+    assert {"ok", "file", "path", "chunk_id", "text"} <= set(example)
+    assert "score" not in example
+
+
 def test_skill_documents_mcp_search_default_top_k():
     reference = CLI_REFERENCE.read_text(encoding="utf-8")
     assert "`top_k` to `10`" in reference
