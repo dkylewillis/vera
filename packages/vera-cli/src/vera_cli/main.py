@@ -170,6 +170,18 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     convert_p.add_argument(
+        "--metadata",
+        dest="metadata",
+        action="append",
+        type=pipeline_option,
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "Caller metadata stamped onto the archive and every chunk "
+            "(repeatable). Reserved ingest, citation, and format keys are rejected."
+        ),
+    )
+    convert_p.add_argument(
         "--recursive",
         action="store_true",
         help="Discover supported source files recursively when input is a directory",
@@ -230,6 +242,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exclude a relative path or name pattern (repeatable)",
     )
     search_p.add_argument(
+        "--include",
+        action="append",
+        default=None,
+        help="Include only relative paths matching this pattern (repeatable; directory search)",
+    )
+    search_p.add_argument(
+        "--where",
+        dest="where",
+        action="append",
+        type=pipeline_option,
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "Filter stored metadata before top_k (repeatable). Distinct keys are AND; "
+            "comma-separated values are IN."
+        ),
+    )
+    search_p.add_argument(
         "--regions",
         action="store_true",
         help="Include page/bbox highlight regions for each result in --json output",
@@ -249,6 +279,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=None,
         help="Exclude a relative path or name pattern (repeatable)",
+    )
+    index_build_p.add_argument(
+        "--include",
+        action="append",
+        default=None,
+        help="Include only relative paths matching this pattern (repeatable)",
     )
     index_build_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     index_build_p.set_defaults(func=cmd_index_build)

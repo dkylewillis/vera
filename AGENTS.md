@@ -68,9 +68,14 @@ vera convert scan.pdf scan.vera --parser docling --pipeline-option pdf_backend=p
 # Provider-owned embedder options (hashing dimension; OpenAI batch_size)
 vera convert manual.pdf --model hashing --embedder-option dimension=256 --json
 vera convert manual.pdf --model openai:text-embedding-3-small --json
+vera convert filing.md out.vera --metadata company=GRID --metadata source_id=src_aaa --json
 
 # Batch-convert a nested PDF and Markdown library beside its source files
 vera convert ./proposals --recursive --json
+
+# Scope a library search by path include and stored metadata (filter before top_k)
+vera search ./archives "adding capacity" --where company=GRID --json
+vera search ./research --recursive --include "companies/GRID/archives/**" --json
 
 # List or fetch curated Tesseract OCR language data (non-English)
 vera ocr-languages list --json
@@ -152,6 +157,15 @@ dimension-incompatible. Result order is the rank; the CLI does not emit a
 8. **Reload a known `chunk_id` with `vera get`** when you need the stored chunk body
    or to verify that a quoted span is still in `text`. Searching again is not a
    substitute: rank can change, and keyword search can miss a short quote.
+9. **Filter with `--where` / `--include`, not by dropping search JSON.** `--where`
+   matches stored archive and chunk metadata and is applied before `top_k`.
+   Distinct keys are AND; `KEY=a,b` is IN. `--include` is directory discovery
+   (OR of patterns, then `--exclude`). Do not post-filter the `results` array
+   after a search — that under-fills `top_k` and makes rank lie. Convert stamps
+   caller tags with `--metadata KEY=VALUE` onto the archive and every chunk.
+   Reserved citation and format keys are rejected. When a metadata filter cannot
+   run inside a collection index, `index.used` is false and `index.reasons`
+   includes `chunk metadata filter not in collection index`.
 
 For the complete reusable workflow, load [skills/vera/SKILL.md](skills/vera/SKILL.md).
 Its [CLI reference](skills/vera/references/cli-reference.md) documents every flag,

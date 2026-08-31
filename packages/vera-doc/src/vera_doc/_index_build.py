@@ -160,6 +160,7 @@ def build_library_index(
     *,
     recursive: bool = False,
     excludes: Iterable[str] = (),
+    includes: Iterable[str] = (),
     operation: str = "build",
     progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
@@ -173,6 +174,7 @@ def build_library_index(
     if not root.is_dir():
         raise NotADirectoryError(directory)
     exclude_patterns = tuple(dict.fromkeys(str(pattern) for pattern in excludes))
+    include_patterns = tuple(dict.fromkeys(str(pattern) for pattern in includes))
     if progress:
         progress(
             {
@@ -184,7 +186,12 @@ def build_library_index(
                 "skipped": 0,
             }
         )
-    paths = discover_vera_files(root, recursive=recursive, excludes=exclude_patterns)
+    paths = discover_vera_files(
+        root,
+        recursive=recursive,
+        excludes=exclude_patterns,
+        includes=include_patterns,
+    )
     if not paths:
         raise FileNotFoundError(f"No .vera files found in {directory}")
     if progress:
@@ -234,6 +241,7 @@ def build_library_index(
             "root": str(root),
             "recursive": recursive,
             "excludes": list(exclude_patterns),
+            "includes": list(include_patterns),
             "index_version": INDEX_VERSION,
         }
         metadata = {
@@ -485,6 +493,7 @@ def build_library_index(
         "created_at": metadata["created_at"],
         "recursive": recursive,
         "excludes": list(exclude_patterns),
+        "includes": list(include_patterns),
         "discovered": len(paths),
         "indexed": indexed_files,
         "chunks": indexed_chunks,
@@ -526,6 +535,7 @@ def update_library_index(
         str(root),
         recursive=bool(config.get("recursive", False)),
         excludes=config.get("excludes", ()),
+        includes=config.get("includes", ()),
         operation="update",
         progress=progress,
     )
@@ -617,6 +627,7 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
         root,
         recursive=bool(config.get("recursive", False)),
         excludes=config.get("excludes", ()),
+        includes=config.get("includes", ()),
     )
     current_paths = {_relative(path, root): path for path in discovered}
     indexed_paths = set(indexed) | set(skipped)
@@ -672,6 +683,7 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
         "vector_size_bytes": vector_size,
         "recursive": bool(config.get("recursive", False)),
         "excludes": list(config.get("excludes", ())),
+        "includes": list(config.get("includes", ())),
         "file_count": len(indexed),
         "skipped": len(skipped),
         "skipped_files": [

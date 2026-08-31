@@ -36,6 +36,15 @@ def test_database_chunk_crud_and_search(tmp_path: Path) -> None:
         )
         assert database.metadata == {"project": "test"}
         assert [item.id for item in database.get(where={"kind": "design"})] == ["one"]
+        assert [item.id for item in database.get(where={"kind": ["design", "landscape"]})] == [
+            "one",
+            "two",
+        ]
+        assert database.search(
+            text="detention requirements",
+            where={"kind": ["design"]},
+            top_k=1,
+        )[0].record.id == "one"
         assert database.search(text="detention requirements", top_k=1)[0].record.id == "one"
 
         database.upsert(

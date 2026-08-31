@@ -10,6 +10,15 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Added
 
+- Convert `--metadata KEY=VALUE` stamps caller tags onto archive metadata and
+  every chunk. Search `--where KEY=VALUE` filters stored metadata before
+  `top_k` (AND across keys; comma-separated values are IN). Directory search
+  and `vera index build` accept `--include PATTERN`. Chunk-only `where` keys
+  that are not in the collection index fall back to per-file search with
+  `index.used=false` and `chunk metadata filter not in collection index`.
+  MCP `vera_search` / `vera_corpus_search` take the same `where` / `includes`
+  arguments.
+
 - `vera get FILE CHUNK_ID` fetches one stored chunk by id as citation-ready
   JSON (`ok`, locator fields, `chunk_id`, `text`, and the same citation keys
   as a search hit, without `score`). `--figures` and `--regions` match search

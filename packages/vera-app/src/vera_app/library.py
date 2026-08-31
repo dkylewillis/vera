@@ -21,10 +21,12 @@ def index_build(request: Request, write_event: WriteEvent | None = None) -> dict
             write_event({"event": "index_progress", **update})
 
     excludes = request.get("excludes")
+    includes = request.get("includes")
     return build_library_index(
         str(request["path"]),
         recursive=bool(request.get("recursive", True)),
         excludes=[str(value) for value in excludes] if isinstance(excludes, list) else (),
+        includes=[str(value) for value in includes] if isinstance(includes, list) else (),
         progress=report_progress,
     )
 

@@ -133,7 +133,14 @@ def test_human_cli_reference_covers_parser_commands_and_options():
 def test_documented_cli_examples_parse():
     parser = build_parser()
     examples = [
-        ["convert", "input.pdf", "output.vera", "--model", "hashing", "--json"],
+        [
+            "convert",
+            "input.pdf",
+            "output.vera",
+            "--metadata",
+            "company=GRID",
+            "--json",
+        ],
         [
             "convert",
             "input.pdf",
@@ -171,7 +178,26 @@ def test_documented_cli_examples_parse():
             "--regions",
             "--json",
         ],
+        [
+            "search",
+            "./library",
+            "adding capacity",
+            "--where",
+            "company=GRID,PWRX",
+            "--include",
+            "companies/GRID/archives/**",
+            "--json",
+        ],
         ["index", "build", "library", "--recursive", "--exclude", "archive/**", "--json"],
+        [
+            "index",
+            "build",
+            "library",
+            "--recursive",
+            "--include",
+            "companies/GRID/archives/**",
+            "--json",
+        ],
         ["index", "update", "library", "--json"],
         ["index", "status", "library", "--json"],
         ["validate", "output.vera", "--json"],

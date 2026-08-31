@@ -22,10 +22,17 @@ def open_corpus(path: str, request: Request) -> VeraCorpus:
         if isinstance(excludes_value, list)
         else None
     )
+    includes_value = request.get("includes")
+    includes = (
+        [str(value) for value in includes_value if str(value).strip()]
+        if isinstance(includes_value, list)
+        else None
+    )
     return VeraCorpus.open(
         path,
         recursive=recursive,
         excludes=excludes,
+        includes=includes,
         default_recursive=bool(request.get("default_recursive", False)),
         allow_empty=bool(request.get("allow_empty", False)),
     )

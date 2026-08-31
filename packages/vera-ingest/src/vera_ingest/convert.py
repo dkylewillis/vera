@@ -5,8 +5,9 @@ import json
 import os
 import sqlite3
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,14 @@ from vera_doc import (
     EmbeddingFunction,
     VeraDocument,
     get_embedder,
+)
+from vera_doc._schema import REQUIRED_METADATA_KEYS
+from vera_doc.models import (
+    METADATA_DOCUMENT_ID,
+    METADATA_HEADING_PATH,
+    METADATA_PAGE_END,
+    METADATA_PAGE_START,
+    METADATA_SOURCE_FILENAME,
 )
 from vera_doc.validation import validate_document
 
@@ -36,6 +45,80 @@ from .pipeline import (
 )
 from .timing import timed_step
 from .types import IngestBlock, IngestRequest, IngestResult
+
+
+class ReservedMetadataKeyError(ValueError):
+    """Caller ``metadata`` collided with a reserved convert or format key."""
+
+
+_CONVERT_OWNED_ARCHIVE_KEYS = frozenset(
+    {
+        "source_file_hash",
+        "source_file_name",
+        "source_mime_type",
+        "chunking_strategy",
+        "parser_name",
+        "parser_version",
+        "ocr",
+        "page_count",
+        "viewer_pages_attachment_id",
+        "viewer_blocks_attachment_id",
+        "source_attachment_id",
+    }
+)
+_RESERVED_CALLER_METADATA_KEYS = frozenset(
+    {
+        *REQUIRED_METADATA_KEYS,
+        "default_embedding_normalization",
+        METADATA_PAGE_START,
+        METADATA_PAGE_END,
+        METADATA_HEADING_PATH,
+        METADATA_SOURCE_FILENAME,
+        METADATA_DOCUMENT_ID,
+        "token_count",
+        "regions",
+        *_CONVERT_OWNED_ARCHIVE_KEYS,
+    }
+)
+
+
+def _is_reserved_metadata_key(key: str) -> bool:
+    return (
+        key in _RESERVED_CALLER_METADATA_KEYS
+        or key.startswith("_vera_")
+        or key.startswith("default_embedding_")
+    )
+
+
+def _assert_scalar_metadata_value(key: str, value: Any) -> None:
+    if value is None or isinstance(value, (str, bool, int)):
+        return
+    if isinstance(value, float) and isfinite(value):
+        return
+    raise ValueError(
+        f"metadata {key!r} must be a JSON scalar (string, int, bool, or finite float), "
+        f"not {type(value).__name__}"
+    )
+
+
+def _validated_caller_metadata(metadata: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Return caller tags after rejecting reserved keys and nested values."""
+    if not metadata:
+        return {}
+    reserved = []
+    validated: dict[str, Any] = {}
+    for key, value in metadata.items():
+        if not isinstance(key, str) or not key.strip():
+            raise ValueError("metadata keys must be non-empty strings")
+        if _is_reserved_metadata_key(key):
+            reserved.append(key)
+            continue
+        _assert_scalar_metadata_value(key, value)
+        validated[key] = value
+    if reserved:
+        names = ", ".join(sorted(reserved))
+        raise ReservedMetadataKeyError(f"Reserved metadata key(s): {names}")
+    return validated
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -86,6 +169,7 @@ class _ConvertSettings:
     pipeline_options: dict[str, Any] | None = None
     embedder_options: dict[str, Any] | None = None
     cancel: Any | None = None
+    metadata: dict[str, Any] | None = None
 
     def resolve_embedder(self) -> EmbeddingFunction:
         if self.embedding_function is not None:
@@ -126,6 +210,7 @@ class _ConvertSettings:
             "pipeline_options": self.pipeline_options,
             "embedder_options": self.embedder_options,
             "cancel": self.cancel,
+            "metadata": self.metadata,
         }
 
 
@@ -216,6 +301,7 @@ def convert(
     pipeline_options: dict[str, Any] | None = None,
     embedder_options: dict[str, Any] | None = None,
     cancel: Any | None = None,
+    metadata: Mapping[str, Any] | None = None,
 ) -> str:
     """Convert a source document into a validated ``.vera`` archive.
 
@@ -270,6 +356,8 @@ def convert(
         embedder_options: Explicit provider-owned embedding options forwarded
             to :func:`~vera_doc.get_embedder` when ``embedding_function`` is omitted.
         cancel: Optional cancellation token with ``raise_if_cancelled()``.
+        metadata: Extra keys stamped onto archive metadata and every chunk.
+            Reserved ingest, citation, and format keys are rejected.
 
     Returns:
         The ``output_path`` string.
@@ -278,6 +366,7 @@ def convert(
         FileNotFoundError: When ``input_path`` does not exist.
         ValueError: When no searchable text is extracted, or ``parser`` does
             not support the source file type.
+        ReservedMetadataKeyError: When ``metadata`` uses a reserved key.
         UnknownIngestPipelineError: When ``parser`` cannot be resolved.
         UnknownEmbeddingModelError: When ``model`` cannot be resolved.
     """
@@ -300,6 +389,7 @@ def convert(
         pipeline_options=pipeline_options,
         embedder_options=embedder_options,
         cancel=cancel,
+        metadata=_validated_caller_metadata(metadata) or None,
     )
     resolved_parser = resolve_ingest_parser(source, settings.parser)
     settings = replace(settings, parser=resolved_parser)
@@ -422,6 +512,7 @@ def convert(
                 )
             )
 
+        caller_metadata = settings.metadata or {}
         archive_metadata = {
             "title": source.stem,
             "source_file_name": source.name,
@@ -435,6 +526,7 @@ def convert(
             "viewer_pages_attachment_id": "viewer_pages",
             "viewer_blocks_attachment_id": "viewer_blocks",
             "source_attachment_id": source_attachment_id,
+            **caller_metadata,
         }
         contextualized_indices = [
             index for index, chunk in enumerate(chunks) if chunk.embedding_text is not None
@@ -474,6 +566,7 @@ def convert(
                         "heading_path": chunk.heading_path,
                         "token_count": chunk.token_count,
                         "regions": regions,
+                        **caller_metadata,
                     },
                     attachments=tuple(references),
                     vector=contextualized_vectors.get(index),
@@ -586,6 +679,7 @@ def batch_convert(
     embedder_options: dict[str, Any] | None = None,
     progress: Callable[[int, int, str], None] | None = None,
     cancel: Any | None = None,
+    metadata: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Convert source files from a directory scan or an explicit path list.
 
@@ -622,6 +716,7 @@ def batch_convert(
             :func:`convert`.
         progress: Optional ``(current, total, filename)`` callback.
         cancel: Optional cancellation token.
+        metadata: Extra keys stamped onto every archive and chunk in this run.
 
     Returns:
         A report dict with ``converted``, ``skipped``, ``failed``, and related
@@ -632,6 +727,7 @@ def batch_convert(
         NotADirectoryError: When ``directory`` is not a directory.
         FileNotFoundError: When a path in ``paths`` is missing.
         ValueError: When neither ``directory`` nor ``paths`` is usable.
+        ReservedMetadataKeyError: When ``metadata`` uses a reserved key.
         UnknownEmbeddingModelError: When ``model`` cannot be resolved.
     """
     settings = _ConvertSettings(
@@ -648,6 +744,7 @@ def batch_convert(
         pipeline_options=pipeline_options,
         embedder_options=embedder_options,
         cancel=cancel,
+        metadata=_validated_caller_metadata(metadata) or None,
     )
     # Resolve an explicit parser up front so a bad provider fails before discovery.
     if settings.parser:

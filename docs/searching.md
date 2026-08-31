@@ -97,6 +97,28 @@ source filename, page or page range, and heading when available:
 (manual.pdf, p. 117, Chapter 4 > Detention Design)
 ```
 
+## Filter before top_k
+
+Scope a search with stored metadata rather than by dropping hits from JSON.
+`--where` is applied before `top_k`, so rank and result counts stay honest.
+
+```bash
+vera search "./library" "adding capacity" --where company=GRID --json
+vera search "./library" "adding capacity" --where company=GRID,PWRX --json
+vera search "./library" "adding capacity" \
+  --where company=GRID --where document_type=filings --json
+```
+
+Distinct `--where` keys are AND. Comma-separated values for one key are IN.
+Stamp those keys at convert time:
+
+```bash
+vera convert filing.md archives/src_aaa.vera --metadata company=GRID --json
+```
+
+`--include` and `--exclude` choose files by relative path (discovery), not
+metadata. `--include` on a single-file search exits 2.
+
 To reload one stored chunk by id — for example to verify that a quoted span is
 still in the chunk body — use `vera get FILE CHUNK_ID --json` (MCP:
 `vera_get_chunk`). Searching again is not a substitute: rank can change, and

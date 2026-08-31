@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import os
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from ._util import _MAX_TOP_K
+from ._where import CHUNK_METADATA_FILTER_REASON, metadata_matches
 from .collection import (
     VeraCollectionIndex,
     discover_vera_files,
@@ -29,6 +30,15 @@ class CorpusSearchResult(QueryResult):
 
     def as_dict(self) -> dict[str, Any]:
         return {"file": self.file, **super().as_dict()}
+
+
+def _archive_where_skips(doc: VeraDocument, where: Mapping[str, Any] | None) -> bool:
+    """Skip a file when archive-level ``where`` keys fail the predicate."""
+    if not where:
+        return False
+    combined = {**doc.format_metadata(), **dict(doc.metadata)}
+    applicable = {key: value for key, value in where.items() if key in combined}
+    return bool(applicable) and not metadata_matches(combined, applicable)
 
 
 def _with_file(result: QueryResult, file: str) -> CorpusSearchResult:
@@ -142,6 +152,7 @@ class VeraCorpus:
         *,
         recursive: bool = False,
         excludes: tuple[str, ...] = (),
+        includes: tuple[str, ...] = (),
         max_open_documents: int = 16,
         collection_index: VeraCollectionIndex | None = None,
         index_status: dict[str, Any] | None = None,
@@ -151,9 +162,11 @@ class VeraCorpus:
         self.paths = paths
         self.recursive = recursive
         self.excludes = excludes
+        self.includes = includes
         self.max_open_documents = max(1, max_open_documents)
         self._docs: OrderedDict[str, VeraDocument] = OrderedDict()
         self._collection_index = collection_index
+        self._search_used_index: bool | None = None
         self.index_status = index_status or {
             "exists": False,
             "fresh": False,
@@ -169,6 +182,7 @@ class VeraCorpus:
         *,
         recursive: bool | None = None,
         excludes: list[str] | tuple[str, ...] | None = None,
+        includes: list[str] | tuple[str, ...] | None = None,
         max_open_documents: int = 16,
         use_index: bool = True,
         default_recursive: bool = False,
@@ -181,6 +195,8 @@ class VeraCorpus:
             recursive: When ``True``, include nested directories. When ``None``,
                 use persisted index settings when an index exists.
             excludes: Glob patterns to skip.
+            includes: Glob patterns that a relative path must match when
+                provided. Omitted includes keep every discovered file.
             max_open_documents: LRU cache size for opened documents.
             use_index: When ``True``, use a fresh local index when available.
             default_recursive: Default recursion when no index exists.
@@ -207,9 +223,16 @@ class VeraCorpus:
             if excludes is None and status.get("exists")
             else tuple(excludes or ())
         )
-        config_matches = effective_recursive == bool(
-            status.get("recursive", False)
-        ) and effective_excludes == tuple(status.get("excludes", ()))
+        effective_includes = (
+            tuple(status.get("includes", ()))
+            if includes is None and status.get("exists")
+            else tuple(includes or ())
+        )
+        config_matches = (
+            effective_recursive == bool(status.get("recursive", False))
+            and effective_excludes == tuple(status.get("excludes", ()))
+            and effective_includes == tuple(status.get("includes", ()))
+        )
         collection_index = None
         if use_index and status.get("fresh") and config_matches:
             collection_index = VeraCollectionIndex.open(str(root), check_status=False)
@@ -224,6 +247,7 @@ class VeraCorpus:
                     root,
                     recursive=effective_recursive,
                     excludes=effective_excludes,
+                    includes=effective_includes,
                 )
             ]
         if not paths and not allow_empty:
@@ -245,6 +269,7 @@ class VeraCorpus:
             paths,
             recursive=effective_recursive,
             excludes=effective_excludes,
+            includes=effective_includes,
             max_open_documents=max_open_documents,
             collection_index=collection_index,
             index_status=status,
@@ -294,8 +319,23 @@ class VeraCorpus:
 
     @property
     def uses_index(self) -> bool:
-        """Whether searches are currently served by the local collection index."""
+        """Whether the most recent search used the local collection index.
+
+        Before the first search, this is whether an index is attached.
+        """
+        if self._search_used_index is not None:
+            return self._search_used_index
         return self._collection_index is not None
+
+    def index_search_report(self) -> dict[str, Any]:
+        """Index status for the most recent search, including fallback reasons."""
+        status = dict(self.index_status)
+        if self._search_used_index is False and self._collection_index is not None:
+            reasons = list(status.get("reasons") or [])
+            if CHUNK_METADATA_FILTER_REASON not in reasons:
+                reasons.append(CHUNK_METADATA_FILTER_REASON)
+            status["reasons"] = reasons
+        return {"used": self.uses_index, **status}
 
     def inspect(
         self,
@@ -442,8 +482,12 @@ class VeraCorpus:
         mode: str = "hybrid",
         top_k: int = 10,
         context_chunks: int = 0,
+        where: Mapping[str, Any] | None = None,
     ) -> list[CorpusSearchResult]:
-        """Search every file in the corpus and return the fused top_k results."""
+        """Search every file in the corpus and return the fused top_k results.
+
+        ``where`` filters stored archive and chunk metadata before ``top_k``.
+        """
         mode = mode.lower()
         if mode not in {"semantic", "keyword", "hybrid"}:
             raise ValueError("mode must be semantic, keyword, or hybrid")
@@ -455,19 +499,26 @@ class VeraCorpus:
             raise ValueError("context_chunks must be non-negative")
         if top_k == 0:
             self.skipped_semantic_model_groups = []
+            self._search_used_index = False
             return []
         self.skipped_semantic_model_groups = []
-        if self._collection_index is not None:
-            final = self._search_index(text, mode, top_k)
+        use_index = self._collection_index is not None
+        if use_index and where and not self._collection_index.supports_where(where):
+            use_index = False
+        self._search_used_index = use_index
+        if use_index:
+            final = self._search_index(text, mode, top_k, where=where)
             self.skipped_semantic_model_groups = list(
                 self._collection_index.skipped_semantic_model_groups
             )
         elif mode == "hybrid":
             candidate_limit = max(top_k * 5, 50)
-            semantic_files, keyword_files, models = self._search_files_hybrid(text, candidate_limit)
+            semantic_files, keyword_files, models = self._search_files_hybrid(
+                text, candidate_limit, where=where
+            )
             final = self._fuse_hybrid(semantic_files, keyword_files, models, top_k)
         else:
-            per_file, models = self._search_files(text, mode, top_k)
+            per_file, models = self._search_files(text, mode, top_k, where=where)
             if mode == "semantic":
                 final = self._fuse_semantic(per_file, models, top_k)
             else:
@@ -491,6 +542,8 @@ class VeraCorpus:
         query: str,
         mode: str,
         top_k: int,
+        *,
+        where: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, list[QueryResult]], dict[str, str]]:
         """Search files in parallel using short-lived, thread-local connections."""
 
@@ -502,11 +555,14 @@ class VeraCorpus:
                 validation = doc.validate()
                 if not validation["ok"]:
                     return path, [], "", "; ".join(validation["issues"])
+                if _archive_where_skips(doc, where):
+                    return path, [], "", None
                 model = str(doc.inspect().get("embedding_model") or "")
                 results = doc.search(
                     text=query,
                     mode=mode,  # type: ignore[arg-type]
                     top_k=top_k,
+                    where=where,
                 )
                 return path, results, model, None
             except Exception as exc:
@@ -545,6 +601,8 @@ class VeraCorpus:
         self,
         query: str,
         top_k: int,
+        *,
+        where: Mapping[str, Any] | None = None,
     ) -> tuple[dict[str, list[QueryResult]], dict[str, list[QueryResult]], dict[str, str]]:
         """Search each file once for semantic and keyword hits."""
 
@@ -556,9 +614,11 @@ class VeraCorpus:
                 validation = doc.validate()
                 if not validation["ok"]:
                     return path, [], [], "", "; ".join(validation["issues"])
+                if _archive_where_skips(doc, where):
+                    return path, [], [], "", None
                 model = str(doc.inspect().get("embedding_model") or "")
-                semantic = doc.search(text=query, mode="semantic", top_k=top_k)
-                keyword = doc.search(text=query, mode="keyword", top_k=top_k)
+                semantic = doc.search(text=query, mode="semantic", top_k=top_k, where=where)
+                keyword = doc.search(text=query, mode="keyword", top_k=top_k, where=where)
                 return path, semantic, keyword, model, None
             except Exception as exc:
                 return path, [], [], "", str(exc)
@@ -673,10 +733,17 @@ class VeraCorpus:
             if key in lookup
         ]
 
-    def _search_index(self, query: str, mode: str, top_k: int) -> list[CorpusSearchResult]:
+    def _search_index(
+        self,
+        query: str,
+        mode: str,
+        top_k: int,
+        *,
+        where: Mapping[str, Any] | None = None,
+    ) -> list[CorpusSearchResult]:
         assert self._collection_index is not None
         final: list[CorpusSearchResult] = []
-        for hit in self._collection_index.search(query, mode=mode, top_k=top_k):
+        for hit in self._collection_index.search(query, mode=mode, top_k=top_k, where=where):
             path = str((Path(self.directory) / Path(hit.relative_path)).resolve())
             doc = self.document(path)
             records = doc.get([hit.chunk_id])
