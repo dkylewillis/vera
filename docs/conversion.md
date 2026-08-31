@@ -17,7 +17,21 @@ vera convert "input.pdf" "output.vera"
 vera convert "notes.md" "notes.vera"
 vera convert "memo.docx" "memo.vera"   # requires vera-cli[docling]
 vera convert "notes.html" "notes.vera"
+vera convert "filing.md" "filing.vera" --metadata company=GRID --metadata source_id=src_aaa
 ```
+
+`--metadata KEY=VALUE` is repeatable. The same keys are written to archive
+metadata (visible in `vera inspect`) and every chunk, so `--where` can filter
+before `top_k`. Values coerce like `--pipeline-option` (digit-only integers,
+`true`/`false`/`yes`/`no`/`on`/`off` booleans, otherwise strings). Nested JSON
+is not accepted. Reserved keys are rejected: citation fields (`page_start`,
+`page_end`, `heading_path`, `source_filename`, `document_id`), ingest chunk
+internals (`token_count`, `regions`), format header keys
+(`format_name`, `format_version`, `default_embedding_*`, `_vera_*`, and the
+rest of the required archive header), and convert-owned archive fields such as
+`source_file_hash`. `title` may be overridden. Directory convert applies the
+same `--metadata` to every output in that run; hash-matched skips still skip,
+so reconvert or pass `--overwrite` to restamp.
 
 Omit the output to create a same-named archive:
 
@@ -443,6 +457,7 @@ path = convert(
     parser="pymupdf",
     pipeline_options={"chunk_size": 700, "ocr_mode": "force"},
     model="hashing",
+    metadata={"company": "GRID", "source_id": "src_aaa"},
     # embedder_options={"device": "cpu"},
     # Compatibility aliases (forwarded when the pipeline advertises them):
     # chunk_size=500, overlap=75, ocr_mode="auto", ocr_language="eng",

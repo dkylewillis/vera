@@ -15,6 +15,7 @@ pip install "vera-cli>=0.3.1"
 vera convert manual.pdf manual.vera
 vera convert notes.md notes.vera
 vera search manual.vera "when is stormwater detention required?" --json
+vera search ./archives "adding capacity" --where company=GRID --json
 ```
 
 ## The vision

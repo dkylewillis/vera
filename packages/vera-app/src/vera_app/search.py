@@ -20,11 +20,13 @@ def search_report(request: Request, cancel: CancellationToken | None = None) -> 
     # `file`; single-document results otherwise don't).
     scoped_file = scoped_single_file(request)
     try:
+        where = request.get("where")
         results = target.search(
             text=str(request.get("query", "")),
             mode=str(request.get("mode", "hybrid")),
             top_k=int(request.get("top_k", 10)),
             context_chunks=int(request.get("context_chunks", 0)),
+            where=where if isinstance(where, dict) else None,
         )
         if cancel:
             cancel.raise_if_cancelled()

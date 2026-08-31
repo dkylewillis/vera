@@ -189,7 +189,11 @@ def parse_markdown(text: str) -> tuple[list[ParsedPage], list[MarkdownBlock]]:
             index += 1
             continue
 
-        if _looks_like_table_row(line) and index + 1 < total and _is_table_delimiter(lines[index + 1]):
+        if (
+            _looks_like_table_row(line)
+            and index + 1 < total
+            and _is_table_delimiter(lines[index + 1])
+        ):
             start = index
             index += 2
             while index < total and _looks_like_table_row(lines[index]):
@@ -228,8 +232,10 @@ def parse_markdown(text: str) -> tuple[list[ParsedPage], list[MarkdownBlock]]:
                 break
             if index + 1 < total and _setext_level(lines[index + 1]) and not _is_list_item(nxt):
                 break
-            if _looks_like_table_row(nxt) and index + 1 < total and _is_table_delimiter(
-                lines[index + 1]
+            if (
+                _looks_like_table_row(nxt)
+                and index + 1 < total
+                and _is_table_delimiter(lines[index + 1])
             ):
                 break
             collected.append(nxt)

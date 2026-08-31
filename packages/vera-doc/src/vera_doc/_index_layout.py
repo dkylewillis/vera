@@ -114,9 +114,10 @@ def _gc_index_generations(target: Path, current: str) -> None:
         shutil.rmtree(child, ignore_errors=True)
 
 
-def _excluded(relative_path: str, excludes: tuple[str, ...]) -> bool:
+def _path_matches(relative_path: str, patterns: tuple[str, ...]) -> bool:
+    """Return True when ``relative_path`` matches any exclude/include pattern."""
     parts = relative_path.split("/")
-    for pattern in excludes:
+    for pattern in patterns:
         normalized = pattern.replace("\\", "/").strip("/")
         if not normalized:
             continue
@@ -131,17 +132,36 @@ def _excluded(relative_path: str, excludes: tuple[str, ...]) -> bool:
     return False
 
 
+def _excluded(relative_path: str, excludes: tuple[str, ...]) -> bool:
+    return _path_matches(relative_path, excludes)
+
+
+def _included(relative_path: str, includes: tuple[str, ...]) -> bool:
+    if not includes:
+        return True
+    return _path_matches(relative_path, includes)
+
+
 def discover_vera_files(
     directory: str | Path,
     *,
     recursive: bool = False,
     excludes: Iterable[str] = (),
+    includes: Iterable[str] = (),
 ) -> list[Path]:
-    """Discover unique .vera files without following directory symlinks."""
+    """Discover unique .vera files without following directory symlinks.
+
+    When ``includes`` is empty, every discovered archive is a candidate.
+    When any include is present, a file must match at least one include and
+    no exclude. Include matching uses the same glob / path-component / ``/**``
+    rules as excludes. Directory pruning still follows excludes only, so a
+    nested include can match under an unexcluded parent.
+    """
     root = Path(directory).resolve()
     if not root.is_dir():
         raise NotADirectoryError(str(directory))
-    patterns = tuple(excludes)
+    exclude_patterns = tuple(excludes)
+    include_patterns = tuple(includes)
     if recursive:
         candidates: list[Path] = []
         for current, directories, filenames in os.walk(root, followlinks=False):
@@ -150,7 +170,7 @@ def discover_vera_files(
             for name in directories:
                 child = current_path / name
                 relative_child = _relative(child, root)
-                if child.is_symlink() or _excluded(relative_child, patterns):
+                if child.is_symlink() or _excluded(relative_child, exclude_patterns):
                     continue
                 kept_directories.append(name)
             directories[:] = kept_directories
@@ -166,7 +186,9 @@ def discover_vera_files(
             if not candidate.is_file() or candidate.is_symlink():
                 continue
             relative_path = _relative(candidate, root)
-            if _excluded(relative_path, patterns):
+            if _excluded(relative_path, exclude_patterns):
+                continue
+            if not _included(relative_path, include_patterns):
                 continue
             resolved = candidate.resolve()
             key = os.path.normcase(str(resolved))

@@ -58,6 +58,14 @@ Search a directory as one corpus by passing the directory instead of a file:
 vera search "./library" "stormwater detention requirements" --top-k 5 --json
 ```
 
+Filter a corpus with stored metadata or path includes instead of post-filtering
+JSON:
+
+```bash
+vera search "./archives" "adding capacity" --where company=GRID --json
+vera search "./research" "adding capacity" --recursive --include "companies/GRID/archives/**" --json
+```
+
 Use `--recursive` for a nested, unindexed directory. A fresh local index is used
 automatically when one exists; inspect the top-level `index.used` and
 `index.reasons` fields instead of assuming the index was active. Also inspect
@@ -90,6 +98,9 @@ rollback history. `vera eval` opens one `.vera` archive, not a directory.
 - Add `--regions` only when page bounding boxes are needed for visual grounding.
 - Increase `--top-k` to 10 for broad coverage; split compound questions into
   separate searches.
+- Scope a library with `--where KEY=VALUE` (stored metadata, before `top_k`)
+  or `--include PATTERN` (path discovery). Do not drop hits from JSON after
+  search. Stamp keys at convert time with `--metadata KEY=VALUE`.
 
 ## Citations and evidence
 

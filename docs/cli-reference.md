@@ -65,6 +65,9 @@ Options:
   override compatibility aliases for the same key)
 - `--embedder-option KEY=VALUE` (repeatable; provider-owned embedding options
   forwarded to the selected embedding provider)
+- `--metadata KEY=VALUE` (repeatable; stamps the same keys onto archive
+  metadata and every chunk; reserved citation, ingest, and format keys are
+  rejected)
 - `--recursive`
 - `--overwrite`
 - `--json`
@@ -126,6 +129,10 @@ Options:
 - `--regions`
 - `--recursive`
 - `--exclude PATTERN` (repeatable)
+- `--include PATTERN` (repeatable; directory search only — error on a
+  single file)
+- `--where KEY=VALUE` (repeatable; stored metadata filter applied before
+  `top_k`; distinct keys are AND; comma-separated values are IN)
 - `--json`
 
 `--figures`, `--regions`, and context fields are exposed through JSON output.
@@ -136,6 +143,13 @@ name, indexed dimension, and loading or dimension error that prevented that
 group from participating in semantic or hybrid retrieval. Non-JSON output
 prints the same entries as warnings.
 
+`--where` filters stored archive and chunk metadata before `top_k`. Do not
+post-filter the JSON `results` array. `--include` and `--exclude` choose
+files during discovery. When a `--where` key is not archive metadata or an
+indexed citation column, directory search falls back to per-file search and
+sets `index.used` to false with `chunk metadata filter not in collection index`
+in `index.reasons`. `--include` on a single-file search exits 2.
+
 ## `vera index build DIRECTORY`
 
 Build a local collection index.
@@ -144,6 +158,7 @@ Options:
 
 - `--recursive`
 - `--exclude PATTERN` (repeatable)
+- `--include PATTERN` (repeatable; stored in index discovery settings)
 - `--json`
 
 Writes `.vera-index/` under the library root. Indexing uses a unique

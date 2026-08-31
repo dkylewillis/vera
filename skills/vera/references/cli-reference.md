@@ -103,6 +103,14 @@ Options:
   `embedder_options` entries (for example `--embedder-option batch_size=64`
   or `--embedder-option dimension=256`). Values coerce the same way as
   `--pipeline-option`.
+- `--metadata KEY=VALUE` is repeatable. Stamps the same keys onto archive
+  metadata and every chunk so `--where` can filter before `top_k`. Values
+  coerce like `--pipeline-option`. Nested JSON is rejected. Reserved keys
+  (`page_start`, `page_end`, `heading_path`, `source_filename`, `document_id`,
+  `token_count`, `regions`, required format header keys, `default_embedding_*`,
+  `_vera_*`, and convert-owned fields such as `source_file_hash`) exit 2.
+  `title` may be overridden. Directory convert applies the same tags to every
+  output; hash-matched skips do not restamp.
 - `--recursive` recursively discovers PDFs in directory mode.
 - `--overwrite` replaces existing outputs in directory mode. Without it,
   a sibling `.vera` is skipped only when it validates and its stored
@@ -312,6 +320,15 @@ Options:
 - `--recursive` discovers nested archives for an unindexed directory.
 - `--exclude PATTERN` excludes a relative path or name pattern and is
   repeatable.
+- `--include PATTERN` includes only matching relative paths and is
+  repeatable. If any include is present, a file must match at least one
+  include and no exclude. Directory search only; a single-file target
+  exits 2 with `{"ok": false, "error": "--include applies to directory search only"}`.
+- `--where KEY=VALUE` filters stored archive and chunk metadata before
+  `top_k` and is repeatable. Distinct keys are AND. Comma-separated values
+  are IN. Repeated flags for the same key union the IN set. Values coerce
+  like `--pipeline-option`. Empty comma tokens are an error (exit 2).
+  Do not post-filter the JSON `results` array.
 - `--json` emits one JSON object.
 
 Single-archive JSON:
@@ -449,6 +466,8 @@ Options:
 
 - `--recursive` discovers nested archives.
 - `--exclude PATTERN` is repeatable.
+- `--include PATTERN` is repeatable and is stored in index discovery
+  settings like excludes. `vera index update` keeps saved includes.
 - `--json` emits one JSON object.
 
 This command creates or replaces the hidden `.vera-index/` collection index.
@@ -465,6 +484,7 @@ An empty discovery set raises unstructured `No .vera files found in ...`
   "index": "C:/library/.vera-index",
   "recursive": true,
   "excludes": ["archive/**"],
+  "includes": [],
   "discovered": 12,
   "indexed": 11,
   "chunks": 4200,

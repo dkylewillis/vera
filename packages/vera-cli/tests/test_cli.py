@@ -631,6 +631,7 @@ def test_cli_directory_convert_with_output_emits_json(tmp_path, capsys):
 def test_cli_index_exclude_defaults_to_none():
     args = build_parser().parse_args(["index", "build", "library"])
     assert args.exclude is None
+    assert args.include is None
 
 
 @pytest.mark.parametrize("value", ["true", "True", "TRUE", "1", "yes", "YES", "y", "on"])

@@ -15,6 +15,7 @@ from vera_embed_openai import (
     ensure_registered as ensure_openai_embedder_registered,
 )
 from vera_ingest import (
+    ReservedMetadataKeyError,
     UnknownIngestPipelineError,
     batch_convert,
     convert,
@@ -68,33 +69,63 @@ def _embedder_options_from_args(args) -> dict[str, object]:
     return _key_value_options_from_args(getattr(args, "embedder_options", []) or [])
 
 
-def _key_value_options_from_args(pairs) -> dict[str, object]:
-    """Coerce KEY=VALUE tokens without ``float()``.
+def _coerce_option_value(raw: str) -> object:
+    """Coerce a KEY=VALUE token without ``float()``.
 
     Dotted tokens such as ``3.10`` or ``ocr_language=1.0`` stay strings.
     Whole-digit tokens become ints; ``true``/``false``/``yes``/``no``/``on``/
-    ``off`` become bools. ``from_mapping`` then validates each typed field
-    (so ``ocr_download=1`` is int ``1``, accepted by ``require_bool``).
+    ``off`` become bools.
     """
+    text = str(raw).strip()
+    lowered = text.lower()
+    if lowered in {"true", "yes", "y", "on"}:
+        return True
+    if lowered in {"false", "no", "n", "off"}:
+        return False
+    if text.isdigit() or (text.startswith("-") and text[1:].isdigit()):
+        return int(text)
+    return text
+
+
+def _key_value_options_from_args(pairs) -> dict[str, object]:
     options: dict[str, object] = {}
     for key, raw in pairs:
-        text = str(raw).strip()
-        lowered = text.lower()
-        if lowered in {"true", "yes", "y", "on"}:
-            options[key] = True
-        elif lowered in {"false", "no", "n", "off"}:
-            options[key] = False
-        elif text.isdigit() or (text.startswith("-") and text[1:].isdigit()):
-            options[key] = int(text)
-        else:
-            options[key] = text
+        options[key] = _coerce_option_value(raw)
     return options
+
+
+def _metadata_from_args(args) -> dict[str, object] | None:
+    pairs = getattr(args, "metadata", None) or []
+    return _key_value_options_from_args(pairs) or None
+
+
+def _where_from_args(pairs) -> dict[str, object] | None:
+    """Parse ``--where KEY=VALUE`` pairs: AND across keys, comma IN, union repeats."""
+    if not pairs:
+        return None
+    where: dict[str, object] = {}
+    for key, raw in pairs:
+        parts = str(raw).split(",")
+        if any(not part.strip() for part in parts):
+            raise ValueError("where values must not be empty")
+        values = [_coerce_option_value(part.strip()) for part in parts]
+        existing = where.get(key)
+        if existing is None:
+            where[key] = values[0] if len(values) == 1 else values
+            continue
+        current = existing if isinstance(existing, list) else [existing]
+        for value in values:
+            if value not in current:
+                current.append(value)
+        where[key] = current[0] if len(current) == 1 else current
+    return where
 
 
 def cmd_convert(args) -> int:
     input_path = Path(args.input)
     pipeline_options = _pipeline_options_from_args(args)
     embedder_options = _embedder_options_from_args(args)
+    metadata = _metadata_from_args(args)
     try:
         if input_path.is_dir():
             if args.output:
@@ -122,6 +153,7 @@ def cmd_convert(args) -> int:
                 ocr_download=args.ocr_allow_download,
                 pipeline_options=pipeline_options or None,
                 embedder_options=embedder_options or None,
+                metadata=metadata,
             )
             unsuccessful = report["failed"] + report["malformed"]
             if args.json:
@@ -154,8 +186,13 @@ def cmd_convert(args) -> int:
             ocr_download=args.ocr_allow_download,
             pipeline_options=pipeline_options or None,
             embedder_options=embedder_options or None,
+            metadata=metadata,
         )
-    except (UnknownIngestPipelineError, UnknownEmbeddingModelError) as exc:
+    except (
+        UnknownIngestPipelineError,
+        UnknownEmbeddingModelError,
+        ReservedMetadataKeyError,
+    ) as exc:
         if args.json:
             print(json.dumps({"ok": False, "error": str(exc)}))
         else:
@@ -246,14 +283,31 @@ def cmd_get(args) -> int:
     return 0
 
 
+def _emit_cli_error(args, message: str, *, code: int = 1) -> int:
+    if getattr(args, "json", False):
+        print(json.dumps({"ok": False, "error": message}))
+    else:
+        print(message, file=sys.stderr)
+    return code
+
+
 def cmd_search(args) -> int:
+    target_path = Path(args.file)
+    includes = getattr(args, "include", None)
+    if includes and not target_path.is_dir():
+        return _emit_cli_error(args, "--include applies to directory search only", code=2)
+    try:
+        where = _where_from_args(getattr(args, "where", None) or [])
+    except ValueError as exc:
+        return _emit_cli_error(args, str(exc), code=2)
     target = (
         VeraCorpus.open(
             args.file,
             recursive=True if getattr(args, "recursive", False) else None,
             excludes=getattr(args, "exclude", None),
+            includes=includes,
         )
-        if Path(args.file).is_dir()
+        if target_path.is_dir()
         else VeraDocument.open(args.file)
     )
     try:
@@ -263,13 +317,10 @@ def cmd_search(args) -> int:
                 mode=args.mode,
                 top_k=args.top_k,
                 context_chunks=args.context_chunks,
+                where=where,
             )
         except OpenAIEmbedderError as exc:
-            if args.json:
-                print(json.dumps({"ok": False, "error": str(exc)}))
-            else:
-                print(str(exc), file=sys.stderr)
-            return 1
+            return _emit_cli_error(args, str(exc), code=1)
         if args.json:
             payload = []
             for result in results:
@@ -282,16 +333,17 @@ def cmd_search(args) -> int:
                 payload.append(entry)
             response = {"query": args.query, "mode": args.mode, "results": payload}
             if isinstance(target, VeraCorpus):
-                response["index"] = {"used": target.uses_index, **target.index_status}
+                response["index"] = target.index_search_report()
                 response["skipped_files"] = target.invalid_files
                 response["skipped_semantic_model_groups"] = target.skipped_semantic_model_groups
             print(json.dumps(response))
             return 0
         if isinstance(target, VeraCorpus):
-            if target.uses_index:
-                print(f"Index: {target.index_status.get('index')} (active)")
-            elif target.index_status.get("exists"):
-                reasons = "; ".join(target.index_status.get("reasons", []))
+            report = target.index_search_report()
+            if report.get("used"):
+                print(f"Index: {report.get('index')} (active)")
+            elif report.get("exists"):
+                reasons = "; ".join(report.get("reasons", []))
                 print(f"Index: fallback ({reasons})")
             for group in target.skipped_semantic_model_groups:
                 print(
@@ -346,6 +398,7 @@ def cmd_index_build(args) -> int:
         args.directory,
         recursive=args.recursive,
         excludes=args.exclude or (),
+        includes=args.include or (),
     )
     if args.json:
         print(json.dumps(report))

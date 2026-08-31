@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -27,10 +28,16 @@ from ._index_layout import (
     discover_vera_files,
 )
 from ._util import _MAX_TOP_K
+from ._where import (
+    CHUNK_METADATA_FILTER_REASON,
+    INDEX_CITATION_COLUMNS,
+    metadata_matches,
+)
 from .embeddings import get_embedder
 from .ranking import reciprocal_rank_fusion
 
 __all__ = [
+    "CHUNK_METADATA_FILTER_REASON",
     "INDEX_DATABASE",
     "INDEX_DIRECTORY",
     "INDEX_GENERATIONS",
@@ -158,7 +165,96 @@ class VeraCollectionIndex:
             )
         return self._matrices[filename]
 
-    def _semantic_hits(self, query: str, limit: int) -> list[tuple[int, float]]:
+    def _archive_metadata_keys(self) -> set[str]:
+        keys: set[str] = set()
+        for row in self.conn.execute("SELECT metadata_json FROM files"):
+            try:
+                payload = json.loads(row["metadata_json"] or "{}")
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if isinstance(payload, dict):
+                keys.update(payload)
+        return keys
+
+    def _partition_where(
+        self, where: Mapping[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
+        archive_keys = self._archive_metadata_keys()
+        file_where: dict[str, Any] = {}
+        chunk_where: dict[str, Any] = {}
+        unknown: list[str] = []
+        for key, value in where.items():
+            if key in INDEX_CITATION_COLUMNS:
+                chunk_where[key] = value
+            elif key in archive_keys:
+                file_where[key] = value
+            else:
+                unknown.append(key)
+        return file_where, chunk_where, unknown
+
+    def supports_where(self, where: Mapping[str, Any] | None) -> bool:
+        """Return True when every ``where`` key is archive metadata or a citation column."""
+        if not where:
+            return True
+        _, _, unknown = self._partition_where(where)
+        return not unknown
+
+    def _matching_file_ids(self, file_where: Mapping[str, Any]) -> list[int]:
+        ids: list[int] = []
+        for row in self.conn.execute("SELECT file_id, metadata_json FROM files"):
+            try:
+                metadata = json.loads(row["metadata_json"] or "{}")
+            except (TypeError, json.JSONDecodeError):
+                metadata = {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            if metadata_matches(metadata, file_where):
+                ids.append(int(row["file_id"]))
+        return ids
+
+    def _chunk_filter_sql(
+        self,
+        file_ids: list[int] | None,
+        chunk_where: Mapping[str, Any] | None,
+    ) -> tuple[list[str], list[Any]] | None:
+        """Return extra WHERE clauses, or None when unsatisfiable or unconstrained.
+
+        An empty list of clauses means no extra filter. Returning None means
+        the predicate matches nothing (empty IN list or no matching files).
+        """
+        clauses: list[str] = []
+        params: list[Any] = []
+        if file_ids is not None:
+            if not file_ids:
+                return None
+            placeholders = ",".join("?" for _ in file_ids)
+            clauses.append(f"chunks.file_id IN ({placeholders})")
+            params.extend(file_ids)
+        if chunk_where:
+            for key, expected in chunk_where.items():
+                if key not in INDEX_CITATION_COLUMNS:
+                    raise ValueError(f"unsupported index filter key: {key}")
+                column = f"chunks.{key}"
+                if isinstance(expected, (list, tuple, set)):
+                    values = list(expected)
+                    if not values:
+                        return None
+                    placeholders = ",".join("?" for _ in values)
+                    clauses.append(f"{column} IN ({placeholders})")
+                    params.extend(values)
+                else:
+                    clauses.append(f"{column} = ?")
+                    params.append(expected)
+        return clauses, params
+
+    def _semantic_hits(
+        self,
+        query: str,
+        limit: int,
+        *,
+        file_ids: list[int] | None = None,
+        chunk_where: Mapping[str, Any] | None = None,
+    ) -> list[tuple[int, float]]:
         per_group: list[list[tuple[int, float]]] = []
         for group in self.conn.execute(
             "SELECT * FROM vector_groups ORDER BY model_name, dimension"
@@ -193,8 +289,29 @@ class VeraCollectionIndex:
             if norm:
                 query_vector /= norm
             matrix = self._matrix(group["filename"])
-            scores = np.asarray(matrix @ query_vector)
-            take = min(limit, scores.size)
+            scores = np.asarray(matrix @ query_vector, dtype=np.float64)
+            extra = self._chunk_filter_sql(file_ids, chunk_where)
+            if extra is None:
+                continue
+            extra_sql, extra_params = extra
+            if extra_sql:
+                allowed_rows = {
+                    int(row["vector_row"])
+                    for row in self.conn.execute(
+                        "SELECT vector_row FROM chunks WHERE model_name = ? AND dimension = ? AND "
+                        + " AND ".join(extra_sql),
+                        (group["model_name"], group["dimension"], *extra_params),
+                    )
+                }
+                if not allowed_rows:
+                    continue
+                masked = np.full(scores.shape, -np.inf, dtype=np.float64)
+                for position in allowed_rows:
+                    if 0 <= position < scores.size:
+                        masked[position] = scores[position]
+                scores = masked
+            finite_count = int(np.isfinite(scores).sum())
+            take = min(limit, finite_count)
             if take == 0:
                 continue
             if take == scores.size:
@@ -202,7 +319,9 @@ class VeraCollectionIndex:
             else:
                 positions = np.argpartition(scores, -take)[-take:]
                 positions = positions[np.argsort(scores[positions])[::-1]]
-            vector_rows = [int(position) for position in positions]
+            vector_rows = [int(position) for position in positions if np.isfinite(scores[position])]
+            if not vector_rows:
+                continue
             placeholders = ",".join("?" for _ in vector_rows)
             rows = self.conn.execute(
                 f"""
@@ -229,18 +348,41 @@ class VeraCollectionIndex:
         )
         return fused[:limit]
 
-    def _keyword_hits(self, query: str, limit: int) -> list[tuple[int, float]]:
-        sql = """
-            SELECT row_id, bm25(chunks_fts) AS rank
-            FROM chunks_fts WHERE chunks_fts MATCH ?
-            ORDER BY rank LIMIT ?
-        """
-        rows = execute_fts(self.conn, sql, query, limit)
+    def _keyword_hits(
+        self,
+        query: str,
+        limit: int,
+        *,
+        file_ids: list[int] | None = None,
+        chunk_where: Mapping[str, Any] | None = None,
+    ) -> list[tuple[int, float]]:
+        extra = self._chunk_filter_sql(file_ids, chunk_where)
+        if extra is None:
+            return []
+        extra_sql, extra_params = extra
+        if extra_sql:
+            sql = f"""
+                SELECT chunks.row_id AS row_id, bm25(chunks_fts) AS rank
+                FROM chunks_fts
+                INNER JOIN chunks ON chunks.row_id = chunks_fts.row_id
+                WHERE chunks_fts MATCH ?
+                  AND {" AND ".join(extra_sql)}
+                ORDER BY rank LIMIT ?
+            """
+            params: tuple[Any, ...] = (*extra_params, limit)
+        else:
+            sql = """
+                SELECT row_id, bm25(chunks_fts) AS rank
+                FROM chunks_fts WHERE chunks_fts MATCH ?
+                ORDER BY rank LIMIT ?
+            """
+            params = (limit,)
+        rows = execute_fts(self.conn, sql, query, *params)
         if not rows:
             fallback = safe_fts_query(query)
             if not fallback:
                 return []
-            rows = execute_fts(self.conn, sql, fallback, limit)
+            rows = execute_fts(self.conn, sql, fallback, *params)
         hits = []
         for row in rows:
             rank = float(row["rank"])
@@ -263,7 +405,14 @@ class VeraCollectionIndex:
         ).fetchall()
         return {int(row["row_id"]): row for row in rows}
 
-    def search(self, query: str, mode: str = "hybrid", top_k: int = 10) -> list[IndexHit]:
+    def search(
+        self,
+        query: str,
+        mode: str = "hybrid",
+        top_k: int = 10,
+        *,
+        where: Mapping[str, Any] | None = None,
+    ) -> list[IndexHit]:
         mode = mode.lower()
         if mode not in {"semantic", "keyword", "hybrid"}:
             raise ValueError("mode must be semantic, keyword, or hybrid")
@@ -274,10 +423,25 @@ class VeraCollectionIndex:
             raise ValueError(f"top_k must be at most {_MAX_TOP_K}")
         if top_k == 0:
             return []
+        file_where: dict[str, Any] = {}
+        chunk_where: dict[str, Any] = {}
+        if where:
+            file_where, chunk_where, unknown = self._partition_where(where)
+            if unknown:
+                raise ValueError(CHUNK_METADATA_FILTER_REASON)
+        file_ids: list[int] | None = None
+        if file_where:
+            file_ids = self._matching_file_ids(file_where)
+            if not file_ids:
+                return []
         candidate_limit = max(top_k * 5, 50)
         if mode == "hybrid":
-            semantic = self._semantic_hits(query, candidate_limit)
-            keyword = self._keyword_hits(query, candidate_limit)
+            semantic = self._semantic_hits(
+                query, candidate_limit, file_ids=file_ids, chunk_where=chunk_where
+            )
+            keyword = self._keyword_hits(
+                query, candidate_limit, file_ids=file_ids, chunk_where=chunk_where
+            )
             references = self._rows_by_id(
                 [row_id for row_id, _ in semantic] + [row_id for row_id, _ in keyword]
             )
@@ -299,9 +463,9 @@ class VeraCollectionIndex:
                 ]
             ]
         if mode == "semantic":
-            ranked = self._semantic_hits(query, top_k)
+            ranked = self._semantic_hits(query, top_k, file_ids=file_ids, chunk_where=chunk_where)
         else:
-            ranked = self._keyword_hits(query, top_k)
+            ranked = self._keyword_hits(query, top_k, file_ids=file_ids, chunk_where=chunk_where)
         if not ranked:
             return []
         references = self._rows_by_id([row_id for row_id, _ in ranked])

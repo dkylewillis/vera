@@ -11,6 +11,7 @@ import numpy as np
 
 from ._fts import execute_fts, safe_fts_query
 from ._util import _MAX_TOP_K, SearchMode
+from ._where import metadata_matches
 from .embeddings import EmbeddingFunction, deserialize_vector, get_embedder
 from .models import ChunkRecord, QueryResult, metadata_from_json, thaw_json
 from .ranking import (
@@ -55,7 +56,9 @@ class _DocumentSearchMixin:
                 ``vector`` is supplied for semantic mode.
             vector: Pre-computed query vector for semantic search.
             mode: ``"hybrid"`` (default), ``"semantic"``, or ``"keyword"``.
-            where: Exact equality filter on top-level metadata keys.
+            where: Filter on top-level metadata keys, applied before
+                ``top_k``. Scalars are exact equality; a list, tuple, or set
+                value is IN. Distinct keys are AND.
             top_k: Maximum number of results to return.
             context_chunks: Number of adjacent stored chunks to include.
             semantic_weight: Hybrid blend weight for semantic scores.
@@ -220,7 +223,7 @@ class _DocumentSearchMixin:
         matching: set[str] = set()
         for row in self._conn.execute("SELECT chunk_id, metadata_json FROM chunks"):
             metadata = thaw_json(metadata_from_json(row["metadata_json"]))
-            if all(metadata.get(key) == expected for key, expected in where.items()):
+            if metadata_matches(metadata, where):
                 matching.add(str(row["chunk_id"]))
         return matching
 

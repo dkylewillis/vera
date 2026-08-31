@@ -43,6 +43,16 @@ vera search "./library" "termination clause" \
   --json
 ```
 
+Limit discovery to matching paths with `--include`. If any include is present,
+a file must match at least one include **and** no exclude:
+
+```bash
+vera search "./research" "adding capacity" \
+  --recursive \
+  --include "companies/GRID/archives/**" \
+  --json
+```
+
 Patterns are matched against forward-slash relative paths and individual path
 components. Directory symlinks and archive symlinks are not followed.
 
@@ -74,8 +84,11 @@ Use the same exclusion patterns while building:
 vera index build "./library" \
   --recursive \
   --exclude "archive/**" \
+  --include "companies/GRID/archives/**" \
   --json
 ```
+
+`vera index update` keeps the saved include and exclude patterns.
 
 ## Search an indexed library
 
@@ -149,6 +162,13 @@ search. The JSON response sets `index.used` to false and lists the reason:
 ```
 
 This preserves correctness while making the performance change visible.
+
+When `--where` uses a chunk-only metadata key that is not stored in the
+collection index, VERA also falls back to per-file search even if the index
+is otherwise fresh. `index.used` is false and `index.reasons` includes
+`chunk metadata filter not in collection index`. Archive-level keys stamped
+at convert time (and citation columns already in the index) can filter the
+indexed search before `top_k`. Do not post-filter the JSON `results` array.
 
 `vera index status --json` also reports the active generation and timestamps,
 database/vector/total storage, `indexed_chunks` versus `source_chunks`

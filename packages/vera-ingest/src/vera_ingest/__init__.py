@@ -6,7 +6,7 @@ from .chunking import (
     chunk_pages,
     detect_heading,
 )
-from .convert import batch_convert, convert
+from .convert import ReservedMetadataKeyError, batch_convert, convert
 from .descriptors import (
     PipelineCapabilities,
     PipelineDescriptor,
@@ -80,6 +80,7 @@ __all__ = [
     "PipelineFieldChoice",
     "PipelineOptions",
     "UnknownIngestPipelineError",
+    "ReservedMetadataKeyError",
     "batch_convert",
     "build_chunks_from_blocks",
     "chunk_pages",

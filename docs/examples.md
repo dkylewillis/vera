@@ -101,8 +101,8 @@ The returned top-left-origin bounding boxes can be scaled onto a page viewer.
 
 ```bash
 vera convert "./proposals" --recursive --json
-vera index build "./proposals" --recursive --exclude "archive/**" --json
-vera search "./proposals" "termination clause" --top-k 10 --json
+vera index build "./proposals" --recursive --exclude "archive/**" --include "active/**" --json
+vera search "./proposals" "termination clause" --where company=GRID --top-k 10 --json
 ```
 
 Check `malformed_existing` after conversion, then `skipped_files` and
