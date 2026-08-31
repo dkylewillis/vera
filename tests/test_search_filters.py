@@ -10,9 +10,8 @@ from pathlib import Path
 import pytest
 
 from vera_cli.main import build_parser
-from vera_doc import VeraCorpus, VeraDocument, build_library_index
+from vera_doc import ChunkRecord, VeraCorpus, VeraDocument, build_library_index
 from vera_doc.collection import CHUNK_METADATA_FILTER_REASON, discover_vera_files
-from vera_doc.document import ChunkRecord
 from vera_ingest import ReservedMetadataKeyError, convert
 
 

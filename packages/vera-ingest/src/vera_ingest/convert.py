@@ -19,7 +19,6 @@ from vera_doc import (
     VeraDocument,
     get_embedder,
 )
-from vera_doc._schema import REQUIRED_METADATA_KEYS
 from vera_doc.models import (
     METADATA_DOCUMENT_ID,
     METADATA_HEADING_PATH,
@@ -51,6 +50,19 @@ class ReservedMetadataKeyError(ValueError):
     """Caller ``metadata`` collided with a reserved convert or format key."""
 
 
+_FORMAT_HEADER_KEYS = frozenset(
+    {
+        "format_name",
+        "format_version",
+        "created_at",
+        "created_by",
+        "creator_library",
+        "default_embedding_model",
+        "default_embedding_dimension",
+        "archive_metadata",
+        "default_embedding_normalization",
+    }
+)
 _CONVERT_OWNED_ARCHIVE_KEYS = frozenset(
     {
         "source_file_hash",
@@ -68,8 +80,7 @@ _CONVERT_OWNED_ARCHIVE_KEYS = frozenset(
 )
 _RESERVED_CALLER_METADATA_KEYS = frozenset(
     {
-        *REQUIRED_METADATA_KEYS,
-        "default_embedding_normalization",
+        *_FORMAT_HEADER_KEYS,
         METADATA_PAGE_START,
         METADATA_PAGE_END,
         METADATA_HEADING_PATH,
