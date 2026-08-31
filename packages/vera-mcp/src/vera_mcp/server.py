@@ -68,13 +68,18 @@ def build_server():
         include_figures: bool = False,
         include_regions: bool = False,
         context_chunks: int = 0,
+        where: dict[str, str | list[str]] | None = None,
     ) -> dict[str, Any]:
         """Search a VERA file and return citation-ready chunks."""
         doc = _open(file)
         try:
             results = []
             for result in doc.search(
-                text=query, mode=mode, top_k=top_k, context_chunks=context_chunks
+                text=query,
+                mode=mode,
+                top_k=top_k,
+                context_chunks=context_chunks,
+                where=where,
             ):
                 results.append(
                     result_payload(
@@ -99,13 +104,21 @@ def build_server():
         context_chunks: int = 0,
         recursive: bool | None = None,
         excludes: list[str] | None = None,
+        includes: list[str] | None = None,
+        where: dict[str, str | list[str]] | None = None,
     ) -> dict[str, Any]:
         """Search a VERA library, automatically using its fresh local index when available."""
-        corpus = VeraCorpus.open(directory, recursive=recursive, excludes=excludes)
+        corpus = VeraCorpus.open(
+            directory, recursive=recursive, excludes=excludes, includes=includes
+        )
         try:
             results = []
             for result in corpus.search(
-                text=query, mode=mode, top_k=top_k, context_chunks=context_chunks
+                text=query,
+                mode=mode,
+                top_k=top_k,
+                context_chunks=context_chunks,
+                where=where,
             ):
                 results.append(
                     result_payload(
@@ -119,7 +132,7 @@ def build_server():
                 "directory": directory,
                 "query": query,
                 "mode": mode,
-                "index": {"used": corpus.uses_index, **corpus.index_status},
+                "index": corpus.index_search_report(),
                 "skipped_files": corpus.invalid_files,
                 "skipped_semantic_model_groups": corpus.skipped_semantic_model_groups,
                 "results": results,

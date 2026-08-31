@@ -179,6 +179,7 @@ For a nested library without an index:
 
 ```bash
 vera search "./library" "insurance requirements" --recursive --exclude "archive/**" --json
+vera search "./library" "insurance requirements" --where company=GRID --json
 ```
 
 When sources disagree:

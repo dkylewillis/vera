@@ -197,7 +197,13 @@ Hybrid search defaults to equal semantic and keyword weights. Each hit
 exposes `result.citation` (`page_start`, `page_end`, `heading_path`,
 `source_filename`, `document_id`) derived from chunk metadata. Pass
 `vector=[...]` instead of text for vector-only semantic search. Portable
-metadata filtering currently supports exact equality on top-level keys.
+metadata filtering supports exact equality on top-level keys; a list, tuple,
+or set value is IN (OR within that key). Distinct keys are AND. List-valued
+*stored* metadata is not an IN clause.
+
+```python
+hits = document.search("detention", mode="hybrid", where={"company": ["GRID", "PWRX"]})
+```
 
 ## Database metadata, inspection, and validation
 
@@ -245,6 +251,7 @@ convert(
     parser="pymupdf",
     pipeline_options={"chunk_size": 700, "ocr_mode": "force"},
     model="hashing",
+    metadata={"company": "GRID", "source_id": "src_aaa"},
     # embedder_options={"device": "cpu"},
     # Legacy compatibility aliases (forwarded when advertised by the pipeline):
     # chunk_size=500, overlap=75, ocr_mode="auto", ocr_language="eng",
@@ -298,10 +305,14 @@ VERA (they need a query-versus-document hint on `EmbeddingFunction`). See
 ```python
 from vera_doc import VeraCorpus, build_library_index, update_library_index
 
-build_library_index("./library", recursive=True)
+build_library_index("./library", recursive=True, includes=["companies/GRID/archives/**"])
 
-with VeraCorpus.open("./library") as corpus:
-    results = corpus.search("detention requirements", top_k=5)
+with VeraCorpus.open("./library", includes=["companies/GRID/archives/**"]) as corpus:
+    results = corpus.search(
+        "detention requirements",
+        top_k=5,
+        where={"company": "GRID"},
+    )
 
 update_library_index("./library")
 ```

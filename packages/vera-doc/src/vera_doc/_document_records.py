@@ -18,6 +18,7 @@ from ._util import (
     _embedding_normalization,
     _utc_now,
 )
+from ._where import metadata_matches
 from .embeddings import EmbeddingFunction, deserialize_vector, serialize_vector
 from .models import AttachmentRef, ChunkRecord, metadata_from_json, metadata_to_json, thaw_json
 
@@ -207,7 +208,9 @@ class _DocumentRecordsMixin:
         Args:
             ids: Specific chunk IDs to retrieve. When omitted, all matching
                 records are returned subject to ``where`` and ``limit``.
-            where: Exact equality filter on top-level metadata keys.
+            where: Filter on top-level metadata keys. Scalars are exact
+                equality; a list, tuple, or set value is IN. Distinct keys
+                are AND.
             limit: Maximum number of records to return.
 
         Returns:
@@ -255,7 +258,9 @@ class _DocumentRecordsMixin:
 
         Args:
             ids: Specific chunk IDs to delete.
-            where: Exact equality filter on top-level metadata keys.
+            where: Filter on top-level metadata keys. Scalars are exact
+                equality; a list, tuple, or set value is IN. Distinct keys
+                are AND.
             delete_all: Required to delete every chunk when ``ids`` and
                 ``where`` are omitted.
 
@@ -374,7 +379,4 @@ class _DocumentRecordsMixin:
         record: ChunkRecord,
         where: Mapping[str, Any] | None,
     ) -> bool:
-        if not where:
-            return True
-        metadata = thaw_json(record.metadata)
-        return all(metadata.get(key) == expected for key, expected in where.items())
+        return metadata_matches(thaw_json(record.metadata), where)

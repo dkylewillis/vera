@@ -226,7 +226,11 @@ def source(
             cache_path = source_cache_path(cache_dir, digest, filename)
             if source_cache_hit(cache_path, size):
                 return source_result(filename, mime_type, digest, size, cache_path)
-            if sibling is not None and sibling[1] == mime_type and sibling[0].stat().st_size == size:
+            if (
+                sibling is not None
+                and sibling[1] == mime_type
+                and sibling[0].stat().st_size == size
+            ):
                 copied = copy_file_to_cache(sibling[0], cache_path, size, cancel)
                 return source_result(filename, mime_type, digest, size, copied)
             extracted = extract_attachment_to_cache(
