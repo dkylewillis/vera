@@ -113,6 +113,7 @@ full command surface is scriptable by agents and applications:
 | `vera search` | Hybrid, semantic, or keyword search over a file or a folder-as-corpus |
 | `vera index` | Build, update, and check a persistent library index over many archives |
 | `vera inspect` | Report pages, chunks, embedding model, parser, and archive metadata |
+| `vera get` | Fetch one stored chunk by id as citation-ready JSON |
 | `vera validate` | Verify schema, hashes, embeddings, and index integrity |
 | `vera export` | Recover the original source document from the archive |
 | `vera figures` | List stored figures, or write their image files to a directory |
@@ -136,6 +137,9 @@ vera search manual.vera "pipe sizing chart" --json --context-chunks 1 --figures 
 # Keyword mode for exact phrases and section numbers; semantic for paraphrases
 vera search manual.vera "section 4.2" --mode keyword
 vera search manual.vera "how big should the pond be" --mode semantic
+
+# Reload a stored chunk by id (same citation fields as a search hit, no score)
+vera get manual.vera chunk_0042 --json
 
 # Batch-convert a nested PDF library, then measure retrieval quality
 vera convert ./proposals --recursive --json
@@ -165,12 +169,12 @@ real-world regulatory queries at MRR 0.900, tracked with
 Three integration surfaces share the same retrieval engine:
 
 - **CLI with `--json`** — any agent that can run shell commands can convert,
-  search, inspect, and validate archives. This repository's own
+  search, inspect, get a chunk by id, and validate archives. This repository's own
   [AGENTS.md](AGENTS.md) teaches coding agents the workflow.
 - **MCP server** — `vera mcp` exposes `vera_search`, `vera_corpus_search`,
   `vera_inspect`, `vera_validate`, `vera_figures`, `vera_get_figure`,
-  `vera_get_page`, and `vera_get_chunk_regions` as tools over stdio. Works with
-  any MCP client; see [Connect an MCP client](docs/mcp.md).
+  `vera_get_page`, `vera_get_chunk`, and `vera_get_chunk_regions` as tools over
+  stdio. Works with any MCP client; see [Connect an MCP client](docs/mcp.md).
 - **Agent Skill** — a portable [SKILL.md](skills/vera/SKILL.md) package with a
   complete [CLI reference](skills/vera/references/cli-reference.md) that drops
   into Agent-Skills-compatible tools (Cursor and others). See

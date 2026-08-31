@@ -235,6 +235,69 @@ Metadata is extensible. `default_embedding_normalization` is `l2`, `none`, or
 Summary counts, embedding dimensions, attachment counts, and
 `archive_size_bytes` are integers.
 
+### `vera get FILE CHUNK_ID`
+
+Fetch one stored chunk by exact `chunks.chunk_id`. `FILE` is a single `.vera`
+archive, not a directory. `CHUNK_ID` is case-sensitive with no glob or prefix
+match. This command does not write files.
+
+Options:
+
+- `--json` emits one JSON object.
+- `--figures` adds figure metadata/captions (same shape as `vera search
+  --figures`; metadata only, not pixels).
+- `--regions` adds highlight regions (same shape as `vera search --regions`).
+
+Success JSON (exit 0):
+
+```json
+{
+  "ok": true,
+  "file": "manual.vera",
+  "path": "C:/docs/manual.vera",
+  "chunk_id": "chunk_0042",
+  "text": "Detention shall be provided...",
+  "page_start": 117,
+  "page_end": 117,
+  "heading_path": "Chapter 4 > Detention Design",
+  "source_filename": "manual.pdf",
+  "document_id": "document_0001"
+}
+```
+
+`file` is the requested path; `path` is the opened archive. `chunk_id` and
+`text` are always present; `text` is the stored chunk body, not a snippet.
+Citation fields come from chunk metadata and may be `null` when the
+extractor did not set them. Other metadata keys may appear at the top level
+(search already does this). Do not expect `score`, `semantic_score`,
+`keyword_score`, or the embedding vector. `--figures` / `--regions` add
+`figures` / `regions` only when requested.
+
+An unknown id, or a whitespace-only `CHUNK_ID` (rejected before the archive is
+opened), exits 1 with structured JSON and no traceback:
+
+```json
+{
+  "ok": false,
+  "error": "chunk not found: chunk_zzzz"
+}
+```
+
+Without `--json`, the same `chunk not found: ...` message is printed to
+stderr. A missing path or a directory target follows `inspect`: unstructured
+`FileNotFoundError` traceback on stderr, exit 1. Do not treat a directory as a
+corpus scan.
+
+Human output is a single search-style hit without a score:
+
+```text
+Source: manual.pdf
+Page: 117
+Heading: Chapter 4 > Detention Design
+
+Detention shall be provided...
+```
+
 ### `vera search FILE_OR_DIRECTORY QUERY`
 
 Options:
@@ -684,14 +747,17 @@ Runs the long-lived stdio MCP server. It does not accept `--json`; protocol
 messages use stdout, so do not mix ordinary output into that stream.
 
 MCP provides `vera_search`, `vera_corpus_search`, `vera_inspect`,
-`vera_validate`, `vera_figures`, `vera_get_figure`, `vera_get_page`, and
+`vera_validate`, `vera_figures`, `vera_get_figure`, `vera_get_page`,
+`vera_get_chunk`, and
 `vera_get_chunk_regions`. `vera_search` and `vera_corpus_search` default
 `top_k` to `10`, matching `vera search` and `VeraDocument.search`.
 `vera_inspect` and `vera_validate` include both `file` (requested) and
 `path` (opened). `vera_get_figure` returns native image content for one
 `asset_id` plus citation metadata; a missing id returns `{"error": "..."}`.
-`vera_get_page` and `vera_get_chunk_regions` have no direct standalone CLI
-equivalent. `vera figures` is the CLI equivalent of `vera_figures` listing.
+`vera_get_chunk` matches `vera get FILE CHUNK_ID --json`, including `ok: true`
+and locator fields; a missing chunk returns `{"ok": false, "error": "chunk not
+found: ..."}` rather than raising. `vera_get_page` and `vera_get_chunk_regions`
+have no direct standalone CLI equivalent. `vera figures` is the CLI equivalent of `vera_figures` listing.
 See the repository's agent-skills guide for MCP setup.
 
 ### `vera ocr-languages list [LANGUAGE]`
@@ -763,7 +829,8 @@ exit code before deciding how to interpret output:
 - Exit 0: parse stdout as JSON when `--json` was supplied.
 - Exit 1 with structured JSON: expected negative result from `validate`,
   `index status`, `eval`, `export` without an embedded source, `figures` when a
-  requested `--asset-id` is missing or is not a figure, or `convert`
+  requested `--asset-id` is missing or is not a figure, `get` when the chunk
+  id is missing, or `convert`
   when extraction/validation fails or the input path is missing (`{ok: false,
   error}`).
 - Exit 1 with stderr traceback: most path, dependency, or runtime failures.
@@ -781,7 +848,7 @@ negative-result cases.
 
 ## Filesystem effects
 
-- Read-only: `search`, `inspect`, `validate`, `eval`, `ocr-languages list`,
+- Read-only: `search`, `inspect`, `get`, `validate`, `eval`, `ocr-languages list`,
   and `figures` without `--out-dir`.
 - Writes archives: `convert`; existing single outputs can be replaced.
   `convert --ocr-allow-download` (and `ocr-languages download`) can also

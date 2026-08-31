@@ -50,6 +50,7 @@ from .types import (
     ensure_ingest_request,
 )
 from .viewer import (
+    chunk_payload,
     export_figures,
     export_source_document,
     figures,
@@ -82,6 +83,7 @@ __all__ = [
     "batch_convert",
     "build_chunks_from_blocks",
     "chunk_pages",
+    "chunk_payload",
     "clear_ingest_pipeline_cache",
     "convert",
     "describe_ingest_pipeline",

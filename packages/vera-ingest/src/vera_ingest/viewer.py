@@ -18,7 +18,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from vera_doc import AttachmentRecord, QueryResult, VeraDocument
+from vera_doc import AttachmentRecord, ChunkRecord, QueryResult, VeraDocument
 from vera_doc.models import thaw_json
 
 
@@ -28,6 +28,42 @@ def get_source_document(document: VeraDocument) -> AttachmentRecord:
     if not attachment_id:
         raise ValueError("Original source document is not stored in this archive")
     return document.get_attachment(str(attachment_id))
+
+
+def chunk_payload(
+    record: ChunkRecord,
+    *,
+    document: VeraDocument | None = None,
+    include_figures: bool = False,
+    include_regions: bool = False,
+    include_figure_data: bool = False,
+    figure_data_urls: bool = False,
+) -> dict[str, Any]:
+    """Flatten a stored chunk for CLI/MCP JSON (metadata keys at the top level).
+
+    Citation fields such as ``page_start`` and ``heading_path`` sit beside
+    ``chunk_id`` and ``text``. The embedding vector and retrieval scores are
+    omitted. Optional figure and region enrichment matches
+    :func:`result_payload`.
+    """
+    metadata = thaw_json(record.metadata)
+    payload: dict[str, Any] = {**metadata, "chunk_id": record.id, "text": record.text}
+    if document is not None:
+        if include_regions:
+            payload["regions"] = get_chunk_regions(document, record.id)
+        if include_figures:
+            attachment_ids = sorted(
+                ref.attachment_id for ref in record.attachments if ref.role == "figure"
+            )
+            figures_list = figures(
+                document,
+                include_data=include_figure_data or figure_data_urls,
+                attachment_ids=attachment_ids,
+            )
+            if figure_data_urls:
+                figures_list = [figure_data_url(figure) for figure in figures_list]
+            payload["figures"] = figures_list
+    return payload
 
 
 def result_payload(
@@ -45,24 +81,26 @@ def result_payload(
     callers can set ``figure_data_urls`` to replace raw figure bytes with a
     ``data_url`` instead of forking the serializer.
     """
-    data = result.as_dict()
-    metadata = data.pop("metadata", {})
-    payload = {**metadata, **data}
-    for key in ("before_chunks", "after_chunks"):
-        if key in payload:
-            payload[key] = [{**item.pop("metadata", {}), **item} for item in payload[key]]
-    if document is not None:
-        if include_regions:
-            payload["regions"] = regions_for(document, result)
-        if include_figures:
-            figures_list = figures_for(
-                document,
-                result,
-                include_data=include_figure_data or figure_data_urls,
-            )
-            if figure_data_urls:
-                figures_list = [figure_data_url(figure) for figure in figures_list]
-            payload["figures"] = figures_list
+    payload = chunk_payload(
+        result.record,
+        document=document,
+        include_figures=include_figures,
+        include_regions=include_regions,
+        include_figure_data=include_figure_data,
+        figure_data_urls=figure_data_urls,
+    )
+    payload["score"] = result.score
+    if result.semantic_score is not None:
+        payload["semantic_score"] = result.semantic_score
+    if result.keyword_score is not None:
+        payload["keyword_score"] = result.keyword_score
+    if result.before or result.after:
+        payload["before_chunks"] = [
+            {**item.pop("metadata", {}), **item} for item in result.before_chunks
+        ]
+        payload["after_chunks"] = [
+            {**item.pop("metadata", {}), **item} for item in result.after_chunks
+        ]
     return payload
 
 

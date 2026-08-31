@@ -817,3 +817,176 @@ def test_cli_figures_missing_asset_id_exits_1(tmp_path):
         "ok": False,
         "error": "Figure 'image_block_missing' was not found",
     }
+
+
+def test_cli_get_round_trips_search_hit(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    converted = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "convert",
+            str(pdf),
+            str(out),
+            "--model",
+            "hashing",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert json.loads(converted.stdout)["ok"] is True
+
+    searched = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "search",
+            str(out),
+            "restaurant parking",
+            "--mode",
+            "keyword",
+            "--top-k",
+            "1",
+            "--json",
+            "--regions",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    hit = json.loads(searched.stdout)["results"][0]
+    chunk_id = hit["chunk_id"]
+    assert "parking" in hit["text"].lower()
+
+    fetched = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "get",
+            str(out),
+            chunk_id,
+            "--json",
+            "--regions",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    payload = json.loads(fetched.stdout)
+    assert payload["ok"] is True
+    assert payload["file"] == str(out)
+    assert Path(payload["path"]).resolve() == out.resolve()
+    assert payload["chunk_id"] == chunk_id
+    assert payload["text"] == hit["text"]
+    assert "parking" in payload["text"].lower()
+    assert "score" not in payload
+    assert "semantic_score" not in payload
+    assert "keyword_score" not in payload
+    for key in ("page_start", "page_end", "heading_path", "source_filename", "document_id"):
+        assert payload.get(key) == hit.get(key)
+    assert payload.get("regions") == hit.get("regions")
+
+    human = subprocess.run(
+        [sys.executable, "-m", "vera_cli", "get", str(out), chunk_id],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert "Score:" not in human.stdout
+    assert "parking" in human.stdout.lower()
+    assert "Source:" in human.stdout
+    assert "Page:" in human.stdout
+    assert "Heading:" in human.stdout
+
+
+def test_cli_get_unknown_id_exits_1(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    out = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "convert",
+            str(pdf),
+            str(out),
+            "--model",
+            "hashing",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    missing = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "get",
+            str(out),
+            "chunk_zzzz",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+    )
+    payload = json.loads(missing.stdout)
+    assert missing.returncode == 1
+    assert payload == {"ok": False, "error": "chunk not found: chunk_zzzz"}
+    assert "Traceback" not in missing.stderr
+    assert missing.stderr == ""
+
+    human = subprocess.run(
+        [sys.executable, "-m", "vera_cli", "get", str(out), "chunk_zzzz"],
+        text=True,
+        capture_output=True,
+    )
+    assert human.returncode == 1
+    assert "chunk not found: chunk_zzzz" in human.stderr
+    assert "Traceback" not in human.stderr
+    assert human.stdout == ""
+
+
+def test_cli_get_directory_is_unsupported(tmp_path):
+    directory = tmp_path / "library"
+    directory.mkdir()
+    missing = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "get",
+            str(directory),
+            "chunk_0001",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+    )
+    assert missing.returncode == 1
+    assert "ok" not in (missing.stdout or "")
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(missing.stdout or "")
+    assert "FileNotFoundError" in missing.stderr or "Traceback" in missing.stderr
+
+
+def test_cli_get_whitespace_chunk_id_exits_1():
+    missing = subprocess.run(
+        [sys.executable, "-m", "vera_cli", "get", "missing.vera", "   ", "--json"],
+        text=True,
+        capture_output=True,
+    )
+    payload = json.loads(missing.stdout)
+    assert missing.returncode == 1
+    assert payload["ok"] is False
+    assert payload["error"].startswith("chunk not found:")
+    assert "Traceback" not in missing.stderr

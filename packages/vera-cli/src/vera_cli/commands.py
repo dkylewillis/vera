@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from vera_doc import UnknownEmbeddingModelError
+from vera_doc import Citation, UnknownEmbeddingModelError
 from vera_doc.collection import build_library_index, library_index_status, update_library_index
 from vera_doc.corpus import VeraCorpus
 from vera_doc.document import VeraDocument
@@ -20,6 +20,7 @@ from vera_ingest import (
     convert,
 )
 from vera_ingest.viewer import (
+    chunk_payload,
     ensure_requested_figures,
     export_figures,
     export_source_document,
@@ -190,6 +191,56 @@ def cmd_inspect(args) -> int:
         print(f"Embedding normalization: {info.get('default_embedding_normalization', 'unknown')}")
         print(f"Parser: {info.get('parser_name')}")
         print(f"Created: {info.get('created_at')}")
+    finally:
+        doc.close()
+    return 0
+
+
+def _chunk_not_found_message(chunk_id: str) -> str:
+    return f"chunk not found: {chunk_id}"
+
+
+def _emit_get_error(args, message: str) -> int:
+    if args.json:
+        print(json.dumps({"ok": False, "error": message}))
+    else:
+        print(message, file=sys.stderr)
+    return 1
+
+
+def cmd_get(args) -> int:
+    chunk_id = args.chunk_id
+    if not str(chunk_id).strip():
+        return _emit_get_error(args, _chunk_not_found_message(chunk_id))
+
+    doc = VeraDocument.open(args.file)
+    try:
+        try:
+            records = doc.get(ids=[chunk_id])
+            if not records:
+                return _emit_get_error(args, _chunk_not_found_message(chunk_id))
+            payload = chunk_payload(
+                records[0],
+                document=doc,
+                include_figures=args.figures,
+                include_regions=args.regions,
+            )
+        except ValueError as exc:
+            return _emit_get_error(args, str(exc))
+        if args.json:
+            print(json.dumps({"ok": True, **_archive_locator(args.file, doc), **payload}))
+            return 0
+        citation = Citation.from_metadata(records[0].metadata)
+        print(f"Source: {citation.source_filename}")
+        page = (
+            citation.page_start
+            if citation.page_start == citation.page_end
+            else f"{citation.page_start}-{citation.page_end}"
+        )
+        print(f"Page: {page}")
+        print(f"Heading: {citation.heading_path or ''}")
+        print()
+        print(records[0].text)
     finally:
         doc.close()
     return 0

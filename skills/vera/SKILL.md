@@ -46,9 +46,11 @@ workflows.
 3. Check the process exit code. On success, parse stdout as one JSON object.
 4. Read each result's `text`, `page_start`, `page_end`, `heading_path`, and
    `source_filename`. For directory searches, also retain each result's `file`.
-5. If the evidence does not directly answer the question, refine the query or
+5. When you need the stored chunk body or to verify a quote, reload that
+   `chunk_id` with `vera get FILE CHUNK_ID --json` instead of searching again.
+6. If the evidence does not directly answer the question, refine the query or
    switch modes. Do not treat rank or score as proof.
-6. Answer only from retrieved evidence and cite each substantive claim.
+7. Answer only from retrieved evidence and cite each substantive claim.
 
 Search a directory as one corpus by passing the directory instead of a file:
 
@@ -136,7 +138,7 @@ that no usable diagnostic exists.
 
 ## Commands that write files
 
-`search`, `inspect`, `validate`, and `eval` are read-only. The following
+`search`, `inspect`, `get`, `validate`, and `eval` are read-only. The following
 commands write or replace local files and require normal user authorization:
 
 - `convert` creates a validated `.vera` archive and publishes it atomically;
@@ -178,7 +180,7 @@ request that only asks to search or explain a document.
 
 - Always inspect the exit code before trusting output.
 - Do not assume all nonzero exits lack JSON. `validate`, `index status`, `eval`,
-  a failed `export`, a failed `figures`, and a failed `convert` can print useful JSON while returning 1.
+  a failed `export`, a failed `figures`, a failed `get`, and a failed `convert` can print useful JSON while returning 1.
   `convert --json` also prints `{"ok": false, "error": "..."}` and exits 2 for an
   unknown `--parser` / `--model`.
 - Most other missing-path and runtime failures are unstructured tracebacks on

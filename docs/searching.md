@@ -97,6 +97,12 @@ source filename, page or page range, and heading when available:
 (manual.pdf, p. 117, Chapter 4 > Detention Design)
 ```
 
+To reload one stored chunk by id — for example to verify that a quoted span is
+still in the chunk body — use `vera get FILE CHUNK_ID --json` (MCP:
+`vera_get_chunk`). Searching again is not a substitute: rank can change, and
+keyword search can miss a short quote. `get` returns the same citation fields
+as a search hit, without `score`.
+
 ## Include neighboring chunks
 
 A result may begin after a definition or end before an exception. Include

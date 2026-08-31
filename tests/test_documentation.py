@@ -155,6 +155,8 @@ def test_documented_cli_examples_parse():
             "--json",
         ],
         ["inspect", "output.vera", "--json"],
+        ["get", "output.vera", "chunk_0042", "--json"],
+        ["get", "output.vera", "chunk_0042", "--figures", "--regions", "--json"],
         [
             "search",
             "output.vera",

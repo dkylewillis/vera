@@ -6,6 +6,7 @@ parser.
 ```text
 vera convert
 vera inspect
+vera get
 vera search
 vera index build
 vera index update
@@ -93,6 +94,23 @@ OCR diagnostics, and attachment count when recorded. Normalization is `l2`,
 
 Options: `--json`. JSON includes `file` (the requested path) and `path` (the
 opened archive).
+
+## `vera get FILE CHUNK_ID`
+
+Fetch one stored chunk by exact id from a single `.vera` archive. `CHUNK_ID`
+is case-sensitive; there is no prefix match or directory/corpus lookup.
+
+Options:
+
+- `--json`
+- `--figures`
+- `--regions`
+
+JSON is one object with `ok`, `file`, `path`, `chunk_id`, `text`, and the same
+citation fields as a search hit (`page_start`, `page_end`, `heading_path`,
+`source_filename`, `document_id`). It does not include `score`. `--figures` and
+`--regions` add the same metadata shapes as `vera search`. An unknown or
+whitespace-only id exits 1 with `{"ok": false, "error": "chunk not found: ..."}`.
 
 ## `vera search FILE_OR_DIRECTORY QUERY`
 
@@ -242,6 +260,7 @@ Do not assume nonzero output is unstructured:
 - `export` returns an error object when no source is stored;
 - `figures` returns an error object when a requested `--asset-id` is missing
   or is not a figure attachment;
+- `get` returns an error object when the chunk id is missing from the archive;
 - `convert` returns `{"ok": false, "error": "..."}` when extraction or
   validation fails, the input path is missing, or an OpenAI embedder fails
   (missing `OPENAI_API_KEY`, HTTP errors) (exit 1), or `--parser` /
