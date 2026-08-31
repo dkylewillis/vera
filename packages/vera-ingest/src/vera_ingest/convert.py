@@ -619,9 +619,7 @@ def _resolve_batch_sources(
     cancel: Any | None,
 ) -> tuple[Path, list[Path]]:
     """Return ``(report_root, sources)`` for directory discovery or an explicit list."""
-    suffixes = (
-        set(pipeline_source_formats(parser)) if parser else set(installed_source_formats())
-    )
+    suffixes = set(pipeline_source_formats(parser)) if parser else set(installed_source_formats())
     if not suffixes:
         raise ValueError("No installed ingest pipeline advertises source formats to convert.")
 
@@ -662,7 +660,9 @@ def _resolve_batch_sources(
                 name for name in directories if not (Path(current) / name).is_symlink()
             )
             sources.extend(
-                Path(current) / name for name in sorted(filenames) if is_source(Path(current) / name)
+                Path(current) / name
+                for name in sorted(filenames)
+                if is_source(Path(current) / name)
             )
     else:
         raise_if_cancelled(cancel)

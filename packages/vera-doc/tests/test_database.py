@@ -40,11 +40,14 @@ def test_database_chunk_crud_and_search(tmp_path: Path) -> None:
             "one",
             "two",
         ]
-        assert database.search(
-            text="detention requirements",
-            where={"kind": ["design"]},
-            top_k=1,
-        )[0].record.id == "one"
+        assert (
+            database.search(
+                text="detention requirements",
+                where={"kind": ["design"]},
+                top_k=1,
+            )[0].record.id
+            == "one"
+        )
         assert database.search(text="detention requirements", top_k=1)[0].record.id == "one"
 
         database.upsert(

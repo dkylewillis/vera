@@ -463,13 +463,9 @@ class VeraCollectionIndex:
                 ]
             ]
         if mode == "semantic":
-            ranked = self._semantic_hits(
-                query, top_k, file_ids=file_ids, chunk_where=chunk_where
-            )
+            ranked = self._semantic_hits(query, top_k, file_ids=file_ids, chunk_where=chunk_where)
         else:
-            ranked = self._keyword_hits(
-                query, top_k, file_ids=file_ids, chunk_where=chunk_where
-            )
+            ranked = self._keyword_hits(query, top_k, file_ids=file_ids, chunk_where=chunk_where)
         if not ranked:
             return []
         references = self._rows_by_id([row_id for row_id, _ in ranked])

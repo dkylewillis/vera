@@ -502,14 +502,15 @@ class VeraCorpus:
             self._search_used_index = False
             return []
         self.skipped_semantic_model_groups = []
-        use_index = self._collection_index is not None
-        if use_index and where and not self._collection_index.supports_where(where):
-            use_index = False
+        collection_index = self._collection_index
+        if collection_index is not None and where and not collection_index.supports_where(where):
+            collection_index = None
+        use_index = collection_index is not None
         self._search_used_index = use_index
-        if use_index:
+        if collection_index is not None:
             final = self._search_index(text, mode, top_k, where=where)
             self.skipped_semantic_model_groups = list(
-                self._collection_index.skipped_semantic_model_groups
+                collection_index.skipped_semantic_model_groups
             )
         elif mode == "hybrid":
             candidate_limit = max(top_k * 5, 50)

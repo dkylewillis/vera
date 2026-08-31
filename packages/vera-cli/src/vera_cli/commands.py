@@ -188,7 +188,11 @@ def cmd_convert(args) -> int:
             embedder_options=embedder_options or None,
             metadata=metadata,
         )
-    except (UnknownIngestPipelineError, UnknownEmbeddingModelError, ReservedMetadataKeyError) as exc:
+    except (
+        UnknownIngestPipelineError,
+        UnknownEmbeddingModelError,
+        ReservedMetadataKeyError,
+    ) as exc:
         if args.json:
             print(json.dumps({"ok": False, "error": str(exc)}))
         else:

@@ -46,6 +46,4 @@ def metadata_matches(
     if not where:
         return True
     data = metadata or {}
-    return all(
-        metadata_value_matches(data.get(key), expected) for key, expected in where.items()
-    )
+    return all(metadata_value_matches(data.get(key), expected) for key, expected in where.items())
