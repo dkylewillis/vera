@@ -1,19 +1,22 @@
 # Convert documents
 
-`vera convert` turns PDFs and Markdown files into portable `.vera` archives.
+`vera convert` turns PDFs, Markdown files, and (with `vera-ingest-docling`)
+DOCX, PPTX, XLSX, and HTML into portable `.vera` archives.
 Conversion parses layout or Markdown structure, detects headings, creates
 citation-ready chunks, computes embeddings, builds the FTS5 keyword index, and
 normally stores the original file. Directory discovery uses each installed
 pipeline's `source_formats` (PDF via PyMuPDF, Markdown via the bundled
-`markdown` pipeline). Planned DOCX/HTML ingest and richer Markdown visual
-grounding are in
+`markdown` pipeline, and DOCX/PPTX/XLSX/HTML via optional Docling). Visual
+grounding for Office/HTML remains planned; see
 [Additional source formats and visual grounding](multi-format-ingest.md).
 
-## Convert one PDF or Markdown file
+## Convert one PDF, Markdown, or Office/HTML file
 
 ```bash
 vera convert "input.pdf" "output.vera"
 vera convert "notes.md" "notes.vera"
+vera convert "memo.docx" "memo.vera"   # requires vera-cli[docling]
+vera convert "notes.html" "notes.vera"
 ```
 
 Omit the output to create a same-named archive:
@@ -90,13 +93,13 @@ multi-column reading order. For layout-aware parsing, install the optional
 
 ## Convert a directory
 
-Directory conversion writes each archive beside its PDF:
+Directory conversion writes each archive beside its source file:
 
 ```bash
 vera convert "./proposals"
 ```
 
-Discover nested PDFs:
+Discover nested source files:
 
 ```bash
 vera convert "./proposals" --recursive
@@ -104,7 +107,7 @@ vera convert "./proposals" --recursive
 
 Existing archives are validated before they are skipped. A sibling `.vera` is
 skipped only when it validates and its stored `source_file_hash` matches the
-current PDF. Changed PDFs and archives with a missing or unreadable hash are
+current source file. Changed files and archives with a missing or unreadable hash are
 reconverted. A malformed existing archive is reported separately and is not
 silently preserved as a successful skip. Replace existing outputs explicitly:
 
@@ -316,7 +319,7 @@ override aliases for the same key.
 | Pipeline | Defaults | Notes |
 | --- | --- | --- |
 | PyMuPDF (`pymupdf`) | `chunk_size=500` words, `overlap=75` words, `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false` | Sliding-window chunks of whitespace-split words (`str.split()`, not characters or LLM subword tokens); Tesseract OCR; language picker lists bundled/downloadable codes |
-| Docling (`docling`) | `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | No `overlap` / `ocr_dpi` / Tesseract `--ocr-language` aliases; RapidOCR; auto page recovery / `pypdfium2` fallback on memory errors, then page-batch `pypdfium2` |
+| Docling (`docling`) | `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | PDF, DOCX, PPTX, XLSX, HTML (`.htm`). No `overlap` / `ocr_dpi` / Tesseract `--ocr-language` aliases; RapidOCR and auto page recovery / `pypdfium2` fallback apply to **PDFs only**. Office/HTML are search-only (no highlight overlay) |
 
 Discover descriptors from Python with `describe_ingest_pipeline` /
 `list_ingest_pipeline_descriptors`, or from the desktop sidecar action
@@ -342,6 +345,8 @@ pip install "vera-cli[docling]>=0.3.0"
 uv sync --extra docling
 # or: python -m pip install vera-ingest-docling
 vera convert "input.pdf" --parser docling
+vera convert "memo.docx" --parser docling
+vera convert "notes.html"
 vera convert "input.pdf" --parser docling:hybrid
 ```
 
@@ -357,11 +362,11 @@ model Search cannot resolve. CLI convert still rejects unknown `--model` /
 Embedder `credential_env` secrets stay in the environment, not
 Options. OpenAI embeddings ship as `vera-embed-openai`; Voyage and Ollama
 do not.
-On Docling memory errors
+On Docling **PDF** memory errors
 (`bad_alloc`), VERA retries failed pages with a fresh converter and falls back
 to the `pypdfium2` PDF backend when needed (whole document, then page batches
 if that still raises); conversion rejects only when that
-recovery is exhausted. Force the low-memory backend with
+recovery is exhausted. Office/HTML conversions skip PDF recovery. Force the low-memory backend with
 `--pipeline-option pdf_backend=pypdfium2`. Docling's descriptor advertises
 `chunk_size` (HybridChunker limit in whitespace-split words), `ocr_mode`, `ocr_language`, and
 `pdf_backend` — legacy `--overlap`, `--ocr-dpi`, `--ocr-allow-download`, and

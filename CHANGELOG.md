@@ -26,6 +26,12 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   the original Markdown is stored for export and desktop preview. Explorer,
   Convert, and Reconvert treat PDFs and Markdown as convertible sources.
 
+- Docling search-only ingest of DOCX, PPTX, XLSX, and HTML (plus `.htm`) when
+  `vera-ingest-docling` is installed. Omit `--parser` to select Docling for
+  those extensions; PDFs still default to PyMuPDF. Office/HTML conversion skips
+  PDF layout models, RapidOCR, and `pypdfium2` page recovery. Search works;
+  PDF-style highlight overlays are not produced for these types.
+
 ## [0.3.1] — 2026-08-24
 
 ### Added

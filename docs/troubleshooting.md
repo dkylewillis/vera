@@ -281,6 +281,8 @@ pip install "vera-cli[docling]>=0.3.0"
 # or from a checkout:
 uv sync --extra docling
 vera convert "input.pdf" --parser docling
+vera convert "memo.docx" --parser docling
+vera convert "notes.html"
 ```
 
 Unknown names fail before parsing and never fall back to another pipeline.

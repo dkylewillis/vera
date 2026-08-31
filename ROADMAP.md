@@ -171,8 +171,10 @@ the curated sidecar snapshot.
 
 Markdown ingest ships: `vera convert notes.md` uses the bundled `markdown`
 pipeline in `vera-ingest`, directory discovery includes `.md` / `.markdown`,
-and the desktop source viewer highlights `text_span` lines. Follow-ups
-(DOCX, HTML, Excel, PPTX) remain after 0.3.x. Design notes:
+and the desktop source viewer highlights `text_span` lines. Docling
+search-only ingest of DOCX, PPTX, XLSX, and HTML ships when
+`vera-ingest-docling` is installed (`vera convert memo.docx`). Visual
+grounding for those formats remains after 0.3.x. Design notes:
 [Additional source formats and visual grounding](docs/multi-format-ingest.md).
 
 Package and application versions still do not change the `.vera` format.
@@ -189,8 +191,9 @@ bump.
 - [x] Advertise supported types on `PipelineCapabilities.source_formats`
   and use that list in convert, batch discovery, and file pickers instead of
   hardcoding `.pdf`.
-- [ ] Grow formats inside the existing engine package (and optional extras
-  for heavy dependencies), not a new plugin per extension.
+- [x] Grow formats inside the existing engine package (and optional extras
+  for heavy dependencies), not a new plugin per extension. Docling now
+  advertises PDF plus search-only DOCX/PPTX/XLSX/HTML.
 - [x] Keep `provider[:variant]` variants as processing strategies
   (`docling:hybrid`), not as `docling:pdf` / `docling:docx`.
 

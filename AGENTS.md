@@ -57,9 +57,11 @@ vera get manual.vera chunk_0042 --json
 # Is this file well-formed? (exit code 0 = valid, 1 = invalid)
 vera validate manual.vera --json
 
-# Create an .vera from a PDF or Markdown file
+# Create an .vera from a PDF, Markdown, or (with Docling) Office/HTML file
 vera convert manual.pdf manual.vera --json
 vera convert notes.md notes.vera --json
+vera convert memo.docx memo.vera --json
+vera convert notes.html notes.vera --json
 
 # Docling (optional CLI extra: vera-cli[docling] or --extra docling; not in the 0.3.0 desktop app)
 vera convert scan.pdf scan.vera --parser docling --json
@@ -69,7 +71,7 @@ vera convert scan.pdf scan.vera --parser docling --pipeline-option pdf_backend=p
 vera convert manual.pdf --model hashing --embedder-option dimension=256 --json
 vera convert manual.pdf --model openai:text-embedding-3-small --json
 
-# Batch-convert a nested PDF and Markdown library beside its source files
+# Batch-convert a nested PDF, Markdown, and (with Docling) Office/HTML library
 vera convert ./proposals --recursive --json
 
 # List or fetch curated Tesseract OCR language data (non-English)

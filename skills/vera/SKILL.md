@@ -144,9 +144,10 @@ commands write or replace local files and require normal user authorization:
 - `convert` creates a validated `.vera` archive and publishes it atomically;
   omit `--parser` to choose an installed ingest pipeline from the file
   extension (`pdf` → `pymupdf` from `vera-ingest-pymupdf`; `md`/`markdown` →
-  bundled `markdown`; `docling` when `vera-cli[docling]` or
-  `vera-ingest-docling` is installed). An explicit `--parser` that does not
-  advertise the file's extension fails; there is no silent fallback.
+  bundled `markdown`; `docx`/`pptx`/`xlsx`/`html`/`htm` → `docling` when
+  `vera-cli[docling]` or `vera-ingest-docling` is installed). An explicit
+  `--parser` that does not advertise the file's extension fails; there is no
+  silent fallback.
   Image-based low-text PDF pages use selective local OCR by default. Use
   `--ocr off` only when explicitly requested, or `--ocr force` when automatic
   detection misses a scan. Prefer `--pipeline-option KEY=VALUE` for

@@ -21,7 +21,7 @@ Check `vera --help` first. If it is not on `PATH`, try
 
 ### `vera convert INPUT [OUTPUT]`
 
-Convert one PDF, Markdown file, or a directory of supported sources. CLI convert resolves the embedder with
+Convert one PDF, Markdown, Office/HTML (Docling extra), or a directory of supported sources. CLI convert resolves the embedder with
 `get_embedder` and does not call `preflight_embedder`; missing credential env
 vars surface when the factory runs. Desktop Convert still gates on
 `preflight_embedder`.
@@ -46,15 +46,17 @@ Options:
   converted with OpenAI are not portable for semantic search. Voyage and
   Ollama are not bundled.
 - `--parser PARSER` omitted chooses an installed pipeline from the file
-  extension (`pdf` → `pymupdf`, `md`/`markdown` → `markdown`). Accepts ingest
+  extension (`pdf` → `pymupdf`, `md`/`markdown` → `markdown`, `docx`/`pptx`/
+  `xlsx`/`html`/`htm` → `docling` when `vera-ingest-docling` is installed). Accepts ingest
   pipeline specs `provider[:variant]` (requires `vera-ingest-pymupdf` for
   PDFs; for example `docling` or `docling:hybrid` when `vera-ingest-docling`
   is installed). An explicit parser that does not advertise the file's
   extension exits with an error; there is no silent fallback. Unknown
   providers exit with a non-zero status and an
-  install-the-plugin message. First Docling
+  install-the-plugin message. First **PDF** Docling
   convert may download layout and table models into `DOCLING_ARTIFACTS_PATH`
   (or Hugging Face Hub; about 380 MB: Heron ONNX + TableFormer accurate).
+  Office/HTML Docling convert does not download those PDF layout models.
   The 0.3.0 desktop app does not list or freeze this pipeline; use
   `vera-cli[docling]`. An incomplete cache resumes instead of failing
   offline. Stopping mid-download does not abort Hugging Face immediately.

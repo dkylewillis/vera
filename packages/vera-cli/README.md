@@ -17,7 +17,7 @@ python -m pip install "vera-cli>=0.3.0"
 ```
 
 Install the `mcp` extra to enable `vera mcp`, or the `docling` extra for
-Advanced layout conversion:
+Docling PDF layout conversion and search-only DOCX/PPTX/XLSX/HTML ingest:
 
 ```bash
 python -m pip install "vera-cli[mcp]>=0.3.0"

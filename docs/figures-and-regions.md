@@ -224,8 +224,9 @@ See [MCP integration](mcp.md).
   assets.
 - Vector drawings and decorative marks often have no figure attachment.
 - Regions identify source blocks, not individual words or characters.
-- Convert supports PDF and native Markdown. Planned DOCX/HTML ingest,
-  richer Markdown visual grounding, typed region `kind` values for sheets
-  and slides, and later locators are in
+- Convert supports PDF, native Markdown, and (with Docling) search-only
+  DOCX/PPTX/XLSX/HTML. Visual grounding for Office/HTML, richer Markdown
+  preview, typed region `kind` values for sheets and slides, and later
+  locators are in
   [Additional source formats and visual grounding](multi-format-ingest.md).
   Those locators stay in chunk metadata; they do not change format 0.2.

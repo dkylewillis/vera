@@ -13,6 +13,11 @@ _MIME_BY_SUFFIX = {
     "pdf": "application/pdf",
     "md": "text/markdown",
     "markdown": "text/markdown",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "html": "text/html",
+    "htm": "text/html",
 }
 
 

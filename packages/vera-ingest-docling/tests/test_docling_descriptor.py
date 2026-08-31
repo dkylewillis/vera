@@ -6,7 +6,11 @@ import pytest
 
 from vera_ingest import UnknownIngestPipelineError
 from vera_ingest_docling import create_descriptor, create_pipeline
-from vera_ingest_docling.options import describe_pipeline
+from vera_ingest_docling.options import (
+    DOCLING_SOURCE_FORMATS,
+    describe_pipeline,
+    source_format_from_path,
+)
 
 
 def test_describe_pipeline_advertises_docling_without_runtime(monkeypatch):
@@ -18,6 +22,7 @@ def test_describe_pipeline_advertises_docling_without_runtime(monkeypatch):
     assert descriptor.provider == "docling"
     assert descriptor.spec == "docling"
     assert descriptor.installed is False
+    assert descriptor.capabilities.source_formats == DOCLING_SOURCE_FORMATS
     assert {field.key for field in descriptor.fields} == {
         "chunk_size",
         "ocr_mode",
@@ -43,3 +48,14 @@ def test_create_pipeline_explains_missing_runtime(monkeypatch):
     )
     with pytest.raises(UnknownIngestPipelineError, match="vera-ingest-docling"):
         create_pipeline()
+
+
+def test_source_format_from_path_accepts_office_html():
+    assert source_format_from_path("manual.PDF") == "pdf"
+    assert source_format_from_path("memo.DOCX") == "docx"
+    assert source_format_from_path("slides.pptx") == "pptx"
+    assert source_format_from_path("budget.xlsx") == "xlsx"
+    assert source_format_from_path("notes.html") == "html"
+    assert source_format_from_path("notes.HTM") == "htm"
+    with pytest.raises(ValueError, match="does not support .txt"):
+        source_format_from_path("notes.txt")

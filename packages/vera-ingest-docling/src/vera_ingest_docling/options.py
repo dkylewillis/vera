@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from importlib.util import find_spec
+from pathlib import Path
 from typing import Any, ClassVar
 
 from vera_ingest.descriptors import (
@@ -13,6 +14,17 @@ from vera_ingest.descriptors import (
     fields_from_dataclass,
 )
 from vera_ingest.pipeline_options import PipelineOptions
+
+# Suffixes advertised on the descriptor and accepted by convert discovery.
+# Visual grounding and PDF page recovery remain PDF-only.
+DOCLING_SOURCE_FORMATS: tuple[str, ...] = (
+    "pdf",
+    "docx",
+    "pptx",
+    "xlsx",
+    "html",
+    "htm",
+)
 
 
 @dataclass(frozen=True)
@@ -110,6 +122,25 @@ def _docling_runtime_available() -> bool:
     return find_spec("docling") is not None and find_spec("docling_core") is not None
 
 
+def source_format_from_path(path: str | Path) -> str:
+    """Return the advertised Docling suffix for ``path``.
+
+    Raises:
+        ValueError: If the extension is not in :data:`DOCLING_SOURCE_FORMATS`.
+    """
+    suffix = Path(path).suffix.lower().lstrip(".")
+    if suffix in DOCLING_SOURCE_FORMATS:
+        return suffix
+    supported = ", ".join(f".{item}" for item in DOCLING_SOURCE_FORMATS)
+    label = Path(path).suffix or "extensionless"
+    raise ValueError(f"Docling ingest does not support {label} files (supports: {supported}).")
+
+
+def is_pdf_source(path: str | Path) -> bool:
+    """True when ``path`` is a PDF (page recovery applies)."""
+    return Path(path).suffix.lower().lstrip(".") == "pdf"
+
+
 def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
     """Return GUI/CLI metadata without loading Docling or Torch."""
     normalized = (variant or "hybrid").strip().lower()
@@ -123,10 +154,11 @@ def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
         spec="docling",
         label="Advanced layout (slower)",
         description=(
-            "Docling DocumentConverter + HybridChunker with RapidOCR. Slower than "
-            "PyMuPDF; better tables, layout, and scanned pages. Packaged Windows "
-            "builds include layout models; CLI and app:dev may download them into "
-            "DOCLING_ARTIFACTS_PATH on first use."
+            "Docling DocumentConverter + HybridChunker. PDFs use RapidOCR and layout "
+            "models (slower than PyMuPDF; better tables, layout, and scans). DOCX, "
+            "PPTX, XLSX, and HTML are search-only (no page recovery or highlight "
+            "overlay). First PDF conversion may download layout models into "
+            "DOCLING_ARTIFACTS_PATH."
         ),
         installed=_docling_runtime_available(),
         capabilities=PipelineCapabilities(
@@ -135,14 +167,15 @@ def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
             ocr_supported=True,
             ocr_engine="rapidocr",
             ocr_dpi_supported=False,
-            source_formats=("pdf",),
+            source_formats=DOCLING_SOURCE_FORMATS,
         ),
         fields=fields_from_dataclass(DoclingOptions),
         notes=(
             "Overlap is not applied by Docling HybridChunker.",
             "OCR language uses RapidOCR-native codes, not Tesseract's — 'en', not 'eng'.",
-            "First conversion may download Docling model artifacts; the desktop app caches them under userData.",
-            "On memory errors (bad_alloc), VERA retries failed pages, then whole-document pypdfium2, then page-batch pypdfium2.",
+            "OCR, pdf_backend, and layout-model download apply to PDFs only.",
+            "DOCX, PPTX, XLSX, and HTML are searchable; citations may lack page boxes.",
+            "On PDF memory errors (bad_alloc), VERA retries failed pages, then whole-document pypdfium2, then page-batch pypdfium2.",
             'CLI install: pip install "vera-cli[docling]>=0.3.0" or uv sync --extra docling',
         ),
     )

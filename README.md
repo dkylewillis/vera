@@ -109,7 +109,7 @@ full command surface is scriptable by agents and applications:
 
 | Command | What it does |
 |---------|--------------|
-| `vera convert` | Convert a PDF, Markdown file, or a directory of sources into `.vera` archives |
+| `vera convert` | Convert a PDF, Markdown, Office/HTML (Docling extra), or a directory of sources into `.vera` archives |
 | `vera search` | Hybrid, semantic, or keyword search over a file or a folder-as-corpus |
 | `vera index` | Build, update, and check a persistent library index over many archives |
 | `vera inspect` | Report pages, chunks, embedding model, parser, and archive metadata |
@@ -313,7 +313,7 @@ Two pipelines are currently available:
   parsing, table extraction, heading detection, and selective Tesseract OCR
   with bundled English data. Installed automatically with the CLI and app.
 - **`docling`** (optional, via `vera-ingest-docling`) — Docling layout models
-  and HybridChunker with contextualized embedding text.
+  and HybridChunker for PDFs; search-only DOCX, PPTX, XLSX, and HTML.
 
 A custom pipeline is registered with a decorator:
 

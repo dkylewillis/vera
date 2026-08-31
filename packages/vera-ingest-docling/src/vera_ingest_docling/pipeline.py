@@ -12,7 +12,7 @@ from vera_ingest.types import IngestRequest, IngestResult, ensure_ingest_request
 from . import converter as _converter
 from .converter import _build_converter, _split_ocr_languages
 from .mapping import WhitespaceTokenizer, map_docling_document
-from .options import DoclingOptions
+from .options import DoclingOptions, source_format_from_path
 from .recovery import _resolve_conversion
 
 # Compatibility re-exports: tests import these from this module.
@@ -35,6 +35,7 @@ def _docling_version() -> str:
 def _build_diagnostics(
     config: DoclingOptions,
     *,
+    source_format: str,
     effective_backend: str,
     recovered_pages: list[int],
     recovered_pages_backend: dict[int, str],
@@ -44,6 +45,7 @@ def _build_diagnostics(
     diagnostics: dict[str, Any] = {
         "engine": "docling",
         "variant": "hybrid",
+        "source_format": source_format,
         "ocr_mode": config.ocr_mode,
         "ocr_language": config.ocr_language,
         "ocr_languages": (
@@ -55,9 +57,10 @@ def _build_diagnostics(
         "tableformer_mode": "accurate",
         "overlap_ignored": True,
         "artifacts_path_env": "DOCLING_ARTIFACTS_PATH",
-        "pdf_backend": effective_backend,
         "recovered_pages": list(recovered_pages),
     }
+    if source_format == "pdf":
+        diagnostics["pdf_backend"] = effective_backend
     if recovered_pages_backend:
         # JSON-friendly string keys for inspect/sidecar consumers.
         diagnostics["recovered_pages_backend"] = {
@@ -89,20 +92,25 @@ class DoclingHybridPipeline:
             )
         config = DoclingOptions.from_mapping(request.pipeline_options)
         raise_if_cancelled(request.cancel)
+        source_format = source_format_from_path(source_path)
 
         recovered_pages: list[int] = []
         recovered_pages_backend: dict[int, str] = {}
         whole_document_fallback_backend: str | None = None
         whole_document_fallback_strategy: str | None = None
-        effective_backend = config.pdf_backend
+        effective_backend = config.pdf_backend if source_format == "pdf" else source_format
 
         # Users who force pypdfium2 skip docling_parse retries during recovery.
-        primary_backend = config.pdf_backend
+        primary_backend = effective_backend
         conversion: Any | None = None
         primary_raised = False
         primary_error: BaseException | None = None
         try:
-            converter = _converter._build_converter(config, backend=primary_backend)
+            converter = _converter._build_converter(
+                config,
+                backend=config.pdf_backend if source_format == "pdf" else None,
+                source_format=source_format,
+            )
             conversion = _converter._run_converter_convert(
                 converter,
                 backend=primary_backend,
@@ -143,6 +151,7 @@ class DoclingHybridPipeline:
             chunking_strategy=f"docling_hybrid:{int(config.chunk_size)}",
             diagnostics=_build_diagnostics(
                 config,
+                source_format=source_format,
                 effective_backend=effective_backend,
                 recovered_pages=recovered_pages,
                 recovered_pages_backend=recovered_pages_backend,

@@ -13,7 +13,7 @@ entry-point group. The default `pymupdf` provider ships as
 Markdown ingest ships inside this package as provider `markdown`;
 Docling ships as the optional
 [`vera-ingest-docling`](https://dkylewillis.github.io/vera/packages/vera-ingest-docling/)
-package. Pipelines return a normalized `IngestResult`; `convert()` writes
+package (PDF plus search-only DOCX, PPTX, XLSX, and HTML). Pipelines return a normalized `IngestResult`; `convert()` writes
 validated archives through one shared atomic path.
 
 Each pipeline owns typed chunking/OCR defaults, validation, and a descriptor

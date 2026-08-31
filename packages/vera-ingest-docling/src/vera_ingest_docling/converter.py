@@ -17,6 +17,15 @@ from .options import DoclingOptions
 _PDF_BACKEND_DOCLING_PARSE = "docling_parse"
 _PDF_BACKEND_PYPDFIUM2 = "pypdfium2"
 
+# Docling InputFormat names for SimplePipeline sources (no PDF layout models).
+_SIMPLE_INPUT_FORMAT_NAMES = {
+    "docx": "DOCX",
+    "pptx": "PPTX",
+    "xlsx": "XLSX",
+    "html": "HTML",
+    "htm": "HTML",
+}
+
 # Filenames RapidOCR ships in `rapidocr/models` and Docling looks for under
 # `{DOCLING_ARTIFACTS_PATH}/RapidOcr` when artifacts_path is set.
 _RAPIDOCR_MODEL_FILES = {
@@ -366,7 +375,35 @@ def _configure_fast_pipeline_options(pipeline_options: Any) -> None:
         table_options.mode = TableFormerMode.ACCURATE
 
 
-def _build_converter(options: DoclingOptions, *, backend: str | None = None) -> Any:
+def _build_simple_converter(source_format: str) -> Any:
+    """Office/HTML converter using Docling SimplePipeline (no layout models)."""
+    with timed_step("import_docling"):
+        from docling.datamodel.base_models import InputFormat
+        from docling.document_converter import DocumentConverter
+
+        _disable_torch_compile()
+
+    input_name = _SIMPLE_INPUT_FORMAT_NAMES[source_format]
+    input_format = getattr(InputFormat, input_name)
+    print(
+        f"Initializing Docling converter ({source_format}; no PDF layout models)...",
+        file=sys.stderr,
+        flush=True,
+    )
+    with timed_step("document_converter_init", source_format=source_format):
+        return DocumentConverter(allowed_formats=[input_format])
+
+
+def _build_converter(
+    options: DoclingOptions,
+    *,
+    backend: str | None = None,
+    source_format: str = "pdf",
+) -> Any:
+    normalized = (source_format or "pdf").strip().lower().lstrip(".")
+    if normalized in _SIMPLE_INPUT_FORMAT_NAMES:
+        return _build_simple_converter(normalized)
+
     with timed_step("import_docling"):
         from docling.datamodel.base_models import InputFormat
         from docling.datamodel.pipeline_options import PdfPipelineOptions, RapidOcrOptions

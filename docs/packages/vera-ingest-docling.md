@@ -57,6 +57,8 @@ or CI environments:
 
 ```bash
 vera convert "manual.pdf" "manual.vera" --parser docling
+vera convert "memo.docx" "memo.vera" --parser docling
+vera convert "notes.html" "notes.vera"
 vera convert "manual.pdf" "manual.vera" --parser docling:hybrid
 ```
 
@@ -64,6 +66,8 @@ vera convert "manual.pdf" "manual.vera" --parser docling:hybrid
 from vera_ingest import convert
 
 convert("manual.pdf", "manual.vera", parser="docling")
+convert("memo.docx", "memo.vera", parser="docling")
+convert("notes.html", "notes.vera")
 ```
 
 The default Docling variant is `hybrid`. Unknown variants fail before parsing.
@@ -74,6 +78,11 @@ The default Docling variant is `hybrid`. Unknown variants fail before parsing.
   Cropped pictures are stored as figure attachments and linked onto a nearby
   same-page chunk. Docling's HybridChunker omits pictures from chunk text
   (empty image placeholder), so that linking is what makes `--figures` work.
+- Also converts DOCX, PPTX, XLSX, and HTML (including `.htm`) for search.
+  Those types use Docling's SimplePipeline (no layout-model download, RapidOCR,
+  or `pypdfium2` recovery). Citations are searchable; PDF-style page highlight
+  overlays are not produced. Omit `--parser` to select Docling from the
+  extension when this extra is installed; PDFs still default to PyMuPDF.
 - Chunks with Docling `HybridChunker` and an explicit whitespace tokenizer so
   `chunk_size` maps to whitespace-split words without downloading a HuggingFace
   tokenizer.
@@ -86,9 +95,10 @@ The default Docling variant is `hybrid`. Unknown variants fail before parsing.
   embeddings.
 - Maps provenance boxes from Docling bottom-left coordinates to VERA top-left
   page points.
-- Attempts automatic recovery when Docling returns page-level memory errors
+- Attempts automatic recovery on **PDFs** when Docling returns page-level memory errors
   (`bad_alloc`) or the whole-document convert raises; rejects only when
-  recovery is exhausted instead of publishing an incomplete archive.
+  recovery is exhausted instead of publishing an incomplete archive. DOCX,
+  PPTX, XLSX, and HTML skip this path.
 - `ocr_language` expects a RapidOCR-native code (for example `en`, `fr`,
   `cyrillic`); it is **not** translated from Tesseract-style codes, so
   PyMuPDF's `eng` is not valid here. The shared `--ocr-language` CLI default
@@ -133,7 +143,8 @@ fidelity compared with `docling_parse`.
 ## Desktop app
 
 The 0.3.0 desktop Convert view does not list Docling. Use this package from
-the CLI (`vera convert --parser docling`) after installing `vera-cli[docling]`.
+the CLI (`vera convert --parser docling`, or omit `--parser` on DOCX/PPTX/XLSX/HTML)
+after installing `vera-cli[docling]`.
 Pipeline descriptors still omit overlap and OCR DPI when a future desktop
 host lists the plugin.
 

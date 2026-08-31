@@ -4,7 +4,7 @@
 package. It depends on `vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and
 `vera-embed-openai`, and owns argument parsing, human and JSON output, exit
 codes, and retrieval evaluation. The optional `docling` extra installs
-`vera-ingest-docling` for `--parser docling`.
+`vera-ingest-docling` for `--parser docling` (PDF plus search-only DOCX/PPTX/XLSX/HTML).
 
 Use the CLI for complete document workflows rather than assembling the Python
 packages directly.

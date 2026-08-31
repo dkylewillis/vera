@@ -2,7 +2,9 @@
 
 **Status:** Markdown ingest ships. Convert, batch discovery, and the desktop
 source viewer handle PDF (PyMuPDF) and native Markdown (`markdown` pipeline
-in `vera-ingest`). DOCX, HTML, Excel, and PPTX remain planned. This page
+in `vera-ingest`). With `vera-ingest-docling`, CLI convert also ingests DOCX,
+PPTX, XLSX, and HTML for **search only** (no PDF-style highlight overlay).
+Richer visual grounding for those types remains planned. This page
 records the intended direction so plugin naming, locators, and viewers stay
 consistent as more formats land.
 
@@ -28,8 +30,9 @@ descriptor. Variants (`docling:hybrid`) stay processing strategies, not file
 types. Two engines may both handle PDF; the user picks `--parser`.
 
 `PipelineCapabilities.source_formats` is the metadata slot for “what this
-plugin can ingest” (the example pipeline already sets `("txt",)`; PyMuPDF and
-Docling set `("pdf",)`; Markdown sets `("md", "markdown")`). Convert, batch
+plugin can ingest” (the example pipeline already sets `("txt",)`; PyMuPDF sets
+`("pdf",)`; Docling sets `("pdf", "docx", "pptx", "xlsx", "html", "htm")`;
+Markdown sets `("md", "markdown")`). Convert, batch
 discovery, and file pickers consult that list instead of hardcoding `.pdf`.
 
 ## Two grounding surfaces

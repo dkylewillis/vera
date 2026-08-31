@@ -11,7 +11,7 @@ from vera_ingest.types import IngestBlock, IngestChunk, ParsedPage
 
 from . import converter as _converter
 from .mapping import _chunk_document, map_docling_document
-from .options import DoclingOptions
+from .options import DoclingOptions, is_pdf_source
 
 # Above this ratio of failed pages, skip per-page recovery and reconvert the
 # whole document once with pypdfium2 (avoids paying model-init per page).
@@ -618,6 +618,22 @@ def _resolve_conversion(
     primary_error: BaseException | None = None,
 ) -> _MappedConversion:
     from docling.datamodel.base_models import ConversionStatus
+
+    if not is_pdf_source(source_path):
+        if conversion is not None:
+            mapped = _mapped_from_success(conversion, config, backend=primary_backend)
+            if mapped is not None:
+                return mapped
+        if conversion is None:
+            _raise_from("Docling conversion failed.", primary_error)
+        status = getattr(conversion, "status", None)
+        status_name = getattr(status, "name", str(status))
+        detail = _format_docling_errors(conversion)
+        suffix = f" Errors: {detail}" if detail else ""
+        _raise_from(
+            f"Docling conversion did not fully succeed (status={status_name}).{suffix}",
+            primary_error,
+        )
 
     # Fast path: clean SUCCESS on the primary backend.
     if conversion is not None and getattr(conversion, "status", None) == ConversionStatus.SUCCESS:

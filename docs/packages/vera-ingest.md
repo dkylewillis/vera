@@ -10,7 +10,7 @@ PDF parsing and OCR live in provider plugins that register through the
 [`vera-ingest-pymupdf`](vera-ingest-pymupdf.md) package provides the `pymupdf`
 pipeline; Markdown ingest ships inside `vera-ingest` as provider `markdown`;
 [`vera-ingest-docling`](vera-ingest-docling.md) provides Docling's
-hybrid chunker. Extra plugins are pip packages in the same environment as
+hybrid chunker (PDF plus search-only DOCX/PPTX/XLSX/HTML). Extra plugins are pip packages in the same environment as
 the CLI or desktop sidecar.
 
 Pipelines return a normalized `IngestResult`. Shared `convert()` writes

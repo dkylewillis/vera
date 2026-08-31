@@ -29,6 +29,7 @@ from vera_ingest import (
     get_ingest_pipeline,
     list_ingest_pipelines,
     reset_ingest_pipeline_registry,
+    resolve_ingest_parser,
 )
 from vera_ingest.types import IngestChunk, IngestOptions, IngestRequest
 from vera_ingest_docling import create_pipeline
@@ -433,6 +434,14 @@ def test_docling_options_ignore_pymupdf_only_keys_and_reject_unknown():
     assert descriptor.capabilities.overlap_supported is False
     assert descriptor.capabilities.ocr_dpi_supported is False
     assert descriptor.capabilities.chunk_unit == "tokens"
+    assert descriptor.capabilities.source_formats == (
+        "pdf",
+        "docx",
+        "pptx",
+        "xlsx",
+        "html",
+        "htm",
+    )
     chunk_size_field = next(field for field in descriptor.fields if field.key == "chunk_size")
     assert chunk_size_field.unit == "tokens"
     assert "whitespace-split words" in chunk_size_field.description
@@ -494,6 +503,7 @@ def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, 
     assert result.parser_version
     assert "docling_hybrid" in result.chunking_strategy
     assert result.diagnostics["overlap_ignored"] is True
+    assert result.diagnostics["source_format"] == "pdf"
     assert result.diagnostics["pdf_backend"] == "docling_parse"
     assert result.diagnostics["recovered_pages"] == []
     assert "ocr_dpi" not in result.diagnostics
@@ -511,7 +521,139 @@ def test_pipeline_maps_hybrid_chunks_with_monkeypatched_conversion(monkeypatch, 
     assert any(image_ids.intersection(chunk.block_ids) for chunk in result.chunks)
 
 
-def test_prepare_does_not_forward_pymupdf_overlap_dpi_to_docling():
+def _hashing_embedder():
+    class Embedder:
+        model_name = "hashing-test"
+        dimension = 4
+        normalization = "l2"
+
+        def embed(self, texts):
+            vector = np.asarray([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+            return np.vstack([vector for _ in texts])
+
+    return Embedder()
+
+
+def _patch_successful_converter(monkeypatch, document, captured=None):
+    class Result:
+        status = ConversionStatus.SUCCESS
+
+        def __init__(self, doc):
+            self.document = doc
+
+    class Converter:
+        def convert(self, source=None, raises_on_error=True, **_kwargs):
+            if captured is not None:
+                captured["source"] = str(source)
+            return Result(document)
+
+    def fake_build(options, **kwargs):
+        if captured is not None:
+            captured["options"] = options
+            captured["kwargs"] = kwargs
+        return Converter()
+
+    monkeypatch.setattr("vera_ingest_docling.converter._build_converter", fake_build)
+
+
+def test_build_converter_office_html_skips_pdf_layout_models(monkeypatch):
+    from docling.datamodel.base_models import InputFormat
+
+    from vera_ingest_docling.options import DoclingOptions
+    from vera_ingest_docling.pipeline import _build_converter
+
+    monkeypatch.setattr(
+        "vera_ingest_docling.converter.ensure_docling_models",
+        lambda: (_ for _ in ()).throw(AssertionError("PDF layout models must not load")),
+    )
+    converter = _build_converter(DoclingOptions.from_mapping({}), source_format="html")
+    assert InputFormat.HTML in converter.allowed_formats
+    assert InputFormat.PDF not in converter.allowed_formats
+
+    docx = _build_converter(DoclingOptions.from_mapping({}), source_format="docx")
+    assert InputFormat.DOCX in docx.allowed_formats
+    assert InputFormat.PDF not in docx.allowed_formats
+
+
+def test_office_html_suffixes_resolve_to_docling():
+    from vera_ingest_pymupdf import ensure_registered as ensure_pymupdf
+
+    ensure_pymupdf()
+    from vera_ingest_docling import ensure_registered
+
+    ensure_registered()
+    assert resolve_ingest_parser("memo.docx") == "docling"
+    assert resolve_ingest_parser("slides.pptx") == "docling"
+    assert resolve_ingest_parser("budget.xlsx") == "docling"
+    assert resolve_ingest_parser("notes.html") == "docling"
+    assert resolve_ingest_parser("notes.htm") == "docling"
+    assert resolve_ingest_parser("manual.pdf") == "pymupdf"
+
+
+@pytest.mark.parametrize("suffix", ["docx", "pptx", "xlsx", "html", "htm"])
+def test_pipeline_maps_office_html_without_pdf_recovery(monkeypatch, tmp_path, suffix):
+    document = _fixture_document()
+    captured: dict[str, object] = {}
+    _patch_successful_converter(monkeypatch, document, captured)
+    monkeypatch.setattr(
+        "vera_ingest_docling.recovery._whole_document_pypdfium2_fallback",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("pypdfium2 recovery must not run for non-PDF sources")
+        ),
+    )
+
+    source = tmp_path / f"notes.{suffix}"
+    source.write_bytes(b"placeholder")
+    result = DoclingHybridPipeline()(
+        str(source),
+        IngestRequest(pipeline_options={"chunk_size": 100}),
+    )
+
+    assert captured["kwargs"]["source_format"] == suffix
+    assert result.diagnostics["source_format"] == suffix
+    assert "pdf_backend" not in result.diagnostics
+    assert result.diagnostics["recovered_pages"] == []
+    assert result.chunks
+
+
+def test_non_pdf_failure_skips_pypdfium2_recovery(monkeypatch, tmp_path):
+    class Converter:
+        def convert(self, source=None, **_kwargs):
+            raise RuntimeError("html backend failed")
+
+    monkeypatch.setattr(
+        "vera_ingest_docling.converter._build_converter",
+        lambda options, **_kwargs: Converter(),
+    )
+    monkeypatch.setattr(
+        "vera_ingest_docling.recovery._whole_document_pypdfium2_fallback",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("pypdfium2 recovery must not run for HTML")
+        ),
+    )
+    html = tmp_path / "notes.html"
+    html.write_text("<p>hi</p>", encoding="utf-8")
+    with pytest.raises(ValueError, match="Docling conversion failed"):
+        DoclingHybridPipeline()(str(html), IngestRequest())
+
+
+def test_convert_html_without_parser_uses_docling(monkeypatch, tmp_path):
+    document = _fixture_document()
+    captured: dict[str, object] = {}
+    _patch_successful_converter(monkeypatch, document, captured)
+    html = tmp_path / "notes.html"
+    out = tmp_path / "notes.vera"
+    html.write_text(
+        "<html><body><h1>Stormwater</h1><p>Detention pond requirements.</p></body></html>",
+        encoding="utf-8",
+    )
+    convert(str(html), str(out), embedding_function=_hashing_embedder(), store_original=True)
+    assert captured["kwargs"]["source_format"] == "html"
+    with VeraDocument.open(str(out)) as archive:
+        info = archive.inspect()
+        assert info["parser_name"] == "docling"
+        assert info["source_mime_type"] == "text/html"
+        assert archive.search("detention", mode="keyword", top_k=1)
     from vera_ingest import prepare_pipeline_options
     from vera_ingest_docling.options import DoclingOptions
 
@@ -1468,3 +1610,18 @@ def test_real_pdf_docling_integration(tmp_path):
     with VeraDocument.open(str(out)) as document:
         assert document.inspect()["parser_name"] == "docling"
         assert document.search("detention", mode="keyword", top_k=1)
+
+
+def test_convert_real_html_is_searchable(tmp_path):
+    html = tmp_path / "notes.html"
+    out = tmp_path / "notes.vera"
+    html.write_text(
+        "<html><body><h1>Stormwater Manual</h1>"
+        "<p>Ponds must detain the 25-year storm on site.</p></body></html>",
+        encoding="utf-8",
+    )
+    convert(str(html), str(out), parser="docling", model="hashing", store_original=False)
+    with VeraDocument.open(str(out)) as document:
+        assert document.inspect()["parser_name"] == "docling"
+        hits = document.search("detain", mode="keyword", top_k=1)
+        assert hits

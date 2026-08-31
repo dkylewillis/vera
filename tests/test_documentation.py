@@ -134,6 +134,9 @@ def test_documented_cli_examples_parse():
     parser = build_parser()
     examples = [
         ["convert", "input.pdf", "output.vera", "--model", "hashing", "--json"],
+        ["convert", "notes.md", "notes.vera", "--model", "hashing", "--json"],
+        ["convert", "memo.docx", "memo.vera", "--parser", "docling", "--json"],
+        ["convert", "notes.html", "notes.vera", "--json"],
         [
             "convert",
             "input.pdf",

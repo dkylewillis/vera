@@ -28,7 +28,7 @@ effects without duplicating that contract here.
 
 ## `vera convert INPUT [OUTPUT]`
 
-Convert one PDF, Markdown file, or a directory of supported sources.
+Convert one PDF, Markdown, Office/HTML (Docling extra), or a directory of supported sources.
 
 Options:
 
@@ -43,8 +43,9 @@ Options:
   `vera-cli` as `vera-embed-openai`; set `OPENAI_API_KEY`. Archives converted
   with OpenAI are not portable for semantic search)
 - `--parser PARSER` (omitted: choose from the file extension — PDF → `pymupdf`,
-  Markdown → `markdown`; accepts `provider[:variant]` specs such as
-  `docling` / `docling:hybrid` when `vera-cli[docling]` is installed; unknown
+  Markdown → `markdown`, DOCX/PPTX/XLSX/HTML → `docling` when
+  `vera-cli[docling]` is installed; accepts `provider[:variant]` specs such as
+  `docling` / `docling:hybrid`; unknown
   providers exit with an error; the 0.3.x Windows installer does not include
   Docling)
 - `--chunk-size N` (`500`; compatibility alias; PyMuPDF counts whitespace-split

@@ -9,8 +9,9 @@ an experimental chunking strategy. Name the package after the engine
 (`vera-ingest-example`), not the file type; advertise extensions on
 `PipelineCapabilities.source_formats`. Convert, batch discovery, and file
 pickers use that list. Native Markdown ingest ships inside `vera-ingest`
-(provider `markdown`). Remaining formats and richer Markdown visual grounding
-are in [Additional source formats and visual grounding](multi-format-ingest.md).
+(provider `markdown`). Docling (`vera-ingest-docling`) advertises PDF plus
+search-only DOCX/PPTX/XLSX/HTML. Remaining visual grounding for those types
+is in [Additional source formats and visual grounding](multi-format-ingest.md).
 
 Registry and descriptor APIs (`register_ingest_pipeline`,
 `register_ingest_pipeline_descriptor`, `PipelineDescriptor`, and related
@@ -464,7 +465,7 @@ produced by each pipeline and compare hit rate / MRR — see
 - [Convert documents](conversion.md#pipeline-options) — the user-facing side
   of `--parser` and `--pipeline-option`.
 - [Additional source formats and visual grounding](multi-format-ingest.md) —
-  Markdown ingest, `source_formats`, remaining formats, and Markdown/PDF
+  Markdown ingest, `source_formats`, Docling Office/HTML search-only ingest, and Markdown/PDF
   viewer surfaces.
 - [`vera_ingest` API reference](reference/vera-ingest.md) — `IngestPipeline`,
   `IngestRequest`/`IngestResult`, registry, and descriptor types.
