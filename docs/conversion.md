@@ -26,7 +26,8 @@ before `top_k`. Values coerce like `--pipeline-option` (digit-only integers,
 `true`/`false`/`yes`/`no`/`on`/`off` booleans, otherwise strings). Nested JSON
 is not accepted. Reserved keys are rejected: citation fields (`page_start`,
 `page_end`, `heading_path`, `source_filename`, `document_id`), ingest chunk
-internals (`token_count`, `regions`), format header keys
+internals (`token_count`, `regions`), CLI/MCP JSON locators (`file`, `path`,
+`ok`, `error`), format header keys
 (`format_name`, `format_version`, `default_embedding_*`, `_vera_*`, and the
 rest of the required archive header), and convert-owned archive fields such as
 `source_file_hash`. `title` may be overridden. Directory convert applies the

@@ -21,6 +21,9 @@ from typing import Any
 from vera_doc import AttachmentRecord, ChunkRecord, QueryResult, VeraDocument
 from vera_doc.models import thaw_json
 
+# Top-level JSON keys owned by CLI/MCP transport, not caller chunk metadata.
+_JSON_TRANSPORT_KEYS = frozenset({"file", "path", "ok", "error"})
+
 
 def get_source_document(document: VeraDocument) -> AttachmentRecord:
     """Return the attachment identified as the archive's source document."""
@@ -46,7 +49,11 @@ def chunk_payload(
     omitted. Optional figure and region enrichment matches
     :func:`result_payload`.
     """
-    metadata = thaw_json(record.metadata)
+    metadata = {
+        key: value
+        for key, value in thaw_json(record.metadata).items()
+        if key not in _JSON_TRANSPORT_KEYS
+    }
     payload: dict[str, Any] = {**metadata, "chunk_id": record.id, "text": record.text}
     if document is not None:
         if include_regions:
@@ -95,9 +102,39 @@ def result_payload(
     for key in ("before_chunks", "after_chunks"):
         items = data.pop(key, None)
         if items is not None:
-            payload[key] = [{**item.pop("metadata", {}), **item} for item in items]
+            payload[key] = [
+                {
+                    **{
+                        meta_key: meta_value
+                        for meta_key, meta_value in item.pop("metadata", {}).items()
+                        if meta_key not in _JSON_TRANSPORT_KEYS
+                    },
+                    **item,
+                }
+                for item in items
+            ]
     payload.update(data)
     return payload
+
+
+def get_chunk_json(
+    requested: str,
+    document: VeraDocument,
+    record: ChunkRecord,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Return citation-ready get JSON with transport locators after metadata.
+
+    ``ok``, ``file``, and ``path`` are written last so caller chunk tags cannot
+    spoof a failed get or attribute the chunk to another archive.
+    """
+    payload = chunk_payload(record, document=document, **kwargs)
+    return {
+        **payload,
+        "file": requested,
+        "path": str(Path(document.path).resolve()),
+        "ok": True,
+    }
 
 
 def figure_data_url(figure: dict[str, Any]) -> dict[str, Any]:

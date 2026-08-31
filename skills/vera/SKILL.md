@@ -100,7 +100,9 @@ rollback history. `vera eval` opens one `.vera` archive, not a directory.
   separate searches.
 - Scope a library with `--where KEY=VALUE` (stored metadata, before `top_k`)
   or `--include PATTERN` (path discovery). Do not drop hits from JSON after
-  search. Stamp keys at convert time with `--metadata KEY=VALUE`.
+  search. Stamp keys at convert time with `--metadata KEY=VALUE`. Do not
+  stamp `file`, `path`, `ok`, or `error` — those are get/search JSON
+  locators.
 
 ## Citations and evidence
 

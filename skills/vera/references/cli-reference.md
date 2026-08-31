@@ -107,8 +107,9 @@ Options:
   metadata and every chunk so `--where` can filter before `top_k`. Values
   coerce like `--pipeline-option`. Nested JSON is rejected. Reserved keys
   (`page_start`, `page_end`, `heading_path`, `source_filename`, `document_id`,
-  `token_count`, `regions`, required format header keys, `default_embedding_*`,
-  `_vera_*`, and convert-owned fields such as `source_file_hash`) exit 2.
+  `token_count`, `regions`, JSON locators `file`/`path`/`ok`/`error`, required
+  format header keys, `default_embedding_*`, `_vera_*`, and convert-owned
+  fields such as `source_file_hash`) exit 2.
   `title` may be overridden. Directory convert applies the same tags to every
   output; hash-matched skips do not restamp.
 - `--recursive` recursively discovers PDFs in directory mode.
@@ -275,13 +276,14 @@ Success JSON (exit 0):
 }
 ```
 
-`file` is the requested path; `path` is the opened archive. `chunk_id` and
-`text` are always present; `text` is the stored chunk body, not a snippet.
-Citation fields come from chunk metadata and may be `null` when the
+`file` is the requested path; `path` is the opened archive. `ok` is `true` on
+success. Those transport keys always win over same-named chunk metadata.
+`chunk_id` and `text` are always present; `text` is the stored chunk body, not
+a snippet. Citation fields come from chunk metadata and may be `null` when the
 extractor did not set them. Other metadata keys may appear at the top level
-(search already does this). Do not expect `score`, `semantic_score`,
-`keyword_score`, or the embedding vector. `--figures` / `--regions` add
-`figures` / `regions` only when requested.
+(search already does this) except `file`, `path`, `ok`, and `error`. Do not
+expect `score`, `semantic_score`, `keyword_score`, or the embedding vector.
+`--figures` / `--regions` add `figures` / `regions` only when requested.
 
 An unknown id, or a whitespace-only `CHUNK_ID` (rejected before the archive is
 opened), exits 1 with structured JSON and no traceback:

@@ -166,9 +166,11 @@ Parameters:
 
 Returns one stored chunk as citation-ready JSON, matching
 `vera get FILE CHUNK_ID --json` (`ok`, `file`, `path`, `chunk_id`, `text`,
-and citation fields; no `score`). A missing or whitespace-only id returns
-`{"ok": false, "error": "chunk not found: ..."}` rather than raising. This
-differs from `vera_get_page`, which returns `{"error": "..."}` without `ok`.
+and citation fields; no `score`). `ok`, `file`, and `path` name the opened
+archive and are not taken from chunk metadata. A missing or whitespace-only
+id returns `{"ok": false, "error": "chunk not found: ..."}` rather than
+raising. This differs from `vera_get_page`, which returns `{"error": "..."}`
+without `ok`.
 
 ### `vera_get_chunk_regions`
 

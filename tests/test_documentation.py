@@ -250,6 +250,13 @@ def test_hardening_json_contracts_are_documented():
     assert "source_file_hash" in conversion
     assert "skipped_existing" in conversion
     assert "source_file_hash" in cli_reference
+    assert "`file`, `path`," in conversion
+    assert "`ok`, `error`" in conversion
+    assert "`file`, `path`, `ok`, `error`" in cli_reference
+    skill_cli = (ROOT / "skills" / "vera" / "references" / "cli-reference.md").read_text(
+        encoding="utf-8"
+    )
+    assert "file`/`path`/`ok`/`error`" in skill_cli
     assert "requires OCR" in conversion
     assert "## Pipeline options" in conversion
     assert "--pipeline-option" in conversion

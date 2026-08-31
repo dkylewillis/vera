@@ -23,8 +23,8 @@ from typing import Any
 from vera_doc.corpus import VeraCorpus
 from vera_doc.document import VeraDocument
 from vera_ingest.viewer import (
-    chunk_payload,
     figures,
+    get_chunk_json,
     get_chunk_regions,
     get_page,
     result_payload,
@@ -222,15 +222,15 @@ def build_server():
                 records = doc.get(ids=[chunk_id])
                 if not records:
                     return {"ok": False, "error": f"chunk not found: {chunk_id}"}
-                payload = chunk_payload(
+                return get_chunk_json(
+                    file,
+                    doc,
                     records[0],
-                    document=doc,
                     include_figures=include_figures,
                     include_regions=include_regions,
                 )
             except ValueError as exc:
                 return {"ok": False, "error": str(exc)}
-            return {"ok": True, **_archive_locator(file, doc), **payload}
         finally:
             doc.close()
 

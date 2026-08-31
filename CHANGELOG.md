@@ -8,6 +8,14 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+### Fixed
+
+- `vera get` / MCP `vera_get_chunk` JSON locators (`ok`, `file`, `path`) are
+  applied after chunk metadata so caller tags cannot spoof a failed get or
+  attribute a chunk to another archive. Convert `--metadata` now rejects
+  `file`, `path`, `ok`, and `error`. Existing archives that already stored
+  those keys still return the opened archive path.
+
 ### Added
 
 - Convert `--metadata KEY=VALUE` stamps caller tags onto archive metadata and
