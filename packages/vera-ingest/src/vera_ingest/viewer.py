@@ -79,7 +79,8 @@ def result_payload(
 
     Optional figure and region enrichment uses ingest viewer helpers. Sidecar
     callers can set ``figure_data_urls`` to replace raw figure bytes with a
-    ``data_url`` instead of forking the serializer.
+    ``data_url`` instead of forking the serializer. Extra ``as_dict()`` keys such
+    as corpus ``file`` are preserved.
     """
     payload = chunk_payload(
         result.record,
@@ -89,18 +90,13 @@ def result_payload(
         include_figure_data=include_figure_data,
         figure_data_urls=figure_data_urls,
     )
-    payload["score"] = result.score
-    if result.semantic_score is not None:
-        payload["semantic_score"] = result.semantic_score
-    if result.keyword_score is not None:
-        payload["keyword_score"] = result.keyword_score
-    if result.before or result.after:
-        payload["before_chunks"] = [
-            {**item.pop("metadata", {}), **item} for item in result.before_chunks
-        ]
-        payload["after_chunks"] = [
-            {**item.pop("metadata", {}), **item} for item in result.after_chunks
-        ]
+    data = result.as_dict()
+    data.pop("metadata", None)
+    for key in ("before_chunks", "after_chunks"):
+        items = data.pop(key, None)
+        if items is not None:
+            payload[key] = [{**item.pop("metadata", {}), **item} for item in items]
+    payload.update(data)
     return payload
 
 
