@@ -111,17 +111,20 @@ Options:
   `_vera_*`, and convert-owned fields such as `source_file_hash`) exit 2.
   `title` may be overridden. Directory convert applies the same tags to every
   output; hash-matched skips do not restamp.
-- `--recursive` recursively discovers PDFs in directory mode.
+- `--recursive` recursively discovers supported source files in directory
+  mode (PDF, Markdown, and Office/HTML when Docling is installed).
 - `--overwrite` replaces existing outputs in directory mode. Without it,
   a sibling `.vera` is skipped only when it validates and its stored
-  `source_file_hash` matches the current PDF.
+  `source_file_hash` matches the current source file.
 - `--json` emits one JSON object.
 
 Each pipeline owns typed defaults and validation. Advertised integer
 `minimum`/`maximum` bounds are enforced (`chunk_size` 100–3000; hashing
 `dimension` 8–4096). PyMuPDF defaults:
 `chunk_size=500` whitespace-split words, `overlap=75` words, `ocr_mode=auto`,
-`ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false`. Docling defaults:
+`ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false`. Markdown defaults:
+`chunk_size=500` words, `overlap=75` words (OCR keys are ignored so a mixed
+PDF+Markdown directory convert can reuse one `pipeline_options` bag). Docling defaults:
 `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`,
 `pdf_backend=docling_parse`
 (no overlap/DPI/download fields; auto page recovery / `pypdfium2` fallback on
@@ -138,8 +141,8 @@ installed Tesseract `.traineddata` file with `TESSDATA_PREFIX` set — the error
 raised for a missing language explains which applies. PDFs that yield no
 searchable chunks after OCR fail with an OCR-specific message. OCR targets
 scanned prose; it does not reconstruct scanned tables or complex page layouts.
-For a directory, outputs are written beside their PDFs. Supplying `OUTPUT`
-with a directory is an error.
+For a directory, outputs are written beside their source files. Supplying
+`OUTPUT` with a directory is an error.
 
 Single-file JSON:
 
@@ -193,8 +196,8 @@ Directory JSON:
 ```
 
 Existing outputs are validated: only valid archives whose stored
-`source_file_hash` matches the current PDF appear in `skipped_existing`.
-Changed PDFs and archives with a missing or unreadable hash are reconverted.
+`source_file_hash` matches the current source file appear in `skipped_existing`.
+Changed sources and archives with a missing or unreadable hash are reconverted.
 Invalid archives appear in `malformed_existing`.
 `skipped_by_user` / `user_skipped` are reserved for interactive skip
 requests (desktop app); CLI runs leave them empty. Each error entry has
@@ -327,8 +330,10 @@ Options:
 - `--where KEY=VALUE` filters stored archive and chunk metadata before
   `top_k` and is repeatable. Distinct keys are AND. Comma-separated values
   are IN. Repeated flags for the same key union the IN set. Values coerce
-  like `--pipeline-option`. Empty comma tokens are an error (exit 2).
-  Do not post-filter the JSON `results` array.
+  like `--pipeline-option`. A missing key fails the predicate. List-valued
+  *stored* metadata is not an IN clause. Empty comma tokens are an error
+  (exit 2). Do not post-filter the JSON `results` array. Desktop Search
+  and Ask have no `--where` control.
 - `--json` emits one JSON object.
 
 Single-archive JSON:
@@ -512,6 +517,12 @@ unstructured error and exits 1.
 ### `vera index status DIRECTORY`
 
 Options: `--json`.
+
+CLI status hashes indexed archives (`verify_hashes` defaults to true;
+`verified_at` is set). Directory search and `VeraCorpus.open` use
+size/mtime only (`verify_hashes=false`; `verified_at` is null). The desktop
+index badge uses that fast check; **Inspect** on a library folder refreshes
+with full hashes.
 
 Missing index:
 

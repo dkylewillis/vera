@@ -241,7 +241,7 @@ vera validate "manual.vera" --json
 vera search "manual.vera" "target question" --top-k 5 --json
 ```
 
-Nested PDF library:
+Nested source library:
 
 ```bash
 vera convert "./proposals" --recursive --json
@@ -250,7 +250,7 @@ vera search "./proposals" "termination clause" --top-k 10 --json
 ```
 
 Batch conversion skips an existing `.vera` only when it validates and its
-stored `source_file_hash` matches the current PDF. Changed PDFs and
+stored `source_file_hash` matches the current source file. Changed sources and
 archives with a missing or unreadable hash are reconverted. Check
 `malformed_existing` and replace those archives intentionally with
 `--overwrite`. Automatic conversion selectively OCRs image-based low-text

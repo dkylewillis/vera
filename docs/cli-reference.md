@@ -144,7 +144,9 @@ group from participating in semantic or hybrid retrieval. Non-JSON output
 prints the same entries as warnings.
 
 `--where` filters stored archive and chunk metadata before `top_k`. Do not
-post-filter the JSON `results` array. `--include` and `--exclude` choose
+post-filter the JSON `results` array. Values coerce like `--pipeline-option`.
+A missing key fails the predicate. List-valued *stored* metadata is not an
+IN clause. `--include` and `--exclude` choose
 files during discovery. When a `--where` key is not archive metadata or an
 indexed citation column, directory search falls back to per-file search and
 sets `index.used` to false with `chunk metadata filter not in collection index`
@@ -182,7 +184,9 @@ Report whether an index exists and is fresh, including the paths, categories,
 and reasons retained for files skipped by the active index. Existing-index
 reports also include generation/build/check/verification timestamps, storage
 sizes, source-versus-indexed chunk coverage, and per-model dimensions and
-document/chunk counts.
+document/chunk counts. CLI status hashes archives (`verified_at` is set).
+Directory search and the desktop badge use size/mtime only
+(`verified_at` is null) unless desktop **Inspect** refreshes with hashes.
 
 Options: `--json`.
 

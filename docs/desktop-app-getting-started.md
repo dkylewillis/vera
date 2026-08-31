@@ -183,10 +183,12 @@ rather than treating the folder as unindexed.
 
 Parent and empty folders can also be activated as libraries. Nested `.vera`
 files are discovered recursively when there is no saved index configuration.
-Explorer lists `.vera` and `.pdf` files up to 32 directory levels below a
+Explorer lists `.vera`, `.pdf`, and `.md` / `.markdown` files up to 32 directory levels below a
 library root (the root itself is depth 0). Deeper files are omitted from the
 tree. The listing payload sets `truncated: true` when that cap is hit;
-Explorer does not show a banner for it. A folder with no `.vera` files remains active and watched; Search and
+Explorer does not show a banner for it. Office and HTML
+sources are not listed in Explorer — convert them with `vera-cli[docling]`.
+A folder with no `.vera` files remains active and watched; Search and
 Ask report that nothing is searchable until archives are present.
 
 ## Check or build the app
