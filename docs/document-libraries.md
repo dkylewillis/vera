@@ -173,9 +173,12 @@ indexed search before `top_k`. Do not post-filter the JSON `results` array.
 `vera index status --json` also reports the active generation and timestamps,
 database/vector/total storage, `indexed_chunks` versus `source_chunks`
 coverage, discovery settings, skipped files, and a `model_groups` array with
-dimensions and document/chunk counts. These fields power the desktop app's
-Library Info view. On current builds the two chunk counters match; older
-indexes may report indexed chunks as the source total until rebuilt.
+dimensions and document/chunk counts. CLI status hashes archives and sets
+`verified_at`. Directory search and the desktop badge compare size/mtime only
+(`verified_at` is null) unless **Inspect** refreshes with hashes. These fields
+power the desktop app's Library Info view. On current builds the two chunk
+counters match; older indexes may report indexed chunks as the source total
+until rebuilt.
 
 ## Mixed embedding models
 

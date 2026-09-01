@@ -129,6 +129,10 @@ def test_portable_skill_documents_hardened_library_contracts():
     assert "`--pipeline-option KEY=VALUE`" in reference
     assert "Compatibility alias" in reference or "compatibility alias" in reference
     assert "Docling defaults:" in reference
+    assert "Markdown defaults:" in reference
+    assert "current source file" in skill
+    assert "current source file" in reference
+    assert "A missing key fails the predicate" in reference
     assert "whitespace-split words" in reference
     assert "ocr_language=en" in reference
     assert "does not receive" in reference

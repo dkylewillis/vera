@@ -334,7 +334,8 @@ override aliases for the same key.
 | Pipeline | Defaults | Notes |
 | --- | --- | --- |
 | PyMuPDF (`pymupdf`) | `chunk_size=500` words, `overlap=75` words, `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false` | Sliding-window chunks of whitespace-split words (`str.split()`, not characters or LLM subword tokens); Tesseract OCR; language picker lists bundled/downloadable codes |
-| Docling (`docling`) | `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | PDF, DOCX, PPTX, XLSX, HTML (`.htm`). No `overlap` / `ocr_dpi` / Tesseract `--ocr-language` aliases; RapidOCR and auto page recovery / `pypdfium2` fallback apply to **PDFs only**. Office/HTML are search-only (no highlight overlay) |
+| Markdown (`markdown`) | `chunk_size=500` words, `overlap=75` words | Bundled in `vera-ingest`. ATX/Setext headings, lists, fenced code, GFM tables; heading-aware sliding windows. Citations use heading paths and `text_span` locators, not PDF page boxes. Silently ignores OCR keys (`ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_download`) so a mixed PDF+Markdown directory convert can reuse one `pipeline_options` bag |
+| Docling (`docling`) | `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | PDF, DOCX, PPTX, XLSX, HTML (`.htm`). No `overlap` / `ocr_dpi` / Tesseract `--ocr-language` aliases; RapidOCR and auto page recovery / `pypdfium2` fallback apply to **PDFs only**. Office/HTML are search-only (no highlight overlay). The 0.3.x desktop app excludes this pipeline; Explorer does not list Office/HTML sources |
 
 Discover descriptors from Python with `describe_ingest_pipeline` /
 `list_ingest_pipeline_descriptors`, or from the desktop sidecar action

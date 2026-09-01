@@ -130,11 +130,13 @@ export the original once the archive is readable.
 
 ## Explorer is missing nested files
 
-The desktop Explorer lists `.vera` and `.pdf` files up to 32 directory
-levels below a library root. Files deeper than that are omitted from the
-tree; the listing payload sets `truncated: true`, but Explorer does not
-show a banner for that cap. Flatten the folder layout or open the nested
-directory as its own library.
+The desktop Explorer lists `.vera`, `.pdf`, and `.md` / `.markdown` files up
+to 32 directory levels below a library root. Files deeper than that are
+omitted from the tree; the listing payload sets `truncated: true`, but
+Explorer does not show a banner for that cap. Flatten the folder layout or
+open the nested directory as its own library. Office and HTML sources
+(`.docx`, `.pptx`, `.xlsx`, `.html`, `.htm`) are not listed — convert those
+with the CLI Docling extra, then search the resulting `.vera`.
 
 ## A collection index is stale
 
@@ -145,6 +147,11 @@ vera index status "./library" --json
 ```
 
 This command exits 1 when stale or missing while still returning a JSON report.
+`vera index status` hashes every indexed archive (`verify_hashes` defaults to
+true; `verified_at` is set). Directory search and the desktop index badge use
+size and mtime only (`verify_hashes=false`; `verified_at` is null), so a
+same-size, same-mtime byte change is not stale until you run `index status` or
+desktop **Inspect** (that library refresh passes `verify_hashes=true`).
 Rebuild with saved settings:
 
 ```bash
@@ -203,14 +210,14 @@ vera index build "./library" --recursive --json
 ## Conversion skips files
 
 Directory conversion skips an existing same-named `.vera` only when it
-validates and its stored `source_file_hash` matches the current PDF.
-Changed PDFs and archives with a missing or unreadable hash are reconverted.
-Review `skipped_existing` for unchanged skips and
-`malformed_existing` for archives that must be repaired or replaced. Use
-`--overwrite` only when replacement is intentional:
+validates and its stored `source_file_hash` matches the current source file
+(PDF, Markdown, or Office/HTML). Changed sources and archives with a missing
+or unreadable hash are reconverted. Review `skipped_existing` for unchanged
+skips and `malformed_existing` for archives that must be repaired or replaced.
+Use `--overwrite` only when replacement is intentional:
 
 ```bash
-vera convert "./pdfs" --recursive --overwrite --json
+vera convert "./sources" --recursive --overwrite --json
 ```
 
 ## Conversion says a PDF requires OCR
@@ -353,6 +360,18 @@ now prefers a sibling `manual.pdf` next to `manual.vera` and reuses a cache
 file on later opens instead of extracting and re-hashing the embedded
 original. If the load still exceeds five minutes, cancel it from the viewer
 close control and keep the matching PDF beside the archive.
+
+## `--where` returns no hits
+
+`--where` is exact equality on top-level stored keys, applied before `top_k`.
+A missing key fails the predicate. Values coerce like `--pipeline-option`
+(digit-only integers, `true`/`false`/`yes`/`no`/`on`/`off` booleans, otherwise
+strings; dotted tokens such as `3.10` stay strings). CLI `--metadata year=2024`
+and `--where year=2024` both become ints and match; a Python tag stored as
+the string `"2024"` does not match `--where year=2024`. List-valued *stored*
+metadata is not an IN clause — IN applies only to the filter value
+(`--where company=GRID,PWRX`). Empty comma tokens exit 2. Desktop Search and
+Ask have no `--where` control; use the CLI or MCP.
 
 ## Search skips a semantic model group
 

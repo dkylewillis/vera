@@ -110,14 +110,19 @@ vera search "./library" "adding capacity" \
 ```
 
 Distinct `--where` keys are AND. Comma-separated values for one key are IN.
-Stamp those keys at convert time:
+Repeated flags for the same key union the IN set. Values coerce like
+`--pipeline-option` (digit-only integers, boolean words, otherwise strings;
+dotted tokens such as `3.10` stay strings). A missing key fails the predicate.
+List-valued *stored* metadata is not an IN clause. Stamp those
+keys at convert time:
 
 ```bash
 vera convert filing.md archives/src_aaa.vera --metadata company=GRID --json
 ```
 
 `--include` and `--exclude` choose files by relative path (discovery), not
-metadata. `--include` on a single-file search exits 2.
+metadata. `--include` on a single-file search exits 2. Desktop Search and Ask
+do not expose `--where`; use the CLI or MCP.
 
 To reload one stored chunk by id — for example to verify that a quoted span is
 still in the chunk body — use `vera get FILE CHUNK_ID --json` (MCP:

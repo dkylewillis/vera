@@ -74,11 +74,15 @@ path.
   freshness but does not rebuild it; rebuilds occur only through an explicit
   build or update action.
 - `vera index status` compares the manifest with the current library and checks
-  file content hashes, the SQLite database, and vector matrix shapes.
+  file content hashes (`verify_hashes` defaults to true), the SQLite database,
+  and vector matrix shapes. JSON sets `verified_at` when hashes ran.
 - `vera search <root>` uses a fresh index automatically. A missing or stale
   index falls back to direct corpus search using the saved discovery settings.
-  Automatic searches use a fast size/mtime freshness check; `index status`
-  performs the full hash verification.
+  Automatic searches and `VeraCorpus.open` use a fast size/mtime freshness
+  check (`verify_hashes=false`; `verified_at` is null). The desktop index
+  badge uses the same fast check; **Inspect** on a library folder refreshes
+  with full hashes. A same-size, same-mtime byte change is not stale until
+  that full verification.
 
 Skipped archives are recorded so they stay visible in build reports without
 making an otherwise valid index permanently stale. Build/update JSON lists

@@ -270,6 +270,8 @@ def test_hardening_json_contracts_are_documented():
     assert "compatibility alias" in conversion.lower() or "Compatibility aliases" in conversion
     assert "ocr_language=en" in conversion
     assert "whitespace-split words" in conversion
+    assert "Markdown (`markdown`)" in conversion
+    assert "Silently ignores OCR keys" in conversion
     assert "Sliding-window character chunks" not in conversion
     assert "overlap" in conversion and "ocr_dpi" in conversion
     assert "**not** forwarded to" in conversion
@@ -399,6 +401,7 @@ def test_hardening_json_contracts_are_documented():
     assert "Could not read archive metadata" in desktop_architecture
     assert "LIST_FOLDER_MAX_DEPTH" in desktop_architecture
     assert "32 directory levels" in desktop
+    assert "`.md` / `.markdown`" in desktop
     assert "`truncated: true`" in desktop_architecture
     assert "does not display the flag" in desktop_architecture
     assert "`cancel`" in desktop_architecture
@@ -770,6 +773,12 @@ def test_operational_docs_cover_recent_public_interfaces():
     assert "200 alphanumeric" in troubleshooting
     assert "Could not read archive metadata" in troubleshooting
     assert "32 directory" in troubleshooting
+    assert "`.md` / `.markdown`" in troubleshooting
+    assert "current source file" in troubleshooting
+    assert "verify_hashes" in troubleshooting
+    assert "same-size, same-mtime" in troubleshooting
+    assert "A missing key fails the predicate" in searching
+    assert "A missing key" in python_api
     assert "`truncated: true`" in troubleshooting
     assert "list_ingest_pipeline_load_errors" in troubleshooting
     assert "Plugin load errors:" in troubleshooting
@@ -861,6 +870,8 @@ def test_index_ask_and_embedder_operational_docs():
 
     assert "future explicit garbage-collection command" not in collection
     assert "deletes every other generation directory" in collection
+    assert "verify_hashes" in collection
+    assert "same-size, same-mtime" in collection
     assert "build.lock" in collection
     assert "No .vera files found in" in collection
     assert "indexed_chunks" in collection and "source_chunks" in collection

@@ -198,8 +198,10 @@ exposes `result.citation` (`page_start`, `page_end`, `heading_path`,
 `source_filename`, `document_id`) derived from chunk metadata. Pass
 `vector=[...]` instead of text for vector-only semantic search. Portable
 metadata filtering supports exact equality on top-level keys; a list, tuple,
-or set value is IN (OR within that key). Distinct keys are AND. List-valued
-*stored* metadata is not an IN clause.
+or set value is IN (OR within that key). Distinct keys are AND. A missing key fails the predicate.
+List-valued *stored* metadata is not an IN clause.
+CLI `--where` / `--metadata` coerce digit-only tokens to ints, so a string
+`"2024"` stored from Python does not match `--where year=2024`.
 
 ```python
 hits = document.search("detention", mode="hybrid", where={"company": ["GRID", "PWRX"]})
