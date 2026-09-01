@@ -57,10 +57,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     convert_p = sub.add_parser(
-        "convert", help="Convert a PDF, Markdown, Office/HTML (Docling extra), or a directory of sources to VERA files"
+        "convert",
+        help="Convert a PDF, Markdown, Office/HTML (Docling extra), or a directory of sources to VERA files",
     )
     convert_p.add_argument(
-        "input", help="PDF, Markdown, Office/HTML (with Docling), or directory containing supported source files"
+        "input",
+        help="PDF, Markdown, Office/HTML (with Docling), or directory containing supported source files",
     )
     convert_p.add_argument(
         "output", nargs="?", default=None, help="Output .vera path for a single source file"
