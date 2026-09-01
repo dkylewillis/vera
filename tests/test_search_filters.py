@@ -9,9 +9,12 @@ from pathlib import Path
 
 import pytest
 
+from vera_cli.commands import _where_from_args
 from vera_cli.main import build_parser
 from vera_doc import ChunkRecord, VeraCorpus, VeraDocument, build_library_index
+from vera_doc._where import metadata_matches, metadata_value_matches
 from vera_doc.collection import CHUNK_METADATA_FILTER_REASON, discover_vera_files
+from vera_doc.corpus import _archive_where_skips
 from vera_ingest import ReservedMetadataKeyError, convert
 
 
@@ -74,6 +77,28 @@ def test_convert_rejects_reserved_metadata_keys(tmp_path: Path) -> None:
     for key in ("file", "path", "ok", "error"):
         with pytest.raises(ReservedMetadataKeyError, match=key):
             convert(str(source), str(out), metadata={key: "spoofed"})
+    with pytest.raises(ReservedMetadataKeyError, match="_vera_"):
+        convert(str(source), str(out), metadata={"_vera_internal": "x"})
+    with pytest.raises(ReservedMetadataKeyError, match="default_embedding_"):
+        convert(str(source), str(out), metadata={"default_embedding_foo": "x"})
+    with pytest.raises(ReservedMetadataKeyError, match="format_name"):
+        convert(str(source), str(out), metadata={"format_name": "VERA"})
+    assert not out.exists()
+
+
+def test_convert_rejects_non_scalar_and_empty_metadata_keys(tmp_path: Path) -> None:
+    source = tmp_path / "notes.md"
+    source.write_text("# Detention\n\nPonds.\n", encoding="utf-8")
+    out = tmp_path / "notes.vera"
+    with pytest.raises(ValueError, match="JSON scalar"):
+        convert(str(source), str(out), metadata={"tags": ["GRID", "PWRX"]})
+    with pytest.raises(ValueError, match="JSON scalar"):
+        convert(str(source), str(out), metadata={"nested": {"company": "GRID"}})
+    with pytest.raises(ValueError, match="JSON scalar"):
+        convert(str(source), str(out), metadata={"score": float("nan")})
+    with pytest.raises(ValueError, match="non-empty strings"):
+        convert(str(source), str(out), metadata={"": "GRID"})
+    assert not out.exists()
 
 
 def test_cli_convert_metadata_and_where(tmp_path: Path) -> None:
@@ -118,6 +143,41 @@ def test_cli_reserved_metadata_exits_2(tmp_path: Path) -> None:
     assert "page_start" in payload["error"]
 
 
+def test_cli_where_comma_in_and_empty_value(tmp_path: Path) -> None:
+    library = tmp_path / "archives"
+    library.mkdir()
+    _convert_company(library / "grid.vera", "GRID", sections=3)
+    _convert_company(library / "pwrx.vera", "PWRX", sections=3)
+    both = _run_cli(
+        "search",
+        str(library),
+        "adding capacity",
+        "--mode",
+        "keyword",
+        "--top-k",
+        "6",
+        "--where",
+        "company=GRID,PWRX",
+        "--json",
+    )
+    assert both.returncode == 0, both.stderr
+    files = {Path(hit["file"]).name for hit in json.loads(both.stdout)["results"]}
+    assert files == {"grid.vera", "pwrx.vera"}
+
+    empty = _run_cli(
+        "search",
+        str(library),
+        "adding capacity",
+        "--where",
+        "company=",
+        "--json",
+    )
+    assert empty.returncode == 2
+    payload = json.loads(empty.stdout)
+    assert payload["ok"] is False
+    assert "empty" in payload["error"]
+
+
 def test_cli_include_on_file_exits_2(tmp_path: Path) -> None:
     source = tmp_path / "notes.md"
     out = tmp_path / "notes.vera"
@@ -142,6 +202,44 @@ def test_cli_where_without_equals_exits_2() -> None:
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["search", "library", "query", "--where", "company"])
     assert exc.value.code == 2
+
+
+def test_where_from_args_comma_in_repeat_union_and_coercion() -> None:
+    assert _where_from_args([]) is None
+    assert _where_from_args([("company", "GRID")]) == {"company": "GRID"}
+    assert _where_from_args([("company", "GRID,PWRX")]) == {"company": ["GRID", "PWRX"]}
+    assert _where_from_args([("company", "GRID"), ("company", "PWRX")]) == {
+        "company": ["GRID", "PWRX"]
+    }
+    assert _where_from_args([("company", "GRID"), ("company", "GRID")]) == {"company": "GRID"}
+    assert _where_from_args([("enabled", "true"), ("page_start", "12")]) == {
+        "enabled": True,
+        "page_start": 12,
+    }
+    assert _where_from_args([("version", "3.10")]) == {"version": "3.10"}
+    with pytest.raises(ValueError, match="must not be empty"):
+        _where_from_args([("company", "")])
+    with pytest.raises(ValueError, match="must not be empty"):
+        _where_from_args([("company", "GRID,")])
+
+
+def test_metadata_matches_missing_keys_in_and_stored_lists() -> None:
+    assert metadata_matches(None, None) is True
+    assert metadata_matches({}, {}) is True
+    assert metadata_matches({"company": "GRID"}, None) is True
+    assert metadata_matches({}, {"company": "GRID"}) is False
+    assert metadata_matches({"company": "GRID"}, {"company": "GRID"}) is True
+    assert metadata_matches({"company": "GRID"}, {"company": ["GRID", "PWRX"]}) is True
+    assert metadata_matches({"company": "GRID"}, {"company": ["PWRX"]}) is False
+    assert (
+        metadata_matches(
+            {"company": "GRID", "kind": "filing"}, {"company": "GRID", "kind": "slide"}
+        )
+        is False
+    )
+    assert metadata_matches({"tags": ["GRID", "PWRX"]}, {"tags": "GRID"}) is False
+    assert metadata_value_matches("GRID", set()) is False
+    assert metadata_value_matches(None, [None]) is True
 
 
 def test_corpus_where_fills_top_k_from_matching_files(tmp_path: Path) -> None:
@@ -182,6 +280,35 @@ def test_corpus_where_fills_top_k_from_matching_files(tmp_path: Path) -> None:
             where={"company": "GRID", "document_type": "slides"},
         )
         assert miss == []
+        # Convert-owned archive headers are not copied onto chunks, so a
+        # where key that exists only on the archive matches no hits.
+        assert (
+            corpus.search(
+                "adding capacity",
+                mode="keyword",
+                top_k=5,
+                where={"source_file_name": "grid.md"},
+            )
+            == []
+        )
+        by_citation = corpus.search(
+            "adding capacity",
+            mode="keyword",
+            top_k=5,
+            where={"source_filename": "pwrx.md"},
+        )
+        assert by_citation
+        assert all(Path(hit.file).name == "pwrx.vera" for hit in by_citation)
+
+
+def test_archive_where_skips_only_keys_present_on_the_archive(tmp_path: Path) -> None:
+    path = _convert_company(tmp_path / "grid.vera", "GRID", sections=2)
+    with VeraDocument.open(str(path)) as document:
+        assert _archive_where_skips(document, None) is False
+        assert _archive_where_skips(document, {"company": "GRID"}) is False
+        assert _archive_where_skips(document, {"company": "PWRX"}) is True
+        assert _archive_where_skips(document, {"discipline": "civil"}) is False
+        assert _archive_where_skips(document, {"company": "GRID", "discipline": "civil"}) is False
 
 
 def test_include_exclude_discovery_matrix(tmp_path: Path) -> None:
@@ -255,6 +382,18 @@ def test_indexed_archive_where_and_chunk_fallback(tmp_path: Path) -> None:
         assert CHUNK_METADATA_FILTER_REASON in report["reasons"]
         assert results
         assert all(hit.record.metadata.get("discipline") == "civil" for hit in results)
+
+    with VeraCorpus.open(str(library)) as corpus:
+        cited = corpus.search(
+            "adding capacity",
+            mode="keyword",
+            top_k=3,
+            where={"source_filename": "grid.md"},
+        )
+        report = corpus.index_search_report()
+        assert report["used"] is True
+        assert cited
+        assert all(hit.record.metadata.get("source_filename") == "grid.md" for hit in cited)
 
 
 def _chunk_only_archive(path: Path, discipline: str, text: str) -> None:
