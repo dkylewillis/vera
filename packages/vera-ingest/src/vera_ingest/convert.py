@@ -88,6 +88,12 @@ _RESERVED_CALLER_METADATA_KEYS = frozenset(
         METADATA_DOCUMENT_ID,
         "token_count",
         "regions",
+        # CLI/MCP JSON locators and get-protocol keys. Stamping these onto
+        # chunks lets metadata overwrite vera get / search transport fields.
+        "file",
+        "path",
+        "ok",
+        "error",
         *_CONVERT_OWNED_ARCHIVE_KEYS,
     }
 )

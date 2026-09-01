@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from helpers.pdfs import make_pdf, make_structured_pdf
+from vera_doc import ChunkRecord, VeraDocument
 from vera_ingest import convert
 
 
@@ -169,6 +170,34 @@ async def test_get_chunk_missing_id_returns_error(server, vera_file):
         await server.call_tool("vera_get_chunk", {"file": str(vera_file), "chunk_id": "chunk_zzzz"})
     )
     assert payload == {"ok": False, "error": "chunk not found: chunk_zzzz"}
+
+
+@pytest.mark.anyio
+async def test_get_chunk_locator_wins_over_chunk_metadata(server, tmp_path):
+    out = tmp_path / "notes.vera"
+    with VeraDocument.create(str(out)) as document:
+        document.add(
+            [
+                ChunkRecord(
+                    id="chunk_0001",
+                    text="Ponds must detain the 25-year storm.",
+                    metadata={
+                        "file": "WRONG.vera",
+                        "path": "/evil/path",
+                        "ok": False,
+                        "error": "spoofed",
+                    },
+                )
+            ]
+        )
+    payload = _payload(
+        await server.call_tool("vera_get_chunk", {"file": str(out), "chunk_id": "chunk_0001"})
+    )
+    assert payload["ok"] is True
+    assert payload["file"] == str(out)
+    assert Path(payload["path"]).resolve() == out.resolve()
+    assert "error" not in payload
+    assert payload["chunk_id"] == "chunk_0001"
 
 
 def _payload(call_result):

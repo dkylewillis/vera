@@ -21,11 +21,11 @@ from vera_ingest import (
     convert,
 )
 from vera_ingest.viewer import (
-    chunk_payload,
     ensure_requested_figures,
     export_figures,
     export_source_document,
     figures,
+    get_chunk_json,
     get_source_document,
     result_payload,
 )
@@ -256,16 +256,17 @@ def cmd_get(args) -> int:
             records = doc.get(ids=[chunk_id])
             if not records:
                 return _emit_get_error(args, _chunk_not_found_message(chunk_id))
-            payload = chunk_payload(
+            payload = get_chunk_json(
+                args.file,
+                doc,
                 records[0],
-                document=doc,
                 include_figures=args.figures,
                 include_regions=args.regions,
             )
         except ValueError as exc:
             return _emit_get_error(args, str(exc))
         if args.json:
-            print(json.dumps({"ok": True, **_archive_locator(args.file, doc), **payload}))
+            print(json.dumps(payload))
             return 0
         citation = Citation.from_metadata(records[0].metadata)
         print(f"Source: {citation.source_filename}")

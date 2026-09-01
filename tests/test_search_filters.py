@@ -74,6 +74,9 @@ def test_convert_rejects_reserved_metadata_keys(tmp_path: Path) -> None:
         convert(str(source), str(out), metadata={"page_start": 1})
     with pytest.raises(ReservedMetadataKeyError, match="source_file_hash"):
         convert(str(source), str(out), metadata={"source_file_hash": "abc"})
+    for key in ("file", "path", "ok", "error"):
+        with pytest.raises(ReservedMetadataKeyError, match=key):
+            convert(str(source), str(out), metadata={key: "spoofed"})
     with pytest.raises(ReservedMetadataKeyError, match="_vera_"):
         convert(str(source), str(out), metadata={"_vera_internal": "x"})
     with pytest.raises(ReservedMetadataKeyError, match="default_embedding_"):

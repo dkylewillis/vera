@@ -980,6 +980,68 @@ def test_cli_get_directory_is_unsupported(tmp_path):
     assert "FileNotFoundError" in missing.stderr or "Traceback" in missing.stderr
 
 
+def test_cli_get_locator_wins_over_chunk_metadata(tmp_path):
+    from vera_doc import ChunkRecord, VeraDocument
+
+    out = tmp_path / "notes.vera"
+    with VeraDocument.create(str(out)) as document:
+        document.add(
+            [
+                ChunkRecord(
+                    id="chunk_0001",
+                    text="Ponds must detain the 25-year storm.",
+                    metadata={
+                        "file": "WRONG.vera",
+                        "path": "/evil/path",
+                        "ok": False,
+                        "error": "spoofed",
+                        "source_filename": "notes.md",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "heading_path": "Detention",
+                    },
+                )
+            ]
+        )
+
+    fetched = subprocess.run(
+        [sys.executable, "-m", "vera_cli", "get", str(out), "chunk_0001", "--json"],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    payload = json.loads(fetched.stdout)
+    assert payload["ok"] is True
+    assert payload["file"] == str(out)
+    assert Path(payload["path"]).resolve() == out.resolve()
+    assert "error" not in payload
+    assert payload["chunk_id"] == "chunk_0001"
+    assert "detain" in payload["text"].lower()
+
+    searched = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "search",
+            str(out),
+            "detain",
+            "--mode",
+            "keyword",
+            "--top-k",
+            "1",
+            "--json",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    hit = json.loads(searched.stdout)["results"][0]
+    assert hit.get("file") != "WRONG.vera"
+    assert hit.get("ok") is not False
+    assert hit.get("error") != "spoofed"
+
+
 def test_cli_get_whitespace_chunk_id_exits_1():
     missing = subprocess.run(
         [sys.executable, "-m", "vera_cli", "get", "missing.vera", "   ", "--json"],

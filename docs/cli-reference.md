@@ -66,8 +66,8 @@ Options:
 - `--embedder-option KEY=VALUE` (repeatable; provider-owned embedding options
   forwarded to the selected embedding provider)
 - `--metadata KEY=VALUE` (repeatable; stamps the same keys onto archive
-  metadata and every chunk; reserved citation, ingest, and format keys are
-  rejected)
+  metadata and every chunk; reserved citation, ingest, format, and JSON
+  locator keys (`file`, `path`, `ok`, `error`) are rejected)
 - `--recursive`
 - `--overwrite`
 - `--json`
@@ -112,9 +112,11 @@ Options:
 
 JSON is one object with `ok`, `file`, `path`, `chunk_id`, `text`, and the same
 citation fields as a search hit (`page_start`, `page_end`, `heading_path`,
-`source_filename`, `document_id`). It does not include `score`. `--figures` and
-`--regions` add the same metadata shapes as `vera search`. An unknown or
-whitespace-only id exits 1 with `{"ok": false, "error": "chunk not found: ..."}`.
+`source_filename`, `document_id`). `ok`, `file`, and `path` are transport
+fields for the opened archive and are not taken from chunk metadata. It does
+not include `score`. `--figures` and `--regions` add the same metadata shapes
+as `vera search`. An unknown or whitespace-only id exits 1 with
+`{"ok": false, "error": "chunk not found: ..."}`.
 
 ## `vera search FILE_OR_DIRECTORY QUERY`
 
