@@ -51,6 +51,39 @@ def _write_manual(path: Path, body: str = SAMPLE) -> Path:
     return path
 
 
+def test_markdown_parser_strips_bom_and_keeps_frontmatter():
+    text = "\ufeff---\ntitle: Manual\n---\n\n# Heading\n\nBody text.\n"
+    pages, blocks = parse_markdown(text)
+    assert not pages[0].text.startswith("\ufeff")
+    assert pages[0].text.startswith("---")
+    assert blocks[0].parsed.block_type == "paragraph"
+    assert "title: Manual" in blocks[0].parsed.text
+    heading = next(item for item in blocks if item.parsed.block_type == "heading")
+    assert heading.parsed.text == "Heading"
+
+
+def test_markdown_parser_unclosed_fence_emits_code():
+    _, blocks = parse_markdown("```python\nprint(1)\n")
+    code = next(item for item in blocks if item.parsed.block_type == "code")
+    assert "print(1)" in code.parsed.text
+
+
+def test_markdown_parser_empty_atx_heading_skips_paragraph():
+    _, blocks = parse_markdown("#\n\nBody paragraph.\n")
+    heading = next(item for item in blocks if item.parsed.block_type == "heading")
+    assert heading.parsed.text == ""
+    assert heading.parsed.heading_level == 1
+    paragraphs = [item for item in blocks if item.parsed.block_type == "paragraph"]
+    assert [item.parsed.text for item in paragraphs] == ["Body paragraph."]
+
+
+def test_markdown_parser_setext_heading():
+    _, blocks = parse_markdown("Detention\n=========\n\nPonds detain.\n")
+    heading = next(item for item in blocks if item.parsed.block_type == "heading")
+    assert heading.parsed.text == "Detention"
+    assert heading.parsed.heading_level == 1
+
+
 def test_markdown_parser_splits_headings_tables_and_code():
     pages, blocks = parse_markdown(SAMPLE)
     assert len(pages) == 1
