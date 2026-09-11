@@ -382,8 +382,11 @@ strings; dotted tokens such as `3.10` stay strings). CLI `--metadata year=2024`
 and `--where year=2024` both become ints and match; a Python tag stored as
 the string `"2024"` does not match `--where year=2024`. List-valued *stored*
 metadata is not an IN clause — IN applies only to the filter value
-(`--where company=GRID,PWRX`). Empty comma tokens exit 2. Desktop Search and
-Ask have no `--where` control; use the CLI or MCP.
+(`--where company=GRID,PWRX`). Empty comma tokens exit 2. Convert-owned
+archive headers such as `source_file_name` match indexed directory search
+only; stamp caller tags with `--metadata` if you need the same filter on a
+single file. Desktop Search and Ask have no `--where` control; use the CLI
+or MCP.
 
 ## Search skips a semantic model group
 

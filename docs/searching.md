@@ -130,8 +130,11 @@ vera convert filing.md archives/src_aaa.vera --metadata company=GRID --json
 ```
 
 `--include` and `--exclude` choose files by relative path (discovery), not
-metadata. `--include` on a single-file search exits 2. Desktop Search and Ask
-do not expose `--where`; use the CLI or MCP.
+metadata. `--include` on a single-file search exits 2. Convert `--metadata`
+tags match everywhere. Convert-owned archive headers such as
+`source_file_name` match indexed directory search; single-file and fallback
+search evaluate chunk metadata only. Desktop Search and Ask do not expose
+`--where`; use the CLI or MCP.
 
 To reload one stored chunk by id — for example to verify that a quoted span is
 still in the chunk body — use `vera get FILE CHUNK_ID --json` (MCP:

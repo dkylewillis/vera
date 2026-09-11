@@ -337,13 +337,15 @@ Options:
   repeatable. If any include is present, a file must match at least one
   include and no exclude. Directory search only; a single-file target
   exits 2 with `{"ok": false, "error": "--include applies to directory search only"}`.
-- `--where KEY=VALUE` filters stored archive and chunk metadata before
-  `top_k` and is repeatable. Distinct keys are AND. Comma-separated values
-  are IN. Repeated flags for the same key union the IN set. Values coerce
-  like `--pipeline-option`. A missing key fails the predicate. List-valued
-  *stored* metadata is not an IN clause. Empty comma tokens are an error
-  (exit 2). Do not post-filter the JSON `results` array. Desktop Search
-  and Ask have no `--where` control.
+- `--where KEY=VALUE` is applied before `top_k` and is repeatable. Distinct
+  keys are AND. Comma-separated values are IN. Repeated flags for the same
+  key union the IN set. Values coerce like `--pipeline-option`. A missing key fails the predicate.
+  List-valued *stored* metadata is not an IN clause. Empty comma tokens
+  are an error (exit 2). Convert `--metadata` tags match on single-file
+  and corpus search. Convert-owned archive headers such as
+  `source_file_name` match indexed directory search only. Do not
+  post-filter the JSON `results` array. Desktop Search and Ask have no
+  `--where` control.
 - `--json` emits one JSON object.
 
 Single-archive JSON:

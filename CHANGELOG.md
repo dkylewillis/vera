@@ -41,6 +41,20 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   `file`, `path`, `ok`, and `error`. Existing archives that already stored
   those keys still return the opened archive path.
 
+- Desktop Explorer double-click preview of Markdown sources now opens the
+  source viewer (it previously returned before loading `.md` files).
+
+- The Markdown source viewer strips a leading UTF-8 BOM before numbering
+  lines, so `text_span` highlights stay aligned with ingest locators.
+
+- Directory search `index.used` no longer reports a chunk-metadata fallback
+  when `top_k` is 0. An attached index that can apply `--where` still reports
+  `used: true` with an empty result list.
+
+- Desktop Reconvert no longer prefills a Docling pipeline the Convert view
+  cannot run. CLI-created Docling archives keep the current desktop pipeline
+  (PyMuPDF or Markdown) instead of failing on convert.
+
 ### Added
 
 - Desktop Ask answers render LaTeX with KaTeX (`$…$`, `$$…$$`, `\(`…`\)`,

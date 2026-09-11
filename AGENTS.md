@@ -160,11 +160,14 @@ dimension-incompatible. Result order is the rank; the CLI does not emit a
    or to verify that a quoted span is still in `text`. Searching again is not a
    substitute: rank can change, and keyword search can miss a short quote.
 9. **Filter with `--where` / `--include`, not by dropping search JSON.** `--where`
-   matches stored archive and chunk metadata and is applied before `top_k`.
-   Distinct keys are AND; `KEY=a,b` is IN. `--include` is directory discovery
-   (OR of patterns, then `--exclude`). Do not post-filter the `results` array
-   after a search — that under-fills `top_k` and makes rank lie. Convert stamps
-   caller tags with `--metadata KEY=VALUE` onto the archive and every chunk.
+   is applied before `top_k`. Convert `--metadata` tags live on the archive and
+   every chunk. Convert-owned archive headers (for example `source_file_name`)
+   match indexed corpus search; single-file and fallback search evaluate chunk
+   metadata. Distinct keys are AND; `KEY=a,b` is IN. `--include` is directory
+   discovery (OR of patterns, then `--exclude`). Do not post-filter the
+   `results` array after a search — that under-fills `top_k` and makes rank lie.
+   Convert stamps caller tags with `--metadata KEY=VALUE` onto the archive and
+   every chunk.
    Reserved citation, format, and JSON locator keys (`file`, `path`, `ok`,
    `error`) are rejected. When a metadata filter cannot
    run inside a collection index, `index.used` is false and `index.reasons`

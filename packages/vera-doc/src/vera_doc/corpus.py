@@ -486,7 +486,9 @@ class VeraCorpus:
     ) -> list[CorpusSearchResult]:
         """Search every file in the corpus and return the fused top_k results.
 
-        ``where`` filters stored archive and chunk metadata before ``top_k``.
+        ``where`` is applied before ``top_k``. Caller tags stamped on chunks
+        match every path. Convert-owned archive headers match indexed search;
+        single-file and fallback search evaluate chunk metadata.
         """
         mode = mode.lower()
         if mode not in {"semantic", "keyword", "hybrid"}:
@@ -499,7 +501,14 @@ class VeraCorpus:
             raise ValueError("context_chunks must be non-negative")
         if top_k == 0:
             self.skipped_semantic_model_groups = []
-            self._search_used_index = False
+            collection_index = self._collection_index
+            if (
+                collection_index is not None
+                and where
+                and not collection_index.supports_where(where)
+            ):
+                collection_index = None
+            self._search_used_index = collection_index is not None
             return []
         self.skipped_semantic_model_groups = []
         collection_index = self._collection_index

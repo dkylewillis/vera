@@ -114,6 +114,82 @@ describe('createConversionController', () => {
     expect(dispatchBackgroundTask).not.toHaveBeenCalled();
   });
 
+  it('does not prefill a Docling pipeline the desktop Convert view cannot run', async () => {
+    const setIngestPipeline = vi.fn();
+    const setConversionError = vi.fn();
+    const setIngestPipelineConfigs = vi.fn();
+    const call = vi.fn(async () => ({
+      parser_name: 'docling',
+      default_embedding_model: 'hashing',
+      source_file_name: 'manual.pdf',
+      source_attachment_id: 'source_original',
+    })) as ConversionHost['call'];
+    const controller = createConversionController(() => host({
+      ingestPipeline: 'pymupdf',
+      ingestPipelineDescriptors: [{
+        provider: 'pymupdf',
+        variant: '',
+        spec: 'pymupdf',
+        label: 'PyMuPDF',
+        description: 'Default PDF pipeline',
+        installed: true,
+        capabilities: { overlap_supported: true },
+        fields: [],
+      }],
+      folders: [{
+        path: 'C:\\library',
+        name: 'library',
+        entries: [
+          {
+            path: 'C:\\library\\manual.vera',
+            name: 'manual.vera',
+            relativePath: 'manual.vera',
+            type: 'vera',
+          },
+          {
+            path: 'C:\\library\\manual.pdf',
+            name: 'manual.pdf',
+            relativePath: 'manual.pdf',
+            type: 'pdf',
+          },
+        ],
+      }],
+      call,
+      setIngestPipeline,
+      setConversionError,
+      setEmbeddingModel: vi.fn(),
+      setIngestPipelineConfigs,
+      setPipelineOptions: vi.fn(),
+      setSelectedPdfs: vi.fn(),
+      setExplorerSelection: vi.fn(),
+      setReconvertNotice: vi.fn(),
+      setReconvertBusy: vi.fn(),
+      setStoreOriginal: vi.fn(),
+      setBatchOverwrite: vi.fn(),
+      setConvertMode: vi.fn(),
+      setSideView: vi.fn(),
+      setSidebarCollapsed: vi.fn(),
+    }));
+
+    await controller.openReconvert(
+      {
+        path: 'C:\\library\\manual.vera',
+        name: 'manual.vera',
+        relativePath: 'manual.vera',
+        type: 'vera',
+      },
+      'C:\\library',
+    );
+
+    expect(setConversionError.mock.calls.every(([value]) => value == null)).toBe(true);
+    expect(setIngestPipeline).not.toHaveBeenCalled();
+    expect(setIngestPipelineConfigs).toHaveBeenCalled();
+    const updater = setIngestPipelineConfigs.mock.calls[0][0] as (
+      prev: Record<string, unknown>,
+    ) => Record<string, unknown>;
+    expect(Object.keys(updater({}))).toEqual(['pymupdf']);
+  });
+
   it('reconvert writes to the clicked archive instead of source.with_suffix(.vera)', async () => {
     const request = vi.fn(async (payload: Record<string, unknown>) => {
       if (payload.action === 'convert') {

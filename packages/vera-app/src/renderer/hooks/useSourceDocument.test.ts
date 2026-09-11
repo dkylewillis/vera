@@ -72,4 +72,48 @@ describe('createSourceDocumentController', () => {
     expect(setSourceDocument).toHaveBeenCalledWith(source);
     expect(setViewerMode).toHaveBeenCalledWith('document');
   });
+
+  it('previews Markdown sources the same way as PDFs', async () => {
+    const source = {
+      filename: 'notes.md',
+      mime_type: 'text/markdown',
+      hash: 'def',
+      size: 8,
+      url: 'vera-source://notes',
+    };
+    const call = vi.fn(async () => source) as SourceDocumentHost['call'];
+    const applyConvertDefaultsFromSelection = vi.fn();
+    const setExplorerSelection = vi.fn();
+    const controller = createSourceDocumentController(() => host({
+      call,
+      applyConvertDefaultsFromSelection,
+      setExplorerSelection,
+      setLibraryInfoPath: vi.fn(),
+      setPendingSourcePath: vi.fn(),
+      setSourceDocument: vi.fn(),
+      setSourceDocumentPath: vi.fn(),
+      setViewerMode: vi.fn(),
+      setViewerCollapsed: vi.fn(),
+      setSelected: vi.fn(),
+    }));
+
+    await controller.previewSourceDocument({
+      path: 'C:\\lib\\notes.md',
+      name: 'notes.md',
+      relativePath: 'notes.md',
+      type: 'md',
+    });
+
+    expect(applyConvertDefaultsFromSelection).toHaveBeenCalledWith({
+      kind: 'file',
+      path: 'C:\\lib\\notes.md',
+      type: 'md',
+    });
+    expect(call).toHaveBeenCalledWith(
+      { action: SIDECAR_ACTIONS.source, path: 'C:\\lib\\notes.md' },
+      'Loading source',
+      undefined,
+      { scope: 'source' },
+    );
+  });
 });

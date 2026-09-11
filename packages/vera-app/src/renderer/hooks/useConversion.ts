@@ -225,16 +225,17 @@ export function createConversionController(getHost: () => ConversionHost) {
       }
 
       if (prefill.embeddingModel) host.setEmbeddingModel(prefill.embeddingModel);
-      const nextPipeline = prefill.ingestPipeline || host.ingestPipeline;
+      const requestedPipeline = prefill.ingestPipeline || host.ingestPipeline;
       const nextDescriptor = host.ingestPipelineDescriptors.find(
-        (item) => item.spec === nextPipeline || item.provider === nextPipeline,
+        (item) => item.spec === requestedPipeline || item.provider === requestedPipeline,
       ) ?? null;
+      const nextPipeline = nextDescriptor?.spec || host.ingestPipeline;
       const inspectOptions = reconvertPipelineOptionsFromInspect(inspectResult);
       const mergedOptions = mergePipelineFieldValues(nextDescriptor, {
         ...host.ingestPipelineConfigs[nextPipeline],
         ...inspectOptions,
       });
-      if (prefill.ingestPipeline) host.setIngestPipeline(prefill.ingestPipeline);
+      if (prefill.ingestPipeline && nextDescriptor) host.setIngestPipeline(nextPipeline);
       host.setIngestPipelineConfigs((prev) => ({ ...prev, [nextPipeline]: mergedOptions }));
       host.setPipelineOptions(mergedOptions);
       if (prefill.hasEmbeddedSource || restoredFromArchive) {

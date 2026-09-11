@@ -166,9 +166,11 @@ This preserves correctness while making the performance change visible.
 When `--where` uses a chunk-only metadata key that is not stored in the
 collection index, VERA also falls back to per-file search even if the index
 is otherwise fresh. `index.used` is false and `index.reasons` includes
-`chunk metadata filter not in collection index`. Archive-level keys stamped
-at convert time (and citation columns already in the index) can filter the
-indexed search before `top_k`. Do not post-filter the JSON `results` array.
+`chunk metadata filter not in collection index`. Caller `--metadata` tags
+are stored on every chunk, so they match with or without an index.
+Convert-owned archive headers such as `source_file_name` (and citation
+columns already in the index) can filter indexed search before `top_k`.
+Do not post-filter the JSON `results` array.
 
 `vera index status --json` also reports the active generation and timestamps,
 database/vector/total storage, `indexed_chunks` versus `source_chunks`

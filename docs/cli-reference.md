@@ -147,14 +147,19 @@ name, indexed dimension, and loading or dimension error that prevented that
 group from participating in semantic or hybrid retrieval. Non-JSON output
 prints the same entries as warnings.
 
-`--where` filters stored archive and chunk metadata before `top_k`. Do not
-post-filter the JSON `results` array. Values coerce like `--pipeline-option`.
-A missing key fails the predicate. List-valued *stored* metadata is not an
-IN clause. `--include` and `--exclude` choose
-files during discovery. When a `--where` key is not archive metadata or an
-indexed citation column, directory search falls back to per-file search and
-sets `index.used` to false with `chunk metadata filter not in collection index`
-in `index.reasons`. `--include` on a single-file search exits 2.
+`--where` is applied before `top_k`. Do not post-filter the JSON `results`
+array. Values coerce like `--pipeline-option`. A missing key fails the
+predicate. List-valued *stored* metadata is not an IN clause. Convert
+`--metadata` tags live on the archive and every chunk, so those keys match
+on single-file and corpus search. Convert-owned archive headers such as
+`source_file_name` and `page_count` are not copied onto chunks: indexed
+directory search can filter them at the archive level, but single-file
+search and per-file fallback evaluate chunk metadata only. `--include` and
+`--exclude` choose files during discovery. When a `--where` key is not
+archive metadata or an indexed citation column, directory search falls back
+to per-file search and sets `index.used` to false with
+`chunk metadata filter not in collection index` in `index.reasons`.
+`--include` on a single-file search exits 2.
 
 ## `vera index build DIRECTORY`
 

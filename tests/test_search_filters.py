@@ -395,6 +395,38 @@ def test_indexed_archive_where_and_chunk_fallback(tmp_path: Path) -> None:
         assert cited
         assert all(hit.record.metadata.get("source_filename") == "grid.md" for hit in cited)
 
+        archive_name = corpus.search(
+            "adding capacity",
+            mode="keyword",
+            top_k=3,
+            where={"source_file_name": "grid.md"},
+        )
+        assert corpus.uses_index is True
+        assert archive_name
+        assert all(Path(hit.file).name == "grid.vera" for hit in archive_name)
+
+        empty = corpus.search(
+            "adding capacity",
+            mode="keyword",
+            top_k=0,
+            where={"company": "GRID"},
+        )
+        report = corpus.index_search_report()
+        assert empty == []
+        assert report["used"] is True
+        assert CHUNK_METADATA_FILTER_REASON not in (report.get("reasons") or [])
+
+        empty_chunk = corpus.search(
+            "adding capacity",
+            mode="keyword",
+            top_k=0,
+            where={"discipline": "civil"},
+        )
+        report = corpus.index_search_report()
+        assert empty_chunk == []
+        assert report["used"] is False
+        assert CHUNK_METADATA_FILTER_REASON in report["reasons"]
+
 
 def _chunk_only_archive(path: Path, discipline: str, text: str) -> None:
     with VeraDocument.create(path) as document:

@@ -85,7 +85,7 @@ export function createSourceDocumentController(getHost: () => SourceDocumentHost
   }
 
   async function previewSourceDocument(entry: FolderEntry) {
-    if (entry.type !== 'vera' && entry.type !== 'pdf') return;
+    if (entry.type !== 'vera' && entry.type !== 'pdf' && entry.type !== 'md') return;
     const host = getHost();
     if (host.pendingSourcePath) return;
     const selection: ExplorerSelection = { kind: 'file', path: entry.path, type: entry.type };

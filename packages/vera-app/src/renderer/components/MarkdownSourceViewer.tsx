@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RegionResult, SourceDocumentResult } from '../types';
 
+/** Split stored Markdown into 1-based display lines, matching ingest locators. */
+export function markdownDisplayLines(text: string): string[] {
+  return text.replace(/^\uFEFF/, '').split(/\r?\n/);
+}
+
 function highlightLines(regions: RegionResult[]): Set<number> {
   const lines = new Set<number>();
   for (const region of regions) {
@@ -66,7 +71,7 @@ export function MarkdownSourceViewer({
     );
   }
 
-  const lines = text.split(/\r?\n/);
+  const lines = markdownDisplayLines(text);
   let assignedFirst = false;
   return (
     <div className="markdownSourceViewer">
