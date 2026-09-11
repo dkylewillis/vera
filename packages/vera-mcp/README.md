@@ -10,7 +10,7 @@ tools without owning retrieval implementation.
 ```bash
 python -m pip install "vera-mcp>=0.3.0"
 # or
-python -m pip install "vera-cli[mcp]>=0.3.0"
+python -m pip install "vera[mcp]>=0.3.0"
 ```
 
 See the [vera-mcp documentation](https://dkylewillis.github.io/vera/packages/vera-mcp/)

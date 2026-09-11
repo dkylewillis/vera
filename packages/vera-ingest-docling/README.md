@@ -24,7 +24,7 @@ uv sync --extra docling
 Non-desktop users can install the CLI extra:
 
 ```bash
-pip install "vera-cli[docling]>=0.3.0"
+pip install "vera[docling]>=0.3.0"
 ```
 
 Python 3.10 or newer is required. The package depends on Docling's `rapidocr`

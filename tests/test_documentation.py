@@ -339,6 +339,10 @@ def test_hardening_json_contracts_are_documented():
     assert "`write_attachment()`" in python_api
     assert "`size`" in python_api
     assert "Answer prose appears incrementally" in desktop
+    assert "LaTeX math" in desktop
+    assert "KaTeX" in desktop
+    assert "remark-math" in desktop_architecture
+    assert "rehype-katex" in desktop_architecture
     assert "withholds inline tool-call markup" in desktop
     assert "initially returns only figure metadata" in desktop
     assert "loads image previews" in desktop
@@ -348,7 +352,7 @@ def test_hardening_json_contracts_are_documented():
     assert "same environment" in desktop
     assert "vera.ingest_pipelines" in desktop
     assert "pip install -e" in desktop
-    assert "vera-cli[docling]" in desktop
+    assert "vera[docling]" in desktop
     assert "Advanced layout" in desktop
     assert "DOCLING_ARTIFACTS_PATH" in desktop
     assert "vera_plugin_host" not in desktop
@@ -396,6 +400,9 @@ def test_hardening_json_contracts_are_documented():
     assert "Ctrl/Cmd+click" in desktop
     assert "## Reconvert with a different parser or embedding" in conversion
     assert "**Reconvert…**" in conversion
+    assert "the archive you clicked" in conversion
+    assert "the archive you clicked" in desktop_architecture
+    assert "replaces the `.vera` you clicked" in desktop
     assert "Could not read archive metadata" in conversion
     assert "Could not read archive metadata" in desktop
     assert "Could not read archive metadata" in desktop_architecture
@@ -508,6 +515,8 @@ def test_hardening_json_contracts_are_documented():
     ).read_text(encoding="utf-8")
     publish_pypi = (ROOT / ".github" / "workflows" / "publish-pypi.yml").read_text(encoding="utf-8")
     assert "vera-embed-openai" in publish_pypi
+    assert "- package: vera\n" in publish_pypi
+    assert "uv build --package vera-cli" in publish_pypi
     assert "PyMuPDF ingest pipeline" in desktop
     assert "ingest_pipeline" in desktop
     assert "vera-ingest-docling" in conversion or "docling:hybrid" in conversion
@@ -649,14 +658,14 @@ def test_release_0_3_versioning_and_install_pins():
     assert "### What 0.3 means" in readme
     assert "archive format remains **0.2**" in readme
     assert "archive format remains **0.2**" in getting_started
-    assert "vera-cli>=0.3.1" in readme
-    assert "vera-cli>=0.3.1" in getting_started
+    assert "vera>=0.3.1" in readme
+    assert "vera>=0.3.1" in getting_started
     assert "vera-doc>=0.3.0" in (PACKAGES / "vera-doc" / "README.md").read_text(encoding="utf-8")
     skill_cli = (ROOT / "skills" / "vera" / "references" / "cli-reference.md").read_text(
         encoding="utf-8"
     )
     human_cli = (DOCS / "cli-reference.md").read_text(encoding="utf-8")
-    assert "vera-cli>=0.3.1" in skill_cli
+    assert "vera>=0.3.1" in skill_cli
     assert "Windows installer vendors Heron" not in human_cli
     assert "vendors those snapshots so packaged Advanced" not in skill_cli
     assert ">=0.2.4" not in readme
@@ -696,6 +705,27 @@ def test_release_0_3_versioning_and_install_pins():
             leftover_caveats.append(str(path.relative_to(ROOT)))
     assert leftover_pins == [], f"stale >=0.2.4 install pins in {leftover_pins}"
     assert leftover_caveats == [], f"stale PyPI caveats in {leftover_caveats}"
+
+    cli_pyproject = (PACKAGES / "vera-cli" / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'name = "vera"' in cli_pyproject
+    leftover_cli_installs: list[str] = []
+    alias_ok = {
+        ROOT / "CHANGELOG.md",
+        PACKAGES / "vera-cli" / "README.md",
+        PACKAGES / "vera-cli-compat" / "README.md",
+        DOCS / "packages" / "vera-cli.md",
+    }
+    for path in ROOT.rglob("*.md"):
+        if any(part in skip for part in path.parts) or path in alias_ok:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if 'pip install "vera-cli' in text or "pip install 'vera-cli" in text:
+            leftover_cli_installs.append(str(path.relative_to(ROOT)))
+        if "pypi.org/project/vera-cli/" in text:
+            leftover_cli_installs.append(str(path.relative_to(ROOT)))
+    assert leftover_cli_installs == [], (
+        f"stale vera-cli PyPI install name in {leftover_cli_installs}"
+    )
 
 
 def test_architecture_vera_doc_reads_format_0_2_only():
@@ -815,6 +845,7 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "vera-ingest-docling" not in app_section
     assert "ONNX" in app_section or "MiniLM" in app_section
     assert "vera-ingest-docling" in app_pkg
+    assert "KaTeX" in app_pkg
     assert "not bundled in the installer" in docling_pkg
     assert "all-MiniLM-L6-v2" in desktop
     assert "Linux, macOS, and Windows" in desktop
@@ -829,7 +860,7 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "`chunks_fts`" in validate_docs
     assert "vera ocr-languages list" in changelog
     assert "vera-lab" in changelog
-    assert "vera-cli>=0.3.1" in intro
+    assert "vera>=0.3.1" in intro
     assert "Open convert log" in desktop
     assert "logs/sidecar.log" in desktop
     assert "Open convert log" in troubleshooting
@@ -838,8 +869,25 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "Open convert log" in changelog
     assert "Open convert log" in app_pkg
     assert "Open convert log" in readme
+    assert "thumbnail rail" in architecture
+    assert "does not\nembed Mozilla's standalone" in architecture
+    assert "Download saves the cached source PDF" in architecture
+    assert "Rotate counterclockwise" in architecture
+    assert "canvas client box" in architecture
+    assert "occupies the most of the well" in architecture
+    assert "thumbnail rail" in changelog
+    assert "Rotate counterclockwise" in changelog
+    assert "thumbnail rail" in app_pkg
+    assert "rotate counterclockwise" in app_pkg
+    assert "thumbnail rail" in readme
+    assert "rotate counterclockwise" in readme
+    assert "thumbnail rail" in (DOCS / "desktop-app-overview.md").read_text(encoding="utf-8")
+    assert "rotate counterclockwise" in (DOCS / "desktop-app-overview.md").read_text(
+        encoding="utf-8"
+    )
     assert "logs/sidecar.log" in readme
     assert "vendors MiniLM ONNX" in readme
+    assert "LaTeX" in readme
     assert "does not\nload Sentence Transformers for MiniLM" in desktop
     assert "falls back to Sentence Transformers" in (DOCS / "architecture.md").read_text(
         encoding="utf-8"
@@ -897,3 +945,62 @@ def test_index_ask_and_embedder_operational_docs():
     assert "deletes every other generation directory" in skill_cli
     assert "opens one `.vera` archive" in skill
     assert "delete previous" in skill
+
+
+def test_inspect_diagnostics_and_fts_fallback_docs():
+    """Pin inspect `ocr` bag fields and keyword FTS fallback against source."""
+    validate_docs = (DOCS / "validation-and-export.md").read_text(encoding="utf-8")
+    searching = (DOCS / "searching.md").read_text(encoding="utf-8")
+    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
+    getting_started = (DOCS / "getting-started.md").read_text(encoding="utf-8")
+    conversion = (DOCS / "conversion.md").read_text(encoding="utf-8")
+    cli_reference = (DOCS / "cli-reference.md").read_text(encoding="utf-8")
+    architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    python_api = (DOCS / "python-api.md").read_text(encoding="utf-8")
+    mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
+    pymupdf = (DOCS / "packages" / "vera-ingest-pymupdf.md").read_text(encoding="utf-8")
+    skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
+    skill_cli = (ROOT / "skills" / "vera" / "references" / "cli-reference.md").read_text(
+        encoding="utf-8"
+    )
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    examples_pkg = (DOCS / "packages" / "vera-ingest-examples.md").read_text(encoding="utf-8")
+    pipeline_guide = (DOCS / "creating-an-ingest-pipeline.md").read_text(encoding="utf-8")
+    basic = (DOCS / "guides" / "basic-usage.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "text mode" in validate_docs.lower() or "Text mode" in validate_docs
+    assert "`ocr_pages`" in validate_docs
+    assert "`recovered_pages`" in validate_docs
+    assert "`whole_document_fallback_strategy`" in validate_docs
+    assert "Markdown's bundled pipeline leaves `ocr: {}`" in validate_docs
+    assert "PyMuPDF-shaped keys" in validate_docs
+    assert "Unknown mode · 0 pages OCR’d" in validate_docs
+    assert "source file (PDF, Markdown, or Office/HTML)" in validate_docs
+
+    assert "safe_fts_query" in searching
+    assert "stormwater* OR detention*" in searching
+    assert "Runtime FTS failures" in searching
+    assert "safe_fts_query" in troubleshooting
+
+    assert "A local PDF or Markdown file" in getting_started
+    assert "pipeline `ocr` diagnostics bag" in getting_started
+    assert "text-mode inspect omits it" in conversion
+    assert "Text mode does not print the pipeline `ocr` diagnostics bag" in cli_reference
+    assert "formatOcrSummary()" in architecture
+    assert "Unknown mode · 0 pages OCR’d" in architecture
+    assert "pipeline `ocr` diagnostics bag" in skill
+    assert "Markdown writes `ocr: {}`" in skill_cli
+    assert 'pipeline "ocr" diagnostics bag' in agents
+    assert "current source file" in examples_pkg
+    assert "Convert always writes the key" in pipeline_guide
+    assert "Inspect text mode hides OCR or Docling recovery" in troubleshooting
+
+    assert "without a text-vs-JSON split" in python_api
+    assert "no text-mode omit" in mcp
+    assert "Unknown mode · 0 pages OCR’d" in desktop
+    assert "`ocr_pages`" in pymupdf
+    assert "Text-mode `vera inspect` omits it" in basic
+    assert "pipeline `ocr` diagnostics bag" in readme
+    assert "there is no text-mode omit" in skill_cli

@@ -2183,6 +2183,22 @@ select option {
   border-radius: var(--radius-sm);
 }
 
+.markdownBody .katex {
+  color: inherit;
+  font-size: 1.08em;
+}
+
+.markdownBody .katex-display {
+  margin: 12px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+.markdownBody .katex-error {
+  color: var(--danger);
+}
+
 .inlineCitation {
   display: inline;
   margin: 0 1px;
@@ -3344,6 +3360,13 @@ details.traceEntry[open] > summary {
   background: var(--bg-chat);
 }
 
+.sourceViewer:has(.pdfViewer) {
+  padding: 0;
+  overflow: hidden;
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .sourceViewerOnly {
   display: flex;
   flex-direction: column;
@@ -3474,7 +3497,6 @@ details.traceEntry[open] > summary {
 
 .sourceDocumentSection .pdfViewer {
   min-height: 0;
-  padding: 10px;
 }
 
 .viewerPlaceholder {
@@ -3484,20 +3506,39 @@ details.traceEntry[open] > summary {
   background: var(--bg-chat);
 }
 
-/* ── PDF viewer ──────────────────────────────────────── */
+/* ── PDF viewer (Mozilla PDF.js / ChatGPT-style chrome) ── */
 
 .pdfViewer {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 8px;
+  --pdf-chrome: #323639;
+  --pdf-chrome-hover: #474b4f;
+  --pdf-sidebar: #2b2b2d;
+  --pdf-canvas: var(--pdf-sidebar);
+  --pdf-scrollbar: #9a9a9a;
+  --pdf-scrollbar-track: #ffffff;
+  --pdf-text: #f9f9fa;
+  --pdf-muted: #c3c4c6;
+  --pdf-border: #1c1c1d;
+  --pdf-field: #1c1c1e;
+  --pdf-field-border: #737373;
+  --pdf-thumb-current: #7cb7ff;
+  --pdf-thumb-rail: 118px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  height: 100%;
   min-height: 0;
+  color: var(--pdf-text);
+  background: var(--pdf-chrome);
 }
 
 /* Query container for toolbar density only — keep layout containment off the
    page surfaces so absolute highlight layers stay positioned correctly. */
 .viewerToolbarWrap {
+  position: relative;
   min-width: 0;
   container-type: inline-size;
+  background: var(--pdf-chrome);
+  border-bottom: 1px solid var(--pdf-border);
 }
 
 .srOnly {
@@ -3516,8 +3557,10 @@ details.traceEntry[open] > summary {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   min-width: 0;
+  height: 48px;
+  padding: 0 10px 0 6px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -3529,21 +3572,39 @@ details.traceEntry[open] > summary {
 .viewerToolbarGroup {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
   flex: 0 0 auto;
   min-width: 0;
 }
 
-.viewerToolbarNav {
+.viewerToolbarNav,
+.viewerToolbarZoom {
+  flex: 0 0 auto;
+}
+
+.viewerToolbarGroup:first-child {
+  margin-right: 10px;
+}
+
+.viewerToolbarEnd {
+  margin-left: auto;
+}
+
+.viewerToolbarDivider {
+  width: 1px;
+  height: 20px;
+  margin: 0 8px;
+  background: rgba(255, 255, 255, 0.18);
   flex: 0 0 auto;
 }
 
 .viewerToolbarStatus {
   flex: 1 1 0;
-  min-width: 0;
-  color: var(--text-faint);
+  min-width: 8px;
+  padding: 0 8px;
+  color: var(--pdf-muted);
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3553,116 +3614,96 @@ details.traceEntry[open] > summary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 7px;
-  color: var(--text);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  font-size: 11.5px;
-  font-weight: 650;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--pdf-text);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.12s, color 0.12s;
 }
 
 .viewerToolButton:hover:not(:disabled) {
-  background: var(--bg-surface-2);
-  border-color: var(--text-faint);
+  background: var(--pdf-chrome-hover);
 }
 
 .viewerToolButton:disabled {
   cursor: not-allowed;
-  opacity: 0.45;
+  opacity: 0.4;
 }
 
 .viewerToolButton:focus-visible {
   outline: none;
-  box-shadow: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pdf-thumb-current) 70%, transparent);
 }
 
 .viewerToolButton.activeNow {
-  color: var(--good);
-  border-color: color-mix(in srgb, var(--good) 40%, var(--border));
-  background: var(--good-soft);
+  color: var(--pdf-text);
+  background: var(--pdf-chrome-hover);
 }
 
 .viewerZoomLevel {
   min-width: 48px;
-  padding: 0 6px;
-  color: var(--text-muted);
+  height: 26px;
+  padding: 0 8px;
+  color: var(--pdf-text);
+  background: var(--pdf-field);
+  border-radius: 4px;
   font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }
 
 .viewerPageControl {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   margin: 0 2px;
-  color: var(--text-muted);
-  font-size: 11.5px;
-  font-weight: 600;
+  color: var(--pdf-muted);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 /* Beat the global input[type=text] 34px height / 100% width rules. */
 input.viewerPageInput {
   box-sizing: border-box;
-  width: 48px;
-  min-width: 48px;
-  height: 28px;
-  padding: 0 6px;
-  color: var(--text-muted);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  font-size: 11.5px;
-  font-weight: 650;
+  width: 40px;
+  min-width: 40px;
+  height: 26px;
+  padding: 0 4px;
+  color: var(--pdf-text);
+  background: var(--pdf-field);
+  border: 0;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
 
 input.viewerPageInput:focus {
-  border-color: var(--accent);
-  box-shadow: var(--ring);
+  border-color: var(--pdf-thumb-current);
+  box-shadow: none;
 }
 
 .viewerPageTotal {
   min-width: 2.5ch;
-  font-size: 11.5px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.viewerHighlightLegend {
-  display: none;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-  min-width: 0;
-}
-
-.viewerLegendSwatch {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.viewerLegendSwatch::before {
-  content: '';
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  border: 1.5px solid var(--accent);
-  background: rgba(37, 99, 235, 0.16);
-}
-
-.viewerLegendSwatch--figure::before {
-  border-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.2);
+.pdfPrintFrame {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: 0;
 }
 
 /* Icon-only by default so the toolbar stays one row in the side pane. */
@@ -3680,13 +3721,99 @@ input.viewerPageInput:focus {
   }
 }
 
-@container (min-width: 640px) {
-  .viewerHighlightLegend {
-    display: inline-flex;
+@container (max-width: 440px) {
+  .pdfViewer {
+    --pdf-thumb-rail: 92px;
   }
 }
 
+.pdfViewerBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--pdf-canvas);
+}
+
+.pdfViewer--thumbs .pdfViewerBody {
+  grid-template-columns: var(--pdf-thumb-rail) minmax(0, 1fr);
+}
+
+.pdfThumbnailSidebar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--pdf-sidebar);
+}
+
+.pdfThumbnailList {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 8px 20px;
+}
+
+.pdfThumbnail {
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+  padding: 0;
+  color: var(--pdf-muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.pdfThumbnail:hover .pdfThumbnailRotate {
+  outline-color: color-mix(in srgb, var(--pdf-thumb-current) 55%, transparent);
+}
+
+.pdfThumbnailRotate {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  outline: 2px solid transparent;
+  outline-offset: 1px;
+}
+
+.pdfThumbnailSurface {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%) rotate(var(--pdf-rotation, 0deg));
+  transform-origin: center center;
+}
+
+.pdfThumbnailSurface canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pdfThumbnail.is-current .pdfThumbnailRotate {
+  outline-color: var(--pdf-thumb-current);
+}
+
+.pdfThumbnailLabel {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdfThumbnail.is-current .pdfThumbnailLabel {
+  color: var(--pdf-text);
+}
+
 .pdfCanvasWrap {
+  position: relative;
   display: grid;
   /* Keep the grid track tied to the viewport instead of its widest page. */
   grid-template-columns: minmax(0, 1fr);
@@ -3695,34 +3822,75 @@ input.viewerPageInput:focus {
   justify-items: safe center;
   gap: 16px;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 16px;
   /* Keep width stable when zoom toggles the vertical scrollbar. */
   scrollbar-gutter: stable;
-  /* Match the chat / viewer pane; do not use a raised surface-3 well. */
   background: transparent;
-  border-radius: var(--radius-sm);
+}
+
+.pdfCanvasWrap--fitPage {
+  justify-items: center;
+}
+
+.pdfCanvasWrap--fitPage .pdfPage {
+  justify-self: center;
+}
+
+.pdfThumbnailList,
+.pdfCanvasWrap {
+  scrollbar-width: auto;
+  scrollbar-color: var(--pdf-scrollbar) var(--pdf-scrollbar-track);
+}
+
+.pdfThumbnailList::-webkit-scrollbar,
+.pdfCanvasWrap::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+.pdfThumbnailList::-webkit-scrollbar-track,
+.pdfCanvasWrap::-webkit-scrollbar-track {
+  background: var(--pdf-scrollbar-track);
+}
+
+.pdfThumbnailList::-webkit-scrollbar-thumb,
+.pdfCanvasWrap::-webkit-scrollbar-thumb {
+  background: var(--pdf-scrollbar);
+  border: 3px solid var(--pdf-scrollbar-track);
+  border-radius: 8px;
+}
+
+.pdfThumbnailList::-webkit-scrollbar-thumb:hover,
+.pdfCanvasWrap::-webkit-scrollbar-thumb:hover {
+  background: #6e6e6e;
+}
+
+.pdfThumbnailList::-webkit-scrollbar-corner,
+.pdfCanvasWrap::-webkit-scrollbar-corner {
+  background: var(--pdf-scrollbar-track);
 }
 
 .pdfCanvasWrap:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--pdf-thumb-current);
   outline-offset: -2px;
 }
 
 .pdfPage {
   display: grid;
-  gap: 6px;
   justify-items: center;
 }
 
-.pdfPage > span {
-  color: var(--text-faint);
-  font-size: 11.5px;
-  font-weight: 600;
+.pdfPageRotate {
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
-.pdfPage--pending .pdfPageSurface {
-  background: linear-gradient(90deg, var(--bg-surface-2) 25%, var(--bg-surface) 50%, var(--bg-surface-2) 75%);
+.pdfPage--pending .pdfPageRotate {
+  background: linear-gradient(90deg, #d8d8d8 25%, #f0f0f0 50%, #d8d8d8 75%);
   background-size: 400% 100%;
   animation: pdfSkeleton 1.4s ease infinite;
 }
@@ -3733,16 +3901,17 @@ input.viewerPageInput:focus {
 }
 
 .pdfPageSurface {
-  position: relative;
+  position: absolute;
+  left: 50%;
+  top: 50%;
   background: #ffffff;
-  border-radius: 2px;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.18);
+  transform: translate(-50%, -50%) rotate(var(--pdf-rotation, 0deg));
+  transform-origin: center center;
 }
 
 .pdfPage canvas {
   display: block;
   max-width: none;
-  border-radius: 2px;
 }
 
 .pdfHighlightLayer {
@@ -3828,8 +3997,7 @@ input.viewerPageInput:focus {
   position: sticky;
   top: 0;
   z-index: 3;
-  padding-bottom: 6px;
-  background: var(--bg-chat);
+  background: var(--pdf-chrome);
 }
 
 .unsupportedSource {

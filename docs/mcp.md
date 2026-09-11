@@ -7,7 +7,7 @@ as native tools. Use it when an MCP-capable application should search local
 ## Install
 
 ```bash
-python -m pip install "vera-cli[mcp]>=0.3.0"
+python -m pip install "vera[mcp]>=0.3.0"
 ```
 
 Verify that the server can start:
@@ -113,7 +113,11 @@ index set `index.used` to false.
 Parameter: `file: str`.
 
 Returns archive metadata and summary counts, including `file` (the requested
-path) and `path` (the opened archive).
+path) and `path` (the opened archive). The payload matches
+`vera inspect FILE --json`: archive metadata is spread at the top level, so
+the pipeline `ocr` diagnostics bag is present when convert wrote it. There is
+no text-mode omit. See
+[Inspect metadata](validation-and-export.md#pipeline-diagnostics-ocr).
 
 ### `vera_validate`
 
@@ -222,7 +226,7 @@ with `vera figures --out-dir` instead).
 Install:
 
 ```bash
-python -m pip install "vera-cli[mcp]>=0.3.0"
+python -m pip install "vera[mcp]>=0.3.0"
 ```
 
 That extra installs `vera-mcp` and pins the MCP Python SDK to `mcp>=1.0,<2`.

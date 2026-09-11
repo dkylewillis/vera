@@ -3,7 +3,7 @@
 Official OpenAI embeddings plugin for VERA. Registers the `openai` provider
 under the `vera.embedders` entry-point group.
 
-`vera-cli` and `vera-app` depend on this package so hosted OpenAI conversion
+`vera` and `vera-app` depend on this package so hosted OpenAI conversion
 works out of the box. The client uses stdlib `urllib` — there is no `openai`
 SDK dependency.
 
@@ -14,7 +14,7 @@ python -m pip install "vera-embed-openai>=0.3.0"
 ```
 
 From a repository checkout with uv, the workspace installs it by default
-(via `vera-cli` / `vera-app`):
+(via `vera` / `vera-app`):
 
 ```bash
 uv sync

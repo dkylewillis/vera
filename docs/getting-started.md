@@ -1,7 +1,7 @@
 # Getting started
 
-This tutorial installs the VERA CLI, converts one PDF into a portable `.vera`
-archive, and searches it.
+This tutorial installs the VERA CLI, converts a PDF or Markdown file into a
+portable `.vera` archive, and searches it.
 
 VERA is currently pre-1.0 and experimental. Preserve source documents and expect
 API changes before a stable release. Release **0.3.x** is the software, CLI, and
@@ -11,7 +11,7 @@ archives stay compatible.
 ## Requirements
 
 - Python 3.10 or newer
-- A local PDF
+- A local PDF or Markdown file
 - Windows, macOS, or Linux
 
 ## Install from PyPI
@@ -19,7 +19,7 @@ archives stay compatible.
 Install the CLI and its dependencies:
 
 ```bash
-python -m pip install "vera-cli>=0.3.1"
+python -m pip install "vera>=0.3.1"
 ```
 
 That installs `vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and
@@ -27,7 +27,7 @@ That installs `vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and
 Add MCP support with:
 
 ```bash
-python -m pip install "vera-cli[mcp]>=0.3.1"
+python -m pip install "vera[mcp]>=0.3.1"
 ```
 
 Verify that the console script is available:
@@ -114,7 +114,9 @@ Validate integrity:
 vera validate "manual.vera"
 ```
 
-Both commands accept `--json` for machine-readable output.
+Both commands accept `--json` for machine-readable output. Text-mode
+`inspect` omits the pipeline `ocr` diagnostics bag (OCR pages, Docling
+recovery); use `--json` when you need those fields.
 
 ## Search with citations
 

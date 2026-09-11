@@ -1,7 +1,7 @@
 # vera-embed-openai
 
 Official OpenAI embeddings plugin for VERA. It registers the `openai`
-provider under the `vera.embedders` entry-point group. `vera-cli` and
+provider under the `vera.embedders` entry-point group. `vera` and
 `vera-app` depend on this package so hosted OpenAI conversion works out of
 the box. The client uses stdlib `urllib`; there is no `openai` SDK
 dependency.

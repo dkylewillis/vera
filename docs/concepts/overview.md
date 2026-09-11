@@ -68,7 +68,7 @@ vera-doc              Storage, search, corpus, library indexes
 vera-ingest           Registry, convert orchestration, shared types
 vera-ingest-pymupdf   Default PDF parsing / OCR pipeline
 vera-embed-openai     Official OpenAI embeddings plugin
-vera-cli              Command-line interface (vera convert, search, index, …)
+vera                  Command-line interface (vera convert, search, index, …)
 vera-mcp              Model Context Protocol server for AI agents
 vera-app              Desktop app Python sidecar (Electron)
 ```

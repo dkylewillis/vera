@@ -15,7 +15,7 @@ grounding for Office/HTML remains planned; see
 ```bash
 vera convert "input.pdf" "output.vera"
 vera convert "notes.md" "notes.vera"
-vera convert "memo.docx" "memo.vera"   # requires vera-cli[docling]
+vera convert "memo.docx" "memo.vera"   # requires vera[docling]
 vera convert "notes.html" "notes.vera"
 vera convert "filing.md" "filing.vera" --metadata company=GRID --metadata source_id=src_aaa
 ```
@@ -164,6 +164,10 @@ In the desktop app, right-click a `.vera` file in Explorer and choose
 sibling source is resolved (or the embedded original is restored). Overwrite is
 enabled, and the archive's current ingest pipeline, embedding model, and OCR
 options are prefilled from inspect so you can change them before converting.
+Convert then replaces **the archive you clicked**, even when its filename
+differs from the source (`report.pdf` → `project-alpha.vera`, or a renamed
+copy). Batch convert still names new archives `source.with_suffix(".vera")`;
+only Reconvert keeps the clicked path.
 If inspect fails and no sibling source is listed, Reconvert does **not** export
 an embedded original; Convert shows **Could not read archive metadata**. Place
 the matching `.pdf` or `.md` next to the archive, or open Document Info and export the
@@ -185,7 +189,7 @@ For neural embeddings, MiniLM and every other Sentence Transformers model use
 the `ml` extra:
 
 ```bash
-python -m pip install "vera-cli>=0.3.0" "vera-doc[ml]>=0.3.0"
+python -m pip install "vera>=0.3.0" "vera-doc[ml]>=0.3.0"
 vera convert "input.pdf" --model sentence-transformers:all-MiniLM-L6-v2
 ```
 
@@ -233,7 +237,7 @@ as `batch_size` use `scope: convert` so search can resolve
 
 ### Official OpenAI embeddings
 
-`vera-cli` and the desktop app bundle [`vera-embed-openai`](packages/vera-embed-openai.md).
+`vera` and the desktop app bundle [`vera-embed-openai`](packages/vera-embed-openai.md).
 Hashing remains the default. Set `OPENAI_API_KEY` (desktop: **File > Settings
 → Embeddings**). A missing key makes `vera convert --json` / `vera search --json`
 exit 1 with `{"ok": false, "error": "..."}` instead of a traceback:
@@ -356,7 +360,7 @@ The package depends on Docling's `rapidocr` extra so RapidOCR and
 `onnxruntime` are available for OCR:
 
 ```bash
-pip install "vera-cli[docling]>=0.3.0"
+pip install "vera[docling]>=0.3.0"
 # or from a checkout:
 uv sync --extra docling
 # or: python -m pip install vera-ingest-docling
@@ -407,7 +411,7 @@ Stopping mid-download does not abort Hugging Face immediately; the next
 run resumes. The first prefetch is about 380 MB (Heron ONNX plus TableFormer
 accurate). The 0.3.0 desktop app does not run `prepare_docling` or list
 **Advanced layout (slower)**; use `vera convert --parser docling` after
-installing `vera-cli[docling]`. Set `DOCLING_ARTIFACTS_PATH` for a local
+installing `vera[docling]`. Set `DOCLING_ARTIFACTS_PATH` for a local
 layout-model cache. Convert uses that ONNX layout engine instead of downloading a
 second Transformers Heron snapshot and TableFormer fast. In CLI runs,
 sidecar Hub progress appears as tqdm on stderr. After the cache is ready the
@@ -445,8 +449,10 @@ vera validate "output.vera" --json
 ```
 
 Inspect confirms the source, page and chunk counts, parser, and embedding
-model. Validate checks SQLite integrity, required tables and metadata,
-embedding counts, FTS consistency, and the stored source document.
+model. Use `--json` to read the pipeline `ocr` diagnostics bag (OCR pages or
+Docling recovery); text-mode inspect omits it. Validate checks SQLite
+integrity, required tables and metadata, embedding counts, FTS consistency,
+and the stored source document.
 
 ## Python equivalent
 

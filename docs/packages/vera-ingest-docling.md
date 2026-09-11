@@ -15,7 +15,7 @@ workspace `.venv` (CLI and tests). It is not bundled in the installer.
 Non-desktop users can also:
 
 ```bash
-pip install "vera-cli[docling]>=0.3.0"
+pip install "vera[docling]>=0.3.0"
 ```
 
 The 0.3.0 Windows app does not freeze this pipeline or list **Advanced layout
@@ -133,10 +133,12 @@ Force the low-memory backend for an entire conversion:
 vera convert "manual.pdf" --parser docling --pipeline-option pdf_backend=pypdfium2
 ```
 
-Successful recoveries are recorded in ingest diagnostics (surfaced by
-`vera inspect`): `pdf_backend`, `recovered_pages`,
-`recovered_pages_backend`, and optionally `whole_document_fallback_backend`
-and `whole_document_fallback_strategy` (`document` or `batched`).
+Successful recoveries are recorded in ingest diagnostics (the inspect JSON
+`ocr` object — use `--json`; text-mode inspect omits it): `pdf_backend`,
+`recovered_pages`, `recovered_pages_backend`, and optionally
+`whole_document_fallback_backend` and `whole_document_fallback_strategy`
+(`document` or `batched`). Field tables live under
+[Inspect metadata](../validation-and-export.md#pipeline-diagnostics-ocr).
 `pypdfium2` is faster and more memory-stable but can reduce table/layout
 fidelity compared with `docling_parse`.
 
@@ -144,7 +146,7 @@ fidelity compared with `docling_parse`.
 
 The 0.3.0 desktop Convert view does not list Docling. Use this package from
 the CLI (`vera convert --parser docling`, or omit `--parser` on DOCX/PPTX/XLSX/HTML)
-after installing `vera-cli[docling]`.
+after installing `vera[docling]`.
 Pipeline descriptors still omit overlap and OCR DPI when a future desktop
 host lists the plugin.
 

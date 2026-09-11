@@ -85,7 +85,7 @@ vera-ingest-pymupdf ─┐
 vera-ingest-docling ─┤
 vera-embed-openai ───┤
 vera-ingest ─────────┼──> vera-doc
-vera-cli ────────────┤
+vera ────────────────┤
 vera-app ────────────┤
 vera-mcp ────────────┘
 vera-lab (dev only) ─┘
@@ -97,7 +97,7 @@ vera-lab (dev only) ─┘
 - Optional Docling pipeline: `packages/vera-ingest-docling/src/vera_ingest_docling`
 - Official OpenAI embedder: `packages/vera-embed-openai/src/vera_embed_openai`
 - MCP: `packages/vera-mcp/src/vera_mcp`
-- CLI: `packages/vera-cli/src/vera_cli`
+- CLI (`vera` on PyPI): `packages/vera-cli/src/vera_cli`
 - Ingest layout lab (dev): `packages/vera-lab/src/vera_lab`
 
 The current format spec is [docs/vera-spec-v0.2.md](docs/vera-spec-v0.2.md) —

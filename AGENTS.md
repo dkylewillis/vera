@@ -48,7 +48,7 @@ vera export manual.vera exported.pdf --json
 vera figures manual.vera --json
 vera figures manual.vera --out-dir ./figures --json
 
-# What's in this file?
+# What's in this file? (--json includes the pipeline "ocr" diagnostics bag)
 vera inspect manual.vera --json
 
 # Fetch one stored chunk by id (citation-ready text, no score)
@@ -63,7 +63,7 @@ vera convert notes.md notes.vera --json
 vera convert memo.docx memo.vera --json
 vera convert notes.html notes.vera --json
 
-# Docling (optional CLI extra: vera-cli[docling] or --extra docling; not in the 0.3.0 desktop app)
+# Docling (optional CLI extra: vera[docling] or --extra docling; not in the 0.3.0 desktop app)
 vera convert scan.pdf scan.vera --parser docling --json
 vera convert scan.pdf scan.vera --parser docling --pipeline-option pdf_backend=pypdfium2 --json
 
@@ -187,7 +187,7 @@ VERA ships an MCP server (stdio) exposing the same capabilities as tools:
 |------|---------|
 | `vera_search` | Hybrid/semantic/keyword search with optional figure metadata and highlight regions |
 | `vera_corpus_search` | Search every .vera file in a directory as one corpus; results attributed per file |
-| `vera_inspect` | Document metadata, page/chunk counts, embedding model |
+| `vera_inspect` | Document metadata, page/chunk counts, embedding model, pipeline `ocr` diagnostics |
 | `vera_validate` | Integrity check |
 | `vera_figures` | List figures/images with captions, optionally by page range |
 | `vera_get_figure` | Fetch one stored figure as native image content plus citation metadata |
@@ -195,7 +195,7 @@ VERA ships an MCP server (stdio) exposing the same capabilities as tools:
 | `vera_get_chunk` | Fetch one stored chunk by id as citation-ready JSON |
 | `vera_get_chunk_regions` | Page numbers + bounding boxes a chunk's text came from (visual grounding) |
 
-Requires the integration package: `pip install "vera-cli[mcp]"` or `pip install vera-mcp`. Example VS Code config
+Requires the integration package: `pip install "vera[mcp]"` or `pip install vera-mcp`. Example VS Code config
 (`.vscode/mcp.json`):
 
 ```json

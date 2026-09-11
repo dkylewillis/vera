@@ -13,7 +13,7 @@ implemented by `vera-doc` and `vera-ingest`.
 From PyPI:
 
 ```bash
-python -m pip install "vera-cli[mcp]>=0.3.0"
+python -m pip install "vera[mcp]>=0.3.0"
 ```
 
 Or install the package directly:
@@ -45,4 +45,4 @@ output to stdout.
 - [`vera_mcp`](../reference/vera-mcp.md) — `build_server()` and the stdio entry point.
 
 MCP intentionally does not expose conversion, index mutation, source export, or
-retrieval evaluation. Use `vera-cli` or the Python packages for those tasks.
+retrieval evaluation. Use `vera` or the Python packages for those tasks.

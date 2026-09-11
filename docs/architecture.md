@@ -10,7 +10,7 @@ vera-ingest-pymupdf ─┐
 vera-ingest-docling ─┤
 vera-embed-openai ───┤
 vera-ingest ─────────┼──> vera-doc
-vera-cli ────────────┤
+vera ────────────────┤
 vera-app ────────────┤
 vera-mcp ────────────┘
 vera-lab (dev only) ─┘
@@ -68,13 +68,13 @@ and do not change the 0.2 archive schema.
 - heading detection and sliding-window chunk construction (whitespace-split words);
 - mapping pages, regions, figures, and provenance to chunk metadata.
 
-`vera-cli` and `vera-app` depend on it so conversion works out of the box.
+`vera` and `vera-app` depend on it so conversion works out of the box.
 
 ### `vera-ingest-docling`
 
 `vera-ingest-docling` is the official Docling pipeline that registers
 `docling` / `docling:hybrid`. CLI users install it with
-`pip install "vera-cli[docling]>=0.3.0"` or `uv sync --extra docling`. The
+`pip install "vera[docling]>=0.3.0"` or `uv sync --extra docling`. The
 0.3.x desktop app does not freeze or list it; Convert lists PyMuPDF and the
 bundled Markdown pipeline. Extra
 ingest plugins are ordinary pip packages in the same environment. See
@@ -84,21 +84,23 @@ ingest plugins are ordinary pip packages in the same environment. See
 
 `vera-embed-openai` is the official OpenAI embeddings plugin. It registers
 `openai` under `vera.embedders` with stdlib `urllib` (no OpenAI SDK).
-`vera-cli` and `vera-app` depend on it, and the packaged sidecar freezes it
+`vera` and `vera-app` depend on it, and the packaged sidecar freezes it
 beside PyMuPDF. Secrets stay in `OPENAI_API_KEY`. See
 [vera-embed-openai](packages/vera-embed-openai.md).
 
-### `vera-cli`
+### `vera`
 
-`vera-cli` publishes the `vera` console script and `vera_cli` module. It owns
-argument parsing, text/JSON formatting, exit codes, and retrieval evaluation.
-Conversion commands compose `vera-ingest` (+ pipeline plugins) with `vera-doc`.
+`vera` publishes the `vera` console script and `vera_cli` module (source in
+`packages/vera-cli`). It owns argument parsing, text/JSON formatting, exit
+codes, and retrieval evaluation. Conversion commands compose `vera-ingest`
+(+ pipeline plugins) with `vera-doc`. `vera-cli` remains a PyPI compatibility
+alias.
 
 ### `vera-mcp`
 
 `vera-mcp` publishes `vera_mcp` and the `vera-mcp` console script. It is a
 thin MCP adapter over `vera-doc` search/storage APIs and `vera-ingest.viewer`
-helpers. The optional `vera-cli[mcp]` extra installs it for `vera mcp`.
+helpers. The optional `vera[mcp]` extra installs it for `vera mcp`.
 
 ### `vera-app`
 
@@ -106,7 +108,7 @@ helpers. The optional `vera-cli[mcp]` extra installs it for `vera mcp`.
 providers, sessions, and application state. It depends on `vera-doc`,
 `vera-ingest`, `vera-ingest-pymupdf`, and `vera-embed-openai`
 (including
-viewer helpers), not on `vera-cli`. Packaged conversions keep one frozen
+viewer helpers), not on the CLI package. Packaged conversions keep one frozen
 sidecar for search, Ask, PyMuPDF, Markdown ingest, and OpenAI embeddings. MiniLM (`all-MiniLM-L6-v2`) runs on
 ONNX Runtime; `npm run app:dev` vendors that graph before launch. When no
 MiniLM ONNX graph is present, MiniLM falls back to Sentence Transformers

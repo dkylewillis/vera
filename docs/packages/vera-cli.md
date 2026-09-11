@@ -1,10 +1,14 @@
-# vera-cli
+# vera
 
-`vera-cli` publishes the `vera` console command and the `vera_cli` Python
+`vera` publishes the `vera` console command and the `vera_cli` Python
 package. It depends on `vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and
 `vera-embed-openai`, and owns argument parsing, human and JSON output, exit
 codes, and retrieval evaluation. The optional `docling` extra installs
 `vera-ingest-docling` for `--parser docling` (PDF plus search-only DOCX/PPTX/XLSX/HTML).
+
+The distribution was previously named `vera-cli` on PyPI. `pip install vera-cli`
+remains a compatibility alias. The Python import is still `vera_cli`; the
+source tree lives in `packages/vera-cli`.
 
 Use the CLI for complete document workflows rather than assembling the Python
 packages directly.
@@ -14,8 +18,8 @@ packages directly.
 From PyPI:
 
 ```bash
-python -m pip install "vera-cli>=0.3.0"
-python -m pip install "vera-cli[docling]>=0.3.0"
+python -m pip install "vera>=0.3.1"
+python -m pip install "vera[docling]>=0.3.1"
 ```
 
 From a repository checkout:

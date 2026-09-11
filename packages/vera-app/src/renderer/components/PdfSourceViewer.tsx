@@ -2,19 +2,82 @@ import React, { type CSSProperties, useCallback, useEffect, useMemo, useRef, use
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import {
-  ChevronLeft,
-  ChevronRight,
+  Download,
   Highlighter,
-  Maximize2,
-  Scan,
-  ZoomIn,
-  ZoomOut,
+  Menu,
+  Minus,
+  Plus,
+  Printer,
+  RotateCcw,
 } from 'lucide-react';
 import type { FigureResult, RegionResult, SourceDocumentResult } from '../types';
 import { EMPTY_REGIONS } from '../lib/constants';
-import { fitScaleFor, pageSizeForNumber, type PdfPageSize } from '../lib/pdfZoom';
+import {
+  fitScaleFor,
+  fitPageCenterPadding,
+  nextRotationCcw,
+  pagePointToVisualFraction,
+  pageSizeForNumber,
+  pageWithMostVisibleArea,
+  pdfFitViewport,
+  PDF_CANVAS_EDGE_PAD,
+  PDF_THUMB_WIDTH,
+  scrollTopToCenterPage,
+  thumbnailSizeFor,
+  visualPageSize,
+  type PdfPageSize,
+  type PdfRotation,
+} from '../lib/pdfZoom';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+
+function FitWidthIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <rect
+        x="1.25"
+        y="4.25"
+        width="13.5"
+        height="7.5"
+        rx="2.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+function FitPageIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <rect
+        x="2.35"
+        y="2.35"
+        width="11.3"
+        height="11.3"
+        rx="2.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+function layoutRotatedSurface(
+  wrapper: HTMLElement,
+  surface: HTMLElement,
+  cssW: number,
+  cssH: number,
+  rotation: number,
+) {
+  const visual = visualPageSize({ width: cssW, height: cssH }, rotation);
+  wrapper.style.width = `${visual.width}px`;
+  wrapper.style.height = `${visual.height}px`;
+  surface.style.width = `${cssW}px`;
+  surface.style.height = `${cssH}px`;
+}
 
 function regionStyle(region: RegionResult): CSSProperties {
   const [x0, y0, x1, y1] = region.bbox || [];
@@ -81,19 +144,53 @@ function scrollToPage(container: HTMLElement | null, page: number, behavior: Scr
   if (target) container.scrollTo({ top: target.offsetTop, behavior });
 }
 
+function centerPageInViewport(container: HTMLElement | null, page: number) {
+  if (!container) return;
+  const target = container.querySelector<HTMLElement>(`[data-page-number="${page}"]`);
+  if (!target) {
+    container.style.paddingTop = '';
+    container.style.paddingBottom = '';
+    return;
+  }
+  const pad = fitPageCenterPadding(
+    container.clientHeight,
+    target.offsetHeight,
+    PDF_CANVAS_EDGE_PAD,
+  );
+  container.style.paddingTop = `${pad}px`;
+  container.style.paddingBottom = `${pad}px`;
+  const containerRect = container.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  container.scrollTop = scrollTopToCenterPage(
+    container.scrollTop,
+    targetRect.top - containerRect.top,
+    target.offsetHeight,
+    container.clientHeight,
+  );
+}
+
+function clearFitPagePadding(container: HTMLElement | null) {
+  if (!container) return;
+  container.style.paddingTop = '';
+  container.style.paddingBottom = '';
+}
+
 /** Small inset so the highlight start isn't flush against the toolbar edge. */
 const HIGHLIGHT_SCROLL_PAD_PX = 12;
 
-function earliestHighlightTop(
+function earliestHighlight(
   page: number,
   regions: RegionResult[],
   figures: FigureResult[],
-): { y0: number; pageHeight: number } | null {
-  let best: { y0: number; pageHeight: number } | null = null;
+): { x0: number; y0: number; pageWidth: number; pageHeight: number } | null {
+  let best: { x0: number; y0: number; pageWidth: number; pageHeight: number } | null = null;
   for (const item of [...regions, ...figures]) {
-    if (Number(item.page_number) !== page || item.bbox?.length !== 4 || !item.page_height) continue;
+    if (Number(item.page_number) !== page || item.bbox?.length !== 4 || !item.page_width || !item.page_height) continue;
+    const x0 = item.bbox[0];
     const y0 = item.bbox[1];
-    if (best == null || y0 < best.y0) best = { y0, pageHeight: item.page_height };
+    if (best == null || y0 < best.y0 || (y0 === best.y0 && x0 < best.x0)) {
+      best = { x0, y0, pageWidth: item.page_width, pageHeight: item.page_height };
+    }
   }
   return best;
 }
@@ -104,24 +201,13 @@ function scrollToHighlight(
   regions: RegionResult[],
   figures: FigureResult[],
   behavior: ScrollBehavior = 'smooth',
+  rotation: number = 0,
 ) {
   if (!container) return;
   const shell = container.querySelector<HTMLElement>(`[data-page-number="${page}"]`);
   if (!shell) return;
 
   const containerRect = container.getBoundingClientRect();
-  const surface = shell.querySelector<HTMLElement>('.pdfPageSurface');
-  const earliest = earliestHighlightTop(page, regions, figures);
-  if (surface && earliest && surface.offsetHeight > 0) {
-    const surfaceRect = surface.getBoundingClientRect();
-    const top = container.scrollTop
-      + (surfaceRect.top - containerRect.top)
-      + (earliest.y0 / earliest.pageHeight) * surface.offsetHeight
-      - HIGHLIGHT_SCROLL_PAD_PX;
-    container.scrollTo({ top: Math.max(0, top), behavior });
-    return;
-  }
-
   const painted = shell.querySelector<HTMLElement>('.pdfHighlightBox');
   if (painted) {
     const boxRect = painted.getBoundingClientRect();
@@ -130,19 +216,38 @@ function scrollToHighlight(
     return;
   }
 
+  const wrapper = shell.querySelector<HTMLElement>('.pdfPageRotate') ?? shell;
+  const earliest = earliestHighlight(page, regions, figures);
+  if (earliest && wrapper.offsetHeight > 0) {
+    const { fy } = pagePointToVisualFraction(
+      earliest.x0,
+      earliest.y0,
+      earliest.pageWidth,
+      earliest.pageHeight,
+      rotation,
+    );
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const top = container.scrollTop
+      + (wrapperRect.top - containerRect.top)
+      + fy * wrapper.offsetHeight
+      - HIGHLIGHT_SCROLL_PAD_PX;
+    container.scrollTo({ top: Math.max(0, top), behavior });
+    return;
+  }
+
   container.scrollTo({ top: shell.offsetTop, behavior });
 }
 
 function pageFromScroll(container: HTMLElement): number {
-  const pages = container.querySelectorAll<HTMLElement>('[data-page-number]');
-  if (!pages.length) return 1;
-  const probe = container.scrollTop + Math.min(48, container.clientHeight * 0.12);
-  for (const page of pages) {
-    if (page.offsetTop + page.offsetHeight > probe) {
-      return Number(page.dataset.pageNumber) || 1;
-    }
-  }
-  return Number(pages[pages.length - 1].dataset.pageNumber) || pages.length;
+  const pages = [...container.querySelectorAll<HTMLElement>('[data-page-number]')].map((el) => ({
+    page: Number(el.dataset.pageNumber) || 1,
+    top: el.offsetTop,
+    height: el.offsetHeight,
+  }));
+  return pageWithMostVisibleArea(pages, {
+    scrollTop: container.scrollTop,
+    height: container.clientHeight,
+  });
 }
 
 function PdfSourceViewerImpl({
@@ -161,6 +266,8 @@ function PdfSourceViewerImpl({
   jumpVersion?: number;
 }) {
   const pagesRef = useRef<HTMLDivElement | null>(null);
+  const thumbsRef = useRef<HTMLDivElement | null>(null);
+  const sourceBusyRef = useRef(false);
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const pageSizesRef = useRef<PdfPageSize[]>([]);
   const renderedSourceRef = useRef('');
@@ -182,25 +289,28 @@ function PdfSourceViewerImpl({
   const [showHighlights, setShowHighlights] = useState(() => {
     try { return localStorage.getItem('vera.showHighlights') !== '0'; } catch { return true; }
   });
+  const [showThumbnails, setShowThumbnails] = useState(() => {
+    try { return localStorage.getItem('vera.pdfThumbnails') !== '0'; } catch { return true; }
+  });
+  const [sourceBusy, setSourceBusy] = useState<'download' | 'print' | null>(null);
+  const [rotation, setRotation] = useState<PdfRotation>(0);
+  const rotationRef = useRef<PdfRotation>(0);
   const highlightKey = useMemo(
     () => JSON.stringify([highlightRegions, highlightFigures]),
     [highlightRegions, highlightFigures],
   );
-  const hasPassageHighlights = highlightRegions.some((region) => region.bbox?.length === 4);
-  const hasFigureHighlights = highlightFigures.some((figure) => figure.bbox?.length === 4);
   const currentPageSize = pageSizeForNumber(pageSizes, currentPage);
+  const visualCurrentPage = currentPageSize ? visualPageSize(currentPageSize, rotation) : null;
   const fitContainer = pagesRef.current;
-  const currentPageFitScale = currentPageSize && fitContainer
-    ? fitScaleFor('fit-width', [currentPageSize], {
-        width: fitContainer.clientWidth,
-        height: fitContainer.clientHeight,
-      })
+  const currentPageFitScale = visualCurrentPage && fitContainer
+    ? fitScaleFor('fit-width', [visualCurrentPage], pdfFitViewport(fitContainer))
     : null;
   const isCurrentPageFitWidth = zoomMode === 'fit-width'
     && currentPageFitScale !== null
     && Math.abs(scale - currentPageFitScale) <= 0.005;
 
   scaleRef.current = scale;
+  rotationRef.current = rotation;
 
   const rememberAnchor = useCallback(() => {
     // A resize can fire again while the scale render is rebuilding page shells.
@@ -218,6 +328,7 @@ function PdfSourceViewerImpl({
   const setManualScale = useCallback((updater: number | ((value: number) => number), snap = true) => {
     rememberAnchor();
     commitZoomMode('manual');
+    clearFitPagePadding(pagesRef.current);
     setScale((value) => {
       const next = typeof updater === 'function' ? updater(value) : updater;
       return clampPdfZoom(next, snap);
@@ -230,17 +341,26 @@ function PdfSourceViewerImpl({
       commitZoomMode(mode);
       return;
     }
-    const fitSizes = mode === 'fit-width'
-      ? [pageSizeForNumber(pageSizes, currentPage)!]
-      : pageSizes;
-    if (mode === 'fit-width') fitWidthPageRef.current = currentPage;
-    rememberAnchor();
+    const pageNumber = pageFromScroll(container);
+    const page = pageSizeForNumber(pageSizes, pageNumber);
+    const fitSizes = page ? [visualPageSize(page, rotation)] : pageSizes;
+    fitWidthPageRef.current = pageNumber;
+    if (mode === 'fit-page') {
+      scrollAnchorRef.current = null;
+      setCurrentPage(pageNumber);
+      setPageInput(String(pageNumber));
+    } else {
+      rememberAnchor();
+      clearFitPagePadding(container);
+    }
     commitZoomMode(mode);
-    setScale(fitScaleFor(mode, fitSizes, {
-      width: container.clientWidth,
-      height: container.clientHeight,
-    }));
-  }, [commitZoomMode, currentPage, pageSizes, rememberAnchor]);
+    const next = fitScaleFor(mode, fitSizes, pdfFitViewport(container));
+    if (mode === 'fit-page' && Math.abs(next - scaleRef.current) <= 0.005) {
+      centerPageInViewport(container, pageNumber);
+      return;
+    }
+    setScale(next);
+  }, [commitZoomMode, pageSizes, rememberAnchor, rotation]);
 
   const goToPage = (page: number, behavior: ScrollBehavior = 'smooth') => {
     if (!pageCount) return;
@@ -248,7 +368,12 @@ function PdfSourceViewerImpl({
     suppressPageTrackingRef.current = true;
     setCurrentPage(clamped);
     setPageInput(String(clamped));
-    scrollToPage(pagesRef.current, clamped, behavior);
+    if (zoomModeRef.current === 'fit-page') {
+      fitWidthPageRef.current = clamped;
+      centerPageInViewport(pagesRef.current, clamped);
+    } else {
+      scrollToPage(pagesRef.current, clamped, behavior);
+    }
     window.setTimeout(() => {
       suppressPageTrackingRef.current = false;
     }, behavior === 'smooth' ? 400 : 50);
@@ -267,13 +392,19 @@ function PdfSourceViewerImpl({
     suppressPageTrackingRef.current = true;
     setCurrentPage(clamped);
     setPageInput(String(clamped));
-    scrollToHighlight(
-      pagesRef.current,
-      clamped,
-      highlightRegionsRef.current,
-      highlightFiguresRef.current,
-      behavior,
-    );
+    if (zoomModeRef.current === 'fit-page') {
+      fitWidthPageRef.current = clamped;
+      centerPageInViewport(pagesRef.current, clamped);
+    } else {
+      scrollToHighlight(
+        pagesRef.current,
+        clamped,
+        highlightRegionsRef.current,
+        highlightFiguresRef.current,
+        behavior,
+        rotationRef.current,
+      );
+    }
     window.setTimeout(() => {
       suppressPageTrackingRef.current = false;
     }, behavior === 'smooth' ? 400 : 50);
@@ -293,16 +424,21 @@ function PdfSourceViewerImpl({
     if (!container) return;
 
     const applyFit = (mode: 'fit-width' | 'fit-page') => {
-      const fitSizes = mode === 'fit-width'
-        ? [pageSizeForNumber(pageSizes, fitWidthPageRef.current)!]
-        : pageSizes;
-      const next = fitScaleFor(mode, fitSizes, {
-        width: container.clientWidth,
-        height: container.clientHeight,
-      });
+      const page = pageSizeForNumber(pageSizes, fitWidthPageRef.current);
+      const fitSizes = page ? [visualPageSize(page, rotationRef.current)] : pageSizes;
+      const next = fitScaleFor(mode, fitSizes, pdfFitViewport(container));
       commitZoomMode(mode);
-      if (Math.abs(next - scaleRef.current) <= 0.005) return;
-      rememberAnchor();
+      if (Math.abs(next - scaleRef.current) <= 0.005) {
+        if (mode === 'fit-page') centerPageInViewport(container, fitWidthPageRef.current);
+        else clearFitPagePadding(container);
+        return;
+      }
+      if (mode === 'fit-page') {
+        scrollAnchorRef.current = null;
+      } else {
+        rememberAnchor();
+        clearFitPagePadding(container);
+      }
       setScale(next);
     };
 
@@ -326,11 +462,11 @@ function PdfSourceViewerImpl({
     };
 
     const observer = new ResizeObserver(onResize);
-    observer.observe(container);
+    observer.observe(container, { box: 'border-box' });
     return () => observer.disconnect();
-  }, [commitZoomMode, pageSizes, rememberAnchor, source.url]);
+  }, [commitZoomMode, pageSizes, rememberAnchor, source.url, rotation]);
 
-  // Track the page nearest the top of the viewport while scrolling.
+  // Track the page that occupies the most of the well while scrolling.
   useEffect(() => {
     const container = pagesRef.current;
     if (!container || !pageCount) return;
@@ -490,7 +626,9 @@ function PdfSourceViewerImpl({
     const renderTasks = new Set<{ cancel: () => void }>();
     const sourceChanged = renderedSourceRef.current !== source.url;
     const container = pagesRef.current;
-    const anchor = sourceChanged
+    const shouldCenterFittedPage = zoomModeRef.current === 'fit-page';
+    const fittedPage = fitWidthPageRef.current;
+    const anchor = sourceChanged || shouldCenterFittedPage
       ? null
       : (scrollAnchorRef.current ?? captureScrollAnchor(container));
 
@@ -556,13 +694,15 @@ function PdfSourceViewerImpl({
           const shell = document.createElement('article');
           shell.className = 'pdfPage pdfPage--pending';
           shell.dataset.pageNumber = String(i);
-          const label = document.createElement('span');
-          label.textContent = `Page ${i}`;
+          const rotate = document.createElement('div');
+          rotate.className = 'pdfPageRotate';
           const surface = document.createElement('div');
           surface.className = 'pdfPageSurface';
-          surface.style.width = `${Math.floor(pageSize.width * scale)}px`;
-          surface.style.height = `${Math.floor(pageSize.height * scale)}px`;
-          shell.append(label, surface);
+          const cssW = Math.floor(pageSize.width * scale);
+          const cssH = Math.floor(pageSize.height * scale);
+          layoutRotatedSurface(rotate, surface, cssW, cssH, rotationRef.current);
+          rotate.append(surface);
+          shell.append(rotate);
           fragment.append(shell);
           shells.push(shell);
           if (i % 40 === 0) {
@@ -576,7 +716,8 @@ function PdfSourceViewerImpl({
         // Swap the complete layout in one operation and restore its position
         // before the browser can paint an intermediate scroll location.
         container.replaceChildren(fragment);
-        if (anchor) restoreScrollAnchor(container, anchor);
+        if (shouldCenterFittedPage) centerPageInViewport(container, fittedPage);
+        else if (anchor) restoreScrollAnchor(container, anchor);
 
         const outputScale = window.devicePixelRatio || 1;
 
@@ -593,8 +734,12 @@ function PdfSourceViewerImpl({
             const cssH = Math.floor(viewport.height);
 
             const surface = shell.querySelector<HTMLElement>('.pdfPageSurface')!;
-            surface.style.width = `${cssW}px`;
-            surface.style.height = `${cssH}px`;
+            const wrapper = shell.querySelector<HTMLElement>('.pdfPageRotate');
+            if (wrapper) layoutRotatedSurface(wrapper, surface, cssW, cssH, rotationRef.current);
+            else {
+              surface.style.width = `${cssW}px`;
+              surface.style.height = `${cssH}px`;
+            }
 
             const canvas = document.createElement('canvas');
             canvas.width = Math.floor(cssW * outputScale);
@@ -637,13 +782,14 @@ function PdfSourceViewerImpl({
             shell.dataset.rendered = '1';
             shell.classList.remove('pdfPage--pending');
             // Citation jump may have landed before this page had layout; align now.
-            if (!anchor && targetPageRef.current === pageNum) {
+            if (!anchor && zoomModeRef.current !== 'fit-page' && targetPageRef.current === pageNum) {
               scrollToHighlight(
                 container,
                 pageNum,
                 highlightRegionsRef.current,
                 highlightFiguresRef.current,
                 'auto',
+                rotationRef.current,
               );
             }
           } finally {
@@ -651,11 +797,17 @@ function PdfSourceViewerImpl({
           }
         };
 
-        const priority = anchor?.page ?? targetPage ?? 1;
+        const priority = shouldCenterFittedPage
+          ? fittedPage
+          : (anchor?.page ?? targetPage ?? 1);
         await renderPage(priority);
         if (canceled) return;
 
-        if (anchor) {
+        if (shouldCenterFittedPage) {
+          centerPageInViewport(container, fittedPage);
+          scrollAnchorRef.current = null;
+          setCurrentPage(fittedPage);
+        } else if (anchor) {
           restoreScrollAnchor(container, anchor);
           scrollAnchorRef.current = null;
           setCurrentPage(anchor.page);
@@ -667,6 +819,7 @@ function PdfSourceViewerImpl({
             highlightRegionsRef.current,
             highlightFiguresRef.current,
             'auto',
+            rotationRef.current,
           );
           setCurrentPage(jump);
           scrollAnchorRef.current = null;
@@ -716,9 +869,117 @@ function PdfSourceViewerImpl({
     }
   }, [source.url]);
 
+  // Low-res sidebar thumbs. Independent of main-page zoom so scale changes
+  // do not rebuild the rail.
+  useEffect(() => {
+    const pdf = pdfRef.current;
+    const list = thumbsRef.current;
+    if (!showThumbnails || !pdf || !list || pageSizes.length !== pageCount || pageCount === 0) {
+      return undefined;
+    }
+
+    let canceled = false;
+    const renderTasks = new Set<{ cancel: () => void }>();
+    const outputScale = Math.min(2, window.devicePixelRatio || 1);
+
+    const renderThumb = async (pageNum: number) => {
+      const button = list.querySelector<HTMLElement>(`[data-thumb-page="${pageNum}"]`);
+      const surface = button?.querySelector<HTMLElement>('.pdfThumbnailSurface');
+      if (!surface || surface.dataset.rendered || surface.dataset.rendering || canceled) return;
+      const pageSize = pageSizes[pageNum - 1];
+      if (!pageSize) return;
+      surface.dataset.rendering = '1';
+      try {
+        const page = await pdf.getPage(pageNum);
+        if (canceled) return;
+        const thumb = thumbnailSizeFor(pageSize);
+        const viewport = page.getViewport({ scale: thumb.width / pageSize.width });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.floor(thumb.width * outputScale);
+        canvas.height = Math.floor(thumb.height * outputScale);
+        canvas.style.width = `${thumb.width}px`;
+        canvas.style.height = `${thumb.height}px`;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        if (outputScale !== 1) ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+        const renderTask = page.render({ canvas, canvasContext: ctx, viewport });
+        renderTasks.add(renderTask);
+        try {
+          await renderTask.promise;
+        } catch (err) {
+          if (canceled || (err instanceof Error && err.name === 'RenderingCancelledException')) return;
+          throw err;
+        } finally {
+          renderTasks.delete(renderTask);
+        }
+        if (canceled) return;
+        surface.replaceChildren(canvas);
+        surface.dataset.rendered = '1';
+      } finally {
+        delete surface.dataset.rendering;
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const pageNum = Number((entry.target as HTMLElement).dataset.thumbPage);
+          if (pageNum) {
+            void renderThumb(pageNum).catch(() => {
+              /* leave the empty surface; the main page still renders */
+            });
+          }
+        }
+      },
+      { root: list, rootMargin: '160px 0px' },
+    );
+    for (const button of list.querySelectorAll<HTMLElement>('[data-thumb-page]')) {
+      observer.observe(button);
+    }
+
+    return () => {
+      canceled = true;
+      observer.disconnect();
+      for (const task of renderTasks) task.cancel();
+      renderTasks.clear();
+    };
+  }, [pageCount, pageSizes, showThumbnails, source.url]);
+
+  useEffect(() => {
+    if (!showThumbnails) return;
+    const current = thumbsRef.current?.querySelector<HTMLElement>(
+      `[data-thumb-page="${currentPage}"]`,
+    );
+    current?.scrollIntoView({ block: 'nearest' });
+  }, [currentPage, showThumbnails]);
+
+  useEffect(() => {
+    const container = pagesRef.current;
+    if (!container || pageSizes.length === 0) return;
+    rememberAnchor();
+    for (const shell of container.querySelectorAll<HTMLElement>('[data-page-number]')) {
+      const wrapper = shell.querySelector<HTMLElement>('.pdfPageRotate');
+      const surface = shell.querySelector<HTMLElement>('.pdfPageSurface');
+      const pageSize = pageSizes[Number(shell.dataset.pageNumber) - 1];
+      if (!wrapper || !surface || !pageSize) continue;
+      layoutRotatedSurface(
+        wrapper,
+        surface,
+        Math.floor(pageSize.width * scaleRef.current),
+        Math.floor(pageSize.height * scaleRef.current),
+        rotation,
+      );
+    }
+    if (zoomModeRef.current === 'fit-page') {
+      centerPageInViewport(container, fitWidthPageRef.current);
+    }
+  }, [pageSizes, rememberAnchor, rotation]);
+
   // Reset page UI when switching documents.
   useEffect(() => {
     setPageCount(0);
+    setPageSizes([]);
     setCurrentPage(1);
     setPageInput('1');
     fitWidthPageRef.current = targetPageRef.current
@@ -726,24 +987,103 @@ function PdfSourceViewerImpl({
       : 1;
     commitZoomMode('fit-width');
     setScale(PDF_ZOOM_DEFAULT);
+    setRotation(0);
+    rotationRef.current = 0;
     scrollAnchorRef.current = null;
+    clearFitPagePadding(pagesRef.current);
   }, [commitZoomMode, source.url]);
 
+  const fetchSourceBlob = useCallback(async () => {
+    const response = await fetch(source.url);
+    if (!response.ok) throw new Error('Unable to read the source PDF');
+    return response.blob();
+  }, [source.url]);
+
+  const downloadSource = useCallback(async () => {
+    if (sourceBusyRef.current) return;
+    sourceBusyRef.current = true;
+    setSourceBusy('download');
+    try {
+      const blob = await fetchSourceBlob();
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = href;
+      link.download = source.filename || 'document.pdf';
+      link.rel = 'noopener';
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(href), 2_000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to download PDF');
+    } finally {
+      sourceBusyRef.current = false;
+      setSourceBusy(null);
+    }
+  }, [fetchSourceBlob, source.filename]);
+
+  const printSource = useCallback(async () => {
+    if (sourceBusyRef.current) return;
+    sourceBusyRef.current = true;
+    setSourceBusy('print');
+    try {
+      const blob = await fetchSourceBlob();
+      const href = URL.createObjectURL(blob);
+      const frame = document.createElement('iframe');
+      frame.className = 'pdfPrintFrame';
+      frame.src = href;
+      const cleanup = () => {
+        frame.remove();
+        URL.revokeObjectURL(href);
+      };
+      frame.addEventListener('load', () => {
+        try {
+          frame.contentWindow?.focus();
+          frame.contentWindow?.print();
+        } finally {
+          window.setTimeout(cleanup, 60_000);
+        }
+      }, { once: true });
+      document.body.append(frame);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to print PDF');
+    } finally {
+      sourceBusyRef.current = false;
+      setSourceBusy(null);
+    }
+  }, [fetchSourceBlob]);
+
+  const viewerClass = [
+    compact ? 'pdfViewer compact' : 'pdfViewer',
+    showHighlights ? '' : 'pdfViewer--hideHighlights',
+    showThumbnails ? 'pdfViewer--thumbs' : '',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className={`${compact ? 'pdfViewer compact' : 'pdfViewer'}${showHighlights ? '' : ' pdfViewer--hideHighlights'}`}>
+    <div
+      className={viewerClass}
+      style={{ ['--pdf-rotation' as string]: `${rotation}deg` }}
+    >
       <div className="viewerToolbarWrap">
       <div className="viewerToolbar" role="toolbar" aria-label="Document viewer controls">
-        <div className="viewerToolbarGroup viewerToolbarNav">
+        <div className="viewerToolbarGroup">
           <button
             type="button"
-            className="viewerToolButton"
-            onClick={() => goToPage(currentPage - 1)}
-            disabled={!pageCount || currentPage <= 1}
-            title="Previous page (Page Up)"
-            aria-label="Previous page"
+            className={showThumbnails ? 'viewerToolButton activeNow' : 'viewerToolButton'}
+            onClick={() => setShowThumbnails((value) => {
+              const next = !value;
+              try { localStorage.setItem('vera.pdfThumbnails', next ? '1' : '0'); } catch { /* ignore persistence errors */ }
+              return next;
+            })}
+            title={showThumbnails ? 'Hide page thumbnails' : 'Show page thumbnails'}
+            aria-label={showThumbnails ? 'Hide page thumbnails' : 'Show page thumbnails'}
+            aria-pressed={showThumbnails}
           >
-            <ChevronLeft size={15} />
+            <Menu size={16} />
           </button>
+        </div>
+
+        <div className="viewerToolbarGroup viewerToolbarNav">
           <label className="viewerPageControl">
             <span className="srOnly">Page</span>
             <input
@@ -773,67 +1113,11 @@ function PdfSourceViewerImpl({
               / {pageCount || '—'}
             </span>
           </label>
-          <button
-            type="button"
-            className="viewerToolButton"
-            onClick={() => goToPage(currentPage + 1)}
-            disabled={!pageCount || currentPage >= pageCount}
-            title="Next page (Page Down)"
-            aria-label="Next page"
-          >
-            <ChevronRight size={15} />
-          </button>
         </div>
 
-        <span className="viewerToolbarStatus" aria-live="polite">
-          {rendering ? 'Rendering…' : null}
-        </span>
+        <span className="viewerToolbarDivider" aria-hidden="true" />
 
-        {(hasPassageHighlights || hasFigureHighlights) && showHighlights ? (
-          <div className="viewerHighlightLegend" aria-hidden="true">
-            {hasPassageHighlights ? <span className="viewerLegendSwatch viewerLegendSwatch--passage">Passage</span> : null}
-            {hasFigureHighlights ? <span className="viewerLegendSwatch viewerLegendSwatch--figure">Figure</span> : null}
-          </div>
-        ) : null}
-
-        <div className="viewerToolbarGroup">
-          <button
-            type="button"
-            className={showHighlights ? 'viewerToolButton activeNow' : 'viewerToolButton'}
-            onClick={() => setShowHighlights((value) => {
-              const next = !value;
-              try { localStorage.setItem('vera.showHighlights', next ? '1' : '0'); } catch { /* ignore persistence errors */ }
-              return next;
-            })}
-            title={showHighlights ? 'Hide highlight regions' : 'Show highlight regions'}
-            aria-label={showHighlights ? 'Hide highlight regions' : 'Show highlight regions'}
-            aria-pressed={showHighlights}
-          >
-            <Highlighter size={14} />
-            <span className="viewerToolLabel">Highlights</span>
-          </button>
-          <button
-            type="button"
-            className={isCurrentPageFitWidth ? 'viewerToolButton activeNow' : 'viewerToolButton'}
-            onClick={() => applyFitScale('fit-width')}
-            title="Fit width"
-            aria-label="Fit width"
-            aria-pressed={isCurrentPageFitWidth}
-          >
-            <Scan size={14} />
-            <span className="viewerToolLabel">Width</span>
-          </button>
-          <button
-            type="button"
-            className={zoomMode === 'fit-page' ? 'viewerToolButton activeNow' : 'viewerToolButton'}
-            onClick={() => applyFitScale('fit-page')}
-            title="Fit page"
-            aria-label="Fit page"
-            aria-pressed={zoomMode === 'fit-page'}
-          >
-            <Maximize2 size={14} />
-            <span className="viewerToolLabel">Page</span>
-          </button>
+        <div className="viewerToolbarGroup viewerToolbarZoom">
           <button
             type="button"
             className="viewerToolButton"
@@ -842,7 +1126,7 @@ function PdfSourceViewerImpl({
             title="Zoom out (Ctrl+-)"
             aria-label="Zoom out"
           >
-            <ZoomOut size={14} />
+            <Minus size={16} />
           </button>
           <button
             type="button"
@@ -861,19 +1145,136 @@ function PdfSourceViewerImpl({
             title="Zoom in (Ctrl+=)"
             aria-label="Zoom in"
           >
-            <ZoomIn size={14} />
+            <Plus size={16} />
+          </button>
+        </div>
+
+        <span className="viewerToolbarDivider" aria-hidden="true" />
+
+        <div className="viewerToolbarGroup">
+          <button
+            type="button"
+            className={isCurrentPageFitWidth ? 'viewerToolButton activeNow' : 'viewerToolButton'}
+            onClick={() => applyFitScale('fit-width')}
+            title="Fit width"
+            aria-label="Fit width"
+            aria-pressed={isCurrentPageFitWidth}
+          >
+            <FitWidthIcon size={16} />
+          </button>
+          <button
+            type="button"
+            className={zoomMode === 'fit-page' ? 'viewerToolButton activeNow' : 'viewerToolButton'}
+            onClick={() => applyFitScale('fit-page')}
+            title="Fit page"
+            aria-label="Fit page"
+            aria-pressed={zoomMode === 'fit-page'}
+          >
+            <FitPageIcon size={16} />
+          </button>
+          <button
+            type="button"
+            className="viewerToolButton"
+            onClick={() => {
+              rememberAnchor();
+              setRotation((value) => nextRotationCcw(value));
+            }}
+            title="Rotate counterclockwise"
+            aria-label="Rotate counterclockwise"
+          >
+            <RotateCcw size={16} />
+          </button>
+          <button
+            type="button"
+            className={showHighlights ? 'viewerToolButton activeNow' : 'viewerToolButton'}
+            onClick={() => setShowHighlights((value) => {
+              const next = !value;
+              try { localStorage.setItem('vera.showHighlights', next ? '1' : '0'); } catch { /* ignore persistence errors */ }
+              return next;
+            })}
+            title={showHighlights ? 'Hide highlight regions' : 'Show highlight regions'}
+            aria-label={showHighlights ? 'Hide highlight regions' : 'Show highlight regions'}
+            aria-pressed={showHighlights}
+          >
+            <Highlighter size={16} />
+          </button>
+        </div>
+
+        <span className="viewerToolbarStatus" aria-live="polite">
+          {rendering ? 'Rendering…' : null}
+        </span>
+
+        <div className="viewerToolbarGroup viewerToolbarEnd">
+          <button
+            type="button"
+            className="viewerToolButton"
+            onClick={() => void downloadSource()}
+            disabled={Boolean(sourceBusy)}
+            title="Download"
+            aria-label="Download PDF"
+          >
+            <Download size={16} />
+          </button>
+          <button
+            type="button"
+            className="viewerToolButton"
+            onClick={() => void printSource()}
+            disabled={Boolean(sourceBusy)}
+            title="Print"
+            aria-label="Print PDF"
+          >
+            <Printer size={16} />
           </button>
         </div>
       </div>
       </div>
       {error ? <div className="errorBanner" role="alert">{error}</div> : null}
-      <div
-        className="pdfCanvasWrap"
-        ref={pagesRef}
-        tabIndex={0}
-        onKeyDown={onViewerKeyDown}
-        aria-label="PDF pages"
-      />
+      <div className="pdfViewerBody">
+        {showThumbnails ? (
+          <aside className="pdfThumbnailSidebar" aria-label="Page thumbnails">
+            <div className="pdfThumbnailList" ref={thumbsRef}>
+              {Array.from({ length: pageCount }, (_, index) => {
+                const page = index + 1;
+                const size = pageSizes[index];
+                const unrotated = size
+                  ? thumbnailSizeFor(size)
+                  : { width: PDF_THUMB_WIDTH, height: Math.round(PDF_THUMB_WIDTH * 11 / 8.5) };
+                const layout = visualPageSize(unrotated, rotation);
+                return (
+                  <button
+                    key={page}
+                    type="button"
+                    className={page === currentPage ? 'pdfThumbnail is-current' : 'pdfThumbnail'}
+                    data-thumb-page={page}
+                    onClick={() => goToPage(page)}
+                    title={`Page ${page}`}
+                    aria-label={`Page ${page}`}
+                    aria-current={page === currentPage ? 'page' : undefined}
+                  >
+                    <span
+                      className="pdfThumbnailRotate"
+                      style={{ width: layout.width, height: layout.height }}
+                    >
+                      <span
+                        className="pdfThumbnailSurface"
+                        style={{ width: unrotated.width, height: unrotated.height }}
+                      />
+                    </span>
+                    <span className="pdfThumbnailLabel">{page}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+        ) : null}
+        <div
+          className={zoomMode === 'fit-page' ? 'pdfCanvasWrap pdfCanvasWrap--fitPage' : 'pdfCanvasWrap'}
+          ref={pagesRef}
+          tabIndex={0}
+          onKeyDown={onViewerKeyDown}
+          aria-label="PDF pages"
+        />
+      </div>
     </div>
   );
 }

@@ -8,7 +8,7 @@ dependencies = [
   "vera-doc",
   "vera-ingest",
   "vera-ingest-pymupdf",
-  "vera-cli",
+  "vera",
   "vera-embed-openai",
 ]
 authors = [{name = "Kyle Willis"}]
@@ -46,6 +46,7 @@ members = [
   "packages/vera-ingest-docling",
   "packages/vera-mcp",
   "packages/vera-cli",
+  "packages/vera-cli-compat",
   "packages/vera-embed-openai",
   "packages/vera-app",
   "packages/vera-lab",
@@ -57,6 +58,7 @@ vera-ingest = { workspace = true }
 vera-ingest-pymupdf = { workspace = true }
 vera-ingest-docling = { workspace = true }
 vera-mcp = { workspace = true }
+vera = { workspace = true }
 vera-cli = { workspace = true }
 vera-embed-openai = { workspace = true }
 vera-app = { workspace = true }

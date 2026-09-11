@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   findSiblingPdfPath,
   findSiblingSourcePath,
+  reconvertConvertOutput,
   reconvertExportGate,
   reconvertInspectFailedMessage,
   reconvertMissingSourceMessage,
@@ -185,5 +186,30 @@ describe('reconvertMissingSourceMessage', () => {
 
   it('names the expected sibling Markdown file', () => {
     expect(reconvertMissingSourceMessage('C:\\docs\\notes.vera', 'notes.md')).toContain('notes.md');
+  });
+});
+
+describe('reconvertConvertOutput', () => {
+  const target = {
+    sourcePath: 'C:\\library\\report.pdf',
+    archivePath: 'C:\\library\\project-alpha.vera',
+  };
+
+  it('writes to the clicked archive when the Reconvert source is still selected', () => {
+    expect(reconvertConvertOutput(target, ['C:\\library\\report.pdf'])).toBe(
+      'C:\\library\\project-alpha.vera',
+    );
+  });
+
+  it('matches the Reconvert source path case-insensitively', () => {
+    expect(reconvertConvertOutput(target, ['C:\\Library\\Report.PDF'])).toBe(
+      'C:\\library\\project-alpha.vera',
+    );
+  });
+
+  it('does not retarget Convert after the selection changes', () => {
+    expect(reconvertConvertOutput(target, ['C:\\library\\other.pdf'])).toBeNull();
+    expect(reconvertConvertOutput(target, ['C:\\library\\report.pdf', 'C:\\library\\other.pdf'])).toBeNull();
+    expect(reconvertConvertOutput(null, ['C:\\library\\report.pdf'])).toBeNull();
   });
 });
