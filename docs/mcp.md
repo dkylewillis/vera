@@ -113,7 +113,11 @@ index set `index.used` to false.
 Parameter: `file: str`.
 
 Returns archive metadata and summary counts, including `file` (the requested
-path) and `path` (the opened archive).
+path) and `path` (the opened archive). The payload matches
+`vera inspect FILE --json`: archive metadata is spread at the top level, so
+the pipeline `ocr` diagnostics bag is present when convert wrote it. There is
+no text-mode omit. See
+[Inspect metadata](validation-and-export.md#pipeline-diagnostics-ocr).
 
 ### `vera_validate`
 

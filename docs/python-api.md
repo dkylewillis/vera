@@ -219,8 +219,14 @@ with VeraDocument.open("manual.vera") as document:
 
 Archive metadata is caller-controlled JSON. Format, embedding model and
 dimension, archive byte size, record counts, and integrity results are
-available through `inspect()` and `validate()`. Ingest-created archives also
-expose parser, chunking, and OCR diagnostics through their metadata.
+available through `inspect()` and `validate()`. `inspect()` spreads archive
+metadata at the top level (and again under `metadata`), so ingest-created
+archives expose parser, chunking, and the pipeline `ocr` diagnostics bag
+without a text-vs-JSON split — that omission is CLI text mode only. CLI
+`vera inspect --json` and MCP `vera_inspect` return the same object plus
+`file` / `path` locators. See
+[Inspect metadata](validation-and-export.md#pipeline-diagnostics-ocr)
+for the PyMuPDF / Docling / Markdown field table.
 
 Library indexing uses two bulk-read helpers that avoid constructing
 `ChunkRecord` objects and do not load attachments:

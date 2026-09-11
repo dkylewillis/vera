@@ -135,8 +135,10 @@ vera inspect "manual.vera" --json
 
 Inspection includes `default_embedding_normalization`: `l2`, `none`, or
 `unknown`. Older archives without the field are reported as `unknown`.
-Package release 0.3.x versions the CLI and APIs; `format_version` remains
-`0.2` and existing archives stay compatible.
+Prefer `--json`: text mode omits the pipeline `ocr` diagnostics bag
+(PyMuPDF `ocr_pages`, Docling `recovered_pages` / fallback fields, or `{}`
+for Markdown). Package release 0.3.x versions the CLI and APIs;
+`format_version` remains `0.2` and existing archives stay compatible.
 
 Use validation when the user asks about archive integrity or a search failure
 suggests corruption:

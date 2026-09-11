@@ -93,11 +93,13 @@ Embedding-provider options follow the same Options + descriptor pattern
 
 Print archive metadata and summary counts, including archive size, creation
 time, embedding dimensions and normalization policy, parser/chunking settings,
-OCR diagnostics, and attachment count when recorded. Normalization is `l2`,
-`none`, or `unknown`.
+and attachment count when recorded. Normalization is `l2`, `none`, or
+`unknown`. Text mode does not print the pipeline `ocr` diagnostics bag.
 
-Options: `--json`. JSON includes `file` (the requested path) and `path` (the
-opened archive).
+Options: `--json`. JSON includes `file` (the requested path), `path` (the
+opened archive), and `ocr` (pipeline diagnostics: PyMuPDF OCR pages, Docling
+recovery, or `{}` for Markdown). See
+[Inspect metadata](validation-and-export.md#pipeline-diagnostics-ocr).
 
 ## `vera get FILE CHUNK_ID`
 

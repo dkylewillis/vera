@@ -445,8 +445,10 @@ vera validate "output.vera" --json
 ```
 
 Inspect confirms the source, page and chunk counts, parser, and embedding
-model. Validate checks SQLite integrity, required tables and metadata,
-embedding counts, FTS consistency, and the stored source document.
+model. Use `--json` to read the pipeline `ocr` diagnostics bag (OCR pages or
+Docling recovery); text-mode inspect omits it. Validate checks SQLite
+integrity, required tables and metadata, embedding counts, FTS consistency,
+and the stored source document.
 
 ## Python equivalent
 

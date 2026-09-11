@@ -50,8 +50,9 @@ This starts the Vite development server and then opens the Electron window.
 Keep the terminal running while using the app. Press `Ctrl+C` in that terminal
 to stop both processes.
 
-Open a PDF from the app's Convert view to create a `.vera` archive, or use the
-native File menu to open an existing archive or document library.
+Open a PDF or Markdown file from the app's Convert view to create a `.vera`
+archive, or use the native File menu to open an existing archive or document
+library.
 Desktop conversions default to the PyMuPDF ingest pipeline and the
 offline `hashing` embedder. The Convert view exposes dropdowns for
 `ingest_pipeline` (PyMuPDF in 0.3.0) and
@@ -90,7 +91,11 @@ settings and turns overwrite on. If inspect fails and no sibling source is
 listed, Reconvert does not export an embedded original and shows
 **Could not read archive metadata**. Place the matching `.pdf` or `.md` next to the
 archive, or export the original from Document Info once the archive is
-readable.
+readable. Document Info's OCR line is PyMuPDF-shaped (`ocr_engine`,
+`ocr_mode`, `ocr_pages`). Markdown archives store `ocr: {}` and the UI shows
+`Unknown mode · 0 pages OCR’d`; Docling recovery uses `engine` /
+`recovered_pages`, so the Info line can look incomplete after a successful
+convert. Use `vera inspect FILE --json` (or sidecar inspect) for the full bag.
 In Explorer, click a file to select it, Ctrl/Cmd+click to add or remove it, and
 Shift+click to select a range. The checkbox next to a file adds or removes that
 row from the same list — unchecking it deselects it, and the highlight and the

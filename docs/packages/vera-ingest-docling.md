@@ -133,10 +133,12 @@ Force the low-memory backend for an entire conversion:
 vera convert "manual.pdf" --parser docling --pipeline-option pdf_backend=pypdfium2
 ```
 
-Successful recoveries are recorded in ingest diagnostics (surfaced by
-`vera inspect`): `pdf_backend`, `recovered_pages`,
-`recovered_pages_backend`, and optionally `whole_document_fallback_backend`
-and `whole_document_fallback_strategy` (`document` or `batched`).
+Successful recoveries are recorded in ingest diagnostics (the inspect JSON
+`ocr` object — use `--json`; text-mode inspect omits it): `pdf_backend`,
+`recovered_pages`, `recovered_pages_backend`, and optionally
+`whole_document_fallback_backend` and `whole_document_fallback_strategy`
+(`document` or `batched`). Field tables live under
+[Inspect metadata](../validation-and-export.md#pipeline-diagnostics-ocr).
 `pypdfium2` is faster and more memory-stable but can reduce table/layout
 fidelity compared with `docling_parse`.
 

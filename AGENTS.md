@@ -48,7 +48,7 @@ vera export manual.vera exported.pdf --json
 vera figures manual.vera --json
 vera figures manual.vera --out-dir ./figures --json
 
-# What's in this file?
+# What's in this file? (--json includes the pipeline "ocr" diagnostics bag)
 vera inspect manual.vera --json
 
 # Fetch one stored chunk by id (citation-ready text, no score)
@@ -184,7 +184,7 @@ VERA ships an MCP server (stdio) exposing the same capabilities as tools:
 |------|---------|
 | `vera_search` | Hybrid/semantic/keyword search with optional figure metadata and highlight regions |
 | `vera_corpus_search` | Search every .vera file in a directory as one corpus; results attributed per file |
-| `vera_inspect` | Document metadata, page/chunk counts, embedding model |
+| `vera_inspect` | Document metadata, page/chunk counts, embedding model, pipeline `ocr` diagnostics |
 | `vera_validate` | Integrity check |
 | `vera_figures` | List figures/images with captions, optionally by page range |
 | `vera_get_figure` | Fetch one stored figure as native image content plus citation metadata |

@@ -53,6 +53,10 @@ convert("manual.pdf", "manual.vera", parser="pymupdf")
   or LLM subword tokens. Runtime overlap is clamped to `chunk_size - 1`.
 - OCR is designed for scanned prose and does not reconstruct complex scanned
   forms or tables.
+- Convert records diagnostics on archive metadata `ocr`: `ocr_engine`
+  (`tesseract`), `ocr_mode`, `ocr_language`, `ocr_dpi`, and `ocr_pages`
+  (1-based pages that actually ran Tesseract). Read them with
+  `vera inspect FILE --json`; text-mode inspect omits the bag.
 
 ## Desktop app
 

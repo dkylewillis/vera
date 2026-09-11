@@ -451,7 +451,12 @@ was extracted from a `.vera` archive, the viewer's **Info** tab
 that inspects that archive and shows its format, source, page and chunk counts,
 embedding model and dimensions, creation time, archive size, parser and
 chunking settings, OCR summary, attachment count, validation status, and
-export controls alongside the PDF.
+export controls alongside the source. The OCR line is
+`formatOcrSummary()` over PyMuPDF-shaped `ocr` keys (`ocr_engine`,
+`ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_pages`). Docling writes `engine`
+and `recovered_pages` instead; Markdown writes `ocr: {}`, which the
+formatter treats as present and shows as `Unknown mode · 0 pages OCR’d`.
+Use sidecar inspect JSON when that summary is incomplete.
 
 ## Near-Term App Work
 

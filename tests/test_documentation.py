@@ -942,3 +942,62 @@ def test_index_ask_and_embedder_operational_docs():
     assert "deletes every other generation directory" in skill_cli
     assert "opens one `.vera` archive" in skill
     assert "delete previous" in skill
+
+
+def test_inspect_diagnostics_and_fts_fallback_docs():
+    """Pin inspect `ocr` bag fields and keyword FTS fallback against source."""
+    validate_docs = (DOCS / "validation-and-export.md").read_text(encoding="utf-8")
+    searching = (DOCS / "searching.md").read_text(encoding="utf-8")
+    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
+    getting_started = (DOCS / "getting-started.md").read_text(encoding="utf-8")
+    conversion = (DOCS / "conversion.md").read_text(encoding="utf-8")
+    cli_reference = (DOCS / "cli-reference.md").read_text(encoding="utf-8")
+    architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    python_api = (DOCS / "python-api.md").read_text(encoding="utf-8")
+    mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
+    pymupdf = (DOCS / "packages" / "vera-ingest-pymupdf.md").read_text(encoding="utf-8")
+    skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
+    skill_cli = (ROOT / "skills" / "vera" / "references" / "cli-reference.md").read_text(
+        encoding="utf-8"
+    )
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    examples_pkg = (DOCS / "packages" / "vera-ingest-examples.md").read_text(encoding="utf-8")
+    pipeline_guide = (DOCS / "creating-an-ingest-pipeline.md").read_text(encoding="utf-8")
+    basic = (DOCS / "guides" / "basic-usage.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "text mode" in validate_docs.lower() or "Text mode" in validate_docs
+    assert "`ocr_pages`" in validate_docs
+    assert "`recovered_pages`" in validate_docs
+    assert "`whole_document_fallback_strategy`" in validate_docs
+    assert "Markdown's bundled pipeline leaves `ocr: {}`" in validate_docs
+    assert "PyMuPDF-shaped keys" in validate_docs
+    assert "Unknown mode · 0 pages OCR’d" in validate_docs
+    assert "source file (PDF, Markdown, or Office/HTML)" in validate_docs
+
+    assert "safe_fts_query" in searching
+    assert "stormwater* OR detention*" in searching
+    assert "Runtime FTS failures" in searching
+    assert "safe_fts_query" in troubleshooting
+
+    assert "A local PDF or Markdown file" in getting_started
+    assert "pipeline `ocr` diagnostics bag" in getting_started
+    assert "text-mode inspect omits it" in conversion
+    assert "Text mode does not print the pipeline `ocr` diagnostics bag" in cli_reference
+    assert "formatOcrSummary()" in architecture
+    assert "Unknown mode · 0 pages OCR’d" in architecture
+    assert "pipeline `ocr` diagnostics bag" in skill
+    assert "Markdown writes `ocr: {}`" in skill_cli
+    assert 'pipeline "ocr" diagnostics bag' in agents
+    assert "current source file" in examples_pkg
+    assert "Convert always writes the key" in pipeline_guide
+    assert "Inspect text mode hides OCR or Docling recovery" in troubleshooting
+
+    assert "without a text-vs-JSON split" in python_api
+    assert "no text-mode omit" in mcp
+    assert "Unknown mode · 0 pages OCR’d" in desktop
+    assert "`ocr_pages`" in pymupdf
+    assert "Text-mode `vera inspect` omits it" in basic
+    assert "pipeline `ocr` diagnostics bag" in readme
+    assert "there is no text-mode omit" in skill_cli

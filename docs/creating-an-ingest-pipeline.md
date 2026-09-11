@@ -49,7 +49,10 @@ opaque `pipeline_options` mapping your pipeline owns and validates itself.
   `page_start`/`page_end`, `heading_path`, `token_count`, `block_ids`);
 - `parser_name`, `parser_version`, `chunking_strategy` — recorded in archive
   metadata for `vera inspect`;
-- `diagnostics` — free-form dict recorded under archive metadata `"ocr"`.
+- `diagnostics` — free-form dict recorded under archive metadata `"ocr"`
+  (historical key; use it for recovery and parser notes, not only OCR).
+  Convert always writes the key; leave it empty (`{}`) when there is nothing
+  to record. `vera inspect --json` surfaces it; text-mode inspect does not.
 
 Shared conversion enforces a few invariants on the result before writing it:
 block and chunk IDs must be non-empty and unique, every chunk's `block_ids`

@@ -113,7 +113,7 @@ full command surface is scriptable by agents and applications:
 | `vera convert` | Convert a PDF, Markdown, Office/HTML (Docling extra), or a directory of sources into `.vera` archives |
 | `vera search` | Hybrid, semantic, or keyword search over a file or a folder-as-corpus |
 | `vera index` | Build, update, and check a persistent library index over many archives |
-| `vera inspect` | Report pages, chunks, embedding model, parser, and archive metadata |
+| `vera inspect` | Report pages, chunks, embedding model, parser, and archive metadata (`--json` includes the pipeline `ocr` diagnostics bag) |
 | `vera get` | Fetch one stored chunk by id as citation-ready JSON |
 | `vera validate` | Verify schema, hashes, embeddings, and index integrity |
 | `vera export` | Recover the original source document from the archive |

@@ -61,7 +61,9 @@ vera search "manual.vera" "EL-A zoning district" --mode keyword --top-k 10 --jso
 ```
 
 Confirm that the literal identifier appears in result text before reporting a
-match.
+match. Fallback is `safe_fts_query` (alnum/`_` tokens, `*` prefixes, `OR`);
+it runs after an empty raw `MATCH` or an FTS syntax error, not after a
+locked or malformed database.
 
 ## A neural-model archive fails to search
 
@@ -112,21 +114,31 @@ An archive created with:
 vera convert "input.pdf" --store-original false
 ```
 
-is searchable but does not contain the source PDF. The current validator
+is searchable but does not contain the original source. The current validator
 reports this as a **warning**, and export is unavailable. Reconvert with the default
 `--store-original true` if source preservation is required.
 
 ## Export reports that no source is stored
 
 The archive was created without the original document or is damaged. Export
-cannot reconstruct the PDF from parsed text. Locate the source PDF and
-reconvert it. In the desktop app, right-click the `.vera` file and choose
-**Reconvert…** when the original PDF is beside the archive or stored inside it.
+cannot reconstruct the source from parsed text. Locate the source PDF,
+Markdown, or Office/HTML file and reconvert it. In the desktop app,
+right-click the `.vera` file and choose **Reconvert…** when the original is
+beside the archive or stored inside it.
 
 If Reconvert shows **Could not read archive metadata**, inspect failed and no
-sibling PDF was listed, so the app does not export an embedded original.
-Place the matching `.pdf` next to the archive, or open Document Info and
-export the original once the archive is readable.
+sibling source was listed, so the app does not export an embedded original.
+Place the matching `.pdf` or `.md` next to the archive, or open Document Info
+and export the original once the archive is readable.
+
+## Inspect text mode hides OCR or Docling recovery
+
+`vera inspect` without `--json` prints identity fields only. Pipeline
+diagnostics live in the JSON `ocr` object (PyMuPDF `ocr_pages`, Docling
+`recovered_pages` / `whole_document_fallback_*`). Desktop **Document Info**
+summarizes PyMuPDF-shaped keys; Markdown's empty `ocr: {}` and Docling's
+`engine` field do not produce a complete Info line. Use
+`vera inspect FILE --json` and read [Inspect metadata](validation-and-export.md#inspect-metadata).
 
 ## Explorer is missing nested files
 
