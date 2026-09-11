@@ -400,6 +400,9 @@ def test_hardening_json_contracts_are_documented():
     assert "Ctrl/Cmd+click" in desktop
     assert "## Reconvert with a different parser or embedding" in conversion
     assert "**Reconvert…**" in conversion
+    assert "the archive you clicked" in conversion
+    assert "the archive you clicked" in desktop_architecture
+    assert "replaces the `.vera` you clicked" in desktop
     assert "Could not read archive metadata" in conversion
     assert "Could not read archive metadata" in desktop
     assert "Could not read archive metadata" in desktop_architecture

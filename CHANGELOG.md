@@ -27,6 +27,10 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Fixed
 
+- Desktop **Reconvert…** now writes to the clicked `.vera` archive. Previously
+  Convert always used `source.with_suffix(".vera")`, so a renamed archive or
+  `vera convert report.pdf project-alpha.vera` left the clicked file stale and
+  could overwrite a same-stem sibling archive.
 - Desktop PDF **Fit page** sizes against the canvas client box and fits the
   page that occupies the most of the well, then pads the canvas so that page
   is centered below the viewer header and PDF toolbar.

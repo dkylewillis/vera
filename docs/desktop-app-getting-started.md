@@ -87,7 +87,9 @@ to open directory conversion for that folder. To rebuild an existing archive wit
 pipeline or embedding model, right-click the `.vera` file in Explorer and
 choose **Reconvert…**; Convert opens immediately with a preparing status while
 the archive is read, then prefills the current pipeline, embedding, and OCR
-settings and turns overwrite on. If inspect fails and no sibling source is
+settings and turns overwrite on. Convert replaces the `.vera` you clicked, even
+if you renamed it or originally converted with a different output name.
+If inspect fails and no sibling source is
 listed, Reconvert does not export an embedded original and shows
 **Could not read archive metadata**. Place the matching `.pdf` or `.md` next to the
 archive, or export the original from Document Info once the archive is

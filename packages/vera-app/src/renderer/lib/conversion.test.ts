@@ -3,9 +3,11 @@ import { SIDECAR_ACTIONS } from '../../shared/protocol';
 import {
   awaitConversionRequest,
   buildBatchConvertPayload,
+  buildSingleConvertPayload,
   conversionFailedMessage,
   conversionMissingTargetMessage,
   conversionProgressTaskUpdate,
+  singleConvertAsBatchResult,
 } from './conversion';
 
 describe('awaitConversionRequest', () => {
@@ -115,6 +117,56 @@ describe('buildBatchConvertPayload', () => {
       storeOriginal: true,
       pipelineOptions: {},
     })).not.toHaveProperty('parser');
+  });
+});
+
+describe('buildSingleConvertPayload', () => {
+  it('sends the explicit output path for a Reconvert of a renamed archive', () => {
+    expect(buildSingleConvertPayload({
+      inputPath: 'C:\\library\\report.pdf',
+      outputPath: 'C:\\library\\project-alpha.vera',
+      embeddingModel: 'hashing',
+      ingestPipeline: 'pymupdf',
+      storeOriginal: true,
+      pipelineOptions: { ocr: 'auto' },
+      embedderOptions: { dimension: 256 },
+    })).toEqual({
+      action: SIDECAR_ACTIONS.convert,
+      input: 'C:\\library\\report.pdf',
+      output: 'C:\\library\\project-alpha.vera',
+      model: 'hashing',
+      parser: 'pymupdf',
+      store_original: true,
+      pipeline_options: { ocr: 'auto' },
+      embedder_options: { dimension: 256 },
+    });
+  });
+
+  it('omits parser for Markdown so convert can auto-select the markdown pipeline', () => {
+    expect(buildSingleConvertPayload({
+      inputPath: 'C:\\docs\\notes.md',
+      outputPath: 'C:\\docs\\notes-v2.vera',
+      embeddingModel: 'hashing',
+      ingestPipeline: 'pymupdf',
+      storeOriginal: true,
+      pipelineOptions: {},
+    })).not.toHaveProperty('parser');
+  });
+});
+
+describe('singleConvertAsBatchResult', () => {
+  it('presents a one-file convert as a batch report for the Convert panel', () => {
+    expect(singleConvertAsBatchResult({
+      outputPath: 'C:\\library\\project-alpha.vera',
+      overwrite: true,
+    })).toMatchObject({
+      directory: 'C:\\library',
+      converted: 1,
+      discovered: 1,
+      failed: 0,
+      overwrite: true,
+      outputs: ['C:\\library\\project-alpha.vera'],
+    });
   });
 });
 

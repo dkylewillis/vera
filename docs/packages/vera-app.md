@@ -34,7 +34,8 @@ Download `VERA Setup <version>.exe` from the
    **File > Settings → Embeddings**. Archives converted with OpenAI are not
    portable for semantic search. Right-click a `.vera`
    archive and choose **Reconvert…** to replace it with a different ingest
-   pipeline or embedding model.
+   pipeline or embedding model. Reconvert writes to the clicked archive even
+   when its name differs from the source file.
 2. Use **File > Open Folder** to activate a document library.
 3. Open **Search** for fully local hybrid retrieval.
 4. To use **Ask**, configure a provider under **File > Settings → LLM Providers**.

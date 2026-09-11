@@ -164,6 +164,10 @@ In the desktop app, right-click a `.vera` file in Explorer and choose
 sibling source is resolved (or the embedded original is restored). Overwrite is
 enabled, and the archive's current ingest pipeline, embedding model, and OCR
 options are prefilled from inspect so you can change them before converting.
+Convert then replaces **the archive you clicked**, even when its filename
+differs from the source (`report.pdf` → `project-alpha.vera`, or a renamed
+copy). Batch convert still names new archives `source.with_suffix(".vera")`;
+only Reconvert keeps the clicked path.
 If inspect fails and no sibling source is listed, Reconvert does **not** export
 an embedded original; Convert shows **Could not read archive metadata**. Place
 the matching `.pdf` or `.md` next to the archive, or open Document Info and export the

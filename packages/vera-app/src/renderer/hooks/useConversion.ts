@@ -6,9 +6,11 @@ import type { BackgroundTask, BackgroundTaskAction } from '../lib/backgroundTask
 import {
   awaitConversionRequest,
   buildBatchConvertPayload,
+  buildSingleConvertPayload,
   conversionFailedMessage,
   conversionMissingTargetMessage,
   conversionProgressTaskUpdate,
+  singleConvertAsBatchResult,
   type ConversionProgressMode,
   type ConvertMode,
 } from '../lib/conversion';
@@ -16,12 +18,14 @@ import { convertDefaultsFromSelection, fileName, isPathInsideFolder, siblingSour
 import { explorerEntryType } from '../lib/explorer';
 import {
   findSiblingSourcePath,
+  reconvertConvertOutput,
   reconvertExportGate,
   reconvertInspectFailedMessage,
   reconvertMissingSourceMessage,
   reconvertPipelineOptionsFromInspect,
   reconvertPrefillFromInspect,
   resolveReconvertSource,
+  type ReconvertTarget,
 } from '../lib/reconvert';
 import { SIDECAR_ACTIONS } from '../../shared/protocol';
 import type {
@@ -83,6 +87,7 @@ export function createConversionController(getHost: () => ConversionHost) {
   const conversionPhaseRef = { current: null as string | null };
   const reconvertInFlightRef = { current: false };
   const reconvertDefaultsRef = { current: null as { overwrite: boolean; storeOriginal: boolean } | null };
+  const reconvertTargetRef = { current: null as ReconvertTarget | null };
 
   function applyConvertDefaultsFromSelection(selection?: ExplorerSelection | null) {
     const host = getHost();
@@ -111,6 +116,7 @@ export function createConversionController(getHost: () => ConversionHost) {
 
   function openConvertSelected(paths?: string[]) {
     const host = getHost();
+    reconvertTargetRef.current = null;
     if (paths?.length) {
       host.setSelectedPdfs(paths);
       host.setExplorerSelection({ kind: 'file', path: paths[paths.length - 1], type: sourceSelectionType(paths[paths.length - 1]) });
@@ -123,6 +129,7 @@ export function createConversionController(getHost: () => ConversionHost) {
 
   function openConvertFolder(folderPath: string) {
     const host = getHost();
+    reconvertTargetRef.current = null;
     host.setReconvertNotice(null);
     host.setConversionError(null);
     host.setBatchDirectory(folderPath);
@@ -136,6 +143,7 @@ export function createConversionController(getHost: () => ConversionHost) {
     const host = getHost();
     if (host.conversionInProgress || reconvertInFlightRef.current) return;
     reconvertInFlightRef.current = true;
+    reconvertTargetRef.current = null;
     const folder = host.folders.find((item) => item.path === folderPath);
     snapshotConvertDefaultsForReconvert();
     host.setReconvertBusy(true);
@@ -235,10 +243,11 @@ export function createConversionController(getHost: () => ConversionHost) {
 
       host.setSelectedPdfs([sourcePath]);
       host.setExplorerSelection({ kind: 'file', path: sourcePath, type: sourceSelectionType(sourcePath) });
+      reconvertTargetRef.current = { sourcePath, archivePath: entry.path };
       host.setReconvertNotice(
         restoredFromArchive
-          ? 'Restored the embedded source beside this archive. Overwrite is on so Convert will replace the existing .vera. Choose a different pipeline or embedding if you want, then convert. Update the library index afterward if this folder is indexed.'
-          : 'Overwrite is on so Convert will replace the existing .vera. The pipeline and embedding below start from this archive — change them if you want, then convert. Update the library index afterward if this folder is indexed.',
+          ? 'Restored the embedded source beside this archive. Overwrite is on so Convert will replace this archive, even if its name differs from the source file. Choose a different pipeline or embedding if you want, then convert. Update the library index afterward if this folder is indexed.'
+          : 'Overwrite is on so Convert will replace this archive, even if its name differs from the source file. The pipeline and embedding below start from this archive — change them if you want, then convert. Update the library index afterward if this folder is indexed.',
       );
       prepared = true;
     } catch (error) {
@@ -396,6 +405,7 @@ export function createConversionController(getHost: () => ConversionHost) {
     host.setConversionError(null);
     host.setBatchConvertResult(null);
     host.setReconvertNotice(null);
+    const reconvertOutput = reconvertConvertOutput(reconvertTargetRef.current, selectedPaths);
     const preflight = await host.call<{
       ok: boolean;
       detail?: string;
@@ -425,30 +435,46 @@ export function createConversionController(getHost: () => ConversionHost) {
         message: 'Starting…',
       },
     });
-    const refreshRoot = selectedPaths[0] || directory;
+    const refreshRoot = reconvertOutput || selectedPaths[0] || directory;
+    const progressMode: ConversionProgressMode = reconvertOutput ? 'single' : 'batch';
     const offProgress = window.vera.onAnswerEvent((event) => {
       if (event.id !== conversionRequestId || event.event !== 'conversion_progress') return;
-      applyConversionProgress(conversionRequestId, event, 'batch');
+      applyConversionProgress(conversionRequestId, event, progressMode);
     });
     conversionProgressCleanupRef.current = { requestId: conversionRequestId, off: offProgress };
+    const convertFields = {
+      embeddingModel: host.embeddingModel,
+      ingestPipeline: host.ingestPipeline,
+      storeOriginal: host.storeOriginal,
+      pipelineOptions: host.pipelineOptions,
+      embedderOptions: host.embedderOptions,
+    };
     try {
-      const response = await awaitConversionRequest(
-        window.vera.request<BatchConvertResult>(
-          buildBatchConvertPayload({
-            selectedPaths,
-            directory,
-            batchRecursive: host.batchRecursive,
-            batchOverwrite: host.batchOverwrite,
-            embeddingModel: host.embeddingModel,
-            ingestPipeline: host.ingestPipeline,
-            storeOriginal: host.storeOriginal,
-            pipelineOptions: host.pipelineOptions,
-            embedderOptions: host.embedderOptions,
-          }),
-          conversionRequestId,
-        ),
-        () => settleConversionRequest(conversionRequestId),
-      );
+      const response = reconvertOutput
+        ? await awaitConversionRequest(
+          window.vera.request<{ output: string }>(
+            buildSingleConvertPayload({
+              inputPath: selectedPaths[0],
+              outputPath: reconvertOutput,
+              ...convertFields,
+            }),
+            conversionRequestId,
+          ),
+          () => settleConversionRequest(conversionRequestId),
+        )
+        : await awaitConversionRequest(
+          window.vera.request<BatchConvertResult>(
+            buildBatchConvertPayload({
+              selectedPaths,
+              directory,
+              batchRecursive: host.batchRecursive,
+              batchOverwrite: host.batchOverwrite,
+              ...convertFields,
+            }),
+            conversionRequestId,
+          ),
+          () => settleConversionRequest(conversionRequestId),
+        );
       if (conversionRequestWasSuperseded(conversionRequestId)) return;
       if (response.cancelled || response.error?.includes('cancelled')) {
         refreshFoldersAfterConversion(refreshRoot);
@@ -458,9 +484,15 @@ export function createConversionController(getHost: () => ConversionHost) {
       if (!response.ok || !response.result) {
         throw new Error(response.error || conversionFailedMessage(selectedPaths.length > 0));
       }
-      const result = response.result;
+      const convertedOutput = reconvertOutput
+        ? (response.result as { output?: string }).output || reconvertOutput
+        : null;
+      const result = convertedOutput
+        ? singleConvertAsBatchResult({ outputPath: convertedOutput, overwrite: true })
+        : response.result as BatchConvertResult;
       host.setBatchConvertResult(result);
       refreshFoldersAfterConversion(result.directory || refreshRoot);
+      if (convertedOutput) reconvertTargetRef.current = null;
       if (selectedPaths.length) {
         host.setSelectedPdfs([]);
       }

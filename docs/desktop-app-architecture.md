@@ -222,7 +222,8 @@ the source pane; right-clicking a PDF or Markdown file also offers **Convert fil
 preparing status (and footer activity) while the sibling source or embedded
 original is resolved. Overwrite is enabled and the archive's current parser,
 embedding, and OCR options are prefilled so they can be changed before replacing
-the archive. Reconvert skips exporting an embedded original when inspect fails
+the archive you clicked, even when that filename differs from the source file.
+Reconvert skips exporting an embedded original when inspect fails
 and no sibling source is listed (**Could not read archive metadata**). A second
 Reconvert click is ignored until that preparation finishes. The same menus can be opened from the keyboard with
 Shift+F10 or the Menu key, support arrow key navigation, and close with

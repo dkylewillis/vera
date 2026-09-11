@@ -113,4 +113,118 @@ describe('createConversionController', () => {
     );
     expect(dispatchBackgroundTask).not.toHaveBeenCalled();
   });
+
+  it('reconvert writes to the clicked archive instead of source.with_suffix(.vera)', async () => {
+    const request = vi.fn(async (payload: Record<string, unknown>) => {
+      if (payload.action === 'convert') {
+        return { ok: true, result: { output: payload.output } };
+      }
+      return { ok: true, result: { converted: 0 } };
+    });
+    vi.stubGlobal('crypto', { randomUUID: () => 'req-reconvert' });
+    vi.stubGlobal('window', {
+      vera: {
+        pathExists: async () => true,
+        request,
+        onAnswerEvent: () => () => undefined,
+      },
+    });
+    const call = vi.fn(async (payload: Record<string, unknown>) => {
+      if (payload.action === 'inspect') {
+        return {
+          source_file_name: 'report.pdf',
+          source_attachment_id: 'source_original',
+          parser_name: 'pymupdf',
+          default_embedding_model: 'hashing',
+        };
+      }
+      if (payload.action === 'preflight_embedder') return { ok: true };
+      return null;
+    }) as ConversionHost['call'];
+    const setBatchConvertResult = vi.fn();
+    const setSelectedPdfs = vi.fn();
+    const controller = createConversionController(() => host({
+      call,
+      folders: [{
+        path: 'C:\\library',
+        name: 'library',
+        entries: [
+          {
+            path: 'C:\\library\\project-alpha.vera',
+            name: 'project-alpha.vera',
+            relativePath: 'project-alpha.vera',
+            type: 'vera',
+          },
+          {
+            path: 'C:\\library\\report.pdf',
+            name: 'report.pdf',
+            relativePath: 'report.pdf',
+            type: 'pdf',
+          },
+        ],
+      }],
+      selectedPdfs: ['C:\\library\\report.pdf'],
+      embeddingModel: 'hashing',
+      ingestPipeline: 'pymupdf',
+      batchOverwrite: true,
+      storeOriginal: true,
+      ingestPipelineDescriptors: [{
+        provider: 'pymupdf',
+        variant: '',
+        spec: 'pymupdf',
+        label: 'PyMuPDF',
+        description: '',
+        installed: true,
+        capabilities: { source_formats: ['pdf'] },
+        fields: [],
+      }],
+      setSelectedPdfs,
+      setBatchConvertResult,
+      dispatchBackgroundTask: vi.fn(),
+      setReconvertNotice: vi.fn(),
+      setReconvertBusy: vi.fn(),
+      setConversionError: vi.fn(),
+      setConvertMode: vi.fn(),
+      setSideView: vi.fn(),
+      setSidebarCollapsed: vi.fn(),
+      setEmbeddingModel: vi.fn(),
+      setIngestPipeline: vi.fn(),
+      setIngestPipelineConfigs: vi.fn(),
+      setPipelineOptions: vi.fn(),
+      setStoreOriginal: vi.fn(),
+      setBatchOverwrite: vi.fn(),
+      setExplorerSelection: vi.fn(),
+      refreshFolder: async () => undefined,
+    }));
+
+    await controller.openReconvert(
+      {
+        path: 'C:\\library\\project-alpha.vera',
+        name: 'project-alpha.vera',
+        relativePath: 'project-alpha.vera',
+        type: 'vera',
+      },
+      'C:\\library',
+    );
+    await controller.batchConvertPdfs({ paths: ['C:\\library\\report.pdf'] });
+
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'convert',
+        input: 'C:\\library\\report.pdf',
+        output: 'C:\\library\\project-alpha.vera',
+      }),
+      'req-reconvert',
+    );
+    expect(request).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'batch_convert' }),
+      expect.anything(),
+    );
+    expect(setBatchConvertResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        converted: 1,
+        outputs: ['C:\\library\\project-alpha.vera'],
+      }),
+    );
+  });
 });
