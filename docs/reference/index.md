@@ -11,7 +11,7 @@ generated from source docstrings using [mkdocstrings](https://mkdocstrings.githu
 | [vera-ingest](vera-ingest.md) | `import vera_ingest` | Conversion registry, shared types, archive writing |
 | [vera-ingest-pymupdf](../packages/vera-ingest-pymupdf.md) | `import vera_ingest_pymupdf` | Default PyMuPDF PDF parsing and OCR |
 | [vera-embed-openai](../packages/vera-embed-openai.md) | `import vera_embed_openai` | Official OpenAI embeddings plugin |
-| [vera-cli](vera-cli.md) | `import vera_cli` | Command-line interface |
+| [vera](vera-cli.md) | `import vera_cli` | Command-line interface |
 | [vera-mcp](vera-mcp.md) | `import vera_mcp` | MCP server for AI agents |
 
 Install packages from PyPI:
@@ -21,7 +21,7 @@ python -m pip install "vera-doc>=0.3.0"
 python -m pip install "vera-ingest>=0.3.0"
 python -m pip install "vera-ingest-pymupdf>=0.3.0"
 python -m pip install "vera-embed-openai>=0.3.0"
-python -m pip install "vera-cli>=0.3.0"
+python -m pip install "vera>=0.3.0"
 python -m pip install "vera-mcp>=0.3.0"
 ```
 

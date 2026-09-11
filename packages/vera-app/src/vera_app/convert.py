@@ -68,7 +68,7 @@ def _reject_excluded_desktop_parser(request: Request) -> None:
     raise ValueError(
         "Docling is not available in the desktop app in 0.3.x. "
         "Convert PDFs with PyMuPDF or Markdown here, or use the CLI extra: "
-        'pip install "vera-cli[docling]>=0.3.0"'
+        'pip install "vera[docling]>=0.3.0"'
     )
 
 

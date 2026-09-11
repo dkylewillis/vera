@@ -147,7 +147,7 @@ one `embed(texts)` today, and those providers need `input_type` or
   `PipelineConfigForm`.
 - [x] Persist Convert-view `ingest_pipeline` settings for source-run apps.
 - [x] Keep 0.3.0 desktop Convert PyMuPDF-only. Docling stays a CLI extra
-  (`vera-cli[docling]`); it is not listed in Convert and is not frozen into
+  (`vera[docling]`); it is not listed in Convert and is not frozen into
   Setup.exe.
 - [ ] Revisit bundling Docling, a lighter layout engine, or a hosted layout
   API as another ingest provider after 0.3.0.

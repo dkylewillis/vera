@@ -35,13 +35,13 @@ packages/
 Dependency direction stays one-way:
 
 ```text
-vera-cli -> vera-embed-openai -> vera-doc
-vera-cli -> vera-ingest-pymupdf -> vera-ingest -> vera-doc
+vera -> vera-embed-openai -> vera-doc
+vera -> vera-ingest-pymupdf -> vera-ingest -> vera-doc
 vera-app -> vera-embed-openai -> vera-doc
 vera-app -> vera-ingest-pymupdf -> vera-ingest -> vera-doc
 ```
 
-`vera-app` should not shell out to `vera-cli` for normal product behavior. The CLI is a user interface; the app backend should call `vera-doc` and ingest packages directly.
+`vera-app` should not shell out to the `vera` CLI for normal product behavior. The CLI is a user interface; the app backend should call `vera-doc` and ingest packages directly.
 
 ## Sidecar Protocol
 
@@ -124,7 +124,7 @@ bundled MiniLM snapshot) are forwarded on spawn. `app:dev` vendors
 `packages/vera-app/build/minilm` before launch. `app:dev` leaves `HF_HOME` unset.
 Convert stays on **Discovering files…** until `resolve_embedder` finishes.
 Convert gates conversion on `preflight_embedder`.
-Docling is a CLI extra (`vera-cli[docling]`) and is not listed in Convert.
+Docling is a CLI extra (`vera[docling]`) and is not listed in Convert.
 The sidecar sets `PYTHONUNBUFFERED=1`
 and forwards tqdm `\r` Hub progress as `[vera-sidecar]` lines. Electron tees
 that stderr (plus a `sidecar_spawn` line with the executable and `isPackaged`)
@@ -276,6 +276,10 @@ as tokens arrive. A small sidecar filter holds partial `<tool_call>` and
 any provisional prose with `answer_reset`; ordinary and final synthesis turns
 remain incrementally visible without exposing inline tool syntax.
 
+The Chat renderer parses assistant Markdown with `remark-gfm` and
+`remark-math`, then typesets math with KaTeX (`rehype-katex`). TeX-style
+`\(`…`\)` and `\[`…`\]` delimiters are normalized to dollars before parse.
+
 The optional LLM trace renders only explicit `search_start` and `search_done`
 events as retrieval activity. Token-level `answer_delta` and `answer_reset`
 events update the streamed answer but are omitted from the diagnostic trace.
@@ -311,7 +315,7 @@ before they are skipped; malformed outputs are reported separately, and
 overwrite must be selected explicitly. PDF conversion uses selective
 PyMuPDF/Tesseract OCR (via `vera-ingest-pymupdf`) for image-based low-text
 pages with English language data bundled into that package and the packaged
-sidecar. Markdown uses the bundled `markdown` pipeline (no OCR). Docling remains a CLI extra (`vera-cli[docling]`), not a Convert
+sidecar. Markdown uses the bundled `markdown` pipeline (no OCR). Docling remains a CLI extra (`vera[docling]`), not a Convert
 pipeline. It publishes a validated
 temporary sibling atomically, preserves an existing destination after failure,
 and rejects PDFs with no searchable text after OCR with an OCR-specific
@@ -393,17 +397,41 @@ the bytes with `protocol.handle`, so PDF.js can fetch the document without
 shipping multi‑MB base64 through the JSON-Lines IPC channel (which previously
 froze the UI on large PDFs).
 
-The renderer PDF viewer (PDF.js) defaults to fit-width zoom so pages fill the
-source pane without horizontal cropping. Clicking **Width** calculates the
-scale from the currently active page; that scale remains stable while scrolling
-through documents with mixed page sizes or orientations until the user clicks
-**Width** again. Pages that fit the viewport are horizontally centered, while
+The renderer PDF viewer (PDF.js) uses Mozilla-style dark chrome: a compact
+toolbar with group dividers, a toggleable page-thumbnail rail, and a dark page
+well. The left hamburger toggles thumbnails. The document name stays in the
+pane header above the PDF chrome so it is not duplicated on the toolbar. Page
+and zoom use filled chips (`1 / 47`, `− 76% +`) rather than chevrons or
+magnifying-glass icons. **Fit width** and **Fit page** sit beside zoom; the
+page-outline button fits the current page in the viewport, and **Fit width**
+fills the pane width. **Rotate counterclockwise** CSS-rotates the page surface,
+text layer, and citation/figure overlays together, so highlight boxes stay
+locked to the text. Download saves the cached source PDF; print opens the system print dialog
+for that file. The viewer still owns citation and figure highlight overlays, so
+the desktop app does not
+embed Mozilla's standalone `viewer.html`. Thumbnails render at a fixed rail
+width and stay independent of main-page zoom; the hamburger control persists
+open/closed in `localStorage` (`vera.pdfThumbnails`). The viewer defaults to
+fit-width zoom so pages fill the
+source pane without horizontal cropping. Clicking **Fit width** or **Fit page**
+uses the page that occupies the most of the well (a tie goes to the page under
+the vertical center).
+**Fit width** keeps that scale while scrolling through mixed page sizes
+until the user clicks **Fit width** again. Fit math uses the canvas client box, so classic scrollbars and
+`scrollbar-gutter` are already excluded and switching **Fit width** /
+**Fit page** does not jump when overflow appears.
+Pages that fit the viewport are horizontally centered, while
 oversized pages align to the left so their full width remains scrollable.
 The Width control is highlighted only when the currently active page is
 actually fit to the available width, so moving to a differently sized page
 clears the highlight until that page is refit.
 Resizing the pane refits the page that established the current fit-width scale.
-Fit-page accounts for both the widest and tallest pages. The
+Fit-page scales that same page to sit fully in the viewport and
+pads the canvas so it is centered in the page well below the
+viewer header and PDF toolbar. Bounding-box math is relative to that
+well so the header height is not mixed into `offsetTop`. Rotate
+counterclockwise turns the page surface, text layer, and citation/figure
+highlight overlays together, so boxes stay locked to the text. The
 viewer also supports page navigation (previous/next and an editable page field),
 discrete zoom steps with Ctrl/Cmd+wheel and standard zoom hotkeys, and
 viewport-preserving zoom so the visible page stays put when scale changes.
@@ -411,7 +439,7 @@ Manual zoom is temporary: resizing the source pane (or window) snaps back to
 fit-width, while an explicit fit-page choice continues to reflow on resize.
 Pages render at device pixel ratio for sharper output on HiDPI displays.
 Citation passage and figure highlights can be
-toggled, with a compact color legend when both are present. The viewer header
+toggled. The viewer header
 promotes the document basename (with the full path in a tooltip) instead of a
 static "Document Viewer" label, shows page range as a secondary line in chunk
 mode, and shortens mode tabs to View / Info below about 500px so the title
@@ -424,7 +452,12 @@ was extracted from a `.vera` archive, the viewer's **Info** tab
 that inspects that archive and shows its format, source, page and chunk counts,
 embedding model and dimensions, creation time, archive size, parser and
 chunking settings, OCR summary, attachment count, validation status, and
-export controls alongside the PDF.
+export controls alongside the source. The OCR line is
+`formatOcrSummary()` over PyMuPDF-shaped `ocr` keys (`ocr_engine`,
+`ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_pages`). Docling writes `engine`
+and `recovered_pages` instead; Markdown writes `ocr: {}`, which the
+formatter treats as present and shows as `Unknown mode · 0 pages OCR’d`.
+Use sidecar inspect JSON when that summary is incomplete.
 
 ## Near-Term App Work
 

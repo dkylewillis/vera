@@ -20,12 +20,15 @@
     "start": "electron ."
   },
   "dependencies": {
+    "katex": "0.16.47",
     "lucide-react": "1.21.0",
     "pdfjs-dist": "6.0.227",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-markdown": "10.1.0",
-    "remark-gfm": "4.0.1"
+    "rehype-katex": "7.0.1",
+    "remark-gfm": "4.0.1",
+    "remark-math": "6.0.0"
   },
   "devDependencies": {
     "@types/node": "26.0.0",

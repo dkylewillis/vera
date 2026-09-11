@@ -1,8 +1,8 @@
 ---
 name: vera
-description: Searches, inspects, validates, converts, indexes, and exports VERA (.vera) document archives with citation-ready results. Use when answering questions from local documents, searching one archive or a document library, finding figures or page regions, checking archive integrity, converting PDFs or Markdown, or operating vera-cli.
+description: Searches, inspects, validates, converts, indexes, and exports VERA (.vera) document archives with citation-ready results. Use when answering questions from local documents, searching one archive or a document library, finding figures or page regions, checking archive integrity, converting PDFs or Markdown, or operating the vera CLI.
 license: Apache-2.0
-compatibility: Requires Python 3.10+, vera-cli on PATH or importable as vera_cli, and shell and local file access.
+compatibility: Requires Python 3.10+, vera on PATH or importable as vera_cli, and shell and local file access.
 metadata:
   author: vera-retrieval
   version: "1.0.0"
@@ -13,7 +13,7 @@ metadata:
 Frontmatter `metadata.version` is this skill's schema version, not the VERA
 product (0.3.x) or archive format (0.2).
 
-Use `vera-cli` to retrieve grounded evidence from `.vera` archives. Prefer the
+Use the `vera` CLI to retrieve grounded evidence from `.vera` archives. Prefer the
 CLI's JSON output, read the returned text, and cite the source page and heading
 for every document-backed claim.
 
@@ -21,7 +21,7 @@ for every document-backed claim.
 
 1. Check whether `vera --help` succeeds.
 2. If the console script is unavailable, try `python -m vera_cli --help`.
-3. If neither works, tell the user that `vera-cli` must be installed. Do not
+3. If neither works, tell the user that `vera` must be installed. Do not
    install packages unless the user has authorized environment changes.
 4. Quote paths and queries according to the active shell.
 
@@ -135,8 +135,10 @@ vera inspect "manual.vera" --json
 
 Inspection includes `default_embedding_normalization`: `l2`, `none`, or
 `unknown`. Older archives without the field are reported as `unknown`.
-Package release 0.3.x versions the CLI and APIs; `format_version` remains
-`0.2` and existing archives stay compatible.
+Prefer `--json`: text mode omits the pipeline `ocr` diagnostics bag
+(PyMuPDF `ocr_pages`, Docling `recovered_pages` / fallback fields, or `{}`
+for Markdown). Package release 0.3.x versions the CLI and APIs;
+`format_version` remains `0.2` and existing archives stay compatible.
 
 Use validation when the user asks about archive integrity or a search failure
 suggests corruption:
@@ -158,7 +160,7 @@ commands write or replace local files and require normal user authorization:
   omit `--parser` to choose an installed ingest pipeline from the file
   extension (`pdf` → `pymupdf` from `vera-ingest-pymupdf`; `md`/`markdown` →
   bundled `markdown`; `docx`/`pptx`/`xlsx`/`html`/`htm` → `docling` when
-  `vera-cli[docling]` or `vera-ingest-docling` is installed). An explicit
+  `vera[docling]` or `vera-ingest-docling` is installed). An explicit
   `--parser` that does not advertise the file's extension fails; there is no
   silent fallback.
   Image-based low-text PDF pages use selective local OCR by default. Use
@@ -178,8 +180,8 @@ commands write or replace local files and require normal user authorization:
   Use `vera-doc[ml]` for all other Sentence Transformers models. The
   0.3.x packaged desktop app converts PDFs with PyMuPDF and Markdown with the
   bundled `markdown` pipeline; Docling is the
-  `vera-cli[docling]` extra, not Advanced layout in Convert. OpenAI embeddings
-  ship with `vera-cli` as `vera-embed-openai`; set `OPENAI_API_KEY`. Hashing
+  `vera[docling]` extra, not Advanced layout in Convert. OpenAI embeddings
+  ship with `vera` as `vera-embed-openai`; set `OPENAI_API_KEY`. Hashing
   remains the default. Archives converted with OpenAI are not portable for
   semantic search.
 - `convert --overwrite` replaces existing batch outputs.

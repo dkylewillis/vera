@@ -40,11 +40,11 @@ Options:
   Transformers models need the `ml` extra, and the Windows installer vendors a
   VERA-exported MiniLM graph. MiniLM uses ONNX Runtime when a graph is present
   and Sentence Transformers otherwise. OpenAI embeddings ship with
-  `vera-cli` as `vera-embed-openai`; set `OPENAI_API_KEY`. Archives converted
+  `vera` as `vera-embed-openai`; set `OPENAI_API_KEY`. Archives converted
   with OpenAI are not portable for semantic search)
 - `--parser PARSER` (omitted: choose from the file extension — PDF → `pymupdf`,
   Markdown → `markdown`, DOCX/PPTX/XLSX/HTML → `docling` when
-  `vera-cli[docling]` is installed; accepts `provider[:variant]` specs such as
+  `vera[docling]` is installed; accepts `provider[:variant]` specs such as
   `docling` / `docling:hybrid`; unknown
   providers exit with an error; the 0.3.x Windows installer does not include
   Docling)
@@ -93,11 +93,13 @@ Embedding-provider options follow the same Options + descriptor pattern
 
 Print archive metadata and summary counts, including archive size, creation
 time, embedding dimensions and normalization policy, parser/chunking settings,
-OCR diagnostics, and attachment count when recorded. Normalization is `l2`,
-`none`, or `unknown`.
+and attachment count when recorded. Normalization is `l2`, `none`, or
+`unknown`. Text mode does not print the pipeline `ocr` diagnostics bag.
 
-Options: `--json`. JSON includes `file` (the requested path) and `path` (the
-opened archive).
+Options: `--json`. JSON includes `file` (the requested path), `path` (the
+opened archive), and `ocr` (pipeline diagnostics: PyMuPDF OCR pages, Docling
+recovery, or `{}` for Markdown). See
+[Inspect metadata](validation-and-export.md#pipeline-diagnostics-ocr).
 
 ## `vera get FILE CHUNK_ID`
 

@@ -27,7 +27,7 @@ From PyPI:
 python -m pip install "vera-ingest>=0.3.0"
 ```
 
-For PDF conversion, also install a pipeline plugin (`vera-cli` and `vera-app`
+For PDF conversion, also install a pipeline plugin (`vera` and `vera-app`
 depend on `vera-ingest-pymupdf` by default):
 
 ```bash

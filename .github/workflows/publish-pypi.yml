@@ -24,7 +24,7 @@ jobs:
           - package: vera-ingest-docling
           - package: vera-embed-openai
           - package: vera-mcp
-          - package: vera-cli
+          - package: vera
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +37,27 @@ jobs:
         run: uv build --package ${{ matrix.package }}
 
       - name: Publish ${{ matrix.package }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          skip-existing: true
+
+  publish-vera-cli-alias:
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build vera-cli compatibility alias
+        run: uv build --package vera-cli
+
+      - name: Publish vera-cli
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist

@@ -477,7 +477,7 @@ them as `embedder_options={...}`, `get_embedder(..., batch_size=64)`, or CLI
 ### Official OpenAI plugin
 
 OpenAI embeddings ship as the `vera-embed-openai` package — a
-`vera.embedders` plugin, not a `vera-doc` builtin. `vera-cli` and the desktop
+`vera.embedders` plugin, not a `vera-doc` builtin. `vera` and the desktop
 sidecar depend on it. Keep secrets in `OPENAI_API_KEY`, not in Options fields.
 The constructor does not probe the API; known models use a static dimension
 table. See

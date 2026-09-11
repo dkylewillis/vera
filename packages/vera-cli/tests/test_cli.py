@@ -446,7 +446,7 @@ def test_cli_mcp_explains_missing_extra(monkeypatch, capsys):
     assert args.func(args) == 2
     err = capsys.readouterr().err
     assert "vera mcp requires" in err
-    assert "vera-cli[mcp]" in err
+    assert "vera[mcp]" in err
 
 
 def test_cli_ocr_languages_list_json(capsys):

@@ -24,6 +24,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "vera",
     "vera-app",
     "vera-cli",
     "vera-doc",
@@ -4783,26 +4784,7 @@ wheels = [
 ]
 
 [[package]]
-name = "vera-app"
-version = "0.3.1"
-source = { editable = "packages/vera-app" }
-dependencies = [
-    { name = "vera-doc", extra = ["onnx"] },
-    { name = "vera-embed-openai" },
-    { name = "vera-ingest" },
-    { name = "vera-ingest-pymupdf" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "vera-doc", extras = ["onnx"], editable = "packages/vera-doc" },
-    { name = "vera-embed-openai", editable = "packages/vera-embed-openai" },
-    { name = "vera-ingest", editable = "packages/vera-ingest" },
-    { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
-]
-
-[[package]]
-name = "vera-cli"
+name = "vera"
 version = "0.3.1"
 source = { editable = "packages/vera-cli" }
 dependencies = [
@@ -4828,6 +4810,49 @@ requires-dist = [
     { name = "vera-ingest-docling", marker = "extra == 'docling'", editable = "packages/vera-ingest-docling" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
     { name = "vera-mcp", marker = "extra == 'mcp'", editable = "packages/vera-mcp" },
+]
+provides-extras = ["mcp", "docling"]
+
+[[package]]
+name = "vera-app"
+version = "0.3.1"
+source = { editable = "packages/vera-app" }
+dependencies = [
+    { name = "vera-doc", extra = ["onnx"] },
+    { name = "vera-embed-openai" },
+    { name = "vera-ingest" },
+    { name = "vera-ingest-pymupdf" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "vera-doc", extras = ["onnx"], editable = "packages/vera-doc" },
+    { name = "vera-embed-openai", editable = "packages/vera-embed-openai" },
+    { name = "vera-ingest", editable = "packages/vera-ingest" },
+    { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
+]
+
+[[package]]
+name = "vera-cli"
+version = "0.3.1"
+source = { editable = "packages/vera-cli-compat" }
+dependencies = [
+    { name = "vera" },
+]
+
+[package.optional-dependencies]
+docling = [
+    { name = "vera", extra = ["docling"] },
+]
+mcp = [
+    { name = "vera", extra = ["mcp"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "vera", editable = "packages/vera-cli" },
+    { name = "vera", extras = ["docling"], marker = "extra == 'docling'", editable = "packages/vera-cli" },
+    { name = "vera", extras = ["mcp"], marker = "extra == 'mcp'", editable = "packages/vera-cli" },
 ]
 provides-extras = ["mcp", "docling"]
 
@@ -4957,7 +4982,7 @@ name = "vera-workspace"
 version = "0.3.1"
 source = { editable = "." }
 dependencies = [
-    { name = "vera-cli" },
+    { name = "vera" },
     { name = "vera-doc" },
     { name = "vera-embed-openai" },
     { name = "vera-ingest" },
@@ -5014,8 +5039,8 @@ requires-dist = [
     { name = "reportlab", marker = "extra == 'dev'", specifier = ">=4" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
     { name = "sentence-transformers", marker = "extra == 'ml'", specifier = ">=2.7" },
+    { name = "vera", editable = "packages/vera-cli" },
     { name = "vera-app", marker = "extra == 'app'", editable = "packages/vera-app" },
-    { name = "vera-cli", editable = "packages/vera-cli" },
     { name = "vera-doc", editable = "packages/vera-doc" },
     { name = "vera-doc", extras = ["onnx"], marker = "extra == 'onnx'", editable = "packages/vera-doc" },
     { name = "vera-embed-openai", editable = "packages/vera-embed-openai" },

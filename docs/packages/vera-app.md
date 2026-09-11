@@ -45,6 +45,10 @@ Download `VERA Setup <version>.exe` from the
    **Settings → Diagnostics**) opens `userData/logs/sidecar.log` for timed
    convert steps.
 6. Select a citation in an answer to inspect the highlighted source passage.
+   The PDF viewer uses Mozilla-style dark chrome with a page thumbnail rail,
+   rotate counterclockwise, download, and print. Citation highlights stay
+   aligned after rotate because they turn with the page.
+   Ask answers render GitHub-flavored Markdown and LaTeX (KaTeX).
 
 Search and conversion do not require a model-provider account unless you
 choose a hosted embedder such as OpenAI. A Chat provider is only required
@@ -83,4 +87,4 @@ report `pymupdf`, plus hashing and MiniLM embedders. `app:dev` vendors MiniLM
 into `packages/vera-app/build/minilm` before launch; packaged
 builds vendor a VERA-exported ONNX graph. The sidecar does not import Torch.
 Docling is not listed;
-use `vera-cli[docling]` from the CLI.
+use `vera[docling]` from the CLI.

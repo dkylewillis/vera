@@ -1,9 +1,8 @@
 import React, { type ReactNode } from 'react';
-import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import type { ChatCitationResult, SessionTurn } from '../types';
 import { citationsForTurn } from '../lib/citations';
 import { ActivityTrace } from './activity/ActivityTrace';
+import { ChatMarkdown } from './ChatMarkdown';
 import { TraceView } from './activity/TraceView';
 
 // A code span holding nothing but `[C#]` markers (optionally comma/semicolon
@@ -44,40 +43,37 @@ function renderAnswerWithCitations(
       React.createElement(Tag, props, injectCitations(children));
 
   return (
-    <div className="markdownBody">
-      <Markdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          p: withCitations('p'),
-          li: withCitations('li'),
-          td: withCitations('td'),
-          th: withCitations('th'),
-          h1: withCitations('h1'),
-          h2: withCitations('h2'),
-          h3: withCitations('h3'),
-          h4: withCitations('h4'),
-          h5: withCitations('h5'),
-          h6: withCitations('h6'),
-          strong: withCitations('strong'),
-          em: withCitations('em'),
-          blockquote: withCitations('blockquote'),
-          a: ({ children, node: _node, ...props }) => (
-            <a {...props} target="_blank" rel="noreferrer">{injectCitations(children)}</a>
-          ),
-          code: ({ children, className, node: _node, ...props }) => {
-            const text = typeof children === 'string' ? children : null;
-            // `className` marks a fenced block's language, so a bare marker-only
-            // span is safe to unwrap without touching real code.
-            if (text && !className && CITATION_ONLY_CODE.test(text)) {
-              return <>{injectCitations(text)}</>;
-            }
-            return <code className={className} {...props}>{children}</code>;
-          },
-        }}
-      >
-        {answerText}
-      </Markdown>
-    </div>
+    <ChatMarkdown
+      components={{
+        p: withCitations('p'),
+        li: withCitations('li'),
+        td: withCitations('td'),
+        th: withCitations('th'),
+        h1: withCitations('h1'),
+        h2: withCitations('h2'),
+        h3: withCitations('h3'),
+        h4: withCitations('h4'),
+        h5: withCitations('h5'),
+        h6: withCitations('h6'),
+        strong: withCitations('strong'),
+        em: withCitations('em'),
+        blockquote: withCitations('blockquote'),
+        a: ({ children, node: _node, ...props }) => (
+          <a {...props} target="_blank" rel="noreferrer">{injectCitations(children)}</a>
+        ),
+        code: ({ children, className, node: _node, ...props }) => {
+          const text = typeof children === 'string' ? children : null;
+          // `className` marks a fenced block's language, so a bare marker-only
+          // span is safe to unwrap without touching real code.
+          if (text && !className && CITATION_ONLY_CODE.test(text)) {
+            return <>{injectCitations(text)}</>;
+          }
+          return <code className={className} {...props}>{children}</code>;
+        },
+      }}
+    >
+      {answerText}
+    </ChatMarkdown>
   );
 }
 
@@ -132,7 +128,7 @@ export const ChatTurn = React.memo(function ChatTurn({
       {answerCitations.length ? (
         renderAnswerWithCitations(turn.content, answerCitations, selectCitation)
       ) : (
-        <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{turn.content}</Markdown></div>
+        <ChatMarkdown>{turn.content}</ChatMarkdown>
       )}
       {showTrace && turn.trace?.length ? <TraceView events={turn.trace} /> : null}
     </article>

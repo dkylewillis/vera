@@ -50,8 +50,9 @@ This starts the Vite development server and then opens the Electron window.
 Keep the terminal running while using the app. Press `Ctrl+C` in that terminal
 to stop both processes.
 
-Open a PDF from the app's Convert view to create a `.vera` archive, or use the
-native File menu to open an existing archive or document library.
+Open a PDF or Markdown file from the app's Convert view to create a `.vera`
+archive, or use the native File menu to open an existing archive or document
+library.
 Desktop conversions default to the PyMuPDF ingest pipeline and the
 offline `hashing` embedder. The Convert view exposes dropdowns for
 `ingest_pipeline` (PyMuPDF in 0.3.0) and
@@ -69,7 +70,7 @@ sidecar matches packaged releases: one Python process with PyMuPDF,
 hashing, ONNX MiniLM, and OpenAI embeddings. Save `OPENAI_API_KEY` under
 **File > Settings → Embeddings**. Plugins are ordinary pip packages in **the same environment**
 (`vera.ingest_pipelines` / `vera.embedders`); CLI users can
-`pip install "vera-cli[docling]>=0.3.0"` or `pip install -e <clone>` after
+`pip install "vera[docling]>=0.3.0"` or `pip install -e <clone>` after
 `vera-ingest` 0.3.x. An unavailable selection is disabled or fails with the
 resolver error. Save an optional token under **File > Settings → Hugging Face**
 (or set `HF_TOKEN` in the environment / a local `.env` from `.env.example`) for
@@ -92,7 +93,11 @@ If inspect fails and no sibling source is
 listed, Reconvert does not export an embedded original and shows
 **Could not read archive metadata**. Place the matching `.pdf` or `.md` next to the
 archive, or export the original from Document Info once the archive is
-readable.
+readable. Document Info's OCR line is PyMuPDF-shaped (`ocr_engine`,
+`ocr_mode`, `ocr_pages`). Markdown archives store `ocr: {}` and the UI shows
+`Unknown mode · 0 pages OCR’d`; Docling recovery uses `engine` /
+`recovered_pages`, so the Info line can look incomplete after a successful
+convert. Use `vera inspect FILE --json` (or sidecar inspect) for the full bag.
 In Explorer, click a file to select it, Ctrl/Cmd+click to add or remove it, and
 Shift+click to select a range. The checkbox next to a file adds or removes that
 row from the same list — unchecking it deselects it, and the highlight and the
@@ -102,7 +107,8 @@ Explorer space, or press Escape to search the whole library again.
 Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,
 and keyword modes from its composer options. Its ranked passage cards open and
-highlight the matching source in the document viewer without adding the query
+highlight the matching source in the document viewer (Mozilla-style PDF chrome
+with a page thumbnail rail and rotate counterclockwise) without adding the query
 to chat history. CLI and MCP search return the full ranked list; they do not
 apply Ask's relative `quality` filter.
 
@@ -189,7 +195,7 @@ Explorer lists `.vera`, `.pdf`, and `.md` / `.markdown` files up to 32 directory
 library root (the root itself is depth 0). Deeper files are omitted from the
 tree. The listing payload sets `truncated: true` when that cap is hit;
 Explorer does not show a banner for it. Office and HTML
-sources are not listed in Explorer — convert them with `vera-cli[docling]`.
+sources are not listed in Explorer — convert them with `vera[docling]`.
 A folder with no `.vera` files remains active and watched; Search and
 Ask report that nothing is searchable until archives are present.
 
@@ -243,14 +249,14 @@ The packaged Windows installer freezes PyMuPDF, hashing, ONNX Runtime, and
 (`all-MiniLM-L6-v2`) ONNX weights ship inside Setup.exe, so **Local semantic
 (MiniLM)** does not download those files on
 first use. Docling / **Advanced layout (slower)** is not part of the 0.3.0
-desktop app; install `vera-cli[docling]` and convert from the CLI. OpenAI
+desktop app; install `vera[docling]` and convert from the CLI. OpenAI
 embeddings are bundled; save `OPENAI_API_KEY` under **File > Settings →
 Embeddings**. Voyage and Ollama are not bundled.
 
 CLI users who want Docling install it into the VERA environment:
 
 ```bash
-pip install "vera-cli[docling]>=0.3.0"
+pip install "vera[docling]>=0.3.0"
 # or from a checkout:
 uv sync --extra docling
 ```
@@ -302,7 +308,7 @@ Convert and embed always run in-process in the sidecar; see
   Set `VERA_SIDECAR_PYTHON` or `VERA_APP_PYTHON` to use a different interpreter, or exclude the
   repository and `%TEMP%` from real-time scanning, then retry.
 - **An extra parser or embedder is missing from Convert** — the 0.3.0 desktop
-  sidecar ships PyMuPDF only. Docling is a CLI extra (`vera-cli[docling]`),
+  sidecar ships PyMuPDF only. Docling is a CLI extra (`vera[docling]`),
   not a Convert dropdown. For other plugins, install into
   the same environment the sidecar uses (`python -m pip install` or
   `python -m pip install -e <clone>`), then restart the app. Raw `PYTHONPATH`
@@ -327,7 +333,9 @@ While an answer is generating, the send button becomes a stop button. Selecting
 it cancels only that answer, stops its active provider stream, and saves the
 user prompt plus any streamed response received so far without restarting the
 local sidecar. Answer prose appears incrementally as provider tokens arrive.
-VERA withholds inline tool-call markup and clears any provisional prose from a
+Assistant answers render GitHub-flavored Markdown plus LaTeX math (`$…$`,
+`$$…$$`, `\(`…`\)`, and `\[`…`\]`) with KaTeX. VERA withholds inline tool-call markup
+and clears any provisional prose from a
 turn that ultimately invokes a retrieval tool, so only the final grounded
 answer remains visible.
 

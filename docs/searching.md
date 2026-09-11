@@ -54,10 +54,19 @@ vera search "manual.vera" "\"Section 4.2\"" --mode keyword
 Keyword search uses SQLite FTS5. Use it for exact phrases, section numbers,
 identifiers, table labels, and known terminology.
 
-If an FTS query cannot be used directly or has no hits, VERA can fall back to a
-broader token-prefix query. Punctuation may be removed during that fallback.
-For short or hyphenated identifiers, confirm that the literal identifier
-appears in the returned text.
+Keyword search first runs the raw query as an FTS5 `MATCH`. If that returns
+no rows — including when SQLite reports an FTS **syntax** error such as an
+unbalanced quote — VERA retries with `safe_fts_query`: whitespace-split
+tokens, keep letters/digits/`_`, drop other punctuation, append `*`, join
+with `OR`. `storm-water detention!` becomes `stormwater* OR detention*`.
+Queries that contain no alphanumeric tokens (`!!!`, `""`) produce an empty
+fallback and return no hits. Runtime FTS failures (locked database,
+malformed file, missing `chunks_fts`) are **not** treated as syntax errors
+and still raise. The collection index uses the same helper.
+
+Punctuation-stripping can merge a hyphenated code such as `EL-A` into
+`ELA*`. Confirm that the literal identifier appears in the returned text
+before treating the hit as an exact match.
 
 ### Semantic
 

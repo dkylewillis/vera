@@ -83,3 +83,48 @@ describe('ChatTurn citation markers', () => {
     expect(renderAnswer('- Sized for the 25-year storm. [C1]')).not.toContain('node=');
   });
 });
+
+describe('ChatTurn LaTeX', () => {
+  it('renders inline math as KaTeX beside a citation', () => {
+    const html = renderAnswer('The lift coefficient is $C_L$. [C1]');
+    expect(html).toContain('class="katex"');
+    expect(html).toContain('<button class="inlineCitation">[C1]</button>');
+  });
+
+  it('renders display math as KaTeX', () => {
+    const html = renderAnswer('$$E = mc^2$$\n\nSee [C1].');
+    expect(html).toContain('katex-display');
+  });
+
+  it('renders TeX-style delimiters', () => {
+    const html = renderAnswer('Inline \\(a^2\\) and display \\[Q = CiA\\]. [C1]');
+    expect(html).toContain('class="katex"');
+    expect(html).toContain('katex-display');
+  });
+
+  it('renders math when the turn has no citations', () => {
+    const html = renderAnswer('Use $Q = CiA$.', []);
+    expect(html).toContain('class="katex"');
+  });
+
+  it('renders inline math that starts with a digit', () => {
+    const html = renderAnswer('Peak flow is $2.1Q$.', []);
+    expect(html).toContain('class="katex"');
+  });
+
+  it('leaves paired currency amounts as text', () => {
+    const html = renderAnswer('Budget is $20,000 and $30,000. [C1]');
+    expect(html).not.toContain('class="katex"');
+    expect(html).toContain('$20,000');
+  });
+
+  it('leaves math inside fenced code as code', () => {
+    const html = renderAnswer('```\n$C_L$\n```\n\n[C1]');
+    expect(html).toContain('<code>');
+    expect(html).not.toContain('class="katex"');
+  });
+
+  it('does not throw on incomplete display math', () => {
+    expect(() => renderAnswer('$$E = mc', [])).not.toThrow();
+  });
+});

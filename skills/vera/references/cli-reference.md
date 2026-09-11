@@ -1,15 +1,15 @@
 # VERA CLI reference for agents
 
-This reference describes the current `vera-cli` command contract. The
+This reference describes the current `vera` CLI command contract. The
 console entry point is `vera`; `python -m vera_cli` invokes the same parser.
 
 ## Runtime and installation
 
 - Python: 3.10 or newer.
-- Published CLI: `pip install "vera-cli>=0.3.1"`.
+- Published CLI: `pip install "vera>=0.3.1"`.
 - Neural MiniLM embeddings require the `onnx` extra from `vera-doc`.
   Other Sentence Transformers models require the `ml` extra.
-- `vera mcp` requires `pip install "vera-cli[mcp]>=0.3.1"` or
+- `vera mcp` requires `pip install "vera[mcp]>=0.3.1"` or
   `pip install "vera-mcp>=0.3.1"`.
 - A repository checkout can use:
   `uv sync --extra dev --extra onnx --extra ml --extra app --extra mcp`.
@@ -41,7 +41,7 @@ Options:
   Transformers otherwise. Other Sentence Transformers models need the `ml` extra. The
   Windows desktop installer vendors a VERA-exported `all-MiniLM-L6-v2` ONNX
   graph. Archive identity stays `sentence-transformers/all-MiniLM-L6-v2`.
-  OpenAI embeddings ship with `vera-cli` as `vera-embed-openai`
+  OpenAI embeddings ship with `vera` as `vera-embed-openai`
   (`openai:text-embedding-3-small` / `-large`); set `OPENAI_API_KEY`. Archives
   converted with OpenAI are not portable for semantic search. Voyage and
   Ollama are not bundled.
@@ -58,7 +58,7 @@ Options:
   (or Hugging Face Hub; about 380 MB: Heron ONNX + TableFormer accurate).
   Office/HTML Docling convert does not download those PDF layout models.
   The 0.3.0 desktop app does not list or freeze this pipeline; use
-  `vera-cli[docling]`. An incomplete cache resumes instead of failing
+  `vera[docling]`. An incomplete cache resumes instead of failing
   offline. Stopping mid-download does not abort Hugging Face immediately.
 - `--chunk-size N`. Compatibility alias; omitted uses the selected pipeline's
   default. Forwarded only when the selected pipeline advertises a `chunk_size`
@@ -248,6 +248,14 @@ Metadata is extensible. `default_embedding_normalization` is `l2`, `none`, or
 `unknown`; archives created before this field was introduced report `unknown`.
 Summary counts, embedding dimensions, attachment counts, and
 `archive_size_bytes` are integers.
+
+`ocr` is the pipeline `diagnostics` dict (historical key). Text-mode inspect
+omits it. PyMuPDF writes `ocr_engine`, `ocr_mode`, `ocr_language`, `ocr_dpi`,
+and `ocr_pages` (1-based pages that ran Tesseract). Docling writes `engine`
+(`docling`), `source_format`, `recovered_pages`, and optionally
+`pdf_backend`, `recovered_pages_backend`, `whole_document_fallback_backend`,
+and `whole_document_fallback_strategy` (`document` or `batched`). Markdown writes `ocr: {}`.
+Desktop Document Info summarizes PyMuPDF-shaped keys only.
 
 ### `vera get FILE CHUNK_ID`
 
@@ -787,7 +795,8 @@ MCP provides `vera_search`, `vera_corpus_search`, `vera_inspect`,
 `vera_get_chunk_regions`. `vera_search` and `vera_corpus_search` default
 `top_k` to `10`, matching `vera search` and `VeraDocument.search`.
 `vera_inspect` and `vera_validate` include both `file` (requested) and
-`path` (opened). `vera_get_figure` returns native image content for one
+`path` (opened). `vera_inspect` is the inspect JSON object (including `ocr`);
+there is no text-mode omit. `vera_get_figure` returns native image content for one
 `asset_id` plus citation metadata; a missing id returns `{"error": "..."}`.
 `vera_get_chunk` matches `vera get FILE CHUNK_ID --json`, including `ok: true`
 and locator fields; a missing chunk returns `{"ok": false, "error": "chunk not

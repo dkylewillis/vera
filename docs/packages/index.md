@@ -10,7 +10,7 @@ the package that owns the capability you need.
 | [vera-ingest-pymupdf](vera-ingest-pymupdf.md) | `vera-ingest-pymupdf` | `import vera_ingest_pymupdf` | Default PyMuPDF PDF parsing and Tesseract OCR |
 | [vera-ingest-docling](vera-ingest-docling.md) | `vera-ingest-docling` | `import vera_ingest_docling` | Optional Docling HybridChunker ingest (CLI extra; not bundled in the installer) |
 | [vera-embed-openai](vera-embed-openai.md) | `vera-embed-openai` | `import vera_embed_openai` | Official OpenAI embeddings plugin (bundled in CLI and the desktop sidecar) |
-| [vera-cli](vera-cli.md) | `vera-cli` | `vera` / `import vera_cli` | Shell workflows and retrieval evaluation |
+| [vera](vera-cli.md) | `vera` | `vera` / `import vera_cli` | Shell workflows and retrieval evaluation |
 | [vera-mcp](vera-mcp.md) | `vera-mcp` | `vera mcp` / `import vera_mcp` | Exposing VERA retrieval to MCP clients |
 | [vera-app](vera-app.md) | `vera-app` | Desktop application | Interactive conversion, search, and grounded answers |
 | [vera-lab](vera-lab.md) | `vera-lab` (dev) | `vera-lab` / `import vera_lab` | Contributor HTML layout lab for ingest pipelines |
@@ -21,7 +21,7 @@ the package that owns the capability you need.
 vera-ingest-pymupdf ──> vera-ingest ─┐
 vera-ingest-docling ──> vera-ingest ─┤
 vera-embed-openai ───────────────────┤
-vera-cli ─────────────────────────────┼──> vera-doc
+vera ─────────────────────────────────┼──> vera-doc
 vera-app ─────────────────────────────┤
 vera-mcp ─────────────────────────────┤
 vera-lab (dev only) ──────────────────┘

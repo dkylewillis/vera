@@ -11,7 +11,7 @@ fields each pipeline advertises. Source-run and packaged builds use one sidecar
 interpreter with PyMuPDF, hashing, Local semantic (MiniLM) via ONNX
 Runtime, and OpenAI embeddings. The Windows installer vendors a VERA-exported MiniLM graph (no
 PyTorch). Docling remains
-a CLI extra (`vera-cli[docling]`) and is not listed in Convert.
+a CLI extra (`vera[docling]`) and is not listed in Convert.
 
 See the [vera-app documentation](https://dkylewillis.github.io/vera/packages/vera-app/)
 for installation, user workflows, and architecture.
