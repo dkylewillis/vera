@@ -4785,7 +4785,7 @@ wheels = [
 
 [[package]]
 name = "vera"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "packages/vera-cli" }
 dependencies = [
     { name = "vera-doc" },
@@ -4815,7 +4815,7 @@ provides-extras = ["mcp", "docling"]
 
 [[package]]
 name = "vera-app"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "packages/vera-app" }
 dependencies = [
     { name = "vera-doc", extra = ["onnx"] },
@@ -4834,7 +4834,7 @@ requires-dist = [
 
 [[package]]
 name = "vera-cli"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "packages/vera-cli-compat" }
 dependencies = [
     { name = "vera" },
@@ -4858,7 +4858,7 @@ provides-extras = ["mcp", "docling"]
 
 [[package]]
 name = "vera-doc"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "packages/vera-doc" }
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -4888,7 +4888,7 @@ provides-extras = ["ml", "onnx"]
 
 [[package]]
 name = "vera-embed-openai"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "packages/vera-embed-openai" }
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -4904,7 +4904,7 @@ requires-dist = [
 
 [[package]]
 name = "vera-ingest"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "packages/vera-ingest" }
 dependencies = [
     { name = "vera-doc" },
@@ -4915,7 +4915,7 @@ requires-dist = [{ name = "vera-doc", editable = "packages/vera-doc" }]
 
 [[package]]
 name = "vera-ingest-docling"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "packages/vera-ingest-docling" }
 dependencies = [
     { name = "docling", extra = ["rapidocr"] },
@@ -4930,7 +4930,7 @@ requires-dist = [
 
 [[package]]
 name = "vera-ingest-pymupdf"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "packages/vera-ingest-pymupdf" }
 dependencies = [
     { name = "pdfplumber" },
@@ -4947,7 +4947,7 @@ requires-dist = [
 
 [[package]]
 name = "vera-lab"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "packages/vera-lab" }
 dependencies = [
     { name = "pymupdf" },
@@ -4962,7 +4962,7 @@ requires-dist = [
 
 [[package]]
 name = "vera-mcp"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "packages/vera-mcp" }
 dependencies = [
     { name = "mcp" },
@@ -4979,7 +4979,7 @@ requires-dist = [
 
 [[package]]
 name = "vera-workspace"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "." }
 dependencies = [
     { name = "vera" },

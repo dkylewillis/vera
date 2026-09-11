@@ -40,15 +40,23 @@ Retrieval quality is tracked with `vera eval` against the query sets in
 [examples](examples). Do not regress the baselines in the README when search
 behavior changes.
 
-Windows packaged-sidecar release gate (optional locally; CI runs it on `v*`
-tags):
+Windows packaged-sidecar and installer release gate (optional locally; CI
+runs it on `v*` tags and `workflow_dispatch`, then uploads
+`VERA.Setup.<version>.exe`):
 
 ```bash
 uv sync --extra app --extra sidecar --extra onnx
 UV_PROJECT_ENVIRONMENT=.venv-minilm-export uv run --extra ml python packages/vera-app/scripts/export_minilm_onnx.py --dest packages/vera-app/build/minilm-export/all-MiniLM-L6-v2
 npm --prefix packages/vera-app run build:sidecar
 node packages/vera-app/scripts/verify-packaged-sidecar.cjs
+npm --prefix packages/vera-app run build
+npm --prefix packages/vera-app exec -- electron-builder --win nsis --publish never
 ```
+
+The installer is a Windows NSIS build (`VERA.Setup.<version>.exe`). It cannot
+be produced on Linux or macOS because the frozen sidecar is a Windows
+PyInstaller binary. Attach the CI artifact to the GitHub Release after the
+tag build finishes.
 
 `export_minilm_onnx.py` writes a VERA-owned MiniLM graph (compare it with
 `compare_minilm_onnx.py` before bumping `EXPECTED_MODEL_SHA256` in

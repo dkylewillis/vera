@@ -7,7 +7,7 @@ sections describe running and packaging it from a repository checkout.
 
 ## Install the Windows app
 
-Download the `VERA Setup <version>.exe` installer from the
+Download the `VERA.Setup.<version>.exe` installer from the
 [latest GitHub Release](https://github.com/dkylewillis/vera/releases), run it,
 and then open VERA from the Start menu.
 
@@ -230,7 +230,7 @@ Create the distributable Windows installer:
 npm run app:release
 ```
 
-This rebuilds the app and Python sidecar and writes `VERA Setup <version>.exe`
+This rebuilds the app and Python sidecar and writes `VERA.Setup.<version>.exe`
 into `%LOCALAPPDATA%\Vera\desktop-release` (and clears any leftover
 `packages/vera-app/release` directory).
 Sidecar freeze vendors a VERA-exported MiniLM ONNX graph into gitignored

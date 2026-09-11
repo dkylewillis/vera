@@ -1,11 +1,11 @@
 [project]
 name = "vera-cli"
-version = "0.3.1"
+version = "0.3.2"
 description = "Compatibility alias for the vera CLI; install `vera` instead"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "vera>=0.3.1",
+  "vera>=0.3.2",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
@@ -23,8 +23,8 @@ Repository = "https://github.com/dkylewillis/vera"
 Documentation = "https://dkylewillis.github.io/vera/packages/vera-cli/"
 
 [project.optional-dependencies]
-mcp = ["vera[mcp]>=0.3.1"]
-docling = ["vera[docling]>=0.3.1"]
+mcp = ["vera[mcp]>=0.3.2"]
+docling = ["vera[docling]>=0.3.2"]
 
 [build-system]
 requires = ["hatchling"]

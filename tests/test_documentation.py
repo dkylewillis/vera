@@ -504,6 +504,8 @@ def test_hardening_json_contracts_are_documented():
     )
     assert "UV_PROJECT_ENVIRONMENT" in sidecar_release
     assert "--extra ml" in sidecar_release
+    assert "electron-builder --win nsis" in sidecar_release
+    assert "VERA.Setup.*.exe" in sidecar_release
     assert "UV_PROJECT_ENVIRONMENT" in (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
     assert "onnxruntime" in (ROOT / "packages" / "vera-app" / "pyproject.toml").read_text(
         encoding="utf-8"
@@ -658,14 +660,14 @@ def test_release_0_3_versioning_and_install_pins():
     assert "### What 0.3 means" in readme
     assert "archive format remains **0.2**" in readme
     assert "archive format remains **0.2**" in getting_started
-    assert "vera>=0.3.1" in readme
-    assert "vera>=0.3.1" in getting_started
+    assert "vera>=0.3.2" in readme
+    assert "vera>=0.3.2" in getting_started
     assert "vera-doc>=0.3.0" in (PACKAGES / "vera-doc" / "README.md").read_text(encoding="utf-8")
     skill_cli = (ROOT / "skills" / "vera" / "references" / "cli-reference.md").read_text(
         encoding="utf-8"
     )
     human_cli = (DOCS / "cli-reference.md").read_text(encoding="utf-8")
-    assert "vera>=0.3.1" in skill_cli
+    assert "vera>=0.3.2" in skill_cli
     assert "Windows installer vendors Heron" not in human_cli
     assert "vendors those snapshots so packaged Advanced" not in skill_cli
     assert ">=0.2.4" not in readme
@@ -673,6 +675,7 @@ def test_release_0_3_versioning_and_install_pins():
     assert "UnknownEmbeddingModelError" in changelog
     assert "falling back to PyMuPDF" in changelog
     assert "format remains **0.2**" in changelog
+    assert "## [0.3.2]" in changelog
     assert "## [0.3.1]" in changelog
     assert "### Desktop" in changelog
     assert "Open Folder" in changelog
@@ -860,7 +863,7 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "`chunks_fts`" in validate_docs
     assert "vera ocr-languages list" in changelog
     assert "vera-lab" in changelog
-    assert "vera>=0.3.1" in intro
+    assert "vera>=0.3.2" in intro
     assert "Open convert log" in desktop
     assert "logs/sidecar.log" in desktop
     assert "Open convert log" in troubleshooting

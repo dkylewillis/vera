@@ -11,7 +11,7 @@ copied, shared, or handed to an LLM agent and searched in place — no vector
 database, embedding service, or retrieval server is required.
 
 ```bash
-pip install "vera>=0.3.1"
+pip install "vera>=0.3.2"
 vera convert manual.pdf manual.vera
 vera convert notes.md notes.vera
 vera search manual.vera "when is stormwater detention required?" --json
@@ -42,7 +42,7 @@ Install the CLI (Python 3.10+). It bundles storage, the default PDF pipeline,
 and offline OCR data:
 
 ```bash
-python -m pip install "vera>=0.3.1"
+python -m pip install "vera>=0.3.2"
 ```
 
 ### What 0.3 means
