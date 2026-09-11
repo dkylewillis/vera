@@ -15,6 +15,7 @@ from vera_app.llm import (
     VisionUnsupportedError,
     _consume_stream,
     _encode_json_payload,
+    _extract_text_tool_calls,
     _extract_xml_tool_calls,
     chat,
 )
@@ -65,6 +66,31 @@ def test_strips_malformed_nested_xml_tool_call_before_answer():
     assert cleaned == "Below is the grounded answer. [C9]"
     assert [call.name for call in calls] == ["search"]
     assert calls[0].arguments == {"mode": "keyword", "top_k": 10}
+
+
+def test_extracts_functions_dot_tool_calls_and_strips_malformed_leftovers():
+    content = (
+        'Here is the plan. <functions.search>{"query": "detention", "mode": "keyword"}'
+        "</functions.search>"
+        "Detention ponds must store the 25-year storm. [C1]"
+        "<functions.search / LATER?"
+    )
+
+    cleaned, calls = _extract_text_tool_calls(content)
+
+    assert cleaned == "Here is the plan. Detention ponds must store the 25-year storm. [C1]"
+    assert "<functions." not in cleaned
+    assert [call.name for call in calls] == ["search"]
+    assert calls[0].arguments == {"query": "detention", "mode": "keyword"}
+
+
+def test_functions_dot_invalid_json_becomes_empty_arguments():
+    cleaned, calls = _extract_text_tool_calls(
+        "<functions.search>not-json</functions.search>Visible answer."
+    )
+    assert cleaned == "Visible answer."
+    assert calls[0].name == "search"
+    assert calls[0].arguments == {}
 
 
 class FakeResponse:

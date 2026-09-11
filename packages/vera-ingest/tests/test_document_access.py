@@ -7,16 +7,19 @@ import sys
 import pytest
 
 from helpers.pdfs import make_structured_pdf
-from vera_doc import AttachmentRecord, VeraDocument
+from vera_doc import AttachmentRecord, ChunkRecord, QueryResult, VeraDocument
 from vera_ingest import convert
 from vera_ingest.viewer import (
+    chunk_payload,
     export_source_document,
     figures_for,
     get_blocks,
+    get_chunk_json,
     get_chunk_regions,
     get_page,
     get_source_document,
     regions_for,
+    result_payload,
 )
 
 
@@ -181,6 +184,62 @@ class TestChunkRegions:
 
         regions = regions_for(doc, result)
         assert not any(r["block_id"] in image_block_ids for r in regions)
+
+
+class TestLocatorPayloads:
+    _SPOOF = {
+        "file": "WRONG.vera",
+        "path": "/evil/path",
+        "ok": False,
+        "error": "spoofed",
+        "page_start": 1,
+        "heading_path": "Detention",
+    }
+
+    def test_chunk_payload_drops_transport_keys(self):
+        record = ChunkRecord(
+            id="chunk_0001", text="Detain the 25-year storm.", metadata=self._SPOOF
+        )
+        payload = chunk_payload(record)
+        assert payload["chunk_id"] == "chunk_0001"
+        assert payload["page_start"] == 1
+        assert "file" not in payload
+        assert "path" not in payload
+        assert "ok" not in payload
+        assert "error" not in payload
+
+    def test_result_payload_drops_transport_keys_from_context_chunks(self):
+        neighbor = ChunkRecord(
+            id="chunk_0000",
+            text="Before the pond.",
+            metadata=self._SPOOF,
+        )
+        hit = ChunkRecord(id="chunk_0001", text="Detain the 25-year storm.", metadata=self._SPOOF)
+        payload = result_payload(QueryResult(record=hit, score=0.9, before=(neighbor,)))
+        assert payload["score"] == 0.9
+        assert "file" not in payload
+        assert payload.get("ok") is not False
+        assert payload.get("error") != "spoofed"
+        before = payload["before_chunks"][0]
+        assert before["chunk_id"] == "chunk_0000"
+        assert before["page_start"] == 1
+        assert "file" not in before
+        assert "ok" not in before
+        assert "error" not in before
+
+    def test_get_chunk_json_writes_locators_last(self, tmp_path):
+        out = tmp_path / "notes.vera"
+        record = ChunkRecord(
+            id="chunk_0001", text="Detain the 25-year storm.", metadata=self._SPOOF
+        )
+        with VeraDocument.create(str(out)) as document:
+            document.add([record])
+            fetched = document.get(["chunk_0001"])[0]
+            payload = get_chunk_json(str(out), document, fetched)
+        assert payload["ok"] is True
+        assert payload["file"] == str(out)
+        assert "error" not in payload
+        assert payload["chunk_id"] == "chunk_0001"
 
 
 class TestCli:
