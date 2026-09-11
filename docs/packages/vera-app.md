@@ -17,7 +17,7 @@ API reference.
 
 ## Install the Windows app
 
-Download `VERA Setup <version>.exe` from the
+Download `VERA.Setup.<version>.exe` from the
 [latest GitHub Release](https://github.com/dkylewillis/vera/releases/latest).
 
 ## First workflow

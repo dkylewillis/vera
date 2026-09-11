@@ -34,7 +34,7 @@ Major capabilities:
 Install the CLI from PyPI:
 
 ```bash
-python -m pip install "vera>=0.3.1"
+python -m pip install "vera>=0.3.2"
 ```
 
 That pulls in `vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and

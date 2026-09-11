@@ -1,6 +1,6 @@
 {
   "name": "@vera/app",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Desktop workspace for VERA documents",
   "author": "Kyle Willis",
   "private": true,
@@ -67,6 +67,9 @@
     ],
     "win": {
       "target": "nsis"
+    },
+    "nsis": {
+      "artifactName": "VERA.Setup.${version}.exe"
     }
   }
 }

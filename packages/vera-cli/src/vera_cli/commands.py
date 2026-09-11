@@ -546,7 +546,7 @@ def cmd_mcp(args) -> int:
     except ImportError:
         print(
             "vera mcp requires the optional MCP extra. "
-            "Install with: python -m pip install 'vera[mcp]>=0.3.1'",
+            "Install with: python -m pip install 'vera[mcp]>=0.3.2'",
             file=sys.stderr,
         )
         return 2

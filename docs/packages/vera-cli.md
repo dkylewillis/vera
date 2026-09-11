@@ -18,8 +18,8 @@ packages directly.
 From PyPI:
 
 ```bash
-python -m pip install "vera>=0.3.1"
-python -m pip install "vera[docling]>=0.3.1"
+python -m pip install "vera>=0.3.2"
+python -m pip install "vera[docling]>=0.3.2"
 ```
 
 From a repository checkout:

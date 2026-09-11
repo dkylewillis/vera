@@ -8,6 +8,8 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-09-11
+
 ### Changed
 
 - The PDF toolbar no longer shows a Passage/Figure color legend next to

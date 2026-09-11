@@ -14,15 +14,15 @@ Tesseract/PyMuPDF); explicit `--pipeline-option` values win for the same key.
 ## Install
 
 ```bash
-python -m pip install "vera>=0.3.1"
+python -m pip install "vera>=0.3.2"
 ```
 
 Install the `mcp` extra to enable `vera mcp`, or the `docling` extra for
 Docling PDF layout conversion and search-only DOCX/PPTX/XLSX/HTML ingest:
 
 ```bash
-python -m pip install "vera[mcp]>=0.3.1"
-python -m pip install "vera[docling]>=0.3.1"
+python -m pip install "vera[mcp]>=0.3.2"
+python -m pip install "vera[docling]>=0.3.2"
 ```
 
 `pip install vera-cli` remains a compatibility alias that depends on `vera`.
