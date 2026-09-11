@@ -2,14 +2,14 @@
 
 An embedding provider turns text into vectors for `.vera` archives. Built-in
 providers (`hashing`, `sentence-transformers`) and third-party plugins share
-the same contract — nothing in `vera-doc`, `vera-cli`, or `vera-app`
+the same contract — nothing in `vera-doc`, `vera`, or `vera-app`
 special-cases a hosted OpenAI or Voyage package. Write your own to add a new
 API, a local runtime, or an experimental embedder.
 
 Registry and descriptor APIs (`register_embedder`, descriptor/model listing
 helpers) are experimental and may change before 1.0. The official OpenAI
 plugin is [`vera-embed-openai`](packages/vera-embed-openai.md), bundled with
-`vera-cli` and the desktop sidecar. Voyage and Ollama are not bundled with
+`vera` and the desktop sidecar. Voyage and Ollama are not bundled with
 VERA; they need a query-versus-document hint on `EmbeddingFunction` first.
 
 This guide mirrors [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md):
@@ -86,7 +86,7 @@ Use [`vera-embed-openai`](packages/vera-embed-openai.md) as the reference
 implementation for a hosted API: stdlib `urllib` (no SDK), `credential_env =
 "OPENAI_API_KEY"`, convert-time `batch_size` / `timeout`, token-aware request
 splitting, L2 normalization, and a constructor that never touches the network.
-`vera-cli` and `vera-app` depend on it; the frozen sidecar calls
+`vera` and `vera-app` depend on it; the frozen sidecar calls
 `ensure_registered()`.
 
 ```bash

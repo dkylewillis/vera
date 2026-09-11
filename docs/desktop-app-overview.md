@@ -29,7 +29,7 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 ## Key Capabilities
 
 ### 1. Source Document Viewer
-- View original document pages
+- View original document pages in a Mozilla-style PDF chrome (thumbnail rail, page and zoom toolbar, rotate counterclockwise)
 - Navigate by page and section
 - Jump from answer citations directly to source location
 - Work in a two-pane layout with Ask on the left and Source Document on the right
@@ -59,7 +59,7 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 ### 6. LLM Ask
 - Connect to one or more LLM providers under **File > Settings**
 - Select model by task profile (speed, quality, cost)
-- Stream grounded answers with citation links
+- Stream grounded answers with citation links, Markdown, and rendered LaTeX
 - Search remains fully local when no provider is configured
 
 ### 7. External Tool Connectivity

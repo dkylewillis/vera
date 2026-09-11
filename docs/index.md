@@ -34,7 +34,7 @@ Major capabilities:
 Install the CLI from PyPI:
 
 ```bash
-python -m pip install "vera-cli>=0.3.0"
+python -m pip install "vera>=0.3.1"
 ```
 
 That pulls in `vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, and
@@ -95,7 +95,7 @@ with VeraDocument.open("knowledge.vera") as document:
   parsing and selective OCR.
 - [**vera-embed-openai**](packages/vera-embed-openai.md) — official OpenAI
   embeddings plugin.
-- [**vera-cli**](packages/vera-cli.md) — run complete workflows from the
+- [**vera**](packages/vera-cli.md) — run complete workflows from the
   `vera` command.
 - [**vera-mcp**](packages/vera-mcp.md) — expose retrieval to MCP-capable
   applications and agents.

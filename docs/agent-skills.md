@@ -3,7 +3,7 @@
 VERA ships a portable
 [Agent Skills](https://agentskills.io/specification) package at
 [`skills/vera/`](https://github.com/dkylewillis/vera/tree/main/skills/vera/). It teaches a shell-capable AI agent to use
-`vera-cli`, interpret its JSON and exit codes, retrieve evidence, and produce
+the `vera` CLI, interpret its JSON and exit codes, retrieve evidence, and produce
 page-level citations.
 
 ## Portability
@@ -32,7 +32,7 @@ Portability has two boundaries:
 The skill requires:
 
 - Python 3.10 or newer;
-- `vera-cli` available as `vera` or importable as `vera_cli`;
+- `vera` available as the `vera` console script or importable as `vera_cli`;
 - shell execution and access to the local archive paths;
 - permission to write only when converting, indexing, or exporting.
 
@@ -62,7 +62,7 @@ locations.
 Install the CLI separately:
 
 ```bash
-pip install vera-cli
+pip install vera
 vera --help
 ```
 

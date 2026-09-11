@@ -1,7 +1,7 @@
 # VERA — Vector-Embedded Retrieval Archive
 
 [![Latest release](https://img.shields.io/github/v/release/dkylewillis/vera)](https://github.com/dkylewillis/vera/releases/latest)
-[![PyPI - vera-cli](https://img.shields.io/pypi/v/vera-cli?label=vera-cli)](https://pypi.org/project/vera-cli/)
+[![PyPI - vera](https://img.shields.io/pypi/v/vera?label=vera)](https://pypi.org/project/vera/)
 [![License](https://img.shields.io/github/license/dkylewillis/vera)](LICENSE)
 
 A `.vera` file is a portable embedded vector database: one self-contained
@@ -11,7 +11,7 @@ copied, shared, or handed to an LLM agent and searched in place — no vector
 database, embedding service, or retrieval server is required.
 
 ```bash
-pip install "vera-cli>=0.3.1"
+pip install "vera>=0.3.1"
 vera convert manual.pdf manual.vera
 vera convert notes.md notes.vera
 vera search manual.vera "when is stormwater detention required?" --json
@@ -42,7 +42,7 @@ Install the CLI (Python 3.10+). It bundles storage, the default PDF pipeline,
 and offline OCR data:
 
 ```bash
-python -m pip install "vera-cli>=0.3.1"
+python -m pip install "vera>=0.3.1"
 ```
 
 ### What 0.3 means
@@ -113,7 +113,7 @@ full command surface is scriptable by agents and applications:
 | `vera convert` | Convert a PDF, Markdown, Office/HTML (Docling extra), or a directory of sources into `.vera` archives |
 | `vera search` | Hybrid, semantic, or keyword search over a file or a folder-as-corpus |
 | `vera index` | Build, update, and check a persistent library index over many archives |
-| `vera inspect` | Report pages, chunks, embedding model, parser, and archive metadata |
+| `vera inspect` | Report pages, chunks, embedding model, parser, and archive metadata (`--json` includes the pipeline `ocr` diagnostics bag) |
 | `vera get` | Fetch one stored chunk by id as citation-ready JSON |
 | `vera validate` | Verify schema, hashes, embeddings, and index integrity |
 | `vera export` | Recover the original source document from the archive |
@@ -332,7 +332,7 @@ A pipeline distributed as a package with a `vera.ingest_pipelines` entry
 point is discovered automatically by `vera convert --parser myformat`.
 Pipelines can also publish descriptors that advertise their options for
 schema-driven UIs. Official converters: PyMuPDF ships in the
-packaged sidecar; Docling is the optional `vera-cli[docling]` extra.
+packaged sidecar; Docling is the optional `vera[docling]` extra.
 Extra plugins are pip packages in the same environment.
 See [Creating an ingest pipeline](docs/creating-an-ingest-pipeline.md) and
 [Creating an embedding provider](docs/creating-an-embedding-provider.md).
@@ -355,7 +355,7 @@ dependencies or network access) and `sentence-transformers` (MiniLM via the
 the `ml` extra). The installer vendors a VERA-exported `all-MiniLM-L6-v2`
 graph; archive identity stays `sentence-transformers/all-MiniLM-L6-v2`.
 OpenAI embeddings ship as the official `vera-embed-openai` plugin (bundled
-with `vera-cli` and the desktop sidecar). Archives converted with it are
+with `vera` and the desktop sidecar). Archives converted with it are
 **not portable for semantic search** — the recipient needs their own
 `OPENAI_API_KEY`. Voyage and Ollama are not bundled. Third-party providers
 register through the
@@ -376,7 +376,7 @@ dependencies pointing at the storage engine:
 vera-ingest-pymupdf ──> vera-ingest ─┐
 vera-ingest-docling ──> vera-ingest ─┤
 vera-embed-openai ───────────────────┤
-vera-cli ────────────────────────────┼──> vera-doc
+vera ────────────────────────────────┼──> vera-doc
 vera-app ────────────────────────────┤
 vera-mcp ────────────────────────────┘
 ```
@@ -388,7 +388,7 @@ vera-mcp ───────────────────────�
 | [`vera-ingest-pymupdf`](https://pypi.org/project/vera-ingest-pymupdf/) | plugin | Default PDF pipeline: PyMuPDF/pdfplumber parsing, table extraction, selective OCR |
 | [`vera-ingest-docling`](https://pypi.org/project/vera-ingest-docling/) | plugin | Optional Docling pipeline with layout models and hybrid chunking |
 | [`vera-embed-openai`](https://pypi.org/project/vera-embed-openai/) | plugin | Official OpenAI embeddings (stdlib HTTPS; bundled with CLI and desktop) |
-| [`vera-cli`](https://pypi.org/project/vera-cli/) | `vera` | The command line: argument parsing, text/JSON output contracts, exit codes, and retrieval evaluation |
+| [`vera`](https://pypi.org/project/vera/) | `vera` / `import vera_cli` | The command line: argument parsing, text/JSON output contracts, exit codes, and retrieval evaluation |
 | [`vera-mcp`](https://pypi.org/project/vera-mcp/) | `vera mcp` | Thin MCP adapter exposing search, inspection, figures, pages, and regions as agent tools |
 | `vera-app` | — | Electron/React desktop application with a Python sidecar, built on the same packages |
 
@@ -401,7 +401,7 @@ composes around it. Details in
 
 **Who installs what**
 
-- Agents and scripts → `vera-cli` (optionally `vera-cli[mcp]`)
+- Agents and scripts → `vera` (optionally `vera[mcp]`)
 - Apps with ready-made chunks → `vera-doc` only
 - PDF conversion in your own app → `vera-doc` + `vera-ingest` + `vera-ingest-pymupdf`
 - End users who want a GUI → the [desktop app](https://github.com/dkylewillis/vera/releases/latest)
@@ -457,7 +457,10 @@ filters, corpus search, and embedding configuration.
 VERA also includes a desktop application. The packaged installer currently
 targets Windows: PDF conversion from the Explorer context menu, library search
 with highlighted citations, and an optional LLM provider connection for
-grounded question answering over documents. From a repository checkout,
+grounded question answering over documents. The PDF viewer uses Mozilla-style
+dark chrome with a page thumbnail rail, rotate counterclockwise, and citation
+highlights that stay aligned on the source page. Ask answers render Markdown and
+LaTeX. From a repository checkout,
 `npm run app:dev` also runs on Linux and macOS. Configure chat providers and a Hugging Face token under
 **File > Settings**. Packaged conversions use one sidecar with PyMuPDF.
 **File > Open convert log...** opens

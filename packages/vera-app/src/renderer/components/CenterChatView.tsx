@@ -1,6 +1,4 @@
 import type { RefObject } from 'react';
-import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import {
   CheckCircle2,
   ChevronDown,
@@ -14,6 +12,7 @@ import {
 import { ActivityTrace } from './activity/ActivityTrace';
 import { TraceView } from './activity/TraceView';
 import { ChatComposer } from './ChatComposer';
+import { ChatMarkdown } from './ChatMarkdown';
 import { ChatTurn } from './ChatTurn';
 import { fileName } from '../lib/formatting';
 import { providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from '../lib/providers';
@@ -175,7 +174,7 @@ export function CenterChatView({
                   }))}
                 />
                 {streamingAnswer ? (
-                  <div className="markdownBody"><Markdown remarkPlugins={[remarkGfm]}>{streamingAnswer}</Markdown></div>
+                  <ChatMarkdown>{streamingAnswer}</ChatMarkdown>
                 ) : null}
                 {showTrace && traceEvents.length > 0 ? <TraceView events={traceEvents} /> : null}
               </article>

@@ -176,6 +176,6 @@ def describe_pipeline(variant: str = "hybrid") -> PipelineDescriptor:
             "OCR, pdf_backend, and layout-model download apply to PDFs only.",
             "DOCX, PPTX, XLSX, and HTML are searchable; citations may lack page boxes.",
             "On PDF memory errors (bad_alloc), VERA retries failed pages, then whole-document pypdfium2, then page-batch pypdfium2.",
-            'CLI install: pip install "vera-cli[docling]>=0.3.0" or uv sync --extra docling',
+            'CLI install: pip install "vera[docling]>=0.3.0" or uv sync --extra docling',
         ),
     )

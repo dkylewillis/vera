@@ -15,7 +15,7 @@ Published on PyPI:
 | [`vera-ingest-pymupdf`](https://pypi.org/project/vera-ingest-pymupdf/) | `import vera_ingest_pymupdf` | Default PyMuPDF PDF ingest pipeline |
 | [`vera-ingest-docling`](https://pypi.org/project/vera-ingest-docling/) | `import vera_ingest_docling` | Optional Docling ingest pipeline |
 | [`vera-embed-openai`](https://pypi.org/project/vera-embed-openai/) | `import vera_embed_openai` | Official OpenAI embeddings plugin |
-| [`vera-cli`](https://pypi.org/project/vera-cli/) | `vera` | CLI and evaluation |
+| [`vera`](https://pypi.org/project/vera/) | `vera` / `import vera_cli` | CLI and evaluation |
 | [`vera-mcp`](https://pypi.org/project/vera-mcp/) | `vera mcp` | MCP adapter |
 
 ## `vera-doc`
@@ -44,28 +44,30 @@ this package; PyMuPDF and Docling are separate plugins).
 
 Default PDF pipeline plugin that depends on `vera-ingest`, PyMuPDF, and
 pdfplumber. Registers the `pymupdf` ingest pipeline (selective Tesseract OCR
-with bundled English language data). Pulled in by `vera-cli` and `vera-app`
+with bundled English language data). Pulled in by `vera` and `vera-app`
 so conversion works out of the box.
 
 ## `vera-ingest-docling`
 
 Optional CLI/library plugin that depends on `vera-ingest` and Docling.
-Registers the `docling` / `docling:hybrid` ingest pipeline. `vera-cli`
+Registers the `docling` / `docling:hybrid` ingest pipeline. `vera`
 installs it through the `docling` extra. It is not bundled into packaged desktop releases. The 0.3.0 Convert view does not list **Advanced layout (slower)**.
 
 ## `vera-embed-openai`
 
 Official OpenAI embeddings plugin. Registers the `openai` provider with
-stdlib HTTPS (no OpenAI SDK). Pulled in by `vera-cli` and `vera-app` so
+stdlib HTTPS (no OpenAI SDK). Pulled in by `vera` and `vera-app` so
 hosted conversion works out of the box. Archives converted with it are not
 portable for semantic search.
 
-## `vera-cli`
+## `vera`
 
-Publishes `vera_cli` and the `vera` command. Depends on `vera-doc`,
-`vera-ingest`, `vera-ingest-pymupdf`, and `vera-embed-openai`. Owns argument parsing, output
+Publishes `vera_cli` and the `vera` command (`vera` on PyPI; source in
+`packages/vera-cli`). Depends on `vera-doc`, `vera-ingest`,
+`vera-ingest-pymupdf`, and `vera-embed-openai`. Owns argument parsing, output
 contracts, exit codes, and retrieval evaluation. The optional `mcp` extra
-adds `vera-mcp`.
+adds `vera-mcp`. `vera-cli` on PyPI is a compatibility alias that depends on
+`vera` (source in `packages/vera-cli-compat`).
 
 ## `vera-mcp`
 
@@ -95,7 +97,7 @@ pipeline provider.
 vera-ingest-pymupdf ──> vera-ingest ─┐
 vera-ingest-docling ──> vera-ingest ─┤
 vera-embed-openai ───────────────────┤
-vera-cli ─────────────────────────────┼──> vera-doc
+vera ─────────────────────────────────┼──> vera-doc
 vera-app ─────────────────────────────┤
 vera-mcp ─────────────────────────────┘
 vera-lab (dev only) ──────────────────┘

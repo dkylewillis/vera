@@ -23,6 +23,28 @@ export type ReconvertExportGate =
   | { allow: true }
   | { allow: false; reason: 'inspect-failed' | 'missing-source' };
 
+/** Source file plus the `.vera` archive Reconvert should replace. */
+export type ReconvertTarget = {
+  sourcePath: string;
+  archivePath: string;
+};
+
+/**
+ * Return the clicked archive path when Convert is still targeting that
+ * Reconvert source. Batch convert always writes ``source.with_suffix(".vera")``,
+ * which overwrites a differently named sibling archive and leaves the clicked
+ * file stale.
+ */
+export function reconvertConvertOutput(
+  target: ReconvertTarget | null | undefined,
+  selectedPaths: string[],
+): string | null {
+  if (!target?.archivePath.trim() || !target.sourcePath.trim()) return null;
+  if (selectedPaths.length !== 1) return null;
+  if (!sameFsPath(selectedPaths[0], target.sourcePath)) return null;
+  return target.archivePath;
+}
+
 const CONVERTIBLE_TYPES = ['pdf', 'md'] as const;
 
 function sourceStem(path: string): string {

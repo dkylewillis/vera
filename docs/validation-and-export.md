@@ -9,20 +9,49 @@ command for restoring the embedded source document.
 vera inspect "manual.vera"
 ```
 
-Inspection reports the format version, source filename, page and chunk counts,
-embedding model, dimensions, and normalization policy, parser, and creation
-time. Normalization is `l2`, `none`, or `unknown`; older archives without the
-field report `unknown`.
+Text mode prints a short identity card: format, source filename, page and
+chunk counts, embedding model, dimensions, normalization, parser, and
+creation time. Normalization is `l2`, `none`, or `unknown`; older archives
+without the field report `unknown`. Pipeline diagnostics are **not** printed
+in text mode.
 
-For structured output:
+For structured output, including diagnostics and caller `--metadata` tags:
 
 ```bash
 vera inspect "manual.vera" --json
 ```
 
-Metadata values stored by the format may be strings even when they look
-numeric. Summary counts such as `pages`, `chunks`, and `embeddings` are
-integers.
+JSON spreads archive metadata at the top level and again under `metadata`.
+`file` is the requested path; `path` is the opened archive. Metadata values
+stored by the format may be strings even when they look numeric. Summary
+counts such as `pages`, `chunks`, and `attachments` are integers.
+
+### Pipeline diagnostics (`ocr`)
+
+Convert always writes archive metadata `ocr` from the pipeline's
+`diagnostics` dict (the key is historical; Docling recovery and Markdown
+ingest use it too). An empty object means the pipeline recorded nothing —
+Markdown's bundled pipeline leaves `ocr: {}`. Older archives may omit the
+key.
+
+| Pipeline | Always present | Conditional / notes |
+| --- | --- | --- |
+| PyMuPDF | `ocr_engine` (`tesseract`), `ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_pages` | `ocr_pages` is the 1-based list of pages that actually ran Tesseract. Empty means auto mode found no sparse image pages. |
+| Docling | `engine` (`docling`), `variant`, `source_format`, `ocr_mode`, `ocr_language`, `ocr_languages`, `images_scale`, `torch_compile`, `layout_engine`, `tableformer_mode`, `overlap_ignored`, `artifacts_path_env`, `recovered_pages` | `pdf_backend` only for PDFs. `recovered_pages_backend` maps page number strings to the backend that recovered that page. `whole_document_fallback_backend` / `whole_document_fallback_strategy` (`document` or `batched`) appear after a whole-document `pypdfium2` fallback. Office/HTML omit `pdf_backend` and stay at `recovered_pages: []`. |
+| Markdown | _(none — `ocr` is `{}`)_ | No OCR or page-recovery fields. |
+
+Desktop **Document Info** summarizes `ocr` with PyMuPDF-shaped keys
+(`ocr_engine`, `ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_pages`). Docling
+stores `engine` rather than `ocr_engine` and records recovery in
+`recovered_pages`, so the Info line can look like
+`Auto · en · 0 pages OCR’d` even after a successful recovery. An empty
+Markdown `ocr` object is truthy in the UI and shows
+`Unknown mode · 0 pages OCR’d` instead of "Not recorded". Use
+`vera inspect --json` (or the sidecar inspect payload) when the summary
+looks wrong.
+
+See [Docling reliability](packages/vera-ingest-docling.md#reliability-on-largecomplex-pdfs)
+for the recovery sequence those fields describe.
 
 ## Validate integrity
 
@@ -100,7 +129,7 @@ from vera_ingest.viewer import export_source_document, get_source_document
 
 doc = VeraDocument.open("manual.vera")
 try:
-    info = doc.inspect()
+    info = doc.inspect()  # always includes `ocr` when convert wrote it
     report = doc.validate()
 
     source = get_source_document(doc)
@@ -122,7 +151,7 @@ Validation identifies damage but does not repair an archive. The safest
 recovery is:
 
 1. preserve the failing archive for diagnosis;
-2. verify that the source PDF is available;
+2. verify that the source file (PDF, Markdown, or Office/HTML) is available;
 3. convert the source into a new output path;
 4. validate the new archive;
 5. replace the old archive only after confirming search behavior.

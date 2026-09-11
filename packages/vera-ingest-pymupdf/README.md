@@ -15,7 +15,7 @@ python -m pip install "vera-ingest-pymupdf>=0.3.0"
 ```
 
 From a repository checkout with uv, the workspace installs this package by
-default (via `vera-cli` / `vera-app`). You can also install it directly:
+default (via `vera` / `vera-app`). You can also install it directly:
 
 ```bash
 uv sync

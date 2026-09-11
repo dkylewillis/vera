@@ -8,7 +8,32 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+### Changed
+
+- The PDF toolbar no longer shows a Passage/Figure color legend next to
+  Download, and the extra ⋮ overflow menu is gone. First/last page remain on
+  Home/End and the thumbnail rail.
+
+- The desktop PDF viewer uses Mozilla-style dark chrome (the same PDF.js look
+  as ChatGPT's viewer): a hamburger-toggled page thumbnail rail, compact page
+  and zoom chips, a page-fit control, group dividers, and download / print.
+  Citation and figure highlight overlays are unchanged.
+  Rotate counterclockwise turns the page and those overlays together.
+
+- The CLI is published on PyPI as [`vera`](https://pypi.org/project/vera/).
+  Install with `pip install vera` (extras `vera[mcp]` and `vera[docling]`).
+  `pip install vera-cli` remains a compatibility alias that depends on `vera`.
+  The Python import is still `vera_cli`.
+
 ### Fixed
+
+- Desktop **Reconvert…** now writes to the clicked `.vera` archive. Previously
+  Convert always used `source.with_suffix(".vera")`, so a renamed archive or
+  `vera convert report.pdf project-alpha.vera` left the clicked file stale and
+  could overwrite a same-stem sibling archive.
+- Desktop PDF **Fit page** sizes against the canvas client box and fits the
+  page that occupies the most of the well, then pads the canvas so that page
+  is centered below the viewer header and PDF toolbar.
 
 - `vera get` / MCP `vera_get_chunk` JSON locators (`ok`, `file`, `path`) are
   applied after chunk metadata so caller tags cannot spoof a failed get or
@@ -31,6 +56,10 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   (PyMuPDF or Markdown) instead of failing on convert.
 
 ### Added
+
+- Desktop Ask answers render LaTeX with KaTeX (`$…$`, `$$…$$`, `\(`…`\)`,
+  `\[`…`\]`) alongside GitHub-flavored Markdown, including while the
+  response is still streaming.
 
 - Convert `--metadata KEY=VALUE` stamps caller tags onto archive metadata and
   every chunk. Search `--where KEY=VALUE` filters stored metadata before
