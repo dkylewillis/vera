@@ -8,6 +8,15 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+### Fixed
+
+- Desktop PDF viewer uses `pdfjs-dist` 6.2.108 with `enableScripting: false`,
+  so a malicious PDF cannot run JavaScript in the viewer
+  ([CVE-2026-16633](https://github.com/advisories/GHSA-hq66-cqwq-w95j)).
+- Lockfile Pillow is 12.3.0 or newer, closing an out-of-bounds read on
+  crafted McIdas AREA images
+  ([CVE-2026-54058](https://github.com/advisories/GHSA-62p4-gmf7-7g93)).
+
 ## [0.3.2] — 2026-09-11
 
 ### Changed
