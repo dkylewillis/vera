@@ -38,6 +38,9 @@ docs = [
 # Build-only: PyInstaller for packages/vera-app `build:sidecar`.
 sidecar = ["pyinstaller>=6"]
 
+[tool.uv]
+constraint-dependencies = ["pillow>=12.3.0"]
+
 [tool.uv.workspace]
 members = [
   "packages/vera-doc",

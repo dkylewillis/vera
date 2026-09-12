@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { FigureResult, RegionResult, SourceDocumentResult } from '../types';
 import { EMPTY_REGIONS } from '../lib/constants';
+import { pdfDocumentSource } from '../lib/pdfDocument';
 import {
   fitScaleFor,
   fitPageCenterPadding,
@@ -650,10 +651,7 @@ function PdfSourceViewerImpl({
             void pdfRef.current.loadingTask.destroy();
             pdfRef.current = null;
           }
-          const loadingTask = pdfjsLib.getDocument({
-            url: source.url,
-            useWorkerFetch: false,
-          });
+          const loadingTask = pdfjsLib.getDocument(pdfDocumentSource(source.url));
           const loadedPdf = await loadingTask.promise;
           if (canceled) {
             void loadingTask.destroy();
