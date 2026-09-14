@@ -361,3 +361,25 @@ with VeraDocument.open("manual.vera") as document:
 the listing plus `path`. Requested ids that are missing or not figure
 attachments raise `ValueError`. Search JSON and MCP `vera_figures` stay
 metadata-only; MCP `vera_get_figure` returns native image content.
+
+## Pretty search context
+
+CLI `--pretty` and MCP `pretty: true` share
+`vera_ingest.viewer.format_search_context`. It is not exported from
+`vera_ingest.__all__`; import it from the viewer module. Pass the same
+dictionaries `result_payload` returns (optional `before_chunks`,
+`after_chunks`, `figures`, and corpus `file`). The formatter returns
+Markdown-like text and omits scores, chunk ids, and region coordinates. An
+empty list returns `No results.`
+
+```python
+from vera_doc import VeraDocument
+from vera_ingest.viewer import format_search_context, result_payload
+
+with VeraDocument.open("manual.vera") as document:
+    payload = [
+        result_payload(hit, document=document, include_figures=True)
+        for hit in document.search("detention requirements", top_k=5)
+    ]
+    print(format_search_context(payload))
+```

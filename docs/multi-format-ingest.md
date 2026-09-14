@@ -106,7 +106,8 @@ source MIME (and archive metadata such as `source_mime_type`):
 
 - `application/pdf` — current page + bbox overlay
 - `text/markdown` — line-numbered preview of the stored original with
-  `text_span` highlights
+  `text_span` highlights. The viewer strips a leading UTF-8 BOM (`U+FEFF`)
+  before numbering lines so those locators stay aligned.
 - unknown — result text plus the citation string (already works)
 
 Pipeline capabilities can later advertise both `source_formats` and which
