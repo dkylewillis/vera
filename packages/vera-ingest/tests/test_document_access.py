@@ -13,6 +13,7 @@ from vera_ingest.viewer import (
     chunk_payload,
     export_source_document,
     figures_for,
+    format_search_context,
     get_blocks,
     get_chunk_json,
     get_chunk_regions,
@@ -240,6 +241,59 @@ class TestLocatorPayloads:
         assert payload["file"] == str(out)
         assert "error" not in payload
         assert payload["chunk_id"] == "chunk_0001"
+
+
+class TestFormatSearchContext:
+    def test_formats_citations_neighbors_and_figures_without_machine_fields(self):
+        context = format_search_context(
+            [
+                {
+                    "file": "library/manual.vera",
+                    "chunk_id": "chunk_0002",
+                    "score": 0.91,
+                    "heading_path": "Chapter 4 > Detention Design",
+                    "source_filename": "manual.pdf",
+                    "page_start": 117,
+                    "page_end": 118,
+                    "text": "Detention shall be provided.",
+                    "before_chunks": [
+                        {
+                            "heading_path": "Chapter 4",
+                            "source_filename": "manual.pdf",
+                            "page_start": 116,
+                            "page_end": 116,
+                            "text": "This chapter governs drainage.",
+                        }
+                    ],
+                    "after_chunks": [
+                        {
+                            "heading_path": "Chapter 4 > Exceptions",
+                            "source_filename": "manual.pdf",
+                            "page_start": 119,
+                            "page_end": 119,
+                            "text": "Small sites are exempt.",
+                        }
+                    ],
+                    "figures": [{"caption": "Figure 4-1: Pond sizing", "page_number": 118}],
+                    "regions": [{"bbox": [1, 2, 3, 4]}],
+                }
+            ]
+        )
+
+        assert "## Result 1" in context
+        assert "Archive: library/manual.vera" in context
+        assert "### Previous context" in context
+        assert "### Matching text" in context
+        assert "### Following context" in context
+        assert "Heading: Chapter 4 > Detention Design" in context
+        assert "Source: manual.pdf (pp. 117-118)" in context
+        assert "Figure 4-1: Pond sizing (p. 118)" in context
+        assert "chunk_0002" not in context
+        assert "0.91" not in context
+        assert "bbox" not in context
+
+    def test_empty_results_are_explicit(self):
+        assert format_search_context([]) == "No results."
 
 
 class TestCli:

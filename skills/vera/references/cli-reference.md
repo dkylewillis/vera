@@ -7,8 +7,16 @@ console entry point is `vera`; `python -m vera_cli` invokes the same parser.
 
 - Python: 3.10 or newer.
 - Published CLI: `pip install "vera>=0.3.2"`.
-- Neural MiniLM embeddings require the `onnx` extra from `vera-doc`.
-  Other Sentence Transformers models require the `ml` extra.
+- Neural MiniLM embeddings need `vera-doc[ml]`, or `vera-doc[onnx]` plus a
+  VERA-exported MiniLM snapshot. Other Sentence Transformers models need
+  `vera-doc[ml]`. The first model download requires network access; cached
+  local models can run offline.
+- The default `hashing` model measures lexical similarity. `--mode semantic`
+  does not turn hashing vectors into learned embeddings. Reconvert with
+  `--model` to change vectors; batch conversion requires `--overwrite` to
+  replace outputs for unchanged sources, followed by `vera index update`.
+  Keyword search needs no embedding model or credentials. Semantic and hybrid
+  queries need the archive's recorded provider and model.
 - `vera mcp` requires `pip install "vera[mcp]>=0.3.2"` or
   `pip install "vera-mcp>=0.3.2"`.
 - A repository checkout can use:
@@ -118,6 +126,10 @@ Options:
   a sibling `.vera` is skipped only when it validates and its stored
   `source_file_hash` matches the current source file.
 - `--json` emits one JSON object.
+- `--pretty` emits Markdown-like readable context and is mutually exclusive
+  with `--json`. It includes result numbers, corpus archive paths, headings,
+  source/page citations, complete hit text, requested neighboring chunks, and
+  requested figure captions. It omits scores, chunk ids, and region coordinates.
 
 Each pipeline owns typed defaults and validation. Advertised integer
 `minimum`/`maximum` bounds are enforced (`chunk_size` 100–3000; hashing
@@ -796,6 +808,9 @@ MCP provides `vera_search`, `vera_corpus_search`, `vera_inspect`,
 `vera_get_chunk`, and
 `vera_get_chunk_regions`. `vera_search` and `vera_corpus_search` default
 `top_k` to `10`, matching `vera search` and `VeraDocument.search`.
+Both search tools accept `pretty: true`; this adds a top-level `context` string
+with the same readable rendering as CLI `--pretty` while preserving the
+structured `results` array.
 `vera_inspect` and `vera_validate` include both `file` (requested) and
 `path` (opened). `vera_inspect` is the inspect JSON object (including `ocr`);
 there is no text-mode omit. `vera_get_figure` returns native image content for one

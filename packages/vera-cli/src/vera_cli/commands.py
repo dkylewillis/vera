@@ -25,6 +25,7 @@ from vera_ingest.viewer import (
     export_figures,
     export_source_document,
     figures,
+    format_search_context,
     get_chunk_json,
     get_source_document,
     result_payload,
@@ -322,7 +323,7 @@ def cmd_search(args) -> int:
             )
         except OpenAIEmbedderError as exc:
             return _emit_cli_error(args, str(exc), code=1)
-        if args.json:
+        if args.json or args.pretty:
             payload = []
             for result in results:
                 entry = result_payload(
@@ -332,13 +333,14 @@ def cmd_search(args) -> int:
                     include_regions=args.regions,
                 )
                 payload.append(entry)
-            response = {"query": args.query, "mode": args.mode, "results": payload}
-            if isinstance(target, VeraCorpus):
-                response["index"] = target.index_search_report()
-                response["skipped_files"] = target.invalid_files
-                response["skipped_semantic_model_groups"] = target.skipped_semantic_model_groups
-            print(json.dumps(response))
-            return 0
+            if args.json:
+                response = {"query": args.query, "mode": args.mode, "results": payload}
+                if isinstance(target, VeraCorpus):
+                    response["index"] = target.index_search_report()
+                    response["skipped_files"] = target.invalid_files
+                    response["skipped_semantic_model_groups"] = target.skipped_semantic_model_groups
+                print(json.dumps(response))
+                return 0
         if isinstance(target, VeraCorpus):
             report = target.index_search_report()
             if report.get("used"):
@@ -352,6 +354,9 @@ def cmd_search(args) -> int:
                     f"{group['model_name']} ({group['dimension']} dimensions): "
                     f"{group['error']}"
                 )
+        if args.pretty:
+            print(format_search_context(payload))
+            return 0
         for result in results:
             print(f"Score: {result.score:.4f}")
             file = getattr(result, "file", None)

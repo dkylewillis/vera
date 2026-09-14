@@ -59,6 +59,37 @@ def test_cli_convert_inspect_search(tmp_path):
     assert "Page: 1" in searched.stdout
     assert "parking" in searched.stdout.lower()
 
+    pretty = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "search",
+            str(out),
+            "restaurant parking",
+            "--top-k",
+            "1",
+            "--context-chunks",
+            "1",
+            "--pretty",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert "## Result 1" in pretty.stdout
+    assert "### Matching text" in pretty.stdout
+    assert "Source: manual.pdf (p. 1)" in pretty.stdout
+    assert "parking" in pretty.stdout.lower()
+    assert "Score:" not in pretty.stdout
+    assert "chunk_" not in pretty.stdout
+
+
+def test_cli_search_pretty_and_json_are_mutually_exclusive():
+    parser = build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["search", "manual.vera", "pond", "--pretty", "--json"])
+
 
 def test_cli_convert_markdown(tmp_path):
     source = tmp_path / "notes.md"

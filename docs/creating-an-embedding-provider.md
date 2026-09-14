@@ -12,9 +12,87 @@ plugin is [`vera-embed-openai`](packages/vera-embed-openai.md), bundled with
 `vera` and the desktop sidecar. Voyage and Ollama are not bundled with
 VERA; they need a query-versus-document hint on `EmbeddingFunction` first.
 
-This guide mirrors [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md):
-a plain factory, one Options dataclass whose field `metadata` drives both
-validation and GUI/CLI descriptors, and entry points for discovery.
+Start with a plain factory and one entry point. Add options and descriptors
+when your provider needs configuration, following the same pattern as
+[Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md).
+
+## Start with a two-file plugin
+
+The runnable
+[example package](https://github.com/dkylewillis/vera/tree/main/examples/embedding-plugin)
+contains just `custom_embeddings.py` and `pyproject.toml`. It adapts Sentence
+Transformers under a new provider name, `custom`, to demonstrate the plugin
+contract. For ordinary use, VERA's built-in `sentence-transformers` provider
+already supports these models.
+
+The Python file supplies the stored model identity, dimension, and batch
+embedding method:
+
+```python
+from sentence_transformers import SentenceTransformer
+
+DIMENSIONS = {"all-MiniLM-L6-v2": 384, "all-mpnet-base-v2": 768}
+
+
+class CustomEmbedder:
+    normalization = "l2"
+
+    def __init__(self, model_id: str):
+        self.model_name = f"custom:{model_id}"
+        self.dimension = DIMENSIONS[model_id]
+        self._model_id = model_id
+        self._model = None
+
+    def embed(self, texts: list[str]):
+        if self._model is None:
+            self._model = SentenceTransformer(self._model_id, device="cpu")
+        return self._model.encode(texts, normalize_embeddings=True)
+```
+
+Dimensions are declared for the two supported models so constructing the
+embedder does not load weights or download anything. The first `embed()` call
+loads the model and downloads it if needed. The
+[Sentence Transformers API](https://sbert.net/docs/package_reference/sentence_transformer/model.html)
+provides batch encoding and normalization.
+
+The complete `pyproject.toml` registers the class as a callable factory using
+[Python entry points](https://packaging.python.org/en/latest/guides/creating-and-discovering-plugins/):
+
+```toml
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vera-example-embeddings"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = ["vera-doc>=0.3.2", "sentence-transformers>=2.7"]
+
+[project.entry-points."vera.embedders"]
+custom = "custom_embeddings:CustomEmbedder"
+
+[tool.setuptools]
+py-modules = ["custom_embeddings"]
+```
+
+From a repository clone, install it into the same environment as the CLI:
+
+```bash
+python -m pip install ./examples/embedding-plugin
+vera convert manual.pdf manual-custom.vera --model custom:all-MiniLM-L6-v2
+vera search manual-custom.vera "how can we prevent downstream flooding?" --mode semantic --pretty
+```
+
+Use `custom:all-mpnet-base-v2` to select the other example model. Search
+reconstructs the provider from the stored `custom:…` identity, so the plugin
+and model must also be available wherever semantic or hybrid searches run.
+After installing a plugin, restart any long-running Python or MCP process so
+it discovers the new entry point. Keyword search still works without it.
+
+For a different runtime or service, replace the model loading and encoding
+code while preserving the contract below. This minimal example has no
+provider options; descriptors and model listing are optional additions.
 
 ## The contract
 

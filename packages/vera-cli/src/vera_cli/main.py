@@ -227,11 +227,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--context-chunks",
         type=non_negative_int,
         default=0,
-        help="Include N chunks before and after each search result in JSON output",
+        help="Include N chunks before and after each result in JSON or pretty output",
     )
-    search_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    search_output = search_p.add_mutually_exclusive_group()
+    search_output.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    search_output.add_argument(
+        "--pretty",
+        action="store_true",
+        help="Emit readable context with headings, citations, and neighboring chunks",
+    )
     search_p.add_argument(
-        "--figures", action="store_true", help="Include figure metadata/captions in --json output"
+        "--figures",
+        action="store_true",
+        help="Include figure metadata/captions in JSON or pretty output",
     )
     search_p.add_argument(
         "--recursive",

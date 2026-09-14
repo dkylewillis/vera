@@ -74,6 +74,43 @@ async def test_search_tool_returns_context_chunks(server, vera_file):
 
 
 @pytest.mark.anyio
+async def test_search_tool_can_return_pretty_context(server, vera_file):
+    result = await server.call_tool(
+        "vera_search",
+        {
+            "file": str(vera_file),
+            "query": "restaurant parking",
+            "top_k": 1,
+            "context_chunks": 1,
+            "pretty": True,
+        },
+    )
+    payload = _payload(result)
+    assert payload["results"][0]["chunk_id"]
+    assert "## Result 1" in payload["context"]
+    assert "### Matching text" in payload["context"]
+    assert "Source: manual.pdf (p. 1)" in payload["context"]
+    assert payload["results"][0]["chunk_id"] not in payload["context"]
+
+
+@pytest.mark.anyio
+async def test_corpus_search_tool_can_return_pretty_context(server, vera_file):
+    result = await server.call_tool(
+        "vera_corpus_search",
+        {
+            "directory": str(vera_file.parent),
+            "query": "restaurant parking",
+            "top_k": 1,
+            "pretty": True,
+        },
+    )
+    payload = _payload(result)
+    assert payload["results"][0]["file"] == str(vera_file)
+    assert f"Archive: {vera_file}" in payload["context"]
+    assert "Source: manual.pdf (p. 1)" in payload["context"]
+
+
+@pytest.mark.anyio
 async def test_inspect_and_validate_tools(server, vera_file):
     info = _payload(await server.call_tool("vera_inspect", {"file": str(vera_file)}))
     assert info["format_version"] == "0.2"
@@ -283,6 +320,7 @@ async def test_search_tools_default_top_k_matches_cli(server):
     for name in ("vera_search", "vera_corpus_search"):
         schema = tools[name].inputSchema
         assert schema["properties"]["top_k"]["default"] == 10
+        assert schema["properties"]["pretty"]["default"] is False
 
 
 @pytest.fixture

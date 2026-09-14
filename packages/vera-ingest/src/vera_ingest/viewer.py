@@ -14,7 +14,7 @@ from __future__ import annotations
 import base64
 import json
 import os
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -115,6 +115,94 @@ def result_payload(
             ]
     payload.update(data)
     return payload
+
+
+def format_search_context(results: Iterable[Mapping[str, Any]]) -> str:
+    """Format flattened search results as readable, citation-ready context.
+
+    The formatter accepts the same dictionaries returned by
+    :func:`result_payload`, which keeps CLI and MCP presentation identical.
+    Retrieval scores, chunk ids, and source regions remain available in the
+    structured results but are intentionally omitted here.
+    """
+    result_list = list(results)
+    if not result_list:
+        return "No results."
+
+    sections: list[str] = []
+    for index, result in enumerate(result_list, start=1):
+        lines = [f"## Result {index}"]
+        archive = result.get("file")
+        if archive:
+            lines.append(f"Archive: {archive}")
+
+        before = result.get("before_chunks") or []
+        after = result.get("after_chunks") or []
+        if before or after:
+            for neighbor_index, chunk in enumerate(before, start=1):
+                _append_context_chunk(
+                    lines,
+                    chunk,
+                    _numbered_context_label("Previous context", neighbor_index, len(before)),
+                )
+            _append_context_chunk(lines, result, "Matching text")
+            for neighbor_index, chunk in enumerate(after, start=1):
+                _append_context_chunk(
+                    lines,
+                    chunk,
+                    _numbered_context_label("Following context", neighbor_index, len(after)),
+                )
+        else:
+            _append_chunk_details(lines, result)
+
+        figures_list = result.get("figures") or []
+        if figures_list:
+            lines.extend(["", "Figures:"])
+            for figure in figures_list:
+                caption = figure.get("caption") or figure.get("filename") or "Figure"
+                page = figure.get("page_number")
+                suffix = f" (p. {page})" if page is not None else ""
+                lines.append(f"- {caption}{suffix}")
+
+        sections.append("\n".join(lines))
+    return "\n\n---\n\n".join(sections)
+
+
+def _numbered_context_label(label: str, index: int, count: int) -> str:
+    return f"{label} {index}" if count > 1 else label
+
+
+def _append_context_chunk(lines: list[str], chunk: Mapping[str, Any], label: str) -> None:
+    lines.extend(["", f"### {label}"])
+    _append_chunk_details(lines, chunk)
+
+
+def _append_chunk_details(lines: list[str], chunk: Mapping[str, Any]) -> None:
+    heading = chunk.get("heading_path")
+    if heading:
+        lines.append(f"Heading: {heading}")
+
+    source = chunk.get("source_filename")
+    page = _page_label(chunk.get("page_start"), chunk.get("page_end"))
+    if source and page:
+        lines.append(f"Source: {source} ({page})")
+    elif source:
+        lines.append(f"Source: {source}")
+    elif page:
+        lines.append(f"Source: {page}")
+
+    text = str(chunk.get("text") or "").strip()
+    lines.extend(["", text])
+
+
+def _page_label(page_start: Any, page_end: Any) -> str | None:
+    if page_start is None and page_end is None:
+        return None
+    if page_start is None:
+        return f"p. {page_end}"
+    if page_end is None or page_start == page_end:
+        return f"p. {page_start}"
+    return f"pp. {page_start}-{page_end}"
 
 
 def get_chunk_json(

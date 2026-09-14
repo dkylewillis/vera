@@ -130,6 +130,8 @@ neighboring context.
 
 ## Next steps
 
+- [Enable meaning-based semantic search](searching.md#set-up-meaning-based-search)
+- [Create a simple embedding plugin](creating-an-embedding-provider.md#start-with-a-two-file-plugin)
 - [CLI recipes](examples.md)
 - [Convert documents](conversion.md)
 - [Search documents](searching.md)

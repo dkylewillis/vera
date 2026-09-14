@@ -37,8 +37,8 @@ npm --prefix packages/vera-app run test:unit
 ```
 
 Retrieval quality is tracked with `vera eval` against the query sets in
-[examples](examples). Do not regress the baselines in the README when search
-behavior changes.
+[examples](examples). Follow the [evaluation guide](docs/evaluation.md) to
+compare baselines when search behavior changes.
 
 Windows packaged-sidecar and installer release gate (optional locally; CI
 runs it on `v*` tags and `workflow_dispatch`, then uploads

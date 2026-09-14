@@ -70,9 +70,13 @@ Parameters:
 - `include_regions: bool = false`
 - `context_chunks: int = 0`
 - `where: dict[str, str | list[str]] | null = null`
+- `pretty: bool = false`
 
 Returns `query`, `mode`, and citation-ready `results`. A list value is IN;
-distinct keys are AND. Filters stored metadata before `top_k`.
+distinct keys are AND. Filters stored metadata before `top_k`. When `pretty`
+is true, the response also includes `context`, a Markdown-like rendering with
+headings, source/page citations, complete text, requested neighboring chunks,
+and requested figure captions. Structured results remain unchanged.
 
 The MCP search default is ten results, matching the CLI and
 `VeraDocument.search`.
@@ -94,6 +98,7 @@ Parameters:
 - `excludes: list[str] | null = null`
 - `includes: list[str] | null = null`
 - `where: dict[str, str | list[str]] | null = null`
+- `pretty: bool = false`
 
 Returns the directory, query, mode, index status, `skipped_files`,
 `skipped_semantic_model_groups`, and results. Each result is attributed to its
@@ -102,6 +107,9 @@ paths and validation reasons. For indexed semantic and hybrid searches,
 `skipped_semantic_model_groups` reports any model group omitted because its
 query embedder was unavailable or had the wrong dimension; hybrid keyword
 matches may still be returned.
+
+When `pretty` is true, the response also includes the same `context` field as
+`vera_search`; corpus result sections include their archive paths.
 
 When `recursive`, `excludes`, and `includes` are null and an index exists, the
 corpus uses the index's saved discovery settings. `where` uses the same AND / IN

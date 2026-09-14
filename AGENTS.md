@@ -34,6 +34,9 @@ vera search manual.vera "pipe sizing chart" --json --figures
 # Include adjacent text context around each hit
 vera search manual.vera "stormwater detention requirements" --json --context-chunks 1
 
+# Print readable context with headings, citations, and adjacent chunks
+vera search manual.vera "stormwater detention requirements" --pretty --context-chunks 1
+
 # Keyword-only or semantic-only search
 vera search manual.vera "section 4.2" --mode keyword --json
 vera search manual.vera "how big should the pond be" --mode semantic --json
@@ -185,8 +188,8 @@ VERA ships an MCP server (stdio) exposing the same capabilities as tools:
 
 | Tool | Purpose |
 |------|---------|
-| `vera_search` | Hybrid/semantic/keyword search with optional figure metadata and highlight regions |
-| `vera_corpus_search` | Search every .vera file in a directory as one corpus; results attributed per file |
+| `vera_search` | Hybrid/semantic/keyword search with optional figure metadata, highlight regions, and pretty context |
+| `vera_corpus_search` | Search every .vera file in a directory as one corpus; results attributed per file, with optional pretty context |
 | `vera_inspect` | Document metadata, page/chunk counts, embedding model, pipeline `ocr` diagnostics |
 | `vera_validate` | Integrity check |
 | `vera_figures` | List figures/images with captions, optionally by page range |

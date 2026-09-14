@@ -3,6 +3,55 @@
 These recipes use the `vera` console script. Substitute
 `python -m vera_cli` if the console script is not on `PATH`.
 
+## Convert, index, and search a library
+
+Start with a folder of PDFs or Markdown files. Conversion writes `.vera`
+files beside their sources:
+
+```bash
+vera convert ./library --recursive
+vera index build ./library --recursive
+vera search ./library "stormwater detention" --mode keyword --pretty
+```
+
+This needs no model download or API key. For meaning-based search, install
+the neural runtime and replace the hashing embeddings by reconverting:
+
+```bash
+python -m pip install "vera-doc[ml]"
+vera convert ./library --recursive --overwrite --model sentence-transformers:all-MiniLM-L6-v2
+vera index update ./library
+vera search ./library "how can we prevent downstream flooding?" --mode semantic --pretty
+```
+
+The first use downloads the model; it can run offline once cached.
+`--overwrite` is needed here because batch conversion otherwise skips
+unchanged sources even when the requested embedding model differs.
+
+Tag a document and filter before the result limit:
+
+```bash
+vera convert manual.pdf ./library/manual.vera --metadata project=riverpark --metadata type=manual
+vera index update ./library
+vera search ./library "stormwater detention" --where project=riverpark --where type=manual --top-k 5 --pretty
+```
+
+The last conversion uses the default hashing model. Add `--model` if you want
+that archive to use neural embeddings too. Libraries can contain both.
+
+To try a custom provider, install the
+[two-file example](https://github.com/dkylewillis/vera/tree/main/examples/embedding-plugin)
+from a repository clone:
+
+```bash
+python -m pip install ./examples/embedding-plugin
+vera convert manual.pdf manual-custom.vera --model custom:all-MiniLM-L6-v2
+vera search manual-custom.vera "how can we prevent downstream flooding?" --mode semantic --pretty
+```
+
+See [creating an embedding provider](creating-an-embedding-provider.md#start-with-a-two-file-plugin)
+for the complete source and packaging walkthrough.
+
 ## Convert and search one document
 
 ```bash
@@ -47,6 +96,17 @@ vera search "ordinance.vera" \
   --top-k 5 \
   --context-chunks 1 \
   --json
+```
+
+For a readable version of the same context, replace `--json` with `--pretty`:
+
+```bash
+vera search "ordinance.vera" \
+  "restaurant parking requirements" \
+  --mode hybrid \
+  --top-k 5 \
+  --context-chunks 1 \
+  --pretty
 ```
 
 PowerShell equivalent:

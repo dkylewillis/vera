@@ -21,6 +21,21 @@ Use `--json` for scripts and agents:
 vera search "manual.vera" "stormwater detention requirements" --top-k 5 --json
 ```
 
+Use `--pretty` for clean Markdown-like context that can be read directly or
+pasted into a prompt:
+
+```bash
+vera search "manual.vera" "stormwater detention requirements" \
+  --top-k 5 --context-chunks 1 --pretty
+```
+
+Pretty output includes each result's archive (for corpus searches), heading,
+source filename, page or page range, and complete text. Requested neighboring
+chunks are labeled as previous, matching, and following context. `--figures`
+also adds figure captions and pages. Scores, chunk ids, and region coordinates
+remain available through `--json`. `--pretty` and `--json` are mutually
+exclusive.
+
 ## Choose a search mode
 
 ### Hybrid
@@ -76,6 +91,33 @@ vera search "manual.vera" "how does the site reduce peak flow?" --mode semantic
 
 Semantic search compares the query embedding with stored chunk embeddings. Use
 it when the wording is likely to differ from the document.
+
+### Set up meaning-based search
+
+The default `hashing` embedder is based on shared words; it does not learn
+meaning or synonyms. Selecting `--mode semantic` alone does not upgrade those
+vectors. Convert the source with a neural model first:
+
+```bash
+python -m pip install "vera-doc[ml]"
+vera convert manual.pdf manual-semantic.vera --model sentence-transformers:all-MiniLM-L6-v2
+vera search manual-semantic.vera "how can we prevent downstream flooding?" --mode semantic --pretty
+```
+
+The first conversion downloads the model. Once cached, the model can run
+offline. Semantic and hybrid search resolve the model recorded in the archive
+to embed the query; the archive stores document vectors, not model weights.
+Keyword search needs no embedding runtime or API key.
+
+To change the model for an existing library, reconvert with
+`vera convert ./library --recursive --overwrite --model sentence-transformers:all-MiniLM-L6-v2`,
+then run `vera index update ./library`. The `--overwrite` flag replaces batch
+outputs: unchanged source files would otherwise be skipped, even if `--model`
+changed. Building an index alone does not replace the stored embeddings.
+
+Other models use the same `--model provider:model-id` syntax. See
+[embedding setup](conversion.md#embedding-models) or the
+[minimal embedding plugin](creating-an-embedding-provider.md#start-with-a-two-file-plugin).
 
 ## Interpret results
 

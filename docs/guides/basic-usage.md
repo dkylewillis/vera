@@ -35,6 +35,15 @@ vera search manual.vera "stormwater detention requirements" --top-k 5 --json
 Add `--context-chunks 1` for neighboring text, `--figures` for table/chart
 metadata, or `--regions` for page bounding boxes.
 
+For readable context instead of machine-readable JSON, use `--pretty`. It
+prints headings, source/page citations, complete matching text, requested
+neighboring chunks, and figure captions:
+
+```bash
+vera search manual.vera "stormwater detention requirements" --top-k 5 \
+  --context-chunks 1 --pretty
+```
+
 ## Step 4 — Search from Python
 
 ```python

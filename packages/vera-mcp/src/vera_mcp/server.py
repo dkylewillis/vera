@@ -24,6 +24,7 @@ from vera_doc.corpus import VeraCorpus
 from vera_doc.document import VeraDocument
 from vera_ingest.viewer import (
     figures,
+    format_search_context,
     get_chunk_json,
     get_chunk_regions,
     get_page,
@@ -69,8 +70,12 @@ def build_server():
         include_regions: bool = False,
         context_chunks: int = 0,
         where: dict[str, str | list[str]] | None = None,
+        pretty: bool = False,
     ) -> dict[str, Any]:
-        """Search a VERA file and return citation-ready chunks."""
+        """Search a VERA file and return citation-ready chunks.
+
+        Set pretty to add the same results as readable Markdown-like context.
+        """
         doc = _open(file)
         try:
             results = []
@@ -89,7 +94,10 @@ def build_server():
                         include_regions=include_regions,
                     )
                 )
-            return {"query": query, "mode": mode, "results": results}
+            response = {"query": query, "mode": mode, "results": results}
+            if pretty:
+                response["context"] = format_search_context(results)
+            return response
         finally:
             doc.close()
 
@@ -106,8 +114,12 @@ def build_server():
         excludes: list[str] | None = None,
         includes: list[str] | None = None,
         where: dict[str, str | list[str]] | None = None,
+        pretty: bool = False,
     ) -> dict[str, Any]:
-        """Search a VERA library, automatically using its fresh local index when available."""
+        """Search a VERA library, automatically using its fresh local index when available.
+
+        Set pretty to add the same results as readable Markdown-like context.
+        """
         corpus = VeraCorpus.open(
             directory, recursive=recursive, excludes=excludes, includes=includes
         )
@@ -128,7 +140,7 @@ def build_server():
                         include_regions=include_regions,
                     )
                 )
-            return {
+            response = {
                 "directory": directory,
                 "query": query,
                 "mode": mode,
@@ -137,6 +149,9 @@ def build_server():
                 "skipped_semantic_model_groups": corpus.skipped_semantic_model_groups,
                 "results": results,
             }
+            if pretty:
+                response["context"] = format_search_context(results)
+            return response
         finally:
             corpus.close()
 

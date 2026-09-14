@@ -82,6 +82,16 @@ rollback history. `vera eval` opens one `.vera` archive, not a directory.
 
 ## Choose retrieval options
 
+The default `hashing` embedder measures shared words, not learned meaning.
+`--mode semantic` uses the vectors already stored; it does not replace them.
+For meaning-based retrieval, convert with a neural model such as
+`--model sentence-transformers:all-MiniLM-L6-v2` after installing
+`vera-doc[ml]`. Search needs the stored model's runtime and cached weights
+(or provider credentials); keyword search does not. A batch model change
+requires reconversion with `--overwrite`, then `vera index update`.
+A library index does not re-embed chunks. For a minimal provider package, see
+the [two-file plugin walkthrough](https://github.com/dkylewillis/vera/blob/main/docs/creating-an-embedding-provider.md#start-with-a-two-file-plugin).
+
 - Start with `--mode hybrid`.
 - Use `--mode keyword` for exact phrases, identifiers, section numbers, table
   labels, and codes. Confirm that the exact token appears in returned text;
@@ -89,6 +99,9 @@ rollback history. `vera eval` opens one `.vera` archive, not a directory.
 - Use `--mode semantic` for paraphrases, intent, purpose, and wording mismatch.
 - Add `--context-chunks 1` when a hit depends on nearby definitions, exceptions,
   or preceding steps.
+- Add `--pretty` when a person needs readable, citation-ready context with
+  headings and neighboring chunks. Continue to use `--json` for retrieval work
+  that must inspect scores, chunk ids, metadata, figures, or regions.
 - Add `--figures` for charts, diagrams, maps, and captions. That flag returns
   metadata (`asset_id`, caption, page), not pixels. Fetch a stored raster with
   `vera figures FILE --out-dir DIR --json` (attach the `path`) or MCP

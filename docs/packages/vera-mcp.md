@@ -5,6 +5,9 @@ It depends on `vera-doc` for storage/search and `vera-ingest` for viewer helpers
 (pages, figures, regions, source export). It exposes archive and corpus
 retrieval as Model Context Protocol tools.
 
+`vera_search` and `vera_corpus_search` accept `pretty: true` to add readable,
+citation-ready `context` while retaining their structured result arrays.
+
 The package is a protocol adapter. Ranking, validation, and conversion remain
 implemented by `vera-doc` and `vera-ingest`.
 

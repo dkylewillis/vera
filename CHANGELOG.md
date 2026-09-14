@@ -8,6 +8,14 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+### Added
+
+- `vera search --pretty` prints readable context with headings, source/page
+  citations, complete matches, neighboring chunks, corpus archive paths, and
+  requested figure captions. MCP `vera_search` and `vera_corpus_search` accept
+  `pretty: true` and add the same rendering as a top-level `context` field while
+  preserving structured results.
+
 ### Fixed
 
 - Desktop PDF viewer uses `pdfjs-dist` 6.2.108 with `enableScripting: false`,

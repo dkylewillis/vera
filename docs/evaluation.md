@@ -71,6 +71,11 @@ returns exit status 1 while still printing the complete report.
 
 ## Compare changes fairly
 
+The recorded stormwater-manual baseline is 9/10 hybrid hits at MRR 0.900
+over a 1,038-page document (2,442 chunks), using the
+[GSMM query set](https://github.com/dkylewillis/vera/blob/main/examples/gsmm-queries.json).
+This is a document-specific benchmark, not a guarantee for other libraries.
+
 - Use the same source archive or rebuild it intentionally for both runs.
 - Keep the query file and `top_k` fixed.
 - Record embedding model, chunk size, overlap, parser, and VERA version.

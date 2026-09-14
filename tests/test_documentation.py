@@ -657,7 +657,7 @@ def test_release_0_3_versioning_and_install_pins():
     skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
 
     assert (ROOT / "CHANGELOG.md").is_file()
-    assert "### What 0.3 means" in readme
+    assert "Release **0.3.x** versions the software" in readme
     assert "archive format remains **0.2**" in readme
     assert "archive format remains **0.2**" in getting_started
     assert "vera>=0.3.2" in readme
@@ -871,7 +871,7 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "logs/sidecar.log" in architecture
     assert "Open convert log" in changelog
     assert "Open convert log" in app_pkg
-    assert "Open convert log" in readme
+    assert "docs/desktop-app-getting-started.md" in readme
     assert "thumbnail rail" in architecture
     assert "does not\nembed Mozilla's standalone" in architecture
     assert "Download saves the cached source PDF" in architecture
@@ -882,15 +882,12 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "Rotate counterclockwise" in changelog
     assert "thumbnail rail" in app_pkg
     assert "rotate counterclockwise" in app_pkg
-    assert "thumbnail rail" in readme
-    assert "rotate counterclockwise" in readme
     assert "thumbnail rail" in (DOCS / "desktop-app-overview.md").read_text(encoding="utf-8")
     assert "rotate counterclockwise" in (DOCS / "desktop-app-overview.md").read_text(
         encoding="utf-8"
     )
-    assert "logs/sidecar.log" in readme
-    assert "vendors MiniLM ONNX" in readme
-    assert "LaTeX" in readme
+    # Operational desktop details belong in the linked guide, not the README.
+    assert "LaTeX" in desktop
     assert "does not\nload Sentence Transformers for MiniLM" in desktop
     assert "falls back to Sentence Transformers" in (DOCS / "architecture.md").read_text(
         encoding="utf-8"
@@ -950,6 +947,67 @@ def test_index_ask_and_embedder_operational_docs():
     assert "delete previous" in skill
 
 
+def test_pretty_search_is_documented_across_public_surfaces():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    searching = (DOCS / "searching.md").read_text(encoding="utf-8")
+    cli_reference = (DOCS / "cli-reference.md").read_text(encoding="utf-8")
+    mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
+    examples = (DOCS / "examples.md").read_text(encoding="utf-8")
+    basic = (DOCS / "guides" / "basic-usage.md").read_text(encoding="utf-8")
+    skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
+    skill_cli = (ROOT / "skills" / "vera" / "references" / "cli-reference.md").read_text(
+        encoding="utf-8"
+    )
+
+    for document in (readme, searching, cli_reference, examples, basic, skill, skill_cli):
+        assert "--pretty" in document
+    assert "pretty: bool = false" in mcp
+    assert "`context`" in mcp
+    assert "mutually exclusive" in cli_reference
+    assert "structured `results`" in skill_cli
+
+
+def test_readme_walkthrough_and_embedding_setup():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    quickstart = readme.split("```bash", 1)[1].split("```", 1)[0]
+    convert = quickstart.index("vera convert ./library --recursive")
+    index = quickstart.index("vera index build ./library --recursive")
+    search = quickstart.index("vera search ./library")
+    assert convert < index < search
+    assert "--mode keyword" in quickstart
+    assert "--pretty" in quickstart
+    assert "--metadata project=riverpark" in readme
+    assert "--where project=riverpark" in readme
+    assert "--where project=riverpark,lakeside" in readme
+    assert '--include "manuals/**"' in readme
+
+    searching = (DOCS / "searching.md").read_text(encoding="utf-8")
+    examples = (DOCS / "examples.md").read_text(encoding="utf-8")
+    for document in (readme, searching, examples):
+        assert 'python -m pip install "vera-doc[ml]"' in document
+        assert "--model sentence-transformers:all-MiniLM-L6-v2" in document
+        assert "--overwrite" in document
+        assert "vera index update ./library" in document
+    assert "does not learn meaning or synonyms" in readme
+    assert "Changing `--mode` does **not** change an archive's embeddings" in readme
+
+
+def test_minimal_embedding_plugin_docs_match_runnable_package():
+    example = ROOT / "examples" / "embedding-plugin"
+    source = (example / "custom_embeddings.py").read_text(encoding="utf-8").strip()
+    package = (example / "pyproject.toml").read_text(encoding="utf-8").strip()
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    guide = (DOCS / "creating-an-embedding-provider.md").read_text(encoding="utf-8")
+    for document in (readme, guide):
+        assert f"```python\n{source}\n```" in document
+        assert '[project.entry-points."vera.embedders"]' in document
+        assert 'custom = "custom_embeddings:CustomEmbedder"' in document
+        assert "python -m pip install ./examples/embedding-plugin" in document
+        assert "--model custom:all-MiniLM-L6-v2" in document
+        assert "vera search manual-custom.vera" in document
+    assert f"```toml\n{package}\n```" in guide
+
+
 def test_inspect_diagnostics_and_fts_fallback_docs():
     """Pin inspect `ocr` bag fields and keyword FTS fallback against source."""
     validate_docs = (DOCS / "validation-and-export.md").read_text(encoding="utf-8")
@@ -1005,5 +1063,5 @@ def test_inspect_diagnostics_and_fts_fallback_docs():
     assert "Unknown mode · 0 pages OCR’d" in desktop
     assert "`ocr_pages`" in pymupdf
     assert "Text-mode `vera inspect` omits it" in basic
-    assert "pipeline `ocr` diagnostics bag" in readme
+    assert "docs/validation-and-export.md" in readme
     assert "there is no text-mode omit" in skill_cli

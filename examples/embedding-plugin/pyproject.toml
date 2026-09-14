@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vera-example-embeddings"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = ["vera-doc>=0.3.2", "sentence-transformers>=2.7"]
+
+[project.entry-points."vera.embedders"]
+custom = "custom_embeddings:CustomEmbedder"
+
+[tool.setuptools]
+py-modules = ["custom_embeddings"]
