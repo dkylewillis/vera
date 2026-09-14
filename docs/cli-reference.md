@@ -145,6 +145,8 @@ Options:
 archive paths, headings, source/page citations, complete hit text, requested
 neighboring chunks, and requested figure captions. It omits scores, chunk ids,
 and region coordinates; use `--json` when those structured fields are needed.
+Python callers can render the same text with
+`vera_ingest.viewer.format_search_context`.
 Directory search JSON also includes `skipped_files` with paths and validation
 reasons for malformed archives that were excluded. Indexed directory search
 also includes `skipped_semantic_model_groups`; each entry identifies a model
