@@ -295,6 +295,62 @@ class TestFormatSearchContext:
     def test_empty_results_are_explicit(self):
         assert format_search_context([]) == "No results."
 
+    def test_numbers_multiple_neighbors_and_page_label_edges(self):
+        context = format_search_context(
+            [
+                {
+                    "text": "Detention shall be provided.",
+                    "source_filename": "notes.md",
+                    "before_chunks": [
+                        {"text": "First prior.", "page_start": None, "page_end": 2},
+                        {"text": "Second prior.", "source_filename": "notes.md"},
+                    ],
+                    "after_chunks": [
+                        {"text": "Later.", "page_start": 4, "page_end": None},
+                    ],
+                    "figures": [
+                        {"filename": "pond.png"},
+                        {},
+                    ],
+                },
+                {
+                    "text": "Second hit.",
+                    "page_start": 5,
+                    "page_end": 5,
+                },
+            ]
+        )
+
+        assert "### Previous context 1" in context
+        assert "### Previous context 2" in context
+        assert "### Following context" in context
+        assert "### Following context 1" not in context
+        assert "Source: p. 2" in context
+        assert "Source: notes.md" in context
+        assert "Source: p. 4" in context
+        assert "Source: p. 5" in context
+        assert "- pond.png" in context
+        assert "- Figure" in context
+        assert "\n\n---\n\n" in context
+        assert "## Result 2" in context
+
+    def test_without_neighbors_skips_matching_text_heading(self):
+        context = format_search_context(
+            [
+                {
+                    "heading_path": "Intro",
+                    "source_filename": "manual.pdf",
+                    "page_start": 1,
+                    "page_end": 1,
+                    "text": "Hello",
+                }
+            ]
+        )
+
+        assert "### Matching text" not in context
+        assert "Heading: Intro" in context
+        assert "Source: manual.pdf (p. 1)" in context
+
 
 class TestCli:
     def run(self, *argv):
