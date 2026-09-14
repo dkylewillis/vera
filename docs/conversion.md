@@ -141,7 +141,9 @@ vera convert "./proposals" --recursive --json
 The report distinguishes discovered, converted, same-source-hash skips,
 malformed existing outputs, and conversion failures. `skipped_existing`
 lists only unchanged valid archives. `malformed_existing` entries include
-`input`, `output`, and validation `issues`. Batch conversion
+`input`, `output`, and validation `issues`. Same-stem sources that would
+write the same `.vera` path (`manual.pdf` and `manual.md`) are reported as
+failures instead of overwriting each other. Batch conversion
 continues after an individual file fails and exits nonzero if any conversion
 failed or malformed existing output was found.
 
