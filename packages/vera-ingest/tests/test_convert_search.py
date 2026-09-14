@@ -552,6 +552,43 @@ def test_batch_convert_hash_skip_clears_leftover_skip_flag(tmp_path, monkeypatch
     assert not cancel.skip_requested
 
 
+def test_batch_convert_refuses_same_stem_sources_that_share_an_output(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    notes = tmp_path / "manual.md"
+    other = tmp_path / "other.md"
+    make_pdf(pdf)
+    notes.write_text("# Notes\n\nDetention pond sizing notes.\n", encoding="utf-8")
+    other.write_text("# Other\n\nUnrelated notes stay unique.\n", encoding="utf-8")
+
+    report = batch_convert(str(tmp_path), model="hashing")
+
+    assert report["converted"] == 1
+    assert report["failed"] == 2
+    assert report["outputs"] == [str(tmp_path / "other.vera")]
+    assert (tmp_path / "other.vera").is_file()
+    assert not (tmp_path / "manual.vera").exists()
+    errors = {item["input"]: item["error"] for item in report["errors"]}
+    assert str(pdf) in errors
+    assert str(notes) in errors
+    assert str(tmp_path / "manual.vera") in errors[str(pdf)]
+    assert str(notes) in errors[str(pdf)]
+    assert str(pdf) in errors[str(notes)]
+
+
+def test_batch_convert_refuses_same_stem_collisions_even_with_overwrite(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    notes = tmp_path / "manual.md"
+    make_pdf(pdf)
+    notes.write_text("# Notes\n\nDetention pond sizing notes.\n", encoding="utf-8")
+
+    report = batch_convert(str(tmp_path), model="hashing", overwrite=True)
+
+    assert report["converted"] == 0
+    assert report["failed"] == 2
+    assert report["outputs"] == []
+    assert not (tmp_path / "manual.vera").exists()
+
+
 def test_hybrid_keeps_chunk_that_tops_both_modes(tmp_path):
     """Regression: a chunk ranked #1 by both semantic and keyword search must
     rank #1 in hybrid. The old fusion buried dual-mode winners behind chunks

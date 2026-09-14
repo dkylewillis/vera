@@ -132,6 +132,8 @@ def test_portable_skill_documents_hardened_library_contracts():
     assert "Markdown defaults:" in reference
     assert "current source file" in skill
     assert "current source file" in reference
+    assert "same-stem sources that would share one `.vera` path" in skill
+    assert "Same-stem sources that would write the same `.vera` path" in reference
     assert "A missing key fails the predicate" in reference
     assert "whitespace-split words" in reference
     assert "ocr_language=en" in reference

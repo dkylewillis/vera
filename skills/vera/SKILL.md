@@ -250,8 +250,9 @@ request that only asks to search or explain a document.
 - Most other missing-path and runtime failures are unstructured tracebacks on
   stderr. Do not parse stderr as JSON.
 - Directory conversion skips an existing `.vera` only when it validates and
-  its stored `source_file_hash` matches the current source file, and exits 1 when
-  `malformed_existing` is nonempty.
+  its stored `source_file_hash` matches the current source file, reports
+  same-stem sources that would share one `.vera` path as failures instead of
+  overwriting, and exits 1 when `malformed_existing` is nonempty.
 - `vera mcp` is a long-running stdio server and does not accept `--json`.
 - If no direct answer is found, report the queries and modes tried and describe
   the closest evidence without inventing an answer.
