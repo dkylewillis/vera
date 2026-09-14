@@ -58,6 +58,7 @@ async def test_search_tool_returns_citation_ready_results(server, vera_file):
     first = payload["results"][0]
     assert {"chunk_id", "score", "text", "page_start", "heading_path", "figures"} <= set(first)
     assert "parking" in first["text"].lower()
+    assert "context" not in payload
 
 
 @pytest.mark.anyio
