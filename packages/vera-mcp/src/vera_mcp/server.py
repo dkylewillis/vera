@@ -258,6 +258,9 @@ def build_server():
         finally:
             doc.close()
 
+    from .source_viewer import register_source_viewer
+
+    register_source_viewer(server)
     return server
 
 

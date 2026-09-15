@@ -49,3 +49,8 @@ output to stdout.
 
 MCP intentionally does not expose conversion, index mutation, source export, or
 retrieval evaluation. Use `vera` or the Python packages for those tasks.
+
+Source viewer: `vera_show_sources` adds an **Open VERA sources** button beside
+a normally rendered answer. The user selects `[C#]` references inside the
+viewer; `vera_source_page` loads the highlighted passage. See the
+[plugin source viewer](https://github.com/dkylewillis/vera/blob/main/docs/plugin.md) for source-install requirements and preview limits.

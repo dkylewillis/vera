@@ -272,3 +272,10 @@ non-obvious caveats for this environment; standard commands live in the sections
 - MCP server (optional): `uv run --extra mcp vera mcp` (long-running stdio; no `--json`).
 - There are no PDFs in the repo; generate one with the `reportlab` dev dependency when you need
   a sample to `vera convert`.
+
+For a final grounded answer, write normal response prose with `[C1]` markers,
+then call `vera_show_sources` with matching IDs, exact returned archive paths,
+and chunk IDs. It renders an **Open VERA sources** button; the user selects a
+citation inside the viewer to load its highlight. The UI uses
+`vera_source_page` for navigation and does not render the answer.
+See [plugin source viewer](docs/plugin.md) and the portable MCP workflow.

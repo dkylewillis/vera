@@ -1,5 +1,8 @@
 # MCP integration
 
+The [VERA plugin](plugin.md) bundles this server with the portable agent skill
+and launches `vera-mcp` over stdio for search, read, and refine workflows.
+
 VERA includes a Model Context Protocol server that exposes document retrieval
 as native tools. Use it when an MCP-capable application should search local
 `.vera` files without shelling out for every query.
@@ -256,3 +259,8 @@ messages.
 
 See the general [troubleshooting guide](troubleshooting.md) for archive,
 embedding, and index issues.
+
+Source viewer: `vera_show_sources` adds an **Open VERA sources** button beside
+a normally rendered answer. The user selects `[C#]` references inside the
+viewer; `vera_source_page` loads the highlighted passage. See the
+[plugin source viewer](plugin.md) for source-install requirements and preview limits.

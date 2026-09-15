@@ -160,6 +160,7 @@ nav:
       - Guides:
           - Setup, tools, and examples: mcp.md
           - Agent skills: agent-skills.md
+          - VERA plugin: plugin.md
       - API reference:
           - Public package: reference/vera-mcp.md
   - vera-app:

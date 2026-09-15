@@ -6,6 +6,10 @@ VERA ships a portable
 the `vera` CLI, interpret its JSON and exit codes, retrieve evidence, and produce
 page-level citations.
 
+For the local plugin bundling this skill with VERA's MCP tools, see
+[VERA plugin](plugin.md). The skill supports MCP search, read, and refine when
+tools are available, and falls back to the CLI otherwise.
+
 ## Portability
 
 The portable unit is the entire `skills/vera/` directory:

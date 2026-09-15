@@ -212,6 +212,8 @@ for figure metadata or `--regions` for source highlights.
 - **Agent Skill:** install the portable [VERA skill](skills/vera/SKILL.md), with its
   [CLI reference](skills/vera/references/cli-reference.md).
   [Installation guide](docs/agent-skills.md).
+- **Codex plugin:** install the local [VERA plugin](docs/plugin.md) to use the
+  same MCP tools and skill, plus source-viewer buttons with citation highlights.
 - **Python:** use `vera-doc` for storage and search, or `vera-ingest` for
   conversion. [Python API](docs/python-api.md).
 

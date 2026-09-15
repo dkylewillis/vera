@@ -1,0 +1,35 @@
+{
+  "name": "vera",
+  "version": "0.2.0",
+  "description": "Search, read, and refine evidence from local VERA archives with source citations.",
+  "author": {
+    "name": "Kyle Willis"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "VERA",
+    "shortDescription": "Search archives and inspect highlighted citations.",
+    "longDescription": "Search .vera files or libraries, cite answers in normal prose, and open highlighted PDF pages or Markdown passages in the VERA viewer.",
+    "developerName": "Kyle Willis",
+    "category": "Productivity",
+    "capabilities": [],
+    "brandColor": "#282A2F",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/icon.png",
+    "logoDark": "./assets/icon.png",
+    "defaultPrompt": [
+      "Search my .vera library, cite the answer, and add a button to open the sources.",
+      "Show the sources with highlighted supporting passages.",
+      "Refine this archive search to find definitions and exceptions."
+    ]
+  },
+  "mcpServers": "./.mcp.json",
+  "repository": "https://github.com/dkylewillis/vera",
+  "license": "Apache-2.0",
+  "keywords": [
+    "vera",
+    "retrieval",
+    "archives",
+    "citations"
+  ]
+}

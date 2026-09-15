@@ -923,3 +923,7 @@ negative-result cases.
   download` are the only commands that make outbound network requests
   (fetching curated Tesseract language data); every other command is fully
   offline.
+
+The source viewer adds MCP-only `vera_show_sources` and `vera_source_page`
+actions. They do not add CLI flags or commands. See
+[mcp-workflow.md](mcp-workflow.md) for the visual source workflow.

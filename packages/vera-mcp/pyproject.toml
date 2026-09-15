@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 dependencies = [
   "vera-doc>=0.3.2",
   "vera-ingest>=0.3.2",
-  "mcp>=1.0,<2",
+  "mcp>=1.30,<2",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}
@@ -26,6 +26,9 @@ Documentation = "https://dkylewillis.github.io/vera/packages/vera-mcp/"
 
 [project.scripts]
 vera-mcp = "vera_mcp.server:main"
+
+[project.optional-dependencies]
+viewer = ["pymupdf>=1.23"]
 
 [build-system]
 requires = ["hatchling"]
