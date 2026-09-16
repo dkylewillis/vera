@@ -3,7 +3,8 @@
 `vera-ingest` publishes the `vera_ingest` Python package. It depends on
 `vera-doc` and owns the ingest-pipeline registry, shared descriptors and
 types, conversion orchestration, reusable chunking helpers, and
-ingest-produced viewer helpers.
+ingest-produced viewer helpers (`result_payload`, `format_search_context`,
+figure and region readers).
 
 PDF parsing and OCR live in provider plugins that register through the
 `vera.ingest_pipelines` entry-point group. The default
@@ -17,7 +18,9 @@ Pipelines return a normalized `IngestResult`. Shared `convert()` writes
 validated archives through one atomic path and emits ready-made `ChunkRecord`
 values plus optional attachments via `VeraDocument`. Viewer helpers under
 `vera_ingest.viewer` read those ingest conventions back out for CLI, MCP, and
-app consumers.
+app consumers. `format_search_context` is the shared renderer behind CLI
+`--pretty` and MCP `pretty: true`; import it from `vera_ingest.viewer` (it is
+not in `vera_ingest.__all__`).
 
 ## Install
 

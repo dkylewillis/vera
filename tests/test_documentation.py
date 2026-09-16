@@ -683,6 +683,11 @@ def test_release_0_3_versioning_and_install_pins():
     assert "defaultVeraPath" in changelog
     assert "follow-ups after the 0.3.0 tag" in roadmap
     assert "not blockers for 0.3.0" in roadmap
+    assert "**v0.3.2** is the current published tag" in roadmap
+    assert "until 0.3.2 is released" not in roadmap
+    assert "VERA.Setup.0.3.2.exe" in roadmap
+    assert "Do not republish 0.3.0," in roadmap
+    assert "0.3.1, or 0.3.2." in roadmap
     assert "HANDOFF.md" not in mkdocs
     assert "HANDOFF.md" not in index
     assert not (DOCS / "HANDOFF.md").exists()
@@ -954,8 +959,15 @@ def test_pretty_search_is_documented_across_public_surfaces():
     mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
     examples = (DOCS / "examples.md").read_text(encoding="utf-8")
     basic = (DOCS / "guides" / "basic-usage.md").read_text(encoding="utf-8")
+    python_api = (DOCS / "python-api.md").read_text(encoding="utf-8")
+    ingest_pkg = (DOCS / "packages" / "vera-ingest.md").read_text(encoding="utf-8")
+    figures = (DOCS / "figures-and-regions.md").read_text(encoding="utf-8")
+    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
     skill = (ROOT / "skills" / "vera" / "SKILL.md").read_text(encoding="utf-8")
     skill_cli = (ROOT / "skills" / "vera" / "references" / "cli-reference.md").read_text(
+        encoding="utf-8"
+    )
+    retrieval = (ROOT / "skills" / "vera" / "references" / "retrieval-workflows.md").read_text(
         encoding="utf-8"
     )
 
@@ -965,6 +977,38 @@ def test_pretty_search_is_documented_across_public_surfaces():
     assert "`context`" in mcp
     assert "mutually exclusive" in cli_reference
     assert "structured `results`" in skill_cli
+    assert "format_search_context" in python_api
+    assert "format_search_context" in ingest_pkg
+    assert "format_search_context" in cli_reference
+    assert "--pretty --figures" in figures
+    assert "--pretty --figures" in troubleshooting
+    assert "--pretty --figures" in skill
+    assert "--pretty --figures" in retrieval
+    convert_section, search_section = skill_cli.split("### `vera search", 1)
+    assert "- `--pretty`" not in convert_section
+    assert "- `--pretty`" in search_section
+
+
+def test_desktop_security_and_markdown_locator_docs():
+    architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
+    contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    multi_format = (DOCS / "multi-format-ingest.md").read_text(encoding="utf-8")
+
+    assert "enableScripting: false" in architecture
+    assert "CVE-2026-16633" in architecture
+    assert "pdfjs-dist` 6.2.108" in architecture
+    assert "`.md`, or `.markdown` file" in architecture
+    assert "enableScripting: false" in troubleshooting
+    assert "CVE-2026-16633" in troubleshooting
+    assert "markdownDisplayLines()" in architecture
+    assert "UTF-8 BOM" in architecture
+    assert "UTF-8 BOM" in troubleshooting
+    assert "UTF-8 BOM" in multi_format
+    assert "pillow>=12.3.0" in contributing
+    assert "CVE-2026-54058" in contributing
+    assert "pillow>=12.3.0" in troubleshooting
+    assert "CVE-2026-54058" in troubleshooting
 
 
 def test_readme_walkthrough_and_embedding_setup():
