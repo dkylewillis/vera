@@ -676,6 +676,23 @@ def _resolve_batch_sources(
     return root, sources
 
 
+def _batch_output_collisions(sources: Sequence[Path]) -> dict[Path, str]:
+    """Return per-source errors when multiple inputs share one ``.vera`` path."""
+    by_output: dict[Path, list[Path]] = {}
+    for source_file in sources:
+        by_output.setdefault(source_file.with_suffix(".vera"), []).append(source_file)
+    errors: dict[Path, str] = {}
+    for output, group in by_output.items():
+        if len(group) < 2:
+            continue
+        for source_file in group:
+            others = ", ".join(str(path) for path in group if path != source_file)
+            errors[source_file] = (
+                f"Refusing to write {output}: it is also the conversion target of {others}"
+            )
+    return errors
+
+
 def batch_convert(
     directory: str | None = None,
     *,
@@ -710,7 +727,9 @@ def batch_convert(
         overwrite: When ``True``, replace existing ``.vera`` outputs. When
             ``False``, skip a sibling archive only when it validates and its
             stored ``source_file_hash`` matches the current source file. Stale or
-            hash-less archives are reconverted.
+            hash-less archives are reconverted. Same-stem sources that would
+            write the same ``.vera`` path fail instead of overwriting each other,
+            including when ``overwrite`` is true.
         model: Embedding model spec passed to :func:`convert`.
         embedding_function: Optional custom embedder passed to :func:`convert`.
         parser: Ingest pipeline spec passed to :func:`convert`. ``None``
@@ -784,6 +803,7 @@ def batch_convert(
     skipped_by_user: list[str] = []
     malformed_existing: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
+    output_collisions = _batch_output_collisions(sources)
     total = len(sources)
     if progress and not sources:
         progress(0, 0, "")
@@ -793,6 +813,9 @@ def batch_convert(
             if progress:
                 # completed = files finished so far; input = file about to convert
                 progress(index, total, str(source_file))
+            if source_file in output_collisions:
+                errors.append({"input": str(source_file), "error": output_collisions[source_file]})
+                continue
             output = source_file.with_suffix(".vera")
             if output.exists() and not overwrite:
                 validation = _validate_output(output)

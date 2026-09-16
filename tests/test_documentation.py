@@ -249,6 +249,7 @@ def test_hardening_json_contracts_are_documented():
     assert "malformed_existing" in conversion
     assert "source_file_hash" in conversion
     assert "skipped_existing" in conversion
+    assert "Same-stem sources that would" in conversion
     assert "source_file_hash" in cli_reference
     assert "`file`, `path`," in conversion
     assert "`ok`, `error`" in conversion

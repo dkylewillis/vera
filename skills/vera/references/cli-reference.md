@@ -211,7 +211,9 @@ Directory JSON:
 Existing outputs are validated: only valid archives whose stored
 `source_file_hash` matches the current source file appear in `skipped_existing`.
 Changed sources and archives with a missing or unreadable hash are reconverted.
-Invalid archives appear in `malformed_existing`.
+Same-stem sources that would write the same `.vera` path are reported in
+`errors` instead of overwriting each other. Invalid archives appear in
+`malformed_existing`.
 `skipped_by_user` / `user_skipped` are reserved for interactive skip
 requests (desktop app); CLI runs leave them empty. Each error entry has
 `input` and `error`. A conversion failure or malformed existing output
