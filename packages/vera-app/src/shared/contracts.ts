@@ -269,6 +269,33 @@ export interface AppSettings {
   has_hf_token?: boolean;
   /** Runtime-only: env var names that have a stored embedder/plugin secret. */
   has_env_secrets?: Record<string, boolean>;
+  /** Non-secret ChatGPT bridge settings (credentials stay in safeStorage). */
+  bridge?: BridgeSettings;
+  /** Runtime-only: whether a tunnel runtime API key is stored. */
+  has_bridge_credential?: boolean;
+}
+
+export interface BridgeSettings {
+  library_path?: string;
+  tunnel_id?: string;
+}
+
+export type BridgeState =
+  | 'disabled'
+  | 'needs_setup'
+  | 'starting'
+  | 'connected'
+  | 'reconnecting'
+  | 'error';
+
+export interface BridgeStatus {
+  state: BridgeState;
+  libraryPath: string;
+  tunnelId: string;
+  hasCredential: boolean;
+  message: string;
+  lastError?: string;
+  ready: boolean;
 }
 
 export interface CredentialResult {

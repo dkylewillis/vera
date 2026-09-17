@@ -1,11 +1,12 @@
 import { SIDECAR_ACTIONS } from '../../shared/protocol';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   FileText,
   KeyRound,
+  Link2,
   ListChecks,
   MessageSquareText,
   Plus,
@@ -16,7 +17,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
-import type { AppSettings, EmbedderDescriptor, ProviderProfile } from '../types';
+import type { AppSettings, BridgeStatus, EmbedderDescriptor, ProviderProfile } from '../types';
 import {
   defaultEnabledModels,
   emptyProvider,
@@ -116,7 +117,7 @@ type ProviderRowInfo = {
   profile: ProviderProfile | null;
 };
 
-export type SettingsSectionId = 'providers' | 'embeddings' | 'huggingface' | 'diagnostics';
+export type SettingsSectionId = 'providers' | 'embeddings' | 'huggingface' | 'bridge' | 'diagnostics';
 
 const SETTINGS_SECTIONS: {
   id: SettingsSectionId;
@@ -141,6 +142,12 @@ const SETTINGS_SECTIONS: {
     label: 'Hugging Face',
     description: 'Optional Hub token for Hugging Face model downloads.',
     icon: KeyRound,
+  },
+  {
+    id: 'bridge',
+    label: 'ChatGPT Bridge',
+    description: 'Private developer-mode connection for an approved local library.',
+    icon: Link2,
   },
   {
     id: 'diagnostics',
@@ -200,6 +207,10 @@ export function SettingsModal({
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [bridgeLibraryPath, setBridgeLibraryPath] = useState('');
+  const [bridgeTunnelId, setBridgeTunnelId] = useState('');
+  const [bridgeCredentialInput, setBridgeCredentialInput] = useState('');
+  const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus | null>(null);
 
   // Flat Hermes-style row list: hosted presets, local presets, then customs.
   const rows: ProviderRowInfo[] = [];
@@ -252,8 +263,31 @@ export function SettingsModal({
       ingest_pipeline: overrides?.ingest_pipeline ?? ingestPipeline,
       ingest_pipeline_configs: overrides?.ingest_pipeline_configs ?? ingestPipelineConfigs,
       embedder_configs: overrides?.embedder_configs ?? embedderConfigs,
+      bridge: {
+        library_path: bridgeLibraryPath,
+        tunnel_id: bridgeTunnelId,
+      },
     };
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    const api = typeof window !== 'undefined' ? window.vera : undefined;
+    if (!api?.bridgeGetStatus) return undefined;
+    void api.bridgeGetStatus().then((status) => {
+      if (cancelled) return;
+      setBridgeStatus(status);
+      setBridgeLibraryPath(status.libraryPath || '');
+      setBridgeTunnelId(status.tunnelId || '');
+    });
+    const unsubscribe = api.onBridgeEvent?.((status) => {
+      setBridgeStatus(status);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, []);
 
   /** Materialize a draft profile for an unconfigured preset row on first edit. */
   function ensureProfile(row: ProviderRowInfo): { nextList: ProviderProfile[]; profile: ProviderProfile } {
@@ -884,6 +918,142 @@ export function SettingsModal({
                     </div>
                   )}
                 </label>
+              </div>
+            ) : null}
+
+            {section === 'bridge' ? (
+              <div className="settingsForm">
+                <p className="providerItemDescription">
+                  Your library stays on your computer. Requested excerpts and source
+                  previews are shared with ChatGPT. Absolute archive paths are visible
+                  to the host in this PoC. Disconnect or exit Desktop stops further
+                  access; content already returned cannot be recalled.
+                </p>
+                <label className="field">
+                  <span>Approved library folder</span>
+                  <div className="pathInput">
+                    <input
+                      type="text"
+                      value={bridgeLibraryPath}
+                      onChange={(event) => setBridgeLibraryPath(event.target.value)}
+                      placeholder="C:\path\to\library"
+                    />
+                    <button
+                      type="button"
+                      className="secondaryAction compactAction"
+                      disabled={busy}
+                      onClick={() => {
+                        void window.vera.pickFolder().then((path) => {
+                          if (path) setBridgeLibraryPath(path);
+                        });
+                      }}
+                    >
+                      Browse
+                    </button>
+                  </div>
+                </label>
+                <label className="field">
+                  <span>Tunnel ID</span>
+                  <input
+                    type="text"
+                    value={bridgeTunnelId}
+                    onChange={(event) => setBridgeTunnelId(event.target.value)}
+                    placeholder="tunnel_…"
+                  />
+                </label>
+                <label className="field">
+                  <span>Tunnel runtime API key</span>
+                  {bridgeStatus?.hasCredential && !bridgeCredentialInput ? (
+                    <div className="editorActions">
+                      <span className="connectedTag"><CheckCircle2 size={13} />Key saved</span>
+                      <button
+                        className="secondaryAction compactAction"
+                        disabled={busy}
+                        onClick={() => {
+                          void window.vera.bridgeClearCredential().then((result) => {
+                            setMessage(result.ok ? 'Tunnel credential cleared' : (result.error || 'Clear failed'));
+                            return window.vera.bridgeGetStatus();
+                          }).then((status) => setBridgeStatus(status));
+                        }}
+                      >
+                        <Trash2 size={13} />Clear key
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="pathInput">
+                      <input
+                        type="password"
+                        value={bridgeCredentialInput}
+                        onChange={(event) => setBridgeCredentialInput(event.target.value)}
+                        placeholder="sk-…"
+                      />
+                      <button
+                        type="button"
+                        className="secondaryAction compactAction"
+                        disabled={busy}
+                        onClick={() => {
+                          void window.vera.bridgeSaveCredential(bridgeCredentialInput).then((result) => {
+                            if (result.ok) {
+                              setBridgeCredentialInput('');
+                              setMessage('Tunnel credential saved');
+                            } else {
+                              setMessage(result.error || 'Save failed');
+                            }
+                            return window.vera.bridgeGetStatus();
+                          }).then((status) => setBridgeStatus(status));
+                        }}
+                      >
+                        <KeyRound size={13} />Save
+                      </button>
+                    </div>
+                  )}
+                </label>
+                <p className="mutedText">
+                  Status: {bridgeStatus?.state || 'unknown'}
+                  {bridgeStatus?.message ? ` — ${bridgeStatus.message}` : ''}
+                </p>
+                <div className="editorActions">
+                  <button
+                    type="button"
+                    className="primaryAction"
+                    disabled={busy}
+                    onClick={() => {
+                      setBusy(true);
+                      void onPersist(settingsPayload())
+                        .then(() => window.vera.bridgeUpdateConfig({
+                          libraryPath: bridgeLibraryPath,
+                          tunnelId: bridgeTunnelId,
+                        }))
+                        .then(() => window.vera.bridgeStart())
+                        .then((status) => {
+                          setBridgeStatus(status);
+                          setMessage(status.message);
+                        })
+                        .finally(() => setBusy(false));
+                    }}
+                  >
+                    <Link2 size={14} />Connect
+                  </button>
+                  <button
+                    type="button"
+                    className="secondaryAction"
+                    disabled={busy}
+                    onClick={() => {
+                      setBusy(true);
+                      void window.vera.bridgeStop().then((status) => {
+                        setBridgeStatus(status);
+                        setMessage(status.message);
+                      }).finally(() => setBusy(false));
+                    }}
+                  >
+                    Disconnect
+                  </button>
+                </div>
+                <p className="providerItemDescription">
+                  Setup: provision a Secure MCP Tunnel, install Windows tunnel-client
+                  (or set VERA_TUNNEL_CLIENT), enable ChatGPT developer mode, then Connect.
+                  See docs/desktop-bridge-poc-setup-runbook.md.
+                </p>
               </div>
             ) : null}
 

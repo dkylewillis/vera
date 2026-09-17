@@ -46,6 +46,13 @@ const IPC_CHANNELS: typeof IpcChannels = {
   openSettings: 'vera:openSettings',
   folderChanged: 'vera:folderChanged',
   answerEvent: 'vera:answerEvent',
+  bridgeGetStatus: 'vera:bridgeGetStatus',
+  bridgeUpdateConfig: 'vera:bridgeUpdateConfig',
+  bridgeStart: 'vera:bridgeStart',
+  bridgeStop: 'vera:bridgeStop',
+  bridgeSaveCredential: 'vera:bridgeSaveCredential',
+  bridgeClearCredential: 'vera:bridgeClearCredential',
+  bridgeEvent: 'vera:bridgeEvent',
 };
 
 contextBridge.exposeInMainWorld('vera', {
@@ -100,5 +107,17 @@ contextBridge.exposeInMainWorld('vera', {
     const listener = (_event: unknown, data: StreamEvent) => callback(data);
     ipcRenderer.on(IPC_CHANNELS.answerEvent, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.answerEvent, listener);
+  },
+  bridgeGetStatus: () => ipcRenderer.invoke(IPC_CHANNELS.bridgeGetStatus),
+  bridgeUpdateConfig: (config: { libraryPath?: string; tunnelId?: string }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.bridgeUpdateConfig, config),
+  bridgeStart: () => ipcRenderer.invoke(IPC_CHANNELS.bridgeStart),
+  bridgeStop: () => ipcRenderer.invoke(IPC_CHANNELS.bridgeStop),
+  bridgeSaveCredential: (value: string) => ipcRenderer.invoke(IPC_CHANNELS.bridgeSaveCredential, value),
+  bridgeClearCredential: () => ipcRenderer.invoke(IPC_CHANNELS.bridgeClearCredential),
+  onBridgeEvent: (callback: (status: unknown) => void) => {
+    const listener = (_event: unknown, status: unknown) => callback(status);
+    ipcRenderer.on(IPC_CHANNELS.bridgeEvent, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.bridgeEvent, listener);
   },
 });

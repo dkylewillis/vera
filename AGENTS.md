@@ -87,6 +87,10 @@ vera ocr-languages list --json
 vera ocr-languages download fra --json
 ```
 
+Desktop ChatGPT bridge (developer-mode PoC): Settings → ChatGPT Bridge supervises
+Secure MCP Tunnel with `vera-sidecar mcp-bridge` and a fail-closed library policy.
+See [docs/desktop-bridge-poc.md](docs/desktop-bridge-poc.md).
+
 Conversion selectively OCRs image-based low-text pages through the default
 `vera-ingest-pymupdf` pipeline (PyMuPDF + Tesseract with bundled English data;
 `--ocr auto|off|force`, `--ocr-language`, `--ocr-dpi` as compatibility aliases;

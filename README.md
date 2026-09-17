@@ -215,6 +215,9 @@ for figure metadata or `--regions` for source highlights.
   [Installation guide](docs/agent-skills.md).
 - **Codex plugin:** install the local [VERA plugin](docs/plugin.md) to use the
   same MCP tools and skill, plus source-viewer buttons with citation highlights.
+  Before the first hybrid or semantic search it installs Sentence Transformers
+  in the MCP server's Python environment; the first model use may still download
+  model weights.
 - **Python:** use `vera-doc` for storage and search, or `vera-ingest` for
   conversion. [Python API](docs/python-api.md).
 

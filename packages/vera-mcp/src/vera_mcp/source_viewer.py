@@ -15,6 +15,8 @@ from pydantic import BaseModel, Field
 from vera_doc import VeraDocument
 from vera_ingest.viewer import get_chunk_json, get_source_document
 
+from .access_policy import AccessDenied, AccessPolicy
+
 RESOURCE_URI = "ui://vera/source-viewer-v1.html"
 MAX_SOURCE_BYTES = 40 * 1024 * 1024
 MAX_IMAGE_BYTES = 3 * 1024 * 1024
@@ -31,10 +33,17 @@ class SourceRef(BaseModel):
     )
 
 
-def read_chunk(ref: SourceRef) -> dict[str, Any]:
+def _resolve_archive(ref: SourceRef, policy: AccessPolicy | None) -> Path:
     path = Path(ref.file)
+    if policy is not None:
+        return policy.check_archive(path)
     if not path.is_absolute() or path.suffix.lower() != ".vera":
         raise ValueError("Use an absolute path to a .vera archive.")
+    return path
+
+
+def read_chunk(ref: SourceRef, policy: AccessPolicy | None = None) -> dict[str, Any]:
+    path = _resolve_archive(ref, policy)
     with VeraDocument.open(path) as doc:
         records = doc.get(ids=[ref.chunk_id])
         if not records:
@@ -112,12 +121,15 @@ def _pdf_view(source, regions, requested_page: int, initial_page: int) -> dict[s
         }
 
 
-def source_view(ref: SourceRef, page: int = 0) -> dict[str, Any]:
+def source_view(
+    ref: SourceRef, page: int = 0, policy: AccessPolicy | None = None
+) -> dict[str, Any]:
     if page < 0:
         raise ValueError("Page must be zero (first cited page) or a positive page number.")
-    chunk = read_chunk(ref)
-    base = {"file": ref.file, "chunk_id": ref.chunk_id, "text": chunk["text"]}
-    with VeraDocument.open(ref.file) as doc:
+    path = _resolve_archive(ref, policy)
+    chunk = read_chunk(ref, policy=policy)
+    base = {"file": str(path), "chunk_id": ref.chunk_id, "text": chunk["text"]}
+    with VeraDocument.open(path) as doc:
         try:
             source = get_source_document(doc)
         except ValueError as exc:
@@ -179,7 +191,9 @@ def _result(summary: dict, view: dict) -> CallToolResult:
     )
 
 
-def register_source_viewer(server) -> None:
+def register_source_viewer(server, policy: AccessPolicy | None = None) -> None:
+    max_sources = policy.max_sources if policy is not None else 12
+
     @server.resource(
         RESOURCE_URI,
         mime_type="text/html;profile=mcp-app",
@@ -204,12 +218,23 @@ def register_source_viewer(server) -> None:
         """Show an Open VERA sources button for retrieved citations. First search
         VERA; pass response citation IDs, returned archive paths, and chunk IDs.
         The viewer opens PDF or Markdown highlights. Does not search or alter archives."""
+        if len(sources) > max_sources:
+            raise AccessDenied(f"At most {max_sources} sources may be opened at once.")
         cards = []
         for ref in sources:
             try:
-                card = read_chunk(ref)
+                card = read_chunk(ref, policy=policy)
+            except AccessDenied:
+                card = {
+                    "file": "(omitted)",
+                    "chunk_id": ref.chunk_id,
+                    "error": "Access denied by VERA bridge policy.",
+                }
             except (ValueError, OSError, sqlite3.Error) as exc:
-                card = {"file": ref.file, "chunk_id": ref.chunk_id, "error": str(exc)}
+                message = str(exc)
+                if ":\\" in message or message.startswith("/") or "\\\\" in message:
+                    message = "Source could not be opened."
+                card = {"file": "(omitted)" if policy else ref.file, "chunk_id": ref.chunk_id, "error": message}
             cards.append({"id": ref.id, **card} if ref.id else card)
         summary = {
             "sources": [{k: v for k, v in c.items() if k != "regions"} for c in cards],
@@ -235,10 +260,13 @@ def register_source_viewer(server) -> None:
         Zero opens the first cited page; positive numbers select a PDF page or a
         200-line Markdown section. The viewer loads further PDF pages on demand.
         """
-        view = source_view(SourceRef(file=file, chunk_id=chunk_id), page)
+        try:
+            view = source_view(SourceRef(file=file, chunk_id=chunk_id), page, policy=policy)
+        except AccessDenied as exc:
+            raise AccessDenied("Access denied by VERA bridge policy.") from exc
         return _result(
             {
-                "file": file,
+                "file": view.get("file", file),
                 "chunk_id": chunk_id,
                 "page": view.get("page"),
                 "message": view.get("notice") or "Source page loaded.",

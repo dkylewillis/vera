@@ -26,6 +26,7 @@ Documentation = "https://dkylewillis.github.io/vera/packages/vera-mcp/"
 
 [project.scripts]
 vera-mcp = "vera_mcp.server:main"
+vera-mcp-bridge = "vera_mcp.server:main_bridge"
 
 [project.optional-dependencies]
 viewer = ["pymupdf>=1.23"]

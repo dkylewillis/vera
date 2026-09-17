@@ -22,7 +22,14 @@ The source launcher and viewer live in packages/vera-mcp/src/vera_mcp/ui/ and
 ship inside the existing Python package. No new HTTP service or storage format
 is needed. Answers remain ordinary ChatGPT prose rather than widget content.
 The plugin uses `vera-mcp` directly; reading existing archives needs no CLI or
-PDF parser. The portable skill also retains its CLI workflow.
+PDF parser. The portable skill also retains its CLI workflow. After the MCP
+server exposes its tools, the bundled plugin installs
+`sentence-transformers>=2.7` before its first hybrid or semantic search if the
+dependency is missing or cannot import. This setup is enabled only by the
+plugin's `VERA_AUTO_INSTALL_SEMANTIC_DEPS=1` setting; ordinary `vera-mcp`
+launches still require an explicit install. The install needs network access and
+can take several minutes. The first use of a model can separately download model
+weights.
 
 | Workflow | Existing actions |
 | --- | --- |
@@ -189,3 +196,11 @@ test uses a local host simulator; real ChatGPT installation and rendering remain
 a separate integration check. See tests/test_source_viewer_browser.py in the
 vera-mcp package. The protocol follows the
 [OpenAI UI guide](https://developers.openai.com/plugins/build/chatgpt-ui/).
+
+## Proposed Desktop bridge
+
+The Desktop-managed connection is a proposed feature, not current plugin behavior.
+See the [proof-of-concept build plan](desktop-bridge-poc.md) for implementation
+milestones and acceptance criteria, and the
+[production architecture proposal](desktop-bridge-production.md) for the
+public relay, account linking, device authorization, and rollout design.

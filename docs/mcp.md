@@ -59,6 +59,11 @@ client.
 
 ## Tools
 
+### `vera_library_info`
+
+Returns the approved library root and search bounds when running under Desktop
+bridge policy. Unrestricted local MCP returns `unrestricted: true` and no grant.
+
 ### Compact search output
 
 Both search tools accept `output: "compact" | "full"` (default `"full"` for
@@ -235,6 +240,16 @@ Returns block-granular source bounding boxes for visual grounding.
 
 The portable [VERA Agent Skill](https://github.com/dkylewillis/vera/blob/main/skills/vera/SKILL.md) contains a complete
 retrieval workflow for compatible agents.
+
+## Desktop ChatGPT bridge (developer-mode PoC)
+
+Desktop can supervise OpenAI Secure MCP Tunnel with a restricted MCP child
+(`vera-sidecar mcp-bridge` / `vera-mcp-bridge`). That mode requires
+`VERA_BRIDGE_POLICY_PATH` and only searches an approved local library. Ordinary
+`vera mcp` remains unrestricted for local IDE use. See
+[desktop-bridge-poc.md](desktop-bridge-poc.md) and the
+[setup runbook](desktop-bridge-poc-setup-runbook.md). In the app, open
+**Settings → ChatGPT Bridge**.
 
 ## CLI and MCP differences
 

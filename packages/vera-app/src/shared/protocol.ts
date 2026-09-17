@@ -35,6 +35,13 @@ export const IPC_CHANNELS = {
   openSettings: 'vera:openSettings',
   folderChanged: 'vera:folderChanged',
   answerEvent: 'vera:answerEvent',
+  bridgeGetStatus: 'vera:bridgeGetStatus',
+  bridgeUpdateConfig: 'vera:bridgeUpdateConfig',
+  bridgeStart: 'vera:bridgeStart',
+  bridgeStop: 'vera:bridgeStop',
+  bridgeSaveCredential: 'vera:bridgeSaveCredential',
+  bridgeClearCredential: 'vera:bridgeClearCredential',
+  bridgeEvent: 'vera:bridgeEvent',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];

@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  BridgeStatus,
   ChatCitationResult,
   CredentialResult,
   Session,
@@ -8,6 +9,9 @@ import type {
 
 export type {
   AppSettings,
+  BridgeSettings,
+  BridgeState,
+  BridgeStatus,
   ChatAttachment,
   ChatCitationResult,
   ContentPart,
@@ -81,6 +85,13 @@ export interface VeraApi {
   onOpenSettings(callback: () => void): () => void;
   onFolderChanged(callback: (path: string) => void): () => void;
   onAnswerEvent(callback: (data: StreamEvent) => void): () => void;
+  bridgeGetStatus(): Promise<BridgeStatus>;
+  bridgeUpdateConfig(config: { libraryPath?: string; tunnelId?: string }): Promise<BridgeStatus>;
+  bridgeStart(): Promise<BridgeStatus>;
+  bridgeStop(): Promise<BridgeStatus>;
+  bridgeSaveCredential(value: string): Promise<CredentialResult>;
+  bridgeClearCredential(): Promise<CredentialResult>;
+  onBridgeEvent(callback: (status: BridgeStatus) => void): () => void;
 }
 
 export interface FolderEntry {

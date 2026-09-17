@@ -2,7 +2,10 @@
   "mcpServers": {
     "vera": {
       "command": "vera-mcp",
-      "args": []
+      "args": [],
+      "env": {
+        "VERA_AUTO_INSTALL_SEMANTIC_DEPS": "1"
+      }
     }
   }
 }

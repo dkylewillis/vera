@@ -36,8 +36,11 @@ is available. The plugin's MCP server supplies the VERA runtime; a missing
 If this VERA plugin is active but its MCP tools are absent, do not run the CLI
 probe below or tell the user to install VERA. Explain that the VERA MCP server
 did not load for this task, and ask the user to start a fresh task after the
-plugin has been installed or reinstalled. The user should not have to install
-Python packages merely because the agent shell lacks `vera` on `PATH`.
+plugin has been installed or reinstalled. After its MCP server exposes tools,
+the bundled Codex plugin installs Sentence Transformers before the first hybrid
+or semantic search, so that request may need network access and extra time. The user
+should not have to install Python packages merely because the agent shell lacks
+`vera` on `PATH`.
 
 ## Standalone CLI only: before running commands
 

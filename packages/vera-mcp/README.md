@@ -18,6 +18,9 @@ for installation, client setup, tool contracts, and API reference.
 
 See the [MCP guide](https://github.com/dkylewillis/vera/blob/main/docs/mcp.md).
 
+Bridge entry (Desktop PoC): `vera-mcp-bridge` / `VERA_BRIDGE_POLICY_PATH` runs a
+fail-closed library grant. Ordinary `vera-mcp` / `vera mcp` stays unrestricted.
+
 Source viewer: `vera_show_sources` adds an **Open VERA sources** button beside
 a normally rendered answer. The user selects `[C#]` references inside the
 viewer; `vera_source_page` loads the highlighted passage. See the

@@ -168,6 +168,8 @@ nav:
       - Guides:
           - Getting started: desktop-app-getting-started.md
           - Product overview: desktop-app-overview.md
+          - ChatGPT bridge PoC: desktop-bridge-poc.md
+          - Bridge setup runbook: desktop-bridge-poc-setup-runbook.md
       - Developer:
           - Architecture: desktop-app-architecture.md
   - Specifications:

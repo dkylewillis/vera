@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -9,6 +10,79 @@ from helpers.pdfs import make_pdf, make_structured_pdf
 from vera_doc import ChunkRecord, VeraDocument
 from vera_ingest import convert
 
+
+def test_semantic_dependency_setup_is_opt_in(monkeypatch):
+    from vera_mcp import server as module
+
+    imported = []
+    monkeypatch.delenv("VERA_AUTO_INSTALL_SEMANTIC_DEPS", raising=False)
+    monkeypatch.setattr(module.importlib, "import_module", lambda name: imported.append(name))
+    monkeypatch.setattr(module.subprocess, "run", lambda *args, **kwargs: pytest.fail("ran pip"))
+
+    module.ensure_semantic_dependencies("hybrid")
+    assert imported == []
+
+
+def test_semantic_dependency_setup_installs_and_rechecks(monkeypatch):
+    from vera_mcp import server as module
+
+    attempts = []
+
+    def import_module(name):
+        attempts.append(name)
+        if len(attempts) == 1:
+            raise ImportError("missing")
+        return object()
+
+    commands = []
+    monkeypatch.setenv("VERA_AUTO_INSTALL_SEMANTIC_DEPS", "1")
+    monkeypatch.setattr(module.importlib, "import_module", import_module)
+    monkeypatch.setattr(module.importlib, "invalidate_caches", lambda: None)
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda command, **kwargs: commands.append((command, kwargs)) or SimpleNamespace(returncode=0),
+    )
+
+    module.ensure_semantic_dependencies("hybrid")
+
+    assert attempts == ["sentence_transformers", "sentence_transformers"]
+    assert commands == [
+        (
+            [module.sys.executable, "-m", "pip", "install", "sentence-transformers>=2.7"],
+            {"check": False},
+        )
+    ]
+
+def test_semantic_dependency_setup_skips_keyword_search(monkeypatch):
+    from vera_mcp import server as module
+
+    monkeypatch.setenv("VERA_AUTO_INSTALL_SEMANTIC_DEPS", "1")
+    monkeypatch.setattr(
+        module.importlib,
+        "import_module",
+        lambda name: pytest.fail("checked semantic dependencies"),
+    )
+
+    module.ensure_semantic_dependencies("keyword")
+
+def test_mcp_server_starts_before_semantic_dependency_setup(monkeypatch):
+    from vera_mcp import server as module
+
+    monkeypatch.setattr(
+        module,
+        "ensure_semantic_dependencies",
+        lambda mode: pytest.fail("installed before tool dispatch"),
+    )
+    started = []
+    monkeypatch.setattr(
+        module,
+        "build_server",
+        lambda policy=None: SimpleNamespace(run=lambda: started.append(True)),
+    )
+
+    assert module.main() == 0
+    assert started == [True]
 
 @pytest.fixture(scope="module")
 def vera_file(tmp_path_factory):

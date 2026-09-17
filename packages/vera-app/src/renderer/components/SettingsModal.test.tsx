@@ -40,6 +40,7 @@ describe('SettingsModal', () => {
     expect(html).toContain('LLM Providers');
     expect(html).toContain('Embeddings');
     expect(html).toContain('Hugging Face');
+    expect(html).toContain('ChatGPT Bridge');
     expect(html).toContain('Diagnostics');
     expect(html).not.toContain('Python plugins');
     expect(html).toContain('Hosted');

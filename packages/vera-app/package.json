@@ -17,6 +17,7 @@
     "typecheck:electron": "tsc -p tsconfig.electron.json --noEmit",
     "typecheck:renderer": "tsc -p tsconfig.renderer.json",
     "test:unit": "vitest run",
+    "verify:bridge": "node scripts/verify-packaged-bridge.cjs",
     "start": "electron ."
   },
   "dependencies": {

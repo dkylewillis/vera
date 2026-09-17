@@ -9,6 +9,7 @@ dependencies = [
   "vera-ingest>=0.3.2",
   "vera-ingest-pymupdf>=0.3.2",
   "vera-embed-openai>=0.3.2",
+  "vera-mcp[viewer]>=0.3.2",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}

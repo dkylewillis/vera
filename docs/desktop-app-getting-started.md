@@ -20,6 +20,16 @@ the Search/Ask scope; its parent folder is not automatically added to Explorer.
 Use **File > Open Folder...** when you want VERA to remember and watch the
 whole folder as a library.
 
+## ChatGPT Bridge (developer-mode PoC)
+
+**File > Settings → ChatGPT Bridge** supervises OpenAI Secure MCP Tunnel against
+one approved local library. The packaged sidecar launches `mcp-bridge` with a
+fail-closed policy file; ordinary desktop Search/Ask still use the JSON-lines
+sidecar. Tunnel runtime API keys are stored with Electron `safeStorage`. Setup
+and demo checklists live in
+[desktop-bridge-poc-setup-runbook.md](desktop-bridge-poc-setup-runbook.md) and
+[desktop-bridge-poc-demo-checklist.md](desktop-bridge-poc-demo-checklist.md).
+
 ## Requirements
 
 - Git

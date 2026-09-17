@@ -58,6 +58,9 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 
 ### 6. LLM Ask
 - Connect to one or more LLM providers under **File > Settings**
+- Optionally connect an approved local library to ChatGPT developer mode under
+  **File > Settings → ChatGPT Bridge** (private Secure MCP Tunnel PoC; see
+  [desktop-bridge-poc.md](desktop-bridge-poc.md))
 - Select model by task profile (speed, quality, cost)
 - Stream grounded answers with citation links, Markdown, and rendered LaTeX
 - Search remains fully local when no provider is configured

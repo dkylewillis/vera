@@ -1,4 +1,7 @@
-"""JSON-lines sidecar process: dispatch Electron requests to handler modules."""
+"""JSON-lines sidecar process: dispatch Electron requests to handler modules.
+
+Also hosts the Desktop bridge MCP entry when launched with ``mcp-bridge``.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +11,26 @@ import sys
 import threading
 import traceback
 from typing import Any
+
+
+def _run_mcp_bridge() -> int:
+    """Fail-closed MCP stdio server for Secure MCP Tunnel (Desktop bridge)."""
+    # Never emit logs on stdout — it is the MCP transport.
+    os.environ.pop("VERA_AUTO_INSTALL_SEMANTIC_DEPS", None)
+    try:
+        from vera_mcp.server import main_bridge
+    except ImportError as exc:  # pragma: no cover
+        print(
+            "vera-sidecar mcp-bridge requires the vera-mcp package in this runtime.",
+            file=sys.stderr,
+        )
+        print(str(exc), file=sys.stderr)
+        return 2
+    return main_bridge()
+
+
+if len(sys.argv) > 1 and sys.argv[1] == "mcp-bridge":
+    raise SystemExit(_run_mcp_bridge())
 
 from vera_embed_openai import (
     ensure_registered as ensure_openai_embedder_registered,
