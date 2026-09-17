@@ -62,6 +62,18 @@ def test_vendor_reuses_complete_snapshot_without_download(tmp_path: Path):
     assert (dest / "vera-docling-manifest.json").is_file()
 
 
+def test_seed_cache_candidates_include_packaged_appdata_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    vendor = _load_vendor()
+    appdata = tmp_path / "AppData" / "Roaming"
+    monkeypatch.setenv("APPDATA", str(appdata))
+    monkeypatch.delenv("VERA_DOCLING_VENDOR_CACHE", raising=False)
+    candidates = vendor.seed_cache_candidates()
+    assert appdata / "@vera" / "app" / "docling-artifacts" in candidates
+    assert appdata / "VERA" / "docling-artifacts" in candidates
+
+
 def test_vendor_copies_complete_seed_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     vendor = _load_vendor()
     seed = tmp_path / "seed"
