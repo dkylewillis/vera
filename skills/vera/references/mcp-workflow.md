@@ -15,6 +15,11 @@ automatically exist on the server's computer.
 
 ## Search
 
+Call `vera_library_info` when the server may be a Desktop bridge grant.
+Unrestricted local MCP returns `unrestricted: true` and no `library_root`.
+Bridge mode returns the approved library root and search bounds; use that
+root for corpus search and only absolute archive paths the tools return.
+
 Call `vera_search` for one archive or `vera_corpus_search` for a directory.
 Start with `mode: "hybrid"`, `top_k: 5`, and the question as `query`.
 Use `vera_inspect(file)` to understand contents and embedding requirements,
