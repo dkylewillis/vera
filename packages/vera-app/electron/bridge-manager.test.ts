@@ -83,7 +83,10 @@ describe('BridgeManager', () => {
     expect(status.ready).toBe(true);
     expect(children).toHaveLength(1);
     expect(spawnOptions[0]?.stdio).toEqual(['ignore', 'pipe', 'pipe']);
-    expect(await duplicate).toMatchObject({ state: 'connected' });
+    await duplicate;
+    expect(children).toHaveLength(1);
+    expect(await manager.start()).toMatchObject({ state: 'connected' });
+    expect(children).toHaveLength(1);
   });
 
   it('times out when readiness never arrives', async () => {
