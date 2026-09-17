@@ -119,9 +119,10 @@ def test_denies_outside_sibling_prefix_and_traversal(approved_library):
         policy.check_archive(approved_library["root"] / ".." / "approved-sibling" / "secret.vera")
     with pytest.raises(AccessDenied):
         policy.check_library_root(approved_library["sibling"])
-    assert policy.check_archive(approved_library["archive"]) == Path(
-        approved_library["archive"]
-    ).resolve()
+    assert (
+        policy.check_archive(approved_library["archive"])
+        == Path(approved_library["archive"]).resolve()
+    )
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="UNC rejection is Windows-oriented")
