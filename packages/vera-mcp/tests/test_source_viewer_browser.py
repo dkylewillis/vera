@@ -95,12 +95,18 @@ def test_source_viewer_browser(source_archives):  # noqa: F811 - imported pytest
         frame.get_by_role("button", name="Collapse", exact=True).wait_for()
         assert frame.locator(".sourceId").all_inner_texts() == ["[C1]", "[C2]"]
         frame.locator(".source").nth(0).click()
-        image = frame.locator(".paper img")
+        image = frame.locator('.pdfPage[data-page="1"] .paper img')
         image.wait_for()
         assert image.evaluate("(img) => img.complete && img.naturalWidth > 0")
         assert frame.locator(".box").count() > 0
+        assert frame.locator('.pdfPage[data-page="2"] .paper img').count() == 1
         frame.get_by_role("button", name="Next page", exact=True).click()
         frame.get_by_text("Page 2 of 2", exact=True).wait_for()
+        scroll_state = frame.locator("#viewport").evaluate(
+            "e=>({top:e.scrollTop,height:e.clientHeight,scroll:e.scrollHeight,second:e.querySelector('[data-page=\\\"2\\\"]')?.offsetTop})"
+        )
+        assert scroll_state["top"] > 0, scroll_state
+        assert frame.locator("body").evaluate("()=>document.scrollingElement.scrollTop") == 0
         assert frame.get_by_role("button", name="Next page", exact=True).is_disabled()
         frame.get_by_role("button", name="Previous page", exact=True).click()
         frame.get_by_text("Page 1 of 2", exact=True).wait_for()
@@ -108,7 +114,7 @@ def test_source_viewer_browser(source_archives):  # noqa: F811 - imported pytest
         assert frame.locator("#viewport").evaluate("e=>e.classList.contains('no-highlights')")
         frame.get_by_role("button", name="Highlights off", exact=True).click()
         frame.get_by_role("button", name="Zoom in", exact=True).click()
-        assert frame.locator(".paper").evaluate("e=>e.style.width") == "120%"
+        assert frame.locator(".paper").first.evaluate("e=>e.style.width") == "120%"
         frame.get_by_role("button", name="Collapse", exact=True).click()
         frame.get_by_role("button", name="Expand", exact=True).wait_for()
         frame.get_by_role("button", name="Expand", exact=True).click()

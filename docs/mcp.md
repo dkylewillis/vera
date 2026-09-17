@@ -59,6 +59,29 @@ client.
 
 ## Tools
 
+### Compact search output
+
+Both search tools accept `output: "compact" | "full"` (default `"full"` for
+compatibility). Prefer compact output for document questions:
+
+```json
+{"file": "/library/report.vera", "query": "capacity expansion", "top_k": 5, "output": "compact"}
+```
+
+Compact output contains `results` with complete passage `text`, `chunk_id`,
+absolute `file`, and available `source_filename`, `page_start`, `page_end`, and
+`heading_path`. Requested nonempty `before_chunks` and `after_chunks` use the
+same compact fields. Missing source metadata is not invented. These locators
+can be passed directly to `vera_get_chunk` and `vera_show_sources`.
+
+Corpus output includes `warnings` only when `skipped_files` or
+`skipped_semantic_model_groups` is nonempty, preserving their diagnostic details.
+An empty successful search has `results: []`; tool failures remain errors.
+Compact mode omits scores, arbitrary metadata, and routine index diagnostics.
+Use full output for those details. Combining compact output with `pretty: true`,
+`include_figures: true`, or `include_regions: true` is an error; select full
+output for those options. CLI `--pretty` behavior is unchanged.
+
 ### `vera_search`
 
 Search one archive.
@@ -262,5 +285,6 @@ embedding, and index issues.
 
 Source viewer: `vera_show_sources` adds an **Open VERA sources** button beside
 a normally rendered answer. The user selects `[C#]` references inside the
-viewer; `vera_source_page` loads the highlighted passage. See the
+viewer; `vera_source_page` loads PDF pages on demand as the user scrolls from
+the highlighted passage. See the
 [plugin source viewer](plugin.md) for source-install requirements and preview limits.

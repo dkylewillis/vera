@@ -28,6 +28,78 @@ def server():
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("corpus", [False, True])
+async def test_compact_evidence_can_be_read_and_shown(server, vera_file, corpus):
+    tool = "vera_corpus_search" if corpus else "vera_search"
+    args = {"directory": str(vera_file.parent)} if corpus else {"file": str(vera_file)}
+    args.update(query="restaurant parking", top_k=1, context_chunks=1)
+    full = _payload(await server.call_tool(tool, args))
+    compact = _payload(await server.call_tool(tool, {**args, "output": "compact"}))
+    assert set(compact) == {"results"}
+    hit = compact["results"][0]
+    assert hit["text"] == full["results"][0]["text"]
+    assert hit["page_start"] == full["results"][0]["page_start"]
+    assert hit["file"] == str(vera_file.resolve())
+    assert "score" not in hit
+    for key in ("before_chunks", "after_chunks"):
+        assert [c["text"] for c in hit.get(key, [])] == [
+            c["text"] for c in full["results"][0].get(key, [])
+        ]
+    ref = {key: hit[key] for key in ("file", "chunk_id")}
+    stored = _payload(await server.call_tool("vera_get_chunk", ref))
+    assert stored["text"] == hit["text"]
+    shown = await server.call_tool("vera_show_sources", {"sources": [ref]})
+    assert "sources" in str(shown)
+    assert len(json.dumps(compact)) < len(json.dumps(full))
+
+
+@pytest.mark.anyio
+async def test_compact_empty_corpus_preserves_coverage_warnings(server, monkeypatch):
+    from vera_mcp.server import VeraCorpus
+
+    class PartialCorpus:
+        invalid_files = [{"file": "broken.vera", "error": "invalid archive"}]
+        skipped_semantic_model_groups = [{"model": "unavailable", "reason": "missing"}]
+
+        def search(self, **kwargs):
+            return []
+
+        def index_search_report(self):
+            return {"used": True}
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(VeraCorpus, "open", lambda *args, **kwargs: PartialCorpus())
+    result = _payload(
+        await server.call_tool(
+            "vera_corpus_search", {"directory": ".", "query": "test", "output": "compact"}
+        )
+    )
+    assert result["results"] == []
+    assert result["warnings"]["skipped_files"] == PartialCorpus.invalid_files
+    assert result["warnings"]["skipped_semantic_model_groups"] == (
+        PartialCorpus.skipped_semantic_model_groups
+    )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("tool", ["vera_search", "vera_corpus_search"])
+@pytest.mark.parametrize("flag", ["pretty", "include_figures", "include_regions"])
+async def test_compact_rejects_incompatible_options(server, tool, flag):
+    args = {"file": "missing.vera"} if tool == "vera_search" else {"directory": "."}
+    with pytest.raises(Exception, match='Use output="full"'):
+        await server.call_tool(tool, {**args, "query": "test", "output": "compact", flag: True})
+
+
+def test_compact_does_not_invent_missing_metadata():
+    from vera_mcp.server import _compact_hit
+
+    hit = _compact_hit({"chunk_id": "c1", "text": "body", "secret_tag": "omit"}, "a.vera")
+    assert set(hit) == {"chunk_id", "text", "file"}
+
+
+@pytest.mark.anyio
 async def test_tools_are_registered(server):
     tools = await server.list_tools()
     names = {t.name for t in tools}

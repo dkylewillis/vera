@@ -808,6 +808,12 @@ MCP provides `vera_search`, `vera_corpus_search`, `vera_inspect`,
 `vera_get_chunk`, and
 `vera_get_chunk_regions`. `vera_search` and `vera_corpus_search` default
 `top_k` to `10`, matching `vera search` and `VeraDocument.search`.
+Both MCP search tools accept `output: "compact" | "full"` (default `"full"`).
+Prefer compact for ordinary research: it returns text, citation fields, absolute
+archive paths, chunk IDs and requested neighbors. Nonempty corpus coverage
+diagnostics appear under `warnings`. Full output is required for pretty, figure
+and region options; incompatible compact combinations are errors. This option
+does not change CLI output flags.
 Both search tools accept `pretty: true`; this adds a top-level `context` string
 with the same readable rendering as CLI `--pretty` while preserving the
 structured `results` array.

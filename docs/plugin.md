@@ -155,9 +155,11 @@ blue accent, green citation labels, type stack, light/dark surfaces, borders,
 and PDF viewer styling.
 
 The viewer lists source cards without loading a document until the user selects
-one. It then renders PDF pages on demand with stored bounding-box highlights, or numbered Markdown
-source lines with line-level highlights. Choose another source, navigate pages
-(or 200-line Markdown sections), toggle highlights, zoom PDFs, or expand when
+one. It then presents the full PDF as a scrollable document, loading rendered
+pages on demand and starting at the cited page with stored bounding-box highlights.
+For Markdown it shows numbered source lines with line-level highlights. Choose
+another source, scroll the PDF (or navigate 200-line Markdown sections), toggle
+highlights, zoom PDFs, or expand when
 the host advertises fullscreen support. Retrieved text remains available below
 the preview. This is an MCP Apps view, not ChatGPT's built-in Sources sidebar.
 The UI-only vera_source_page action supports navigation without another model

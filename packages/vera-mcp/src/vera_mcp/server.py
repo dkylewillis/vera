@@ -18,7 +18,7 @@ Install the integration package with: pip install vera-mcp
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from vera_doc.corpus import VeraCorpus
 from vera_doc.document import VeraDocument
@@ -38,6 +38,25 @@ def _open(file: str) -> VeraDocument:
 
 def _archive_locator(file: str, document: VeraDocument) -> dict[str, str]:
     return {"file": file, "path": str(Path(document.path).resolve())}
+
+
+def _compact_hit(hit: dict[str, Any], file: str) -> dict[str, Any]:
+    """Keep evidence and stable viewer locators, including requested context."""
+    result = {
+        key: hit[key]
+        for key in ("chunk_id", "text", "source_filename", "page_start", "page_end", "heading_path")
+        if key in hit
+    }
+    result["file"] = str(Path(file).resolve())
+    for key in ("before_chunks", "after_chunks"):
+        if hit.get(key):
+            result[key] = [_compact_hit(item, file) for item in hit[key]]
+    return result
+
+
+def _check_output(output: str, pretty: bool, figures: bool, regions: bool) -> None:
+    if output == "compact" and (pretty or figures or regions):
+        raise ValueError('Use output="full" with pretty, include_figures, or include_regions.')
 
 
 def build_server():
@@ -71,11 +90,15 @@ def build_server():
         context_chunks: int = 0,
         where: dict[str, str | list[str]] | None = None,
         pretty: bool = False,
+        output: Literal["compact", "full"] = "full",
     ) -> dict[str, Any]:
         """Search a VERA file and return citation-ready chunks.
 
         Set pretty to add the same results as readable Markdown-like context.
+        Prefer output="compact" for answers: retains text, citations, archive paths,
+        chunk IDs and requested neighbors. Full output supports pretty/figures/regions.
         """
+        _check_output(output, pretty, include_figures, include_regions)
         doc = _open(file)
         try:
             results = []
@@ -95,6 +118,8 @@ def build_server():
                     )
                 )
             response = {"query": query, "mode": mode, "results": results}
+            if output == "compact":
+                return {"results": [_compact_hit(hit, str(doc.path)) for hit in results]}
             if pretty:
                 response["context"] = format_search_context(results)
             return response
@@ -115,11 +140,15 @@ def build_server():
         includes: list[str] | None = None,
         where: dict[str, str | list[str]] | None = None,
         pretty: bool = False,
+        output: Literal["compact", "full"] = "full",
     ) -> dict[str, Any]:
         """Search a VERA library, automatically using its fresh local index when available.
 
         Set pretty to add the same results as readable Markdown-like context.
+        Prefer output="compact" for answers: retains evidence, viewer locators,
+        requested neighbors and nonempty coverage warnings. Full is the legacy format.
         """
+        _check_output(output, pretty, include_figures, include_regions)
         corpus = VeraCorpus.open(
             directory, recursive=recursive, excludes=excludes, includes=includes
         )
@@ -149,6 +178,16 @@ def build_server():
                 "skipped_semantic_model_groups": corpus.skipped_semantic_model_groups,
                 "results": results,
             }
+            if output == "compact":
+                compact = {"results": [_compact_hit(hit, hit["file"]) for hit in results]}
+                warnings = {
+                    key: response[key]
+                    for key in ("skipped_files", "skipped_semantic_model_groups")
+                    if response[key]
+                }
+                if warnings:
+                    compact["warnings"] = warnings
+                return compact
             if pretty:
                 response["context"] = format_search_context(results)
             return response

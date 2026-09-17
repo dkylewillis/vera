@@ -53,6 +53,7 @@ def test_pdf_preview_has_normalized_highlights_and_preserves_archive(source_arch
     view = source_view(ref)
     assert view["kind"] == "pdf"
     assert view["page_count"] == 2
+    assert view["page_width"] > 0 and view["page_height"] > 0
     assert view["boxes"]
     assert base64.b64decode(view["image"].split(",")[1]).startswith(b"\x89PNG")
     assert all(0 <= n <= 1 for box in view["boxes"] for n in box)

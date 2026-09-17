@@ -98,6 +98,8 @@ def _pdf_view(source, regions, requested_page: int, initial_page: int) -> dict[s
             "kind": "pdf",
             "page": number,
             "page_count": len(pdf),
+            "page_width": float(size.width),
+            "page_height": float(size.height),
             "image": "data:image/png;base64," + base64.b64encode(image).decode("ascii"),
             "boxes": boxes,
             "notice": ""
@@ -228,8 +230,11 @@ def register_source_viewer(server) -> None:
         meta={"ui": {"visibility": ["app"]}, "openai/widgetAccessible": True},
     )
     def vera_source_page(file: str, chunk_id: str, page: int = 0) -> CallToolResult:
-        """Read a source preview for the viewer. Zero opens the first cited page;
-        positive numbers select a PDF page or a 200-line Markdown section."""
+        """Read one source page for the viewer's scrollable PDF or Markdown view.
+
+        Zero opens the first cited page; positive numbers select a PDF page or a
+        200-line Markdown section. The viewer loads further PDF pages on demand.
+        """
         view = source_view(SourceRef(file=file, chunk_id=chunk_id), page)
         return _result(
             {

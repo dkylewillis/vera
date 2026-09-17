@@ -208,7 +208,8 @@ Results carry source filename, page range, and heading path. Add `--figures`
 for figure metadata or `--regions` for source highlights.
 
 - **CLI:** any agent that can run shell commands can use VERA.
-- **MCP:** install `vera[mcp]` and run `vera mcp`. [Connect a client](docs/mcp.md).
+- **MCP:** install `vera[mcp]` and run `vera mcp`. Search with `output: "compact"`
+  for concise evidence and viewer-ready citations. [Connect a client](docs/mcp.md).
 - **Agent Skill:** install the portable [VERA skill](skills/vera/SKILL.md), with its
   [CLI reference](skills/vera/references/cli-reference.md).
   [Installation guide](docs/agent-skills.md).

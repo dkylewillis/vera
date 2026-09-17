@@ -7,6 +7,18 @@ from helpers.cli import leaf_commands as _leaf_commands
 from vera_cli.main import build_parser
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_compact_mcp_output_is_documented():
+    for relative in (
+        "README.md",
+        "docs/mcp.md",
+        "skills/vera/SKILL.md",
+        "skills/vera/references/mcp-workflow.md",
+    ):
+        assert 'output: "compact"' in (ROOT / relative).read_text(encoding="utf-8")
+
+
 DOCS = ROOT / "docs"
 PACKAGES = ROOT / "packages"
 CLI_REFERENCE = DOCS / "cli-reference.md"

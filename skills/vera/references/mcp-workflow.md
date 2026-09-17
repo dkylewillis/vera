@@ -1,4 +1,13 @@
-# Search, read, and refine with MCP
+# Search, read, and refine with MCP
+
+Prefer `output: "compact"` on both search tools for ordinary research. Results
+retain text, source/page/heading fields, absolute `file` and `chunk_id`, plus
+requested neighbors. Read nonempty `warnings.skipped_files` and
+`warnings.skipped_semantic_model_groups` for incomplete coverage. Use
+`output: "full"` for the legacy diagnostics described below, scores, metadata,
+or explicit `pretty`, `include_figures`, and `include_regions` options; combining
+these options with compact mode is an error. Reuse compact locators directly in
+`vera_get_chunk` and `vera_show_sources`. Cite paraphrases as well as quotes.
 
 Use the available tool matching each VERA action; clients may add a namespace.
 Supply absolute paths accessible to the server. A browser upload does not
@@ -60,8 +69,9 @@ subsequent markers when an MCP Apps host is available, then call
 `vera_show_sources`. Pass `sources`, a list of 1–12 objects with matching
 optional `id`, absolute `file`, and returned `chunk_id`. Do not fabricate
 references. The tool renders an **Open VERA sources** button. Opening it shows
-the citation list; the user selects a citation to load its highlighted PDF page
-or Markdown span. The UI calls `vera_source_page` for navigation; it is not a
+the citation list; the user selects a citation to open the full scrollable PDF
+at its highlighted page, or a Markdown span. The UI calls `vera_source_page`
+to load PDF pages on demand; it is not a
 new search action and the answer is never rendered inside the widget.
 If visual rendering is unavailable, use the returned citation text. Report
 missing originals, unavailable highlights, and partial source failures.
