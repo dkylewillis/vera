@@ -20,9 +20,11 @@ class FakeChild extends EventEmitter {
 
 describe('BridgeManager', () => {
   const children: FakeChild[] = [];
+  const spawnOptions: Array<{ stdio?: unknown }> = [];
 
   afterEach(() => {
     children.length = 0;
+    spawnOptions.length = 0;
     vi.useRealTimers();
   });
 
@@ -41,7 +43,8 @@ describe('BridgeManager', () => {
       readyPollMs: 20,
       maxRestartAttempts: 1,
       fetchReady: async () => true,
-      spawnImpl: ((_exe, _args, _opts) => {
+      spawnImpl: ((_exe, _args, opts) => {
+        spawnOptions.push(opts || {});
         const child = new FakeChild();
         children.push(child);
         return child as unknown as ReturnType<typeof import('node:child_process').spawn>;
@@ -79,6 +82,7 @@ describe('BridgeManager', () => {
     expect(status.state).toBe('connected');
     expect(status.ready).toBe(true);
     expect(children).toHaveLength(1);
+    expect(spawnOptions[0]?.stdio).toEqual(['ignore', 'pipe', 'pipe']);
     expect(await duplicate).toMatchObject({ state: 'connected' });
   });
 

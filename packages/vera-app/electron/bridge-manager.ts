@@ -5,7 +5,7 @@
  * Executable paths and command strings are resolved in main process code.
  */
 
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
 import { delimiter, dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -57,7 +57,7 @@ const MAX_RESTART_ATTEMPTS = 3;
 export class BridgeManager {
   private state: BridgeState = 'disabled';
   private config: BridgeConfig = { libraryPath: '', tunnelId: '' };
-  private child: ChildProcessWithoutNullStreams | null = null;
+  private child: ChildProcess | null = null;
   private policyPath: string | null = null;
   private lastError = '';
   private message = 'Bridge is disabled until you Connect.';
@@ -155,12 +155,13 @@ export class BridgeManager {
       }
 
       const spawnImpl = this.options.spawnImpl || spawn;
+      // stdin is ignored on purpose: the tunnel client must not accept piped input.
       this.child = spawnImpl(tunnelClient, args, {
         cwd: dirname(tunnelClient),
         env,
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
-      }) as ChildProcessWithoutNullStreams;
+      });
 
       const child = this.child;
       child.stdout?.on('data', () => {
