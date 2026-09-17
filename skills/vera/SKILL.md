@@ -30,7 +30,9 @@ Use only the archive or library paths within the user's requested scope.
 ## Choose the available integration
 
 Use MCP whenever `vera_search`, `vera_corpus_search`, or another VERA MCP tool
-is available. The plugin's MCP server supplies the VERA runtime; a missing
+is available. If `vera_library_info` is present, call it to learn whether the
+server is unrestricted local MCP or limited to an approved library root.
+The plugin's MCP server supplies the VERA runtime; a missing
 `vera` command on the agent shell does **not** mean VERA is uninstalled.
 
 If this VERA plugin is active but its MCP tools are absent, do not run the CLI
