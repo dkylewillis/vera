@@ -116,4 +116,49 @@ describe('createSourceDocumentController', () => {
       { scope: 'source' },
     );
   });
+
+  it('opens a shell-selected archive as a standalone document preview', async () => {
+    const openTargetPath = vi.fn(async () => undefined);
+    const call = vi.fn(async () => ({
+      filename: 'manual.pdf',
+      mime_type: 'application/pdf',
+      hash: 'abc',
+      size: 12,
+      url: 'vera-source://manual',
+    })) as SourceDocumentHost['call'];
+    const setViewerMode = vi.fn();
+    const setViewerCollapsed = vi.fn();
+    const controller = createSourceDocumentController(() => host({
+      call,
+      openTargetPath,
+      setPendingSourcePath: vi.fn(),
+      setLibraryInfoPath: vi.fn(),
+      setSourceDocument: vi.fn(),
+      setSourceDocumentPath: vi.fn(),
+      setViewerMode,
+      setViewerCollapsed,
+      setExplorerSelection: vi.fn(),
+      setSelected: vi.fn(),
+    }));
+
+    await controller.previewSourceDocument({
+      path: 'C:\\outside\\manual.vera',
+      name: 'manual.vera',
+      relativePath: 'manual.vera',
+      type: 'vera',
+    }, { preserveLibrary: false, replacePending: true });
+
+    expect(openTargetPath).toHaveBeenCalledWith(
+      'C:\\outside\\manual.vera',
+      { preserveLibrary: false },
+    );
+    expect(call).toHaveBeenCalledWith(
+      { action: SIDECAR_ACTIONS.source, path: 'C:\\outside\\manual.vera' },
+      'Loading source',
+      undefined,
+      { scope: 'source' },
+    );
+    expect(setViewerMode).toHaveBeenCalledWith('document');
+    expect(setViewerCollapsed).toHaveBeenCalledWith(false);
+  });
 });

@@ -84,20 +84,26 @@ export function createSourceDocumentController(getHost: () => SourceDocumentHost
     host.setViewerMode('document');
   }
 
-  async function previewSourceDocument(entry: FolderEntry) {
+  async function previewSourceDocument(
+    entry: FolderEntry,
+    options: { preserveLibrary?: boolean; replacePending?: boolean } = {},
+  ) {
     if (entry.type !== 'vera' && entry.type !== 'pdf' && entry.type !== 'md') return;
     const host = getHost();
-    if (host.pendingSourcePath) return;
+    if (host.pendingSourcePath && !options.replacePending) return;
+    if (options.replacePending) host.cancelActionScope('source');
     const selection: ExplorerSelection = { kind: 'file', path: entry.path, type: entry.type };
     const requestId = ++sourceDocumentLoadRef.current;
     host.setPendingSourcePath(entry.path);
     host.setLibraryInfoPath('');
+    host.setSourceDocument(null);
+    host.setSourceDocumentPath('');
     host.setExplorerSelection(selection);
     host.setSelected(null);
     host.setViewerMode('document');
     host.setViewerCollapsed(false);
     if (entry.type === 'vera') {
-      await host.openTargetPath(entry.path, { preserveLibrary: true });
+      await host.openTargetPath(entry.path, { preserveLibrary: options.preserveLibrary ?? true });
     } else {
       host.applyConvertDefaultsFromSelection(selection);
     }

@@ -1608,7 +1608,18 @@ function App() {
   handleOpenTargetRef.current = (targetPath: string) => {
     routeOpenTarget(targetPath, {
       addFolder: (folderPath) => { void addFolderFromPath(folderPath); },
-      openFile: (filePath) => { void openTargetPath(filePath); },
+      openFile: (filePath) => {
+        const name = fileName(filePath);
+        void previewSourceDocument({
+          path: filePath,
+          name,
+          relativePath: name,
+          type: 'vera',
+        }, {
+          preserveLibrary: false,
+          replacePending: true,
+        });
+      },
     });
   };
 

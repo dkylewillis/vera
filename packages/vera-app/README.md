@@ -15,7 +15,8 @@ a CLI extra (`vera[docling]`) and is not listed in Convert.
 
 Packaged Windows installs register `.vera` archives as editable files. Shell
 activation from File Explorer or the desktop opens the archive in Document
-Preview and reuses the running VERA instance when one exists.
+Preview as a standalone document and reuses the running VERA instance when one
+exists. Shell-open does not persist the archive's parent as a library.
 
 See the [vera-app documentation](https://dkylewillis.github.io/vera/packages/vera-app/)
 for installation, user workflows, and architecture.

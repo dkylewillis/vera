@@ -15,7 +15,10 @@ The installer registers `.vera` archives with Windows. After choosing VERA as
 the default app for `.vera` files, double-click an archive in File Explorer or
 on the desktop to open it directly in Document Preview. If VERA is already
 running, the existing window is restored and reused instead of starting a
-second app instance.
+second app instance. The archive opens as a standalone document and becomes
+the Search/Ask scope; its parent folder is not automatically added to Explorer.
+Use **File > Open Folder...** when you want VERA to remember and watch the
+whole folder as a library.
 
 ## Requirements
 
