@@ -131,7 +131,8 @@ the [two-file plugin walkthrough](https://github.com/dkylewillis/vera/blob/main/
   or preceding steps.
 - Add `--pretty` when a person needs readable, citation-ready context with
   headings and neighboring chunks. Continue to use `--json` for retrieval work
-  that must inspect scores, chunk ids, metadata, figures, or regions.
+  that must inspect scores, chunk ids, metadata, `asset_id` values, or
+  regions. `--pretty --figures` adds captions only.
 - Add `--figures` for charts, diagrams, maps, and captions. That flag returns
   metadata (`asset_id`, caption, page), not pixels. Fetch a stored raster with
   `vera figures FILE --out-dir DIR --json` (attach the `path`) or MCP

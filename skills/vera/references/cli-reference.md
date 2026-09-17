@@ -126,10 +126,6 @@ Options:
   a sibling `.vera` is skipped only when it validates and its stored
   `source_file_hash` matches the current source file.
 - `--json` emits one JSON object.
-- `--pretty` emits Markdown-like readable context and is mutually exclusive
-  with `--json`. It includes result numbers, corpus archive paths, headings,
-  source/page citations, complete hit text, requested neighboring chunks, and
-  requested figure captions. It omits scores, chunk ids, and region coordinates.
 
 Each pipeline owns typed defaults and validation. Advertised integer
 `minimum`/`maximum` bounds are enforced (`chunk_size` 100–3000; hashing
@@ -340,8 +336,16 @@ Options:
 - `--mode semantic|keyword|hybrid` defaults to `hybrid`.
 - `--top-k N` defaults to `10` and must be non-negative.
 - `--context-chunks N` defaults to `0` and must be non-negative.
-- `--figures` adds figure metadata to JSON results.
-- `--regions` adds page highlight regions to JSON results.
+- `--figures` adds figure metadata to JSON results and figure captions to
+  `--pretty` output. It does not write image bytes.
+- `--regions` adds page highlight regions to JSON results (not `--pretty`).
+- `--pretty` emits Markdown-like readable context and is mutually exclusive
+  with `--json`. It includes result numbers, corpus archive paths, headings,
+  source/page citations, complete hit text, requested neighboring chunks, and
+  requested figure captions. It omits scores, chunk ids, and region
+  coordinates. Python callers can render the same text with
+  `vera_ingest.viewer.format_search_context` (not exported from
+  `vera_ingest.__all__`).
 - `--recursive` discovers nested archives for an unindexed directory.
 - `--exclude PATTERN` excludes a relative path or name pattern and is
   repeatable.
