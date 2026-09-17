@@ -12,6 +12,7 @@ import type {
 } from '../src/shared/contracts.js';
 import { IPC_CHANNELS, SIDECAR_ACTIONS } from '../src/shared/protocol.js';
 import { listFolderEntries } from './folder-listing.js';
+import { veraArchivePathFromArgs } from './file-open.js';
 import { type JsonLineEvent } from './json-line-process.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
 import {
@@ -929,9 +930,36 @@ function stopFolderWatchers(): void {
   folderChangeTimers.clear();
 }
 
+let pendingOpenTarget: string | null = null;
+const openTargetReadyWindows = new Set<number>();
+
+function preferredWindow(): BrowserWindow | null {
+  if (!app.isReady()) return null;
+  return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
+}
+
+function revealWindow(win: BrowserWindow): void {
+  if (win.isMinimized()) win.restore();
+  if (!win.isVisible()) win.show();
+  win.focus();
+}
+
 function sendOpenTarget(path: string | null): void {
   if (!path) return;
-  BrowserWindow.getFocusedWindow()?.webContents.send(IPC_CHANNELS.openTarget, path);
+  const win = preferredWindow();
+  if (!win || !openTargetReadyWindows.has(win.webContents.id)) {
+    pendingOpenTarget = path;
+    return;
+  }
+  revealWindow(win);
+  win.webContents.send(IPC_CHANNELS.openTarget, path);
+}
+
+function flushOpenTargets(win: BrowserWindow): void {
+  if (!pendingOpenTarget || win.isDestroyed()) return;
+  const path = pendingOpenTarget;
+  pendingOpenTarget = null;
+  win.webContents.send(IPC_CHANNELS.openTarget, path);
 }
 
 function sendOpenSettings(): void {
@@ -1042,6 +1070,8 @@ function createWindow(): void {
     },
   });
   if (process.platform !== 'darwin') win.setMenuBarVisibility(false);
+  const webContentsId = win.webContents.id;
+  win.webContents.once('destroyed', () => openTargetReadyWindows.delete(webContentsId));
 
   if (app.isPackaged) {
     const packagedIndex = join(app.getAppPath(), 'dist', 'index.html');
@@ -1051,7 +1081,23 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+const singleInstanceLock = app.requestSingleInstanceLock();
+if (!singleInstanceLock) {
+  app.quit();
+} else {
+  sendOpenTarget(veraArchivePathFromArgs(process.argv));
+  app.on('second-instance', (_event, argv) => {
+    sendOpenTarget(veraArchivePathFromArgs(argv));
+    const win = preferredWindow();
+    if (win) revealWindow(win);
+  });
+  app.on('open-file', (event, path) => {
+    event.preventDefault();
+    sendOpenTarget(path.toLowerCase().endsWith('.vera') ? resolve(path) : null);
+  });
+}
+
+if (singleInstanceLock) app.whenReady().then(() => {
   configureSidecarLogFile(sidecarLogFilePath(app.getPath('userData')));
   configureMenu();
   mkdirSync(sourceCacheDir(), { recursive: true });
@@ -1169,6 +1215,12 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.saveAny, async () => {
     const result = await dialog.showSaveDialog({ title: 'Save file' });
     return result.canceled ? null : result.filePath;
+  });
+  ipcMain.handle(IPC_CHANNELS.openTargetReady, (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+    openTargetReadyWindows.add(event.sender.id);
+    flushOpenTargets(win);
   });
   createWindow();
   app.on('activate', () => {

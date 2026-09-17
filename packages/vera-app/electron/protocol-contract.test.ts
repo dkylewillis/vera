@@ -75,4 +75,18 @@ describe('sidecar protocol contract', () => {
     expect(preload).toContain('showConvertLogFolder:');
     expect(preload).toContain('getConvertLogPath:');
   });
+
+  it('registers and routes Windows shell opens for .vera archives', () => {
+    const main = readFileSync(join(root, 'electron/main.ts'), 'utf8');
+    const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+    expect(packageJson.build.fileAssociations).toContainEqual(expect.objectContaining({
+      ext: 'vera',
+      role: 'Editor',
+    }));
+    expect(main).toContain('app.requestSingleInstanceLock()');
+    expect(main).toContain("app.on('second-instance'");
+    expect(main).toContain('veraArchivePathFromArgs(process.argv)');
+    expect(main).toContain('IPC_CHANNELS.openTargetReady');
+    expect(preload).toContain('openTargetReady:');
+  });
 });

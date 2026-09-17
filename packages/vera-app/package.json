@@ -68,6 +68,15 @@
     "win": {
       "target": "nsis"
     },
+    "fileAssociations": [
+      {
+        "ext": "vera",
+        "name": "VERA Archive",
+        "description": "VERA document archive",
+        "icon": "assets/icon.ico",
+        "role": "Editor"
+      }
+    ],
     "nsis": {
       "artifactName": "VERA.Setup.${version}.exe"
     }

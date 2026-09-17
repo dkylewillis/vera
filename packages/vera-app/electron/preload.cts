@@ -42,6 +42,7 @@ const IPC_CHANNELS: typeof IpcChannels = {
   pickPdf: 'vera:pickPdf',
   saveAny: 'vera:saveAny',
   openTarget: 'vera:openTarget',
+  openTargetReady: 'vera:openTargetReady',
   openSettings: 'vera:openSettings',
   folderChanged: 'vera:folderChanged',
   answerEvent: 'vera:answerEvent',
@@ -79,6 +80,7 @@ contextBridge.exposeInMainWorld('vera', {
   setWatchedFolders: (paths: string[]) => ipcRenderer.invoke(IPC_CHANNELS.setWatchedFolders, paths),
   pickPdf: () => ipcRenderer.invoke(IPC_CHANNELS.pickPdf),
   saveAny: () => ipcRenderer.invoke(IPC_CHANNELS.saveAny),
+  openTargetReady: () => ipcRenderer.invoke(IPC_CHANNELS.openTargetReady),
   onOpenTarget: (callback: (path: string) => void) => {
     const listener = (_event: unknown, path: string) => callback(path);
     ipcRenderer.on(IPC_CHANNELS.openTarget, listener);

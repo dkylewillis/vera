@@ -31,6 +31,7 @@ export const IPC_CHANNELS = {
   pickPdf: 'vera:pickPdf',
   saveAny: 'vera:saveAny',
   openTarget: 'vera:openTarget',
+  openTargetReady: 'vera:openTargetReady',
   openSettings: 'vera:openSettings',
   folderChanged: 'vera:folderChanged',
   answerEvent: 'vera:answerEvent',

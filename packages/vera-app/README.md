@@ -13,6 +13,10 @@ Runtime, and OpenAI embeddings. The Windows installer vendors a VERA-exported Mi
 PyTorch). Docling remains
 a CLI extra (`vera[docling]`) and is not listed in Convert.
 
+Packaged Windows installs register `.vera` archives as editable files. Shell
+activation from File Explorer or the desktop opens the archive in Document
+Preview and reuses the running VERA instance when one exists.
+
 See the [vera-app documentation](https://dkylewillis.github.io/vera/packages/vera-app/)
 for installation, user workflows, and architecture.
 

@@ -1612,9 +1612,13 @@ function App() {
     });
   };
 
-  useEffect(() => window.vera.onOpenTarget((targetPath) => {
-    handleOpenTargetRef.current(targetPath);
-  }), []);
+  useEffect(() => {
+    const unsubscribe = window.vera.onOpenTarget((targetPath) => {
+      handleOpenTargetRef.current(targetPath);
+    });
+    void window.vera.openTargetReady();
+    return unsubscribe;
+  }, []);
 
   useEffect(() => window.vera.onOpenSettings(() => {
     setSettingsOpen(true);

@@ -222,6 +222,8 @@ for figure metadata or `--regions` for source highlights.
 
 The [Windows installer](https://github.com/dkylewillis/vera/releases/latest)
 includes conversion, library search, and a PDF viewer with citation highlights.
+Set it as the default app for `.vera` files to open an archive in Document
+Preview by double-clicking it in Windows File Explorer or on the desktop.
 Connect an LLM provider for grounded questions and answers.
 [Desktop guide](docs/desktop-app-getting-started.md).
 

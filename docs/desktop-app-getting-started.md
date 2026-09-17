@@ -11,6 +11,12 @@ Download the `VERA.Setup.<version>.exe` installer from the
 [latest GitHub Release](https://github.com/dkylewillis/vera/releases), run it,
 and then open VERA from the Start menu.
 
+The installer registers `.vera` archives with Windows. After choosing VERA as
+the default app for `.vera` files, double-click an archive in File Explorer or
+on the desktop to open it directly in Document Preview. If VERA is already
+running, the existing window is restored and reused instead of starting a
+second app instance.
+
 ## Requirements
 
 - Git
