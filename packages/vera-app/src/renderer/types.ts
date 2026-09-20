@@ -86,7 +86,8 @@ export interface VeraApi {
   onFolderChanged(callback: (path: string) => void): () => void;
   onAnswerEvent(callback: (data: StreamEvent) => void): () => void;
   bridgeGetStatus(): Promise<BridgeStatus>;
-  bridgeUpdateConfig(config: { libraryPath?: string; tunnelId?: string }): Promise<BridgeStatus>;
+  bridgePickTunnelClient(): Promise<string | null>;
+  bridgeUpdateConfig(config: { libraryPath?: string; tunnelId?: string; tunnelClientPath?: string }): Promise<BridgeStatus>;
   bridgeStart(): Promise<BridgeStatus>;
   bridgeStop(): Promise<BridgeStatus>;
   bridgeSaveCredential(value: string): Promise<CredentialResult>;

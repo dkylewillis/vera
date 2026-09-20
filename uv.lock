@@ -4819,6 +4819,7 @@ dependencies = [
     { name = "vera-embed-openai" },
     { name = "vera-ingest" },
     { name = "vera-ingest-pymupdf" },
+    { name = "vera-mcp", extra = ["viewer"] },
 ]
 
 [package.metadata]
@@ -4827,6 +4828,7 @@ requires-dist = [
     { name = "vera-embed-openai", editable = "packages/vera-embed-openai" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
+    { name = "vera-mcp", extras = ["viewer"], editable = "packages/vera-mcp" },
 ]
 
 [[package]]

@@ -47,6 +47,7 @@ const IPC_CHANNELS: typeof IpcChannels = {
   folderChanged: 'vera:folderChanged',
   answerEvent: 'vera:answerEvent',
   bridgeGetStatus: 'vera:bridgeGetStatus',
+  bridgePickTunnelClient: 'vera:bridgePickTunnelClient',
   bridgeUpdateConfig: 'vera:bridgeUpdateConfig',
   bridgeStart: 'vera:bridgeStart',
   bridgeStop: 'vera:bridgeStop',
@@ -109,7 +110,8 @@ contextBridge.exposeInMainWorld('vera', {
     return () => ipcRenderer.removeListener(IPC_CHANNELS.answerEvent, listener);
   },
   bridgeGetStatus: () => ipcRenderer.invoke(IPC_CHANNELS.bridgeGetStatus),
-  bridgeUpdateConfig: (config: { libraryPath?: string; tunnelId?: string }) =>
+  bridgePickTunnelClient: () => ipcRenderer.invoke(IPC_CHANNELS.bridgePickTunnelClient),
+  bridgeUpdateConfig: (config: { libraryPath?: string; tunnelId?: string; tunnelClientPath?: string }) =>
     ipcRenderer.invoke(IPC_CHANNELS.bridgeUpdateConfig, config),
   bridgeStart: () => ipcRenderer.invoke(IPC_CHANNELS.bridgeStart),
   bridgeStop: () => ipcRenderer.invoke(IPC_CHANNELS.bridgeStop),

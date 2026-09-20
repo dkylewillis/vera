@@ -36,6 +36,7 @@ export const IPC_CHANNELS = {
   folderChanged: 'vera:folderChanged',
   answerEvent: 'vera:answerEvent',
   bridgeGetStatus: 'vera:bridgeGetStatus',
+  bridgePickTunnelClient: 'vera:bridgePickTunnelClient',
   bridgeUpdateConfig: 'vera:bridgeUpdateConfig',
   bridgeStart: 'vera:bridgeStart',
   bridgeStop: 'vera:bridgeStop',

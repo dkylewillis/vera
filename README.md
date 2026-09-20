@@ -228,6 +228,9 @@ includes conversion, library search, and a PDF viewer with citation highlights.
 Set it as the default app for `.vera` files to open an archive in Document
 Preview by double-clicking it in Windows File Explorer or on the desktop.
 Connect an LLM provider for grounded questions and answers.
+For private developer-mode testing, its ChatGPT Bridge setup wizard selects the
+approved library and tunnel client, stores the runtime key securely, verifies
+the local bridge, and records redacted tunnel diagnostics.
 [Desktop guide](docs/desktop-app-getting-started.md).
 
 <img src="docs/assets/readme/hero-grounded-answer.png" alt="VERA desktop app with a document library, an answer with citations, and the supporting passage highlighted in the source PDF" width="85%">

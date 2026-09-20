@@ -104,8 +104,15 @@ tunnel-client doctor --profile vera-desktop-bridge --explain
 tunnel-client run --profile vera-desktop-bridge
 ```
 
-Prefer the Desktop **Settings → Bridge** Connect button once milestone 3 lands.
-Library changes require Disconnect then Connect so the policy file is rewritten.
+Prefer the Desktop **Settings → ChatGPT Bridge** setup wizard once milestone 3
+lands. It selects the approved library and `tunnel-client` executable, stores
+the runtime key in encrypted storage, validates the local paths and `tunnel_…`
+ID, then enables **Save & Connect**. Library, client, or tunnel changes require
+Disconnect then Connect so the policy file is rewritten.
+The Desktop supervisor passes `--health.listen-addr 127.0.0.1:0` and a private
+`--health.url-file`, then polls the reported loopback `/readyz` endpoint. Do
+not assume a fixed health/admin port. Its redacted tunnel-client stdout/stderr
+is appended to VERA's local sidecar log; credentials are removed before logging.
 
 ## Shutdown and revocation
 

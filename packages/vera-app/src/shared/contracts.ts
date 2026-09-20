@@ -278,6 +278,8 @@ export interface AppSettings {
 export interface BridgeSettings {
   library_path?: string;
   tunnel_id?: string;
+  /** Optional absolute path selected in the Bridge setup wizard. */
+  tunnel_client_path?: string;
 }
 
 export type BridgeState =
@@ -296,6 +298,10 @@ export interface BridgeStatus {
   message: string;
   lastError?: string;
   ready: boolean;
+  libraryValid: boolean;
+  tunnelIdValid: boolean;
+  tunnelClientPath: string;
+  clientDetected: boolean;
 }
 
 export interface CredentialResult {

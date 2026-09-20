@@ -4325,6 +4325,164 @@ input.viewerPageInput:focus {
   max-width: 520px;
 }
 
+.bridgeWizard {
+  max-width: 620px;
+}
+
+.bridgeWizardIntro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bridgeWizardIntro h3,
+.bridgeWizardIntro p {
+  margin: 0;
+}
+
+.bridgeWizardIntro h3 {
+  font-size: 15px;
+  color: var(--text-strong);
+}
+
+.bridgeWizardIntro p {
+  margin-top: 3px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.bridgeWizardStep {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface-2);
+}
+
+.bridgeWizardStep.complete {
+  border-color: color-mix(in srgb, var(--good) 35%, var(--border));
+}
+
+.bridgeWizardStepHead {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 9px;
+  color: var(--text-muted);
+}
+
+.bridgeWizardStepHead > svg {
+  margin-top: 2px;
+  color: var(--good);
+}
+
+.bridgeWizardStepHead div {
+  display: grid;
+  gap: 2px;
+}
+
+.bridgeWizardStepHead strong {
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.bridgeWizardStepHead small {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.bridgeStepNumber {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg-surface-3);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.bridgeWizardStep.complete .bridgeStepNumber {
+  color: var(--good);
+  background: var(--good-soft);
+}
+
+.bridgeFieldError {
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.bridgeConnectionCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface-2);
+  color: var(--text-muted);
+}
+
+.bridgeConnectionCard > div {
+  display: grid;
+  gap: 2px;
+}
+
+.bridgeConnectionCard strong {
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.bridgeConnectionCard span {
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.bridgeConnectionCard--connected {
+  color: var(--good);
+  border-color: color-mix(in srgb, var(--good) 35%, var(--border));
+  background: var(--good-soft);
+}
+
+.bridgeConnectionCard--error {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+}
+
+.bridgeAdvanced {
+  padding: 10px 12px;
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.bridgeAdvanced summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-weight: 650;
+}
+
+.bridgeAdvanced p {
+  margin: 9px 0 0;
+  line-height: 1.45;
+}
+
+.bridgeAdvanced code {
+  display: block;
+  margin-top: 9px;
+  padding: 8px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--danger);
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+}
+
 .convertLogPath {
   display: block;
   word-break: break-all;

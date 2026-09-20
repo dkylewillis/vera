@@ -6,7 +6,7 @@
  */
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
 import { delimiter, dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -33,6 +33,10 @@ export interface BridgeStatus {
   message: string;
   lastError?: string;
   ready: boolean;
+  libraryValid: boolean;
+  tunnelIdValid: boolean;
+  tunnelClientPath: string;
+  clientDetected: boolean;
 }
 
 export interface BridgeManagerOptions {
@@ -44,6 +48,10 @@ export interface BridgeManagerOptions {
   extraChildEnv?: () => NodeJS.ProcessEnv;
   now?: () => number;
   fetchReady?: (url: string) => Promise<boolean>;
+  /** Reads the loopback base URL written by tunnel-client after it binds health. */
+  readHealthUrl?: (path: string) => string | null;
+  /** Receives redacted tunnel-client diagnostics for the local app log. */
+  logDiagnostic?: (stream: 'stdout' | 'stderr', chunk: string) => void;
   spawnImpl?: typeof spawn;
   startupTimeoutMs?: number;
   readyPollMs?: number;
@@ -59,16 +67,19 @@ export class BridgeManager {
   private config: BridgeConfig = { libraryPath: '', tunnelId: '' };
   private child: ChildProcessWithoutNullStreams | null = null;
   private policyPath: string | null = null;
+  private healthUrlPath: string | null = null;
   private lastError = '';
   private message = 'Bridge is disabled until you Connect.';
   private restartAttempts = 0;
   private stopping = false;
   private startGeneration = 0;
+  private activeStart: Promise<BridgeStatus> | null = null;
 
   constructor(private readonly options: BridgeManagerOptions) {}
 
   getStatus(hasCredential?: boolean): BridgeStatus {
     const credential = hasCredential ?? Boolean(this.options.readTunnelCredential().trim());
+    const tunnelClient = this.resolveTunnelClient();
     return {
       state: this.state,
       libraryPath: this.config.libraryPath,
@@ -77,46 +88,60 @@ export class BridgeManager {
       message: this.message,
       lastError: this.lastError || undefined,
       ready: this.state === 'connected',
+      libraryValid: this.libraryValid(),
+      tunnelIdValid: this.tunnelIdValid(),
+      tunnelClientPath: tunnelClient || this.config.tunnelClientPath || '',
+      clientDetected: Boolean(tunnelClient),
     };
   }
 
   updateConfig(partial: Partial<BridgeConfig>): BridgeStatus {
-    const libraryChanged =
-      partial.libraryPath !== undefined &&
-      partial.libraryPath.trim() !== this.config.libraryPath;
+    const configChanged =
+      (partial.libraryPath !== undefined && partial.libraryPath.trim() !== this.config.libraryPath) ||
+      (partial.tunnelId !== undefined && partial.tunnelId.trim() !== this.config.tunnelId) ||
+      (partial.tunnelClientPath !== undefined && partial.tunnelClientPath.trim() !== (this.config.tunnelClientPath || ''));
     this.config = {
       libraryPath: partial.libraryPath?.trim() ?? this.config.libraryPath,
       tunnelId: partial.tunnelId?.trim() ?? this.config.tunnelId,
-      tunnelClientPath: partial.tunnelClientPath ?? this.config.tunnelClientPath,
+      tunnelClientPath: partial.tunnelClientPath?.trim() ?? this.config.tunnelClientPath,
     };
-    if (libraryChanged && this.state !== 'disabled' && this.state !== 'needs_setup') {
-      void this.stop('Library changed; reconnect with the new grant.');
+    if (configChanged && this.state !== 'disabled' && this.state !== 'needs_setup') {
+      void this.stop('Bridge settings changed; reconnect to apply them.');
     } else if (this.state === 'disabled' || this.state === 'needs_setup') {
       this.state = this.setupComplete() ? 'disabled' : 'needs_setup';
       this.message = this.setupComplete()
         ? 'Ready to connect.'
-        : 'Select a library folder, tunnel ID, and save a tunnel runtime API key.';
+        : this.setupIssue();
     }
     return this.getStatus();
   }
 
-  async start(): Promise<BridgeStatus> {
-    if (this.state === 'starting' || this.state === 'connected' || this.state === 'reconnecting') {
-      return this.getStatus();
-    }
+  start(): Promise<BridgeStatus> {
+    if (this.activeStart) return this.activeStart;
+    if (this.state === 'connected' || this.state === 'reconnecting') return Promise.resolve(this.getStatus());
+    const operation = this.startInternal();
+    this.activeStart = operation;
+    void operation.finally(() => {
+      if (this.activeStart === operation) this.activeStart = null;
+    });
+    return operation;
+  }
+
+  private async startInternal(): Promise<BridgeStatus> {
     if (!this.options.encryptionAvailable()) {
       return this.fail('Secure credential storage is unavailable on this system.');
     }
     const credential = this.options.readTunnelCredential().trim();
-    if (!this.setupComplete(credential)) {
+    const issue = this.setupIssue(credential);
+    if (issue) {
       this.state = 'needs_setup';
-      this.message = 'Select a library folder, tunnel ID, and save a tunnel runtime API key.';
+      this.message = issue;
       return this.getStatus();
     }
     const tunnelClient = this.resolveTunnelClient();
     if (!tunnelClient) {
       return this.fail(
-        'tunnel-client was not found. Install the Windows client and set VERA_TUNNEL_CLIENT, or place it on PATH.',
+        'tunnel-client was not found. Select it in Bridge Setup or install it on PATH.',
       );
     }
 
@@ -129,13 +154,19 @@ export class BridgeManager {
 
     try {
       this.policyPath = this.writePolicyFile();
+      const healthUrlPath = this.prepareHealthUrlFile();
+      this.healthUrlPath = healthUrlPath;
       const mcp = this.options.resolveMcpCommand();
       const args = [
         'run',
-        '--tunnel-id',
+        '--control-plane.tunnel-id',
         this.config.tunnelId,
-        '--mcp-command',
+        '--mcp.command',
         [mcp.executable, ...mcp.args].map(quoteArg).join(' '),
+        '--health.listen-addr',
+        '127.0.0.1:0',
+        '--health.url-file',
+        healthUrlPath,
       ];
       const env: NodeJS.ProcessEnv = {
         PATH: process.env.PATH,
@@ -160,14 +191,14 @@ export class BridgeManager {
         env,
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
-      }) as ChildProcessWithoutNullStreams;
+      }) as unknown as ChildProcessWithoutNullStreams;
 
       const child = this.child;
-      child.stdout?.on('data', () => {
-        /* tunnel-client diagnostics stay local; never log secrets */
+      child.stdout?.on('data', (chunk: Buffer) => {
+        this.logDiagnostic('stdout', chunk.toString('utf8'), credential);
       });
-      child.stderr?.on('data', () => {
-        /* intentionally not forwarded to renderer logs in PoC */
+      child.stderr?.on('data', (chunk: Buffer) => {
+        this.logDiagnostic('stderr', chunk.toString('utf8'), credential);
       });
       child.on('error', (error: Error) => {
         if (this.child === child) this.child = null;
@@ -182,7 +213,7 @@ export class BridgeManager {
         );
       });
 
-      const ready = await this.waitUntilReady(generation);
+      const ready = await this.waitUntilReady(generation, healthUrlPath);
       if (!ready) {
         await this.stopInternal('Startup timed out before tunnel-client became ready.');
         return this.fail('Startup timed out before tunnel-client became ready.');
@@ -231,6 +262,7 @@ export class BridgeManager {
       await delay(50);
     }
     this.cleanupPolicy();
+    this.cleanupHealthUrlFile();
     this.stopping = false;
     if (reason) this.message = reason;
   }
@@ -238,6 +270,9 @@ export class BridgeManager {
   private async handleExit(generation: number, reason: string): Promise<void> {
     if (generation !== this.startGeneration || this.stopping) return;
     this.cleanupPolicy();
+    // A startup promise can still be awaiting readiness after the child exits.
+    // Do not let that stale promise suppress the scheduled reconnect.
+    this.activeStart = null;
     if (this.restartAttempts >= (this.options.maxRestartAttempts ?? MAX_RESTART_ATTEMPTS)) {
       this.fail(reason);
       return;
@@ -252,7 +287,7 @@ export class BridgeManager {
     await this.start();
   }
 
-  private async waitUntilReady(generation: number): Promise<boolean> {
+  private async waitUntilReady(generation: number, healthUrlPath: string): Promise<boolean> {
     const timeout = this.options.startupTimeoutMs ?? STARTUP_TIMEOUT_MS;
     const poll = this.options.readyPollMs ?? READY_POLL_MS;
     const started = (this.options.now || Date.now)();
@@ -268,9 +303,10 @@ export class BridgeManager {
       });
     while ((this.options.now || Date.now)() - started < timeout) {
       if (generation !== this.startGeneration || this.stopping || !this.child) return false;
-      if (await fetchReady('http://127.0.0.1:8787/readyz')) return true;
-      // Some builds expose readiness only on /healthz.
-      if (await fetchReady('http://127.0.0.1:8787/healthz')) return true;
+      const baseUrl = this.readValidatedHealthUrl(healthUrlPath);
+      if (baseUrl && await fetchReady(`${baseUrl}/readyz`)) return true;
+      // Some client builds expose liveness only on /healthz.
+      if (baseUrl && await fetchReady(`${baseUrl}/healthz`)) return true;
       await delay(poll);
     }
     return false;
@@ -290,6 +326,18 @@ export class BridgeManager {
     return path;
   }
 
+  private prepareHealthUrlFile(): string {
+    const dir = join(this.options.userDataDir, 'bridge');
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, 'health-url.txt');
+    try {
+      unlinkSync(path);
+    } catch {
+      /* A missing file is expected before tunnel-client starts. */
+    }
+    return path;
+  }
+
   private cleanupPolicy(): void {
     if (!this.policyPath) return;
     try {
@@ -300,9 +348,62 @@ export class BridgeManager {
     this.policyPath = null;
   }
 
+  private cleanupHealthUrlFile(): void {
+    if (!this.healthUrlPath) return;
+    try {
+      unlinkSync(this.healthUrlPath);
+    } catch {
+      /* The client may have failed before creating the file. */
+    }
+    this.healthUrlPath = null;
+  }
+
+  private readValidatedHealthUrl(path: string): string | null {
+    const readHealthUrl = this.options.readHealthUrl || defaultReadHealthUrl;
+    const value = readHealthUrl(path);
+    if (!value) return null;
+    try {
+      const url = new URL(value.trim());
+      const loopback = url.hostname === '127.0.0.1' || url.hostname === '::1' || url.hostname === '[::1]';
+      if (url.protocol !== 'http:' || !loopback || !url.port || url.pathname !== '/') return null;
+      return url.toString().replace(/\/$/u, '');
+    } catch {
+      return null;
+    }
+  }
+
+  private logDiagnostic(stream: 'stdout' | 'stderr', chunk: string, credential: string): void {
+    const logger = this.options.logDiagnostic;
+    if (!logger || !chunk) return;
+    logger(stream, redactBridgeDiagnostic(chunk, credential));
+  }
+
   private setupComplete(credential?: string): boolean {
+    return !this.setupIssue(credential);
+  }
+
+  private setupIssue(credential?: string): string {
+    if (!this.config.libraryPath) return 'Choose the approved library folder.';
+    if (!this.libraryValid()) return 'The approved library folder does not exist or is not a folder.';
+    if (!this.config.tunnelId) return 'Enter the Secure MCP Tunnel ID.';
+    if (!this.tunnelIdValid()) return 'Tunnel IDs must start with tunnel_ and contain only letters, numbers, underscores, or hyphens.';
     const key = credential ?? this.options.readTunnelCredential().trim();
-    return Boolean(this.config.libraryPath && this.config.tunnelId && key);
+    if (!key) return 'Save the tunnel runtime API key.';
+    if (!this.resolveTunnelClient()) return 'Select tunnel-client or install it on PATH.';
+    return '';
+  }
+
+  private libraryValid(): boolean {
+    if (!this.config.libraryPath) return false;
+    try {
+      return statSync(this.config.libraryPath).isDirectory();
+    } catch {
+      return false;
+    }
+  }
+
+  private tunnelIdValid(): boolean {
+    return /^tunnel_[A-Za-z0-9_-]+$/u.test(this.config.tunnelId);
   }
 
   private resolveTunnelClient(): string | null {
@@ -321,8 +422,31 @@ export class BridgeManager {
 }
 
 function quoteArg(value: string): string {
-  if (!/[ \t"]/u.test(value)) return value;
-  return `"${value.replace(/"/g, '\\"')}"`;
+  // tunnel-client parses this embedded command. Its Windows parser treats
+  // backslashes as escapes, while Windows accepts forward-slash file paths.
+  const normalized = process.platform === 'win32' ? value.replace(/\\/g, '/') : value;
+  if (!/[ \t"]/u.test(normalized)) return normalized;
+  return `"${normalized.replace(/"/g, '\\"')}"`;
+}
+
+function defaultReadHealthUrl(path: string): string | null {
+  try {
+    return readFileSync(path, 'utf8').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Remove credentials from tunnel-client output before it reaches a local log. */
+export function redactBridgeDiagnostic(text: string, credential: string): string {
+  let redacted = text;
+  if (credential) {
+    redacted = redacted.replaceAll(credential, '[REDACTED]');
+  }
+  return redacted
+    .replace(/\bsk-[A-Za-z0-9_-]+\b/gu, '[REDACTED]')
+    .replace(/\b(Bearer\s+)[^\s]+/giu, '$1[REDACTED]')
+    .replace(/\b(CONTROL_PLANE_API_KEY|OPENAI_API_KEY)\s*=\s*[^\s]+/giu, '$1=[REDACTED]');
 }
 
 /** Locate tunnel-client without accepting renderer-supplied executables. */

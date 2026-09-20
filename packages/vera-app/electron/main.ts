@@ -507,12 +507,14 @@ const bridgeManager = new BridgeManager({
   readTunnelCredential,
   encryptionAvailable: () => safeStorage.isEncryptionAvailable(),
   extraChildEnv: bridgeChildEnv,
+  logDiagnostic: (stream, chunk) => logSidecarStderr(`tunnel-client ${stream}`, chunk),
 });
 
 function syncBridgeConfig(bridge: BridgeSettings | undefined): void {
   bridgeManager.updateConfig({
     libraryPath: bridge?.library_path || '',
     tunnelId: bridge?.tunnel_id || '',
+    tunnelClientPath: bridge?.tunnel_client_path || '',
   });
 }
 
@@ -705,12 +707,13 @@ function withRuntime(settings: AppSettings): AppSettings {
 
 function normalizeBridgeSettings(raw: unknown): BridgeSettings {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { library_path: '', tunnel_id: '' };
+    return { library_path: '', tunnel_id: '', tunnel_client_path: '' };
   }
   const value = raw as Record<string, unknown>;
   return {
     library_path: typeof value.library_path === 'string' ? value.library_path.trim() : '',
     tunnel_id: typeof value.tunnel_id === 'string' ? value.tunnel_id.trim() : '',
+    tunnel_client_path: typeof value.tunnel_client_path === 'string' ? value.tunnel_client_path.trim() : '',
   };
 }
 
@@ -794,7 +797,7 @@ function readSettings(): AppSettings {
 
 function writeSettings(settings: AppSettings): AppSettings {
   mkdirSync(app.getPath('userData'), { recursive: true });
-  let previousBridge: BridgeSettings = { library_path: '', tunnel_id: '' };
+  let previousBridge: BridgeSettings = { library_path: '', tunnel_id: '', tunnel_client_path: '' };
   try {
     const raw = JSON.parse(readFileSync(settingsPath(), 'utf8')) as Partial<AppSettings>;
     previousBridge = normalizeBridgeSettings(raw.bridge);
@@ -907,6 +910,18 @@ async function pickFolderPath(): Promise<string | null> {
   const result = await dialog.showOpenDialog({
     title: 'Open VERA library folder',
     properties: ['openDirectory'],
+  });
+  return result.canceled ? null : result.filePaths[0];
+}
+
+async function pickTunnelClientPath(): Promise<string | null> {
+  const result = await dialog.showOpenDialog({
+    title: 'Select OpenAI tunnel-client',
+    buttonLabel: 'Use tunnel-client',
+    properties: ['openFile'],
+    filters: process.platform === 'win32'
+      ? [{ name: 'Windows applications', extensions: ['exe'] }]
+      : [{ name: 'Executables', extensions: ['*'] }],
   });
   return result.canceled ? null : result.filePaths[0];
 }
@@ -1297,10 +1312,12 @@ if (singleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.saveEnvSecret, async (_event, name: string, value: string) => saveEnvSecret(String(name || ''), String(value || '')));
   ipcMain.handle(IPC_CHANNELS.clearEnvSecret, async (_event, name: string) => clearEnvSecret(String(name || '')));
   ipcMain.handle(IPC_CHANNELS.bridgeGetStatus, async () => bridgeManager.getStatus());
-  ipcMain.handle(IPC_CHANNELS.bridgeUpdateConfig, async (_event, config: { libraryPath?: string; tunnelId?: string }) => {
+  ipcMain.handle(IPC_CHANNELS.bridgePickTunnelClient, async () => pickTunnelClientPath());
+  ipcMain.handle(IPC_CHANNELS.bridgeUpdateConfig, async (_event, config: { libraryPath?: string; tunnelId?: string; tunnelClientPath?: string }) => {
     const status = bridgeManager.updateConfig({
       libraryPath: typeof config?.libraryPath === 'string' ? config.libraryPath : undefined,
       tunnelId: typeof config?.tunnelId === 'string' ? config.tunnelId : undefined,
+      tunnelClientPath: typeof config?.tunnelClientPath === 'string' ? config.tunnelClientPath : undefined,
     });
     const settings = readSettings();
     writeSettings({
@@ -1308,6 +1325,7 @@ if (singleInstanceLock) app.whenReady().then(() => {
       bridge: {
         library_path: status.libraryPath,
         tunnel_id: status.tunnelId,
+        tunnel_client_path: status.tunnelClientPath,
       },
     });
     return publishBridgeStatus(status);

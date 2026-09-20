@@ -2,17 +2,17 @@
   "model": "hashing",
   "archives": {
     "pdf": {
-      "path": "fixtures\\bridge-poc\\approved\\detention-manual.vera",
+      "path": "C:\\Users\\dkyle\\source\\repos\\vera\\fixtures\\bridge-poc\\approved\\detention-manual.vera",
       "chunk_id": "chunk_000001",
       "text_preview": "Detention ponds must hold the 10-year storm when impervious area increases."
     },
     "markdown": {
-      "path": "fixtures\\bridge-poc\\approved\\notes.vera",
+      "path": "C:\\Users\\dkyle\\source\\repos\\vera\\fixtures\\bridge-poc\\approved\\notes.vera",
       "chunk_id": "chunk_000001",
       "text_preview": "Field notes Pipe sizing for the outfall follows the municipal chart in section 4.2. company: GRID"
     },
     "sentinel": {
-      "path": "fixtures\\bridge-poc\\sibling-unapproved\\secret.vera",
+      "path": "C:\\Users\\dkyle\\source\\repos\\vera\\fixtures\\bridge-poc\\sibling-unapproved\\secret.vera",
       "chunk_id": "chunk_000001",
       "text_preview": "UNIQUE_SENTINEL_PHRASE_XYZ must never appear in approved-library answers."
     }

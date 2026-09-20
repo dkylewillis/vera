@@ -820,7 +820,11 @@ structured `results` array.
 `vera_library_info` reports whether the process is unrestricted local MCP or a
 Desktop bridge grant (`library_root`, bounds, disclosure). Bridge mode
 (`vera-mcp-bridge` / `vera-sidecar mcp-bridge`) requires `VERA_BRIDGE_POLICY_PATH`
-and omits `vera_validate`.
+and omits `vera_validate`. When VERA Desktop supervises that bridge, it lets
+`tunnel-client` select a loopback health port and reads the reported URL. Its
+ChatGPT Bridge setup wizard persists an approved library and optional client
+path, validates them before connecting, and the local app log receives redacted
+tunnel diagnostics only.
 `vera_inspect` and `vera_validate` include both `file` (requested) and
 `path` (opened). `vera_inspect` is the inspect JSON object (including `ocr`);
 there is no text-mode omit. `vera_get_figure` returns native image content for one

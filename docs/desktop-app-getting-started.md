@@ -29,6 +29,13 @@ sidecar. Tunnel runtime API keys are stored with Electron `safeStorage`. Setup
 and demo checklists live in
 [desktop-bridge-poc-setup-runbook.md](desktop-bridge-poc-setup-runbook.md) and
 [desktop-bridge-poc-demo-checklist.md](desktop-bridge-poc-demo-checklist.md).
+The setup wizard collects the approved library, a tunnel ID, a securely stored
+runtime key, and a detected or selected `tunnel-client` executable. It checks
+that the selected paths exist and validates the tunnel ID before it enables
+**Save & Connect**. The bridge asks `tunnel-client` to select a loopback health
+port and reads its reported URL rather than assuming a fixed port. Sanitized
+client diagnostics are appended to the local sidecar log; API keys are never
+written there.
 
 ## Requirements
 

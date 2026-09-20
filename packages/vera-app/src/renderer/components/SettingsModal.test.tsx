@@ -75,6 +75,16 @@ describe('SettingsModal', () => {
     expect(html).not.toContain('Paste OpenAI key');
   });
 
+  it('opens the Bridge setup wizard when requested', () => {
+    const html = renderSettings('bridge');
+    expect(html).toContain('Set up ChatGPT Bridge');
+    expect(html).toContain('Choose the approved library');
+    expect(html).toContain('Locate OpenAI tunnel-client');
+    expect(html).toContain('Enter the tunnel credentials');
+    expect(html).toContain('Save &amp; Connect');
+    expect(html).toContain('Copy summary');
+  });
+
   it('opens the Embeddings section with hosted credential fields', () => {
     const html = renderToStaticMarkup(
       <SettingsModal

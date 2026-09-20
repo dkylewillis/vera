@@ -249,7 +249,11 @@ Desktop can supervise OpenAI Secure MCP Tunnel with a restricted MCP child
 `vera mcp` remains unrestricted for local IDE use. See
 [desktop-bridge-poc.md](desktop-bridge-poc.md) and the
 [setup runbook](desktop-bridge-poc-setup-runbook.md). In the app, open
-**Settings → ChatGPT Bridge**.
+**Settings → ChatGPT Bridge**. Its setup wizard persists a selected
+`tunnel-client` path (or uses automatic detection), checks the approved library
+and tunnel ID before connecting, then has `tunnel-client` choose a loopback
+health port and reads the URL it reports. It records redacted tunnel diagnostics
+in the local sidecar log.
 
 ## CLI and MCP differences
 

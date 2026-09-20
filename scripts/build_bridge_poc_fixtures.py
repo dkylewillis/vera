@@ -7,8 +7,9 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [
+    str(ROOT / "tests"),
     str(ROOT / "packages" / "vera-doc" / "src"),
     str(ROOT / "packages" / "vera-ingest" / "src"),
     str(ROOT / "packages" / "vera-ingest-pymupdf" / "src"),
