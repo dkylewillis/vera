@@ -33,6 +33,7 @@ weights.
 
 | Workflow | Existing actions |
 | --- | --- |
+| Library grant | `vera_library_info` |
 | Search | `vera_search`, `vera_corpus_search` |
 | Read | `vera_get_chunk`, `vera_get_page` |
 | Refine | Repeat search with query, mode, `where`, and `context_chunks`; corpus also supports `includes`, `excludes`, `recursive` |
