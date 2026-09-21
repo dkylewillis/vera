@@ -100,7 +100,7 @@ archives when a current health check is needed.
 
 ## Performance baseline
 
-The deterministic benchmark in `benchmarks/benchmark_corpus.py` generated 100
+The deterministic benchmark in `dev/benchmarks/benchmark_corpus.py` generated 100
 archives with 100 chunks each (10,000 chunks total). On the development Windows
 machine, three hybrid searches produced:
 

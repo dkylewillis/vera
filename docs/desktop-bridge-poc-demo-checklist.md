@@ -8,7 +8,7 @@ validated. Local policy and packaging checks can still pass.
 
 ## Demo script
 
-1. In Desktop **Settings → ChatGPT Bridge**, select `fixtures/bridge-poc/approved`,
+1. In Desktop **Settings → ChatGPT Bridge**, select `dev/fixtures/bridge-poc/approved`,
    enter tunnel ID + runtime key, Connect.
 2. In ChatGPT developer mode, call `vera_library_info`, then hybrid search
    “how big should the detention pond be”.
