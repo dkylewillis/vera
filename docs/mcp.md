@@ -245,9 +245,11 @@ retrieval workflow for compatible agents.
 
 Desktop can supervise OpenAI Secure MCP Tunnel with a restricted MCP child
 (`vera-sidecar mcp-bridge` / `vera-mcp-bridge`). That mode requires
-`VERA_BRIDGE_POLICY_PATH` and only searches an approved local library. Ordinary
-`vera mcp` remains unrestricted for local IDE use. See
-[desktop-bridge-poc.md](desktop-bridge-poc.md) and the
+`VERA_BRIDGE_POLICY_PATH` and only searches `.vera` archives under an approved
+local library (`top_k` ≤ 20, `context_chunks` ≤ 2). It does not register `vera_validate`
+and unsets `VERA_AUTO_INSTALL_SEMANTIC_DEPS`. Missing or
+invalid policy exits 2. Ordinary `vera mcp` remains unrestricted for local IDE
+use. See [desktop-bridge-poc.md](desktop-bridge-poc.md) and the
 [setup runbook](desktop-bridge-poc-setup-runbook.md). In the app, open
 **Settings → ChatGPT Bridge**. Its setup wizard persists a selected
 `tunnel-client` path (or uses automatic detection), checks the approved library

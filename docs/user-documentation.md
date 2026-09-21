@@ -24,6 +24,8 @@ figures, and citation metadata in one portable `.vera` file.
 - [Evaluate retrieval quality](evaluation.md)
 - [Use the Python API](python-api.md)
 - [Connect an MCP client](mcp.md)
+- [VERA plugin](plugin.md) — local Codex/ChatGPT plugin, MCP tools, and source viewer
+- [Desktop ChatGPT bridge](desktop-bridge-poc.md) — fail-closed Secure MCP Tunnel PoC
 
 ## Reference
 

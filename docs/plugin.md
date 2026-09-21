@@ -198,10 +198,14 @@ a separate integration check. See tests/test_source_viewer_browser.py in the
 vera-mcp package. The protocol follows the
 [OpenAI UI guide](https://developers.openai.com/plugins/build/chatgpt-ui/).
 
-## Proposed Desktop bridge
+## Desktop ChatGPT bridge (separate from this plugin)
 
-The Desktop-managed connection is a proposed feature, not current plugin behavior.
-See the [proof-of-concept build plan](desktop-bridge-poc.md) for implementation
-milestones and acceptance criteria, and the
+This plugin launches unrestricted `vera-mcp` over local stdio. Desktop
+**File > Settings → ChatGPT Bridge** is a separate, implemented developer-mode
+PoC: it supervises Secure MCP Tunnel and a fail-closed `mcp-bridge` child that
+can search only one approved library. That mode does not auto-install Sentence
+Transformers and does not register `vera_validate`. See the
+[Desktop bridge PoC](desktop-bridge-poc.md) for the current grant, tools, and
+supervisor behavior, and the
 [production architecture proposal](desktop-bridge-production.md) for the
 public relay, account linking, device authorization, and rollout design.

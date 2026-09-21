@@ -118,6 +118,8 @@ def test_documentation_index_lists_user_guides():
         "evaluation.md",
         "python-api.md",
         "mcp.md",
+        "plugin.md",
+        "desktop-bridge-poc.md",
         "cli-reference.md",
         "library-index-structure.md",
     }
@@ -1130,3 +1132,43 @@ def test_inspect_diagnostics_and_fts_fallback_docs():
     assert "Text-mode `vera inspect` omits it" in basic
     assert "docs/validation-and-export.md" in readme
     assert "there is no text-mode omit" in skill_cli
+
+
+def test_chatgpt_bridge_and_shell_open_docs():
+    """Keep the shipped Desktop bridge and .vera shell-open behavior current."""
+    poc = (DOCS / "desktop-bridge-poc.md").read_text(encoding="utf-8")
+    runbook = (DOCS / "desktop-bridge-poc-setup-runbook.md").read_text(encoding="utf-8")
+    plugin = (DOCS / "plugin.md").read_text(encoding="utf-8")
+    mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
+    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
+    architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    index = (DOCS / "user-documentation.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    skill_mcp = (ROOT / "skills" / "vera" / "references" / "mcp-workflow.md").read_text(
+        encoding="utf-8"
+    )
+    mcp_pkg = (DOCS / "packages" / "vera-mcp.md").read_text(encoding="utf-8")
+
+    assert "Status: **implemented locally**" in poc
+    assert "proposed, not implemented" not in poc
+    assert "introduces no current behavior" not in poc
+    assert "VERA_BRIDGE_POLICY_PATH" in poc
+    assert "`vera_validate` is omitted" in poc
+    assert '"max_top_k": 20' in poc
+    assert "once milestone 3" not in runbook
+    assert "after milestones 1–3" not in runbook
+    assert "not current plugin behavior" not in plugin
+    assert "does not register `vera_validate`" in plugin
+    assert "does not register `vera_validate`" in mcp
+    assert "Desktop bridge mode omits it" in skill_mcp
+    assert "standalone document" in troubleshooting
+    assert "timed out after 300 seconds" in troubleshooting
+    assert "Access denied by VERA bridge policy." in troubleshooting
+    assert "`<label> timed out after 300 seconds`" in architecture
+    assert "`preserveLibrary: false`" in architecture
+    assert "](plugin.md)" in index
+    assert "](desktop-bridge-poc.md)" in index
+    assert "ChatGPT Bridge" in changelog
+    assert "standalone" in changelog
+    assert "vera-mcp-bridge" in mcp_pkg
+    assert "omits `vera_validate`" in mcp_pkg

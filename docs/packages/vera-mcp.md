@@ -34,11 +34,19 @@ uv run --extra mcp vera mcp
 The server communicates over stdio. Do not add `--json` or write unrelated
 output to stdout.
 
+`vera-mcp-bridge` (and `vera-sidecar mcp-bridge`) is the fail-closed Desktop
+ChatGPT Bridge entry. It requires `VERA_BRIDGE_POLICY_PATH`, omits `vera_validate`,
+and unsets `VERA_AUTO_INSTALL_SEMANTIC_DEPS`. Ordinary
+`vera-mcp` / `vera mcp` stays unrestricted.
+
 ## Documentation
 
 - [MCP setup and client configuration](../mcp.md#configure-a-client).
-- [MCP tools](../mcp.md#tools) — search, corpus search, inspect, validate,
-  figures, figure image fetch, pages, chunk fetch, and regions.
+- [MCP tools](../mcp.md#tools) — search, corpus search, inspect, validate
+  (unrestricted local MCP only), figures, figure image fetch, pages, chunk
+  fetch, and regions.
+- [Desktop ChatGPT bridge](../desktop-bridge-poc.md) — restricted `mcp-bridge`
+  grant and supervisor.
 - [Recommended agent behavior](../mcp.md#recommended-agent-behavior).
 - [Portable Agent Skill](../agent-skills.md).
 - [MCP troubleshooting](../mcp.md#troubleshooting).
