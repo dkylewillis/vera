@@ -19,4 +19,17 @@ describe('veraArchivePathFromArgs', () => {
   it('ignores unrelated arguments', () => {
     expect(veraArchivePathFromArgs(['electron', '.', '--inspect', 'manual.pdf'])).toBeNull();
   });
+
+  it('does not treat .vera as a substring of another extension', () => {
+    expect(veraArchivePathFromArgs(['electron', 'C:\\Docs\\manual.vera.bak'])).toBeNull();
+  });
+
+  it('uses the first archive argument after Electron flags', () => {
+    expect(veraArchivePathFromArgs([
+      'electron',
+      '--',
+      'C:\\Docs\\first.vera',
+      'C:\\Docs\\second.vera',
+    ])).toBe(resolve('C:\\Docs\\first.vera'));
+  });
 });

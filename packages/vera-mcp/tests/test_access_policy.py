@@ -249,3 +249,193 @@ def test_junction_escape_denied(approved_library):
     escaped = link / "secret.vera"
     with pytest.raises(AccessDenied):
         policy.check_archive(escaped)
+
+
+def test_symlink_escape_denied(approved_library):
+    policy = approved_library["policy"]
+    file_link = approved_library["root"] / "escape.vera"
+    try:
+        file_link.symlink_to(approved_library["sentinel"])
+    except OSError as exc:
+        pytest.skip(f"could not create symlink: {exc}")
+    with pytest.raises(AccessDenied):
+        policy.check_archive(file_link)
+
+    dir_link = approved_library["root"] / "escape_dir"
+    try:
+        dir_link.symlink_to(approved_library["sibling"], target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"could not create directory symlink: {exc}")
+    with pytest.raises(AccessDenied):
+        policy.check_archive(dir_link / "secret.vera")
+
+
+def test_rejects_unc_style_and_relative_paths(approved_library):
+    policy = approved_library["policy"]
+    with pytest.raises(AccessDenied, match="Network and device"):
+        canonicalize_path("//server/share/library", require_directory=True)
+    with pytest.raises(AccessDenied, match="absolute"):
+        policy.check_archive("manual.vera")
+    with pytest.raises(AccessDenied, match="empty"):
+        canonicalize_path("  ", require_directory=False)
+    with pytest.raises(AccessDenied, match=r"\.vera"):
+        policy.check_archive(approved_library["root"] / "manual.pdf")
+    missing = approved_library["root"] / "missing.vera"
+    with pytest.raises(AccessDenied, match="not found"):
+        policy.check_archive(missing)
+
+
+def test_policy_mapping_validates_bounds_and_tools(approved_library):
+    root = str(approved_library["root"])
+    with pytest.raises(ValueError, match="max_top_k"):
+        AccessPolicy.from_mapping({"library_root": root, "max_top_k": 0})
+    with pytest.raises(ValueError, match="max_context_chunks"):
+        AccessPolicy.from_mapping({"library_root": root, "max_context_chunks": -1})
+    with pytest.raises(ValueError, match="non-empty list"):
+        AccessPolicy.from_mapping({"library_root": root, "allowed_tools": []})
+    with pytest.raises(ValueError, match="unsupported"):
+        AccessPolicy.from_mapping({"library_root": root, "allowed_tools": ["vera_validate"]})
+    policy = AccessPolicy.from_mapping(
+        {"library_root": root, "max_context_chunks": 0, "allowed_tools": ["vera_search"]}
+    )
+    assert policy.max_context_chunks == 0
+    assert policy.allowed_tools == frozenset({"vera_search"})
+    with pytest.raises(AccessDenied):
+        policy.require_tool("vera_corpus_search")
+
+
+def test_clamps_reject_out_of_range_and_cap_high_values(approved_library):
+    policy = AccessPolicy.from_mapping(
+        {
+            "library_root": str(approved_library["root"]),
+            "max_top_k": 3,
+            "max_context_chunks": 1,
+        }
+    )
+    assert policy.clamp_top_k(1) == 1
+    assert policy.clamp_top_k(99) == 3
+    assert policy.clamp_context_chunks(0) == 0
+    assert policy.clamp_context_chunks(8) == 1
+    with pytest.raises(AccessDenied, match="top_k"):
+        policy.clamp_top_k(0)
+    with pytest.raises(AccessDenied, match="context_chunks"):
+        policy.clamp_context_chunks(-1)
+
+
+@pytest.mark.anyio
+async def test_bridge_search_clamps_and_omits_disallowed_tools(approved_library):
+    from vera_mcp import build_server
+
+    policy = AccessPolicy.from_mapping(
+        {
+            "library_root": str(approved_library["root"]),
+            "max_top_k": 1,
+            "allowed_tools": ["vera_library_info", "vera_search"],
+        }
+    )
+    server = build_server(policy=policy)
+    names = {tool.name for tool in await server.list_tools()}
+    assert names == {"vera_library_info", "vera_search"}
+
+    with pytest.raises(Exception, match="(?i)denied|top_k"):
+        await server.call_tool(
+            "vera_search",
+            {
+                "file": str(approved_library["archive"]),
+                "query": "restaurant",
+                "mode": "keyword",
+                "top_k": 0,
+            },
+        )
+
+    payload = _payload(
+        await server.call_tool(
+            "vera_search",
+            {
+                "file": str(approved_library["archive"]),
+                "query": "restaurant",
+                "mode": "keyword",
+                "top_k": 50,
+            },
+        )
+    )
+    assert 1 <= len(payload["results"]) <= 1
+
+
+@pytest.mark.anyio
+async def test_bridge_corpus_search_denies_outside_and_drops_escaped_archives(
+    approved_library, monkeypatch
+):
+    from vera_doc.corpus import VeraCorpus
+    from vera_mcp import build_server
+
+    policy = approved_library["policy"]
+    real_open = VeraCorpus.open
+
+    def open_with_escaped_member(directory, **kwargs):
+        corpus = real_open(directory, **kwargs)
+        corpus.paths = [*corpus.paths, str(approved_library["sentinel"])]
+        return corpus
+
+    monkeypatch.setattr(VeraCorpus, "open", open_with_escaped_member)
+    server = build_server(policy=policy)
+    with pytest.raises(Exception, match="(?i)denied"):
+        await server.call_tool(
+            "vera_corpus_search",
+            {
+                "directory": str(approved_library["sibling"]),
+                "query": "UNIQUE_SENTINEL_PHRASE_XYZ",
+                "mode": "keyword",
+                "top_k": 5,
+            },
+        )
+
+    payload = _payload(
+        await server.call_tool(
+            "vera_corpus_search",
+            {
+                "directory": str(approved_library["root"]),
+                "query": "UNIQUE_SENTINEL_PHRASE_XYZ",
+                "mode": "keyword",
+                "top_k": 5,
+            },
+        )
+    )
+    results_blob = json.dumps(payload.get("results", []))
+    skipped = payload.get("skipped_files", [])
+    assert "UNIQUE_SENTINEL" not in results_blob
+    assert str(approved_library["sentinel"]) not in json.dumps(payload)
+    assert any(item.get("category") == "denied" for item in skipped)
+    assert all(
+        item.get("file") == "(omitted)" for item in skipped if item.get("category") == "denied"
+    )
+
+
+@pytest.mark.anyio
+async def test_show_sources_honors_max_sources(approved_library):
+    from vera_mcp import build_server
+
+    policy = AccessPolicy(
+        library_root=approved_library["policy"].library_root,
+        max_sources=1,
+    )
+    server = build_server(policy=policy)
+    chunk_id = _first_chunk(approved_library["archive"])
+    with pytest.raises(Exception, match="(?i)at most 1 source"):
+        await server.call_tool(
+            "vera_show_sources",
+            {
+                "sources": [
+                    {
+                        "file": str(approved_library["archive"]),
+                        "chunk_id": chunk_id,
+                        "id": "C1",
+                    },
+                    {
+                        "file": str(approved_library["archive"]),
+                        "chunk_id": chunk_id,
+                        "id": "C2",
+                    },
+                ]
+            },
+        )
