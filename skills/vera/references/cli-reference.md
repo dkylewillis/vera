@@ -803,9 +803,9 @@ still prints the report and exits 1.
 Runs the long-lived stdio MCP server. It does not accept `--json`; protocol
 messages use stdout, so do not mix ordinary output into that stream.
 
-MCP provides `vera_search`, `vera_corpus_search`, `vera_inspect`,
-`vera_validate`, `vera_figures`, `vera_get_figure`, `vera_get_page`,
-`vera_get_chunk`, and
+MCP provides `vera_library_info`, `vera_search`, `vera_corpus_search`,
+`vera_inspect`, `vera_validate`, `vera_figures`, `vera_get_figure`,
+`vera_get_page`, `vera_get_chunk`, and
 `vera_get_chunk_regions`. `vera_search` and `vera_corpus_search` default
 `top_k` to `10`, matching `vera search` and `VeraDocument.search`.
 Both MCP search tools accept `output: "compact" | "full"` (default `"full"`).

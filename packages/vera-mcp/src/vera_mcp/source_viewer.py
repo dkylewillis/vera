@@ -234,7 +234,11 @@ def register_source_viewer(server, policy: AccessPolicy | None = None) -> None:
                 message = str(exc)
                 if ":\\" in message or message.startswith("/") or "\\\\" in message:
                     message = "Source could not be opened."
-                card = {"file": "(omitted)" if policy else ref.file, "chunk_id": ref.chunk_id, "error": message}
+                card = {
+                    "file": "(omitted)" if policy else ref.file,
+                    "chunk_id": ref.chunk_id,
+                    "error": message,
+                }
             cards.append({"id": ref.id, **card} if ref.id else card)
         summary = {
             "sources": [{k: v for k, v in c.items() if k != "regions"} for c in cards],
