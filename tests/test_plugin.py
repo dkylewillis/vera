@@ -90,12 +90,15 @@ async def test_configured_stdio_search_read_refine(tmp_path, monkeypatch):
                     "vera_corpus_search",
                     "vera_show_sources",
                 } <= tools
+                # Keyword avoids VERA_AUTO_INSTALL_SEMANTIC_DEPS pip install;
+                # CI uv venvs do not ship pip or the ml extra.
                 broad = _payload(
                     await session.call_tool(
                         "vera_search",
                         {
                             "file": str(archive),
                             "query": "detention",
+                            "mode": "keyword",
                             "top_k": 5,
                         },
                     )
