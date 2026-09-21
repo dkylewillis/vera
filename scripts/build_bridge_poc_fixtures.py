@@ -21,7 +21,7 @@ from vera_ingest import convert  # noqa: E402
 
 
 def main() -> int:
-    out = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "fixtures" / "bridge-poc")
+    out = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "dev" / "fixtures" / "bridge-poc")
     approved = out / "approved"
     sibling = out / "sibling-unapproved"
     approved.mkdir(parents=True, exist_ok=True)

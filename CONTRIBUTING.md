@@ -28,8 +28,8 @@ npm --prefix packages/vera-app install
 Run these before opening a pull request:
 
 ```bash
-uv run ruff check packages tests benchmarks conftest.py
-uv run ruff format --check packages tests benchmarks conftest.py
+uv run ruff check packages tests dev/benchmarks conftest.py
+uv run ruff format --check packages tests dev/benchmarks conftest.py
 uv run mypy packages/vera-doc/src
 uv run --extra dev pytest -q
 npm run app:typecheck
