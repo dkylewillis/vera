@@ -1,8 +1,8 @@
 # VERA Desktop bridge: production architecture proposal
 
 Status: design proposal, not implemented or approved for public distribution.
-Prepared September 17, 2026. Start with the
-[proof-of-concept plan](desktop-bridge-poc.md).
+Prepared September 17, 2026. Start with the implemented
+[developer-mode PoC](desktop-bridge-poc.md).
 
 ## Product intent
 

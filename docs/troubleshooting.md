@@ -140,6 +140,38 @@ summarizes PyMuPDF-shaped keys; Markdown's empty `ocr: {}` and Docling's
 `engine` field do not produce a complete Info line. Use
 `vera inspect FILE --json` and read [Inspect metadata](validation-and-export.md#inspect-metadata).
 
+## Double-clicking a `.vera` file cleared my library
+
+The Windows installer registers `.vera` archives. A shell open (File Explorer,
+desktop, or a second app instance) reuses the existing window and opens the
+archive as a standalone document. That path becomes the Search/Ask scope and
+clears the active library; the parent folder is not added to Explorer. Use
+**File > Open Folder...** when you want VERA to remember and watch the folder
+as a library.
+
+## A desktop action timed out after 300 seconds
+
+Interactive sidecar requests (open, search, source load, validate, export)
+have a five-minute watchdog. The footer shows
+`<label> timed out after 300 seconds` (the label is the in-flight action, such
+as `Opening` or `Searching`) and VERA cancels that request. Ask has no
+automatic deadline; use the in-composer Stop button. Long conversions still
+run in the sidecar; watch **File > Open convert log...** rather than expecting
+the five-minute cap.
+
+## ChatGPT Bridge will not connect
+
+**File > Settings → ChatGPT Bridge** stays on `needs_setup` until the approved
+library folder exists, the tunnel ID matches `tunnel_[A-Za-z0-9_-]+`, a runtime
+key is stored, and `tunnel-client` is selected or on `PATH`. Connected requires
+the client loopback `/readyz` or `/healthz` URL, not just a running PID.
+Startup waits 45 seconds, then retries up to 3 times. Denied paths return
+`Access denied by VERA bridge policy.` without leaking the path.
+`vera_validate` is not registered in this mode. A missing policy file makes
+`vera-mcp-bridge` exit 2. Live ChatGPT listing is still blocked until a tester
+provisions a tunnel; local Connect only proves the supervisor and restricted
+MCP child. See [desktop-bridge-poc.md](desktop-bridge-poc.md).
+
 ## Explorer is missing nested files
 
 The desktop Explorer lists `.vera`, `.pdf`, and `.md` / `.markdown` files up

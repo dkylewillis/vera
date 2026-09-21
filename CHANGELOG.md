@@ -10,6 +10,22 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Added
 
+- Desktop **File > Settings → ChatGPT Bridge** supervises OpenAI Secure MCP
+  Tunnel against one approved local library. The packaged sidecar launches
+  `mcp-bridge` (`vera-mcp-bridge`) with a fail-closed `VERA_BRIDGE_POLICY_PATH`
+  grant: `.vera` archives under that root only, `top_k` ≤ 20,
+  `context_chunks` ≤ 2, and no `vera_validate` or Sentence Transformers
+  auto-install. Live ChatGPT developer-mode validation is still blocked pending
+  a tester-provisioned tunnel.
+
+- Local Codex/ChatGPT **VERA plugin** (`docs/plugin.md`) packages the portable
+  skill with `vera-mcp`, compact search output, and `vera_show_sources` /
+  `vera_source_page` citation highlights.
+
+- The Windows installer registers `.vera` archives. Double-clicking an archive
+  (or opening a second instance) reuses the existing window as a standalone
+  document and Search/Ask scope; the parent folder is not added to Explorer.
+
 - `vera search --pretty` prints readable context with headings, source/page
   citations, complete matches, neighboring chunks, corpus archive paths, and
   requested figure captions. MCP `vera_search` and `vera_corpus_search` accept

@@ -80,10 +80,11 @@ ChatGPT listed the tunnel under developer-mode app creation.
 
 Connection guide: [Connect ChatGPT](https://developers.openai.com/plugins/deploy/connect-chatgpt/).
 
-## VERA Desktop bridge profile (after milestones 1–3)
+## VERA Desktop bridge profile
 
-Desktop owns `tunnel-client` and writes a fail-closed policy file. Manual
-equivalent for debugging (do not put secrets in shell history if avoidable):
+Desktop owns `tunnel-client` and writes a fail-closed policy file. Prefer
+**File > Settings → ChatGPT Bridge** for normal use. Manual equivalent for
+debugging (do not put secrets in shell history if avoidable):
 
 ```powershell
 $env:CONTROL_PLANE_API_KEY = "<runtime-api-key-not-committed>"
@@ -104,15 +105,19 @@ tunnel-client doctor --profile vera-desktop-bridge --explain
 tunnel-client run --profile vera-desktop-bridge
 ```
 
-Prefer the Desktop **Settings → ChatGPT Bridge** setup wizard once milestone 3
-lands. It selects the approved library and `tunnel-client` executable, stores
-the runtime key in encrypted storage, validates the local paths and `tunnel_…`
-ID, then enables **Save & Connect**. Library, client, or tunnel changes require
-Disconnect then Connect so the policy file is rewritten.
+The Desktop **Settings → ChatGPT Bridge** setup wizard selects the approved
+library and `tunnel-client` executable, stores the runtime key in encrypted
+storage, validates the local paths and `tunnel_…` ID, then enables
+**Save & Connect**. Library, client, or tunnel changes require Disconnect then
+Connect so the policy file is rewritten. The supervisor writes
+`userData/bridge/policy.json` (`max_top_k` 20, `max_context_chunks` 2,
+`max_sources` 12) and deletes it on disconnect.
 The Desktop supervisor passes `--health.listen-addr 127.0.0.1:0` and a private
-`--health.url-file`, then polls the reported loopback `/readyz` endpoint. Do
-not assume a fixed health/admin port. Its redacted tunnel-client stdout/stderr
-is appended to VERA's local sidecar log; credentials are removed before logging.
+`--health.url-file`, then polls the reported loopback `/readyz` (or `/healthz`)
+endpoint. Do not assume a fixed health/admin port. Its redacted tunnel-client
+stdout/stderr is appended to VERA's local sidecar log; credentials are removed
+before logging. `vera_validate` is not registered in this mode; use
+`vera_inspect` or the unrestricted local `vera mcp` server to validate.
 
 ## Shutdown and revocation
 
