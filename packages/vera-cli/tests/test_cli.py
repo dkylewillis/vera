@@ -91,6 +91,69 @@ def test_cli_search_pretty_and_json_are_mutually_exclusive():
         parser.parse_args(["search", "manual.vera", "pond", "--pretty", "--json"])
 
 
+def test_cli_search_pretty_empty_results_and_directory_archive(tmp_path):
+    library = tmp_path / "library"
+    library.mkdir()
+    source = library / "notes.md"
+    source.write_text("# Detention\n\nPonds must detain the 25-year storm.\n", encoding="utf-8")
+    converted = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "convert",
+            str(source),
+            str(library / "notes.vera"),
+            "--model",
+            "hashing",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert converted.returncode == 0
+
+    empty = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "search",
+            str(library / "notes.vera"),
+            "zzzz-no-match-zzzz",
+            "--mode",
+            "keyword",
+            "--pretty",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert empty.stdout.strip() == "No results."
+    assert "Score:" not in empty.stdout
+
+    pretty = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "vera_cli",
+            "search",
+            str(library),
+            "detention",
+            "--pretty",
+            "--top-k",
+            "1",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert "## Result 1" in pretty.stdout
+    assert "Archive:" in pretty.stdout
+    assert "notes.vera" in pretty.stdout
+    assert "Score:" not in pretty.stdout
+
+
 def test_cli_convert_markdown(tmp_path):
     source = tmp_path / "notes.md"
     out = tmp_path / "notes.vera"
