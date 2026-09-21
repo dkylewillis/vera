@@ -196,7 +196,7 @@ Add policy tests under `packages/vera-mcp/tests`, process tests under
 sidecar verification script. Extend viewer tests to cover authorization on every
 navigation call. Test malformed archives and unsupported models too.
 
-Run the repository's required checks from [CONTRIBUTING.md](../CONTRIBUTING.md):
+Run the repository's required checks from [CONTRIBUTING.md](https://github.com/dkylewillis/vera/blob/main/CONTRIBUTING.md):
 Ruff, mypy, Python tests, app typecheck, and app unit tests, plus the Windows
 packaged-runtime check and actual ChatGPT demo. Record commands/results, including
 any existing unrelated failures, in a POC validation report.

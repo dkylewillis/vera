@@ -149,9 +149,7 @@ def load_policy_from_env() -> AccessPolicy:
     """Load the bridge policy path from ``VERA_BRIDGE_POLICY_PATH`` (fail closed)."""
     raw = (os.environ.get(POLICY_ENV) or "").strip()
     if not raw:
-        raise ValueError(
-            f"Bridge mode requires {POLICY_ENV} pointing at a policy JSON file."
-        )
+        raise ValueError(f"Bridge mode requires {POLICY_ENV} pointing at a policy JSON file.")
     return AccessPolicy.load(raw)
 
 
