@@ -981,13 +981,21 @@ def test_pretty_search_is_documented_across_public_surfaces():
 
 def test_readme_walkthrough_and_embedding_setup():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    quickstart = readme.split("```bash", 1)[1].split("```", 1)[0]
-    convert = quickstart.index("vera convert ./library --recursive")
-    index = quickstart.index("vera index build ./library --recursive")
-    search = quickstart.index("vera search ./library")
+    blocks = [part.split("```", 1)[0] for part in readme.split("```bash")[1:]]
+    first = blocks[0]
+    assert 'python -m pip install "vera>=0.3.2"' in first
+    assert "vera convert manual.pdf" in first
+    assert first.index("vera convert manual.pdf") < first.index("vera search manual.vera")
+    assert "--pretty" in first
+
+    library = next(block for block in blocks if "vera index build ./library --recursive" in block)
+    convert = library.index("vera convert ./library --recursive")
+    index = library.index("vera index build ./library --recursive")
+    search = library.index("vera search ./library")
     assert convert < index < search
-    assert "--mode keyword" in quickstart
-    assert "--pretty" in quickstart
+    assert "--pretty" in library
+    assert "--where company=GRID" in readme
+    assert "--mode keyword" in readme
     assert "--metadata project=riverpark" in readme
     assert "--where project=riverpark" in readme
     assert "--where project=riverpark,lakeside" in readme
