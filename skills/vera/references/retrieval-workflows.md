@@ -135,6 +135,9 @@ sub-question as evidence for another.
    vera search "manual.vera" "pipe sizing chart" --top-k 5 --json --figures
    ```
 
+   Use `--pretty --figures` when you only need captions and pages in readable
+   context. Structured `asset_id` values still require `--json`.
+
 3. Read the result text, caption, page, `asset_id`, and surrounding heading.
 4. To **see** a stored raster, write it and attach the file:
 
