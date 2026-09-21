@@ -80,8 +80,9 @@ offline, zero-setup OCR; other selected languages either require
 auto-fetch curated language data, or a manually installed Tesseract
 `.traineddata` file with `TESSDATA_PREFIX` set. Directory conversion writes
 archives beside source files, skips an existing `.vera` only when it validates and
-its stored `source_file_hash` matches the current source file, reports malformed
-outputs separately, and does not accept `OUTPUT`.
+its stored `source_file_hash` matches the current source file, reports same-stem
+sources that would share one `.vera` path as failures instead of overwriting,
+reports malformed outputs separately, and does not accept `OUTPUT`.
 Pipeline-owned defaults and validation live in each ingest plugin; advertised
 integer `minimum`/`maximum` bounds are enforced (for example `chunk_size`
 100–3000). See [Convert documents](conversion.md#pipeline-options).

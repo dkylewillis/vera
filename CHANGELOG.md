@@ -18,6 +18,10 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Fixed
 
+- Directory and selected-file batch convert refuse same-stem sources that would
+  write the same `.vera` path (`manual.pdf` and `manual.md` → `manual.vera`).
+  Previously both were reported as converted while the later file silently
+  overwrote the earlier archive.
 - Desktop PDF viewer uses `pdfjs-dist` 6.2.108 with `enableScripting: false`,
   so a malicious PDF cannot run JavaScript in the viewer
   ([CVE-2026-16633](https://github.com/advisories/GHSA-hq66-cqwq-w95j)).

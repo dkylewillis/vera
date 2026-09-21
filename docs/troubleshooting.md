@@ -224,7 +224,10 @@ vera index build "./library" --recursive --json
 Directory conversion skips an existing same-named `.vera` only when it
 validates and its stored `source_file_hash` matches the current source file
 (PDF, Markdown, or Office/HTML). Changed sources and archives with a missing
-or unreadable hash are reconverted. Review `skipped_existing` for unchanged
+or unreadable hash are reconverted. Same-stem sources that would write the
+same `.vera` path (`manual.pdf` and `manual.md`) fail instead of overwriting
+each other; rename one file or convert them separately with explicit outputs.
+Review `skipped_existing` for unchanged
 skips and `malformed_existing` for archives that must be repaired or replaced.
 Use `--overwrite` only when replacement is intentional:
 
