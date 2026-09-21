@@ -42,7 +42,6 @@ from vera_ingest.viewer import (
 
 from .access_policy import AccessDenied, AccessPolicy, load_policy_from_env
 
-
 _AUTO_INSTALL_SEMANTIC_DEPS = "VERA_AUTO_INSTALL_SEMANTIC_DEPS"
 _SENTENCE_TRANSFORMERS_REQUIREMENT = "sentence-transformers>=2.7"
 
