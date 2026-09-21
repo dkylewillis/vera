@@ -21,7 +21,9 @@ def _stream() -> tuple[AnswerStream, list[dict]]:
 
 
 def _delta_text(events: list[dict]) -> str:
-    return "".join(event.get("text", "") for event in events if event.get("event") == "answer_delta")
+    return "".join(
+        event.get("text", "") for event in events if event.get("event") == "answer_delta"
+    )
 
 
 def test_withholds_partial_functions_marker_then_blocks_the_rest() -> None:
