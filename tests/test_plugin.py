@@ -25,11 +25,14 @@ def anyio_backend():
 async def test_plugin_components_and_documented_actions():
     manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text())
     assert manifest["name"] == "vera"
-    assert (ROOT / manifest["skills"] / "vera/SKILL.md").is_file()
+    assert (ROOT / manifest["skills"] / "vera-search/SKILL.md").is_file()
+    assert (ROOT / manifest["apps"]).is_file()
+    apps = json.loads((ROOT / manifest["apps"]).read_text())
+    assert apps["apps"]["vera"]["id"]
     assert (ROOT / manifest["mcpServers"]).is_file()
     config = json.loads((ROOT / manifest["mcpServers"]).read_text())
     assert config["mcpServers"]["vera"]["env"]["VERA_AUTO_INSTALL_SEMANTIC_DEPS"] == "1"
-    reference = (ROOT / "skills/vera/references/mcp-workflow.md").read_text()
+    reference = (ROOT / "skills/vera-search/references/mcp-workflow.md").read_text()
     guide = (ROOT / "docs/plugin.md").read_text()
     for tool in await build_server().list_tools():
         assert tool.name in reference

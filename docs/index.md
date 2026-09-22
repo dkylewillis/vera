@@ -107,4 +107,4 @@ responsibility boundaries, or browse the [API reference](reference/index.md).
 
 For the desktop app, see [Run the desktop app](desktop-app-getting-started.md).
 For AI agents, see [MCP integration](mcp.md) and the
-[Agent Skill on GitHub](https://github.com/dkylewillis/vera/blob/main/skills/vera/SKILL.md).
+[Agent Skill on GitHub](https://github.com/dkylewillis/vera/blob/main/skills/vera-search/SKILL.md).

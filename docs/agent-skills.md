@@ -2,7 +2,7 @@
 
 VERA ships a portable
 [Agent Skills](https://agentskills.io/specification) package at
-[`skills/vera/`](https://github.com/dkylewillis/vera/tree/main/skills/vera/). It teaches a shell-capable AI agent to use
+[`skills/vera-search/`](https://github.com/dkylewillis/vera/tree/main/skills/vera-search/). It teaches a shell-capable AI agent to use
 the `vera` CLI, interpret its JSON and exit codes, retrieve evidence, and produce
 page-level citations.
 
@@ -12,7 +12,7 @@ tools are available, and falls back to the CLI otherwise.
 
 ## Portability
 
-The portable unit is the entire `skills/vera/` directory:
+The portable unit is the entire `skills/vera-search/` directory:
 
 ```text
 vera/
@@ -42,22 +42,22 @@ The skill requires:
 
 ## Installation
 
-Copy or symlink the complete `skills/vera/` directory. Do not copy only
+Copy or symlink the complete `skills/vera-search/` directory. Do not copy only
 `SKILL.md`, because it links to the reference files.
 
 Common project-level convention:
 
 ```text
-<project>/.agents/skills/vera/
+<project>/.agents/skills/vera-search/
 ```
 
 Common client locations:
 
-- Hermes: `~/.hermes/skills/vera/`
-- OpenClaw managed skill: `~/.openclaw/skills/vera/`
-- OpenClaw workspace skill: `<workspace>/skills/vera/`
-- Cursor project skill: `<project>/.cursor/skills/vera/`
-- Cursor personal skill: `~/.cursor/skills/vera/`
+- Hermes: `~/.hermes/skills/vera-search/`
+- OpenClaw managed skill: `~/.openclaw/skills/vera-search/`
+- OpenClaw workspace skill: `<workspace>/skills/vera-search/`
+- Cursor project skill: `<project>/.cursor/skills/vera-search/`
+- Cursor personal skill: `~/.cursor/skills/vera-search/`
 
 The Agent Skills specification defines the package contents, not installation
 paths. Check the active client's documentation if it does not scan one of these
@@ -121,7 +121,7 @@ An agent creating an equivalent skill should follow this sequence:
 
    ```yaml
    ---
-   name: vera
+   name: vera-search
    description: <what the skill does and when it should activate>
    license: Apache-2.0
    compatibility: <runtime requirements>
@@ -138,7 +138,7 @@ An agent creating an equivalent skill should follow this sequence:
 8. Validate the package:
 
    ```bash
-   skills-ref validate ./skills/vera
+   skills-ref validate ./skills/vera-search
    ```
 
 9. Run the repository documentation-contract tests and representative CLI

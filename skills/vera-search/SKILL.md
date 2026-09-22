@@ -1,5 +1,5 @@
 ---
-name: vera
+name: vera-search
 description: Searches, inspects, validates, converts, indexes, and exports VERA (.vera) document archives with citation-ready results. Use when answering questions from local documents, searching one archive or a document library, finding figures or page regions, checking archive integrity, converting PDFs or Markdown, or operating the vera CLI.
 license: Apache-2.0
 compatibility: Requires access to local archives through VERA MCP tools or Python 3.10+ with vera on PATH or importable as vera_cli and shell access.

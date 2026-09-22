@@ -6,6 +6,7 @@
     "name": "Kyle Willis"
   },
   "skills": "./skills/",
+  "apps": "./.app.json",
   "interface": {
     "displayName": "VERA",
     "shortDescription": "Search archives and inspect highlighted citations.",
