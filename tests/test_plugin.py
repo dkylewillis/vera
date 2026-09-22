@@ -32,8 +32,16 @@ async def test_plugin_components_and_documented_actions():
     assert (ROOT / manifest["mcpServers"]).is_file()
     config = json.loads((ROOT / manifest["mcpServers"]).read_text())
     assert config["mcpServers"]["vera"]["env"]["VERA_AUTO_INSTALL_SEMANTIC_DEPS"] == "1"
-    reference = (ROOT / "skills/vera-search/references/mcp-workflow.md").read_text()
-    guide = (ROOT / "docs/plugin.md").read_text()
+    marketplace = json.loads((ROOT / ".agents/plugins/marketplace.json").read_text())
+    assert marketplace["name"] == "vera-local"
+    assert marketplace["plugins"][0]["name"] == "vera"
+    assert marketplace["plugins"][0]["source"] == {"source": "local", "path": "./"}
+    assert (ROOT / marketplace["plugins"][0]["source"]["path"] / ".codex-plugin/plugin.json").is_file()
+    reference = (ROOT / "skills/vera-search/references/mcp-workflow.md").read_text(
+        encoding="utf-8"
+    )
+    guide = (ROOT / "docs/plugin.md").read_text(encoding="utf-8")
+    assert "Local marketplace" in guide
     for tool in await build_server().list_tools():
         assert tool.name in reference
         assert tool.name in guide
