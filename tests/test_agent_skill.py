@@ -7,7 +7,7 @@ from vera_cli.main import build_parser
 from vera_doc import ChunkRecord, VeraDocument
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILL_DIR = ROOT / "skills" / "vera-search"
+SKILL_DIR = ROOT / "plugins" / "vera" / "skills" / "vera-search"
 SKILL_FILE = SKILL_DIR / "SKILL.md"
 CLI_REFERENCE = SKILL_DIR / "references" / "cli-reference.md"
 
@@ -82,13 +82,13 @@ def test_cli_reference_covers_parser_commands_and_long_options():
 def test_canonical_agent_documentation_links_exist():
     expected = {
         ROOT / "README.md": [
-            "skills/vera-search/SKILL.md",
-            "skills/vera-search/references/cli-reference.md",
+            "plugins/vera/skills/vera-search/SKILL.md",
+            "plugins/vera/skills/vera-search/references/cli-reference.md",
             "docs/agent-skills.md",
         ],
         ROOT / "AGENTS.md": [
-            "skills/vera-search/SKILL.md",
-            "skills/vera-search/references/cli-reference.md",
+            "plugins/vera/skills/vera-search/SKILL.md",
+            "plugins/vera/skills/vera-search/references/cli-reference.md",
             "docs/agent-skills.md",
         ],
     }

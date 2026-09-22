@@ -128,11 +128,11 @@ tests live in `packages/*/tests/`; shared PDF factories and CLI helpers live in
 Keep human and agent documentation current. Any user-visible feature change
 must update the relevant [README](README.md), human guide under
 [docs](https://dkylewillis.github.io/vera/), examples, portable
-[agent skill](skills/vera-search/SKILL.md), and documentation-contract tests in the
+[agent skill](plugins/vera/skills/vera-search/SKILL.md), and documentation-contract tests in the
 same change. Changes to CLI commands or flags, JSON output, exit codes, MCP
 tools, installation requirements, or retrieval behavior must also update the
 relevant files under
-[skills/vera-search/references](skills/vera-search/references). Do not merge a feature whose
+[plugins/vera/skills/vera-search/references](plugins/vera/skills/vera-search/references). Do not merge a feature whose
 public behavior is only documented in implementation code or tests.
 
 See `.github/pull_request_template.md` for the PR checklist.

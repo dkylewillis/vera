@@ -12,7 +12,7 @@
 - [ ] User-visible behavior is documented in the README or relevant `docs/`
       guide.
 - [ ] CLI/API/MCP references and examples reflect public contract changes.
-- [ ] `skills/vera-search/` reflects agent-facing behavior changes.
+- [ ] `plugins/vera/skills/vera-search/` reflects agent-facing behavior changes.
 - [ ] Documentation-contract tests were updated when commands, options, JSON,
       exit codes, links, or documented workflows changed.
 - [ ] Not applicable: this change has no user-visible or agent-facing behavior.

@@ -23,21 +23,23 @@ def anyio_backend():
 
 @pytest.mark.anyio
 async def test_plugin_components_and_documented_actions():
-    manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text())
+    plugin_root = ROOT / "plugins" / "vera"
+    manifest = json.loads((plugin_root / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
     assert manifest["name"] == "vera"
-    assert (ROOT / manifest["skills"] / "vera-search/SKILL.md").is_file()
-    assert (ROOT / manifest["apps"]).is_file()
-    apps = json.loads((ROOT / manifest["apps"]).read_text())
+    assert (plugin_root / manifest["skills"] / "vera-search/SKILL.md").is_file()
+    assert (plugin_root / manifest["apps"]).is_file()
+    apps = json.loads((plugin_root / manifest["apps"]).read_text(encoding="utf-8"))
     assert apps["apps"]["vera"]["id"]
-    assert (ROOT / manifest["mcpServers"]).is_file()
-    config = json.loads((ROOT / manifest["mcpServers"]).read_text())
+    assert (plugin_root / manifest["mcpServers"]).is_file()
+    config = json.loads((plugin_root / manifest["mcpServers"]).read_text(encoding="utf-8"))
     assert config["mcpServers"]["vera"]["env"]["VERA_AUTO_INSTALL_SEMANTIC_DEPS"] == "1"
-    marketplace = json.loads((ROOT / ".agents/plugins/marketplace.json").read_text())
+    assert (plugin_root / "assets" / "icon.png").is_file()
+    marketplace = json.loads((ROOT / ".agents/plugins/marketplace.json").read_text(encoding="utf-8"))
     assert marketplace["name"] == "vera-local"
     assert marketplace["plugins"][0]["name"] == "vera"
-    assert marketplace["plugins"][0]["source"] == {"source": "local", "path": "./"}
+    assert marketplace["plugins"][0]["source"] == {"source": "local", "path": "./plugins/vera"}
     assert (ROOT / marketplace["plugins"][0]["source"]["path"] / ".codex-plugin/plugin.json").is_file()
-    reference = (ROOT / "skills/vera-search/references/mcp-workflow.md").read_text(
+    reference = (ROOT / "plugins/vera/skills/vera-search/references/mcp-workflow.md").read_text(
         encoding="utf-8"
     )
     guide = (ROOT / "docs/plugin.md").read_text(encoding="utf-8")
