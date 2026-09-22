@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "vera": {
+      "command": "vera-mcp",
+      "args": [],
+      "env": {
+        "VERA_AUTO_INSTALL_SEMANTIC_DEPS": "1"
+      }
+    }
+  }
+}
