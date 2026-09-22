@@ -1,0 +1,20 @@
+{
+  "name": "vera-local",
+  "interface": {
+    "displayName": "VERA local"
+  },
+  "plugins": [
+    {
+      "name": "vera",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

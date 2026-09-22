@@ -219,7 +219,8 @@ for figure metadata or `--regions` for source highlights.
 - **Agent Skill:** install the portable [VERA skill](skills/vera-search/SKILL.md), with its
   [CLI reference](skills/vera-search/references/cli-reference.md).
   [Installation guide](docs/agent-skills.md).
-- **Codex plugin:** install the local [VERA plugin](docs/plugin.md) to use the
+- **Codex plugin:** install the local [VERA plugin](docs/plugin.md) from its
+  repo marketplace (`.agents/plugins/marketplace.json`) to use the
   same MCP tools and skill, plus source-viewer buttons with citation highlights.
   Before the first hybrid or semantic search it installs Sentence Transformers
   in the MCP server's Python environment; the first model use may still download

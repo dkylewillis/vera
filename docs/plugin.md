@@ -9,14 +9,15 @@ independent.
 
 ```text
 vera/
-  .codex-plugin/plugin.json       Plugin metadata and component paths
-  .app.json                       ChatGPT registered app id for tunnel MCP
-  .mcp.json                      Starts the installed vera-mcp executable
-  skills/vera-search/SKILL.md     Shared CLI and MCP workflow
-  skills/vera-search/references/  CLI reference and retrieval workflows
-  packages/vera-mcp/              Existing tools
-  packages/vera-ingest/           Existing citation and viewer helpers
-  packages/vera-doc/              Existing archive and search engine
+  .agents/plugins/marketplace.json  Local marketplace entry for ChatGPT/Codex
+  .codex-plugin/plugin.json         Plugin metadata and component paths
+  .app.json                         ChatGPT registered app id for tunnel MCP
+  .mcp.json                        Starts the installed vera-mcp executable
+  skills/vera-search/SKILL.md       Shared CLI and MCP workflow
+  skills/vera-search/references/    CLI reference and retrieval workflows
+  packages/vera-mcp/                Existing tools
+  packages/vera-ingest/             Existing citation and viewer helpers
+  packages/vera-doc/                Existing archive and search engine
 ```
 
 The source launcher and viewer live in packages/vera-mcp/src/vera_mcp/ui/ and
@@ -73,12 +74,42 @@ set `command` in your local `.mcp.json` to its absolute executable path:
 `/path/to/venv/bin/vera-mcp` on POSIX. Do not commit machine-specific paths.
 The process waits for MCP messages on stdin; it is not a one-shot command.
 
-Register the complete `vera` checkout as the plugin root, not
-`.codex-plugin/` or `skills/vera-search/`, using the host's
-[local plugin installation workflow](https://developers.openai.com/plugins/deploy/connect-chatgpt/).
-This source change does not register a personal marketplace, install the plugin
-in the app, or publish it. For independent client setup, see
-[Agent skills](agent-skills.md) and [MCP integration](mcp.md).
+The repository root is the plugin package (not `.codex-plugin/` or
+`skills/vera-search/` alone). ChatGPT and Codex discover it through a **local
+marketplace**, not a folder-picker "add local plugin" control. See OpenAI's
+[package your plugin](https://developers.openai.com/plugins/build/plugins)
+guide (local marketplace + Plugins Directory) and
+[connect and test](https://developers.openai.com/plugins/deploy/connect-chatgpt/).
+This checkout does not publish VERA to the public Plugins Directory. For
+independent client setup, see [Agent skills](agent-skills.md) and
+[MCP integration](mcp.md).
+
+### Local marketplace
+
+[`.agents/plugins/marketplace.json`](../.agents/plugins/marketplace.json) is the
+repo-scoped marketplace catalog. It lists one plugin, `vera`, with
+`source.path` `./` (this repository root). OpenAI resolves that path relative to
+the marketplace root (the checkout), not relative to `.agents/plugins/`.
+
+Register the marketplace with Codex (optional if the desktop app already sees
+the checkout):
+
+```bash
+codex plugin marketplace add .
+codex plugin marketplace list
+```
+
+Then install from the Plugins Directory:
+
+1. Prefer the **ChatGPT desktop** app (local marketplaces show up there).
+2. Restart the app after adding or changing the marketplace file.
+3. Open **Plugins** / the **Plugins Directory**.
+4. Choose the **VERA local** marketplace source.
+5. Install **vera**, then start a **new chat** with the plugin enabled.
+
+After you change plugin files (manifest, skills, `.app.json`), refresh or
+reinstall from that marketplace source and start a new chat so the host picks up
+the update.
 
 ### One ChatGPT app (developer mode)
 
@@ -91,16 +122,17 @@ tunnel.
 2. Copy that connection's technical id from the ChatGPT URL or app details. It
    looks like `plugin_asdk_app_…`.
 3. Put the id in the repository root [`.app.json`](../.app.json) under
-   `apps.vera.id` (replace the placeholder if present).
-4. Install or refresh the local plugin from this repository root (not
-   `.codex-plugin/` alone).
+   `apps.vera.id`.
+4. Install or refresh the plugin from the **VERA local** marketplace (see
+   [Local marketplace](#local-marketplace)), not by browsing for
+   `.codex-plugin/` alone.
 5. In ChatGPT, disconnect or disable the standalone MCP connection for the same
    tunnel so only the VERA plugin tile remains.
 
 The plugin manifest's `apps` field links the registered tunnel MCP to this
 package. Keep [`.mcp.json`](../.mcp.json) for local Codex and other hosts that
-still launch `vera-mcp` over stdio. Public HTTPS MCP relay and marketplace
-distribution are out of scope for this wiring.
+still launch `vera-mcp` over stdio. Public HTTPS MCP relay and public plugin
+directory submission are out of scope for this wiring.
 
 ### ChatGPT connection
 
