@@ -982,9 +982,7 @@ def test_pretty_search_is_documented_across_public_surfaces():
     )
     retrieval = (
         ROOT / "skills" / "vera-search" / "references" / "retrieval-workflows.md"
-    ).read_text(
-        encoding="utf-8"
-    )
+    ).read_text(encoding="utf-8")
 
     for document in (readme, searching, cli_reference, examples, basic, skill, skill_cli):
         assert "--pretty" in document
