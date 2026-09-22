@@ -10,32 +10,38 @@ VERA turns documents into searchable `.vera` files. Each file holds the text,
 embeddings, keyword index, citations, and original source in one SQLite archive.
 Copy it, share it, or hand it to an AI agent. No database server to run.
 
+One PDF becomes one searchable `.vera` file. A library is a folder of those
+files plus an index, so you can search many archives together.
+
 ## Convert → index → search
 
-With Python 3.10+ and a folder of PDFs or Markdown files:
+With Python 3.10+, convert a single document. Conversion already builds its
+search index. `--pretty` prints human-readable results instead of raw JSON:
 
 ```bash
 python -m pip install "vera>=0.3.2"
 
-# Convert each document into a .vera file beside its source
+vera convert manual.pdf
+vera search manual.vera "stormwater detention" --pretty
+```
+
+A folder of PDFs or Markdown files becomes a library. Convert each file, build
+one index, then search them together:
+
+```bash
 vera convert ./library --recursive
-
-# Build an index across the whole folder
 vera index build ./library --recursive
+vera search ./library "stormwater detention" --pretty
+```
 
-# Search the library with source citations
-vera search ./library "stormwater detention" --mode keyword --pretty
+If you stamped metadata at convert time, narrow results before ranking:
+
+```bash
+vera search ./library "stormwater detention" --where company=GRID --pretty
 ```
 
 This works locally with no API key or model download. PDFs get automatic OCR
 when needed; English OCR data is bundled.
-
-For a single document, conversion already builds its search index:
-
-```bash
-vera convert manual.pdf
-vera search manual.vera "stormwater detention" --mode keyword --pretty
-```
 
 A library index is optional and speeds up repeated searches. VERA uses it
 automatically when fresh. After adding or replacing archives, run

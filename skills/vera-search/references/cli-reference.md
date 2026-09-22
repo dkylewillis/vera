@@ -126,10 +126,6 @@ Options:
   a sibling `.vera` is skipped only when it validates and its stored
   `source_file_hash` matches the current source file.
 - `--json` emits one JSON object.
-- `--pretty` emits Markdown-like readable context and is mutually exclusive
-  with `--json`. It includes result numbers, corpus archive paths, headings,
-  source/page citations, complete hit text, requested neighboring chunks, and
-  requested figure captions. It omits scores, chunk ids, and region coordinates.
 
 Each pipeline owns typed defaults and validation. Advertised integer
 `minimum`/`maximum` bounds are enforced (`chunk_size` 100–3000; hashing
@@ -211,7 +207,9 @@ Directory JSON:
 Existing outputs are validated: only valid archives whose stored
 `source_file_hash` matches the current source file appear in `skipped_existing`.
 Changed sources and archives with a missing or unreadable hash are reconverted.
-Invalid archives appear in `malformed_existing`.
+Same-stem sources that would write the same `.vera` path are reported in
+`errors` instead of overwriting each other. Invalid archives appear in
+`malformed_existing`.
 `skipped_by_user` / `user_skipped` are reserved for interactive skip
 requests (desktop app); CLI runs leave them empty. Each error entry has
 `input` and `error`. A conversion failure or malformed existing output
@@ -340,8 +338,16 @@ Options:
 - `--mode semantic|keyword|hybrid` defaults to `hybrid`.
 - `--top-k N` defaults to `10` and must be non-negative.
 - `--context-chunks N` defaults to `0` and must be non-negative.
-- `--figures` adds figure metadata to JSON results.
-- `--regions` adds page highlight regions to JSON results.
+- `--figures` adds figure metadata to JSON results and figure captions to
+  `--pretty` output. It does not write image bytes.
+- `--regions` adds page highlight regions to JSON results (not `--pretty`).
+- `--pretty` emits Markdown-like readable context and is mutually exclusive
+  with `--json`. It includes result numbers, corpus archive paths, headings,
+  source/page citations, complete hit text, requested neighboring chunks, and
+  requested figure captions. It omits scores, chunk ids, and region
+  coordinates. Python callers can render the same text with
+  `vera_ingest.viewer.format_search_context` (not exported from
+  `vera_ingest.__all__`).
 - `--recursive` discovers nested archives for an unindexed directory.
 - `--exclude PATTERN` excludes a relative path or name pattern and is
   repeatable.
@@ -803,9 +809,9 @@ still prints the report and exits 1.
 Runs the long-lived stdio MCP server. It does not accept `--json`; protocol
 messages use stdout, so do not mix ordinary output into that stream.
 
-MCP provides `vera_search`, `vera_corpus_search`, `vera_inspect`,
-`vera_validate`, `vera_figures`, `vera_get_figure`, `vera_get_page`,
-`vera_get_chunk`, and
+MCP provides `vera_library_info`, `vera_search`, `vera_corpus_search`,
+`vera_inspect`, `vera_validate`, `vera_figures`, `vera_get_figure`,
+`vera_get_page`, `vera_get_chunk`, and
 `vera_get_chunk_regions`. `vera_search` and `vera_corpus_search` default
 `top_k` to `10`, matching `vera search` and `VeraDocument.search`.
 Both MCP search tools accept `output: "compact" | "full"` (default `"full"`).

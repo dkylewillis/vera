@@ -224,7 +224,10 @@ vera index build "./library" --recursive --json
 Directory conversion skips an existing same-named `.vera` only when it
 validates and its stored `source_file_hash` matches the current source file
 (PDF, Markdown, or Office/HTML). Changed sources and archives with a missing
-or unreadable hash are reconverted. Review `skipped_existing` for unchanged
+or unreadable hash are reconverted. Same-stem sources that would write the
+same `.vera` path (`manual.pdf` and `manual.md`) fail instead of overwriting
+each other; rename one file or convert them separately with explicit outputs.
+Review `skipped_existing` for unchanged
 skips and `malformed_existing` for archives that must be repaired or replaced.
 Use `--overwrite` only when replacement is intentional:
 
@@ -353,8 +356,9 @@ Transformers load.
 
 ## Figures are missing or have no caption
 
-- Search with `--figures --json`; figure metadata is not shown in ordinary text
-  output.
+- Search with `--figures --json` for `asset_id`, bbox, and captions. Ordinary
+  score/text output omits figures. `--pretty --figures` prints captions and
+  pages only.
 - Search the caption wording and the subject.
 - Some PDF tables are text blocks rather than image assets.
 - Captions are linked by page layout and proximity and may be `null`.
@@ -363,6 +367,20 @@ Transformers load.
 
 Regions are block-granular, not word-precise. A chunk that starts or ends
 inside a layout block maps to the whole block. This is expected behavior.
+
+## Markdown citation highlights sit on the wrong line
+
+The desktop Markdown viewer strips a leading UTF-8 BOM (`U+FEFF`) before
+numbering lines so `text_span` locators match ingest. If highlights still
+look shifted, you are probably previewing a different file than the stored
+original, or the archive was converted from generated Markdown rather than
+the file on disk.
+
+## A malicious PDF should not run scripts in the desktop viewer
+
+The renderer opens PDFs through PDF.js with `enableScripting: false`
+(`pdfjs-dist` 6.2.108). Do not turn that flag on; PDF.js 6.0.x defaulted it
+on (CVE-2026-16633).
 
 ## Loading source timed out
 
@@ -453,6 +471,13 @@ because SDK 2.x removed `mcp.server.fastmcp`.
 
 Ensure the MCP client launches the command from that environment. See
 [MCP integration](mcp.md).
+
+## `uv lock` wants an older Pillow
+
+The workspace `constraint-dependencies` entry requires `pillow>=12.3.0`
+(CVE-2026-54058, McIdas AREA mmap read). Do not remove that pin to satisfy
+an older transitive requirement. If a local override still resolves Pillow
+12.2 or earlier, delete it and re-run `uv lock`.
 
 ## Repository test command fails on Windows
 

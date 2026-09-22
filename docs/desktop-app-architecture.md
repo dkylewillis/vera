@@ -388,14 +388,18 @@ uv run --extra dev python -m pytest -q
 
 ## Source Document Viewer
 
-The `source` sidecar action accepts either a `.vera` archive or a filesystem
-`.pdf`. Archives materialize the embedded source attachment; PDF paths are
-copied into the same hash-keyed cache under Electron's userData
-`source-cache/` directory. Both return metadata plus `cache_path`. Electron
+The `source` sidecar action accepts a `.vera` archive or a filesystem `.pdf`,
+`.md`, or `.markdown` file. Archives materialize the embedded source
+attachment; PDF and Markdown paths are copied into the same hash-keyed cache
+under Electron's userData `source-cache/` directory. Both return metadata plus
+`cache_path`. Electron
 rewrites that path to a privileged `vera-source://cache/...` URL and serves
 the bytes with `protocol.handle`, so PDF.js can fetch the document without
 shipping multi‑MB base64 through the JSON-Lines IPC channel (which previously
-froze the UI on large PDFs).
+froze the UI on large PDFs). `pdfDocumentSource()` always sets
+`enableScripting: false`. Keep that flag off: PDF.js 6.0.x defaulted scripting
+on, which is CVE-2026-16633 (arbitrary JavaScript from a malicious PDF in
+the hosting page). The app pins `pdfjs-dist` 6.2.108.
 
 The renderer PDF viewer (PDF.js) uses Mozilla-style dark chrome: a compact
 toolbar with group dividers, a toggleable page-thumbnail rail, and a dark page
@@ -458,6 +462,10 @@ export controls alongside the source. The OCR line is
 and `recovered_pages` instead; Markdown writes `ocr: {}`, which the
 formatter treats as present and shows as `Unknown mode · 0 pages OCR’d`.
 Use sidecar inspect JSON when that summary is incomplete.
+
+The Markdown source viewer numbers lines with `markdownDisplayLines()`, which
+strips a leading UTF-8 BOM (`U+FEFF`) before splitting on newlines so
+`text_span` highlights stay aligned with ingest locators.
 
 ## Near-Term App Work
 

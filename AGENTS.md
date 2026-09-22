@@ -99,8 +99,9 @@ and publishes a validated temporary sibling atomically. PDFs with no searchable
 chunks after OCR fail with an OCR-specific message. Markdown files with no
 searchable text fail with a generic empty-file message. Directory conversion
 skips an existing `.vera` only when it validates and its stored
-`source_file_hash` matches the current source file, and reports malformed archives
-in `malformed_existing`. Python `convert()` / `batch_convert()` callers should
+`source_file_hash` matches the current source file, reports same-stem sources that
+would share one `.vera` path as failures instead of overwriting, and reports
+malformed archives in `malformed_existing`. Python `convert()` / `batch_convert()` callers should
 pass `parser` (omitted: choose from the file extension), `pipeline_options`, and embedder settings
 (`model` / `embedding_function` / `embedder_options`); legacy kwargs such as
 `chunk_size`, `overlap`, `ocr_mode`, `ocr_language`, `ocr_dpi`, and
@@ -192,6 +193,7 @@ VERA ships an MCP server (stdio) exposing the same capabilities as tools:
 
 | Tool | Purpose |
 |------|---------|
+| `vera_library_info` | Approved library root and whether the server is unrestricted local MCP or a Desktop bridge grant |
 | `vera_search` | Hybrid/semantic/keyword search with optional figure metadata, highlight regions, and pretty context |
 | `vera_corpus_search` | Search every .vera file in a directory as one corpus; results attributed per file, with optional pretty context |
 | `vera_inspect` | Document metadata, page/chunk counts, embedding model, pipeline `ocr` diagnostics |

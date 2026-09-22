@@ -424,7 +424,9 @@ export class BridgeManager {
 function quoteArg(value: string): string {
   // tunnel-client parses this embedded command. Its Windows parser treats
   // backslashes as escapes, while Windows accepts forward-slash file paths.
-  const normalized = process.platform === 'win32' ? value.replace(/\\/g, '/') : value;
+  // Always normalize so packaged Windows sidecar paths stay valid when unit
+  // tests (or a Linux host) feed a Windows-style executable path.
+  const normalized = value.replace(/\\/g, '/');
   if (!/[ \t"]/u.test(normalized)) return normalized;
   return `"${normalized.replace(/"/g, '\\"')}"`;
 }

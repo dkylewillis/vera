@@ -135,6 +135,9 @@ sub-question as evidence for another.
    vera search "manual.vera" "pipe sizing chart" --top-k 5 --json --figures
    ```
 
+   Use `--pretty --figures` when you only need captions and pages in readable
+   context. Structured `asset_id` values still require `--json`.
+
 3. Read the result text, caption, page, `asset_id`, and surrounding heading.
 4. To **see** a stored raster, write it and attach the file:
 
@@ -251,7 +254,8 @@ vera search "./proposals" "termination clause" --top-k 10 --json
 
 Batch conversion skips an existing `.vera` only when it validates and its
 stored `source_file_hash` matches the current source file. Changed sources and
-archives with a missing or unreadable hash are reconverted. Check
+archives with a missing or unreadable hash are reconverted. Same-stem sources
+that would write the same `.vera` path fail instead of overwriting each other. Check
 `malformed_existing` and replace those archives intentionally with
 `--overwrite`. Automatic conversion selectively OCRs image-based low-text
 pages via `vera-ingest-pymupdf` with bundled English language data. Other

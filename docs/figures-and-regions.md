@@ -43,10 +43,11 @@ themselves.
 
 ## Include figures in search results
 
-`--figures` affects JSON output:
+`--figures` affects JSON and `--pretty` output:
 
 ```bash
 vera search "manual.vera" "pipe sizing chart" --figures --json
+vera search "manual.vera" "pipe sizing chart" --figures --pretty
 ```
 
 Each search result gains a `figures` array. A figure includes:
@@ -60,7 +61,9 @@ Each search result gains a `figures` array. A figure includes:
 - `filename`
 - `caption`
 
-The CLI returns metadata and captions, not image bytes.
+JSON returns metadata and captions, not image bytes. `--pretty --figures`
+prints captions and pages only; `asset_id` and bounding boxes stay on the
+JSON path.
 
 Write stored figure files:
 

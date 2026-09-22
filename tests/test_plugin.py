@@ -65,17 +65,23 @@ async def test_configured_stdio_search_read_refine(tmp_path, monkeypatch):
             ]
         )
     original = archive.read_bytes()
-    config = json.loads((ROOT / ".mcp.json").read_text())["mcpServers"]["vera"].copy()
-    configured_env = config.pop("env", {})
+    config = json.loads((ROOT / ".mcp.json").read_text())["mcpServers"]["vera"]
+    assert config.get("env", {}).get("VERA_AUTO_INSTALL_SEMANTIC_DEPS") == "1"
     # Match an activated environment without replacing the configured executable.
+    # Merge PATH into the configured env; StdioServerParameters rejects a duplicate env=.
     env = {
-        **os.environ,
-        **configured_env,
+        **dict(config.get("env") or {}),
         "PATH": os.pathsep.join([str(Path(sys.executable).parent), os.environ["PATH"]]),
     }
+    assert env["VERA_AUTO_INSTALL_SEMANTIC_DEPS"] == "1"
     # Windows resolves the executable using the parent's PATH before child env.
     monkeypatch.setenv("PATH", env["PATH"])
-    params = StdioServerParameters(**config, cwd=str(tmp_path), env=env)
+    params = StdioServerParameters(
+        command=config["command"],
+        args=list(config.get("args") or []),
+        cwd=str(tmp_path),
+        env=env,
+    )
     with anyio.fail_after(30):
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
@@ -87,12 +93,15 @@ async def test_configured_stdio_search_read_refine(tmp_path, monkeypatch):
                     "vera_corpus_search",
                     "vera_show_sources",
                 } <= tools
+                # Keyword avoids VERA_AUTO_INSTALL_SEMANTIC_DEPS pip install;
+                # CI uv venvs do not ship pip or the ml extra.
                 broad = _payload(
                     await session.call_tool(
                         "vera_search",
                         {
                             "file": str(archive),
                             "query": "detention",
+                            "mode": "keyword",
                             "top_k": 5,
                         },
                     )

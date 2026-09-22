@@ -30,7 +30,9 @@ Use only the archive or library paths within the user's requested scope.
 ## Choose the available integration
 
 Use MCP whenever `vera_search`, `vera_corpus_search`, or another VERA MCP tool
-is available. The plugin's MCP server supplies the VERA runtime; a missing
+is available. If `vera_library_info` is present, call it to learn whether the
+server is unrestricted local MCP or limited to an approved library root.
+The plugin's MCP server supplies the VERA runtime; a missing
 `vera` command on the agent shell does **not** mean VERA is uninstalled.
 
 If this VERA plugin is active but its MCP tools are absent, do not run the CLI
@@ -134,7 +136,8 @@ the [two-file plugin walkthrough](https://github.com/dkylewillis/vera/blob/main/
   or preceding steps.
 - Add `--pretty` when a person needs readable, citation-ready context with
   headings and neighboring chunks. Continue to use `--json` for retrieval work
-  that must inspect scores, chunk ids, metadata, figures, or regions.
+  that must inspect scores, chunk ids, metadata, `asset_id` values, or
+  regions. `--pretty --figures` adds captions only.
 - Add `--figures` for charts, diagrams, maps, and captions. That flag returns
   metadata (`asset_id`, caption, page), not pixels. Fetch a stored raster with
   `vera figures FILE --out-dir DIR --json` (attach the `path`) or MCP
@@ -248,8 +251,9 @@ request that only asks to search or explain a document.
 - Most other missing-path and runtime failures are unstructured tracebacks on
   stderr. Do not parse stderr as JSON.
 - Directory conversion skips an existing `.vera` only when it validates and
-  its stored `source_file_hash` matches the current source file, and exits 1 when
-  `malformed_existing` is nonempty.
+  its stored `source_file_hash` matches the current source file, reports
+  same-stem sources that would share one `.vera` path as failures instead of
+  overwriting, and exits 1 when `malformed_existing` is nonempty.
 - `vera mcp` is a long-running stdio server and does not accept `--json`.
 - If no direct answer is found, report the queries and modes tried and describe
   the closest evidence without inventing an answer.

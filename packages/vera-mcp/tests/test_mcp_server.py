@@ -41,7 +41,9 @@ def test_semantic_dependency_setup_installs_and_rechecks(monkeypatch):
     monkeypatch.setattr(
         module.subprocess,
         "run",
-        lambda command, **kwargs: commands.append((command, kwargs)) or SimpleNamespace(returncode=0),
+        lambda command, **kwargs: (
+            commands.append((command, kwargs)) or SimpleNamespace(returncode=0)
+        ),
     )
 
     module.ensure_semantic_dependencies("hybrid")
@@ -54,6 +56,7 @@ def test_semantic_dependency_setup_installs_and_rechecks(monkeypatch):
         )
     ]
 
+
 def test_semantic_dependency_setup_skips_keyword_search(monkeypatch):
     from vera_mcp import server as module
 
@@ -65,6 +68,7 @@ def test_semantic_dependency_setup_skips_keyword_search(monkeypatch):
     )
 
     module.ensure_semantic_dependencies("keyword")
+
 
 def test_mcp_server_starts_before_semantic_dependency_setup(monkeypatch):
     from vera_mcp import server as module
@@ -83,6 +87,7 @@ def test_mcp_server_starts_before_semantic_dependency_setup(monkeypatch):
 
     assert module.main() == 0
     assert started == [True]
+
 
 @pytest.fixture(scope="module")
 def vera_file(tmp_path_factory):
@@ -204,6 +209,7 @@ async def test_search_tool_returns_citation_ready_results(server, vera_file):
     first = payload["results"][0]
     assert {"chunk_id", "score", "text", "page_start", "heading_path", "figures"} <= set(first)
     assert "parking" in first["text"].lower()
+    assert "context" not in payload
 
 
 @pytest.mark.anyio

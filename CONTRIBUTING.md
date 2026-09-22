@@ -13,6 +13,12 @@ uv sync --extra dev --extra onnx --extra ml --extra app --extra mcp
 
 Add `--extra docling` when you need the optional CLI Docling pipeline and its tests.
 
+The workspace lockfile pins `pillow>=12.3.0`
+(`[tool.uv] constraint-dependencies` in the root `pyproject.toml`) so
+`uv lock` / `uv sync` cannot resolve the McIdas AREA mmap read
+(CVE-2026-54058). Do not drop that constraint to unblock an older
+transitive pin.
+
 The desktop app also needs Node.js 22+:
 
 ```bash
@@ -28,8 +34,8 @@ npm --prefix packages/vera-app install
 Run these before opening a pull request:
 
 ```bash
-uv run ruff check packages tests benchmarks conftest.py
-uv run ruff format --check packages tests benchmarks conftest.py
+uv run ruff check packages tests dev/benchmarks conftest.py
+uv run ruff format --check packages tests dev/benchmarks conftest.py
 uv run mypy packages/vera-doc/src
 uv run --extra dev pytest -q
 npm run app:typecheck

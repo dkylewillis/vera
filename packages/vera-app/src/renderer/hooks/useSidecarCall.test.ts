@@ -28,6 +28,7 @@ function installVera(request: (payload: Record<string, unknown>, requestId?: str
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -103,5 +104,52 @@ describe('createSidecarCaller', () => {
     first.resolve({ ok: false, error: 'stale inspect failed' });
     await expect(firstCall).resolves.toBeNull();
     expect(setErrorMessage).not.toHaveBeenCalledWith('stale inspect failed');
+  });
+
+  it('times out an in-flight request and surfaces the timeout message', async () => {
+    vi.useFakeTimers();
+    const pending = deferred<SidecarResponse<{ id: string }>>();
+    const setErrorMessage = vi.fn();
+    const { cancelRequest } = installVera(async () => pending.promise);
+    const caller = createSidecarCaller(new Map(), () => ({
+      dispatchBackgroundTask: () => undefined,
+      setErrorMessage,
+      setProviderErrorDetail: () => undefined,
+    }));
+
+    const call = caller.call(
+      { action: 'inspect' },
+      'Opening',
+      'req-timeout',
+      { timeoutMs: 1500 },
+    );
+
+    await vi.advanceTimersByTimeAsync(1500);
+    await expect(call).resolves.toBeNull();
+    expect(cancelRequest).toHaveBeenCalledWith('req-timeout');
+    expect(setErrorMessage).toHaveBeenCalledWith('Opening timed out after 2 seconds');
+  });
+
+  it('clears the timeout when the sidecar responds in time', async () => {
+    vi.useFakeTimers();
+    const pending = deferred<SidecarResponse<{ id: string }>>();
+    const setErrorMessage = vi.fn();
+    installVera(async () => pending.promise);
+    const caller = createSidecarCaller(new Map(), () => ({
+      dispatchBackgroundTask: () => undefined,
+      setErrorMessage,
+      setProviderErrorDetail: () => undefined,
+    }));
+
+    const call = caller.call(
+      { action: 'inspect' },
+      'Opening',
+      'req-ok',
+      { timeoutMs: 5000 },
+    );
+    pending.resolve({ ok: true, result: { id: 'ok' } });
+    await expect(call).resolves.toEqual({ id: 'ok' });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(setErrorMessage).not.toHaveBeenCalledWith(expect.stringMatching(/timed out/));
   });
 });
