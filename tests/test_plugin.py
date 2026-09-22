@@ -25,11 +25,14 @@ def anyio_backend():
 async def test_plugin_components_and_documented_actions():
     manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text())
     assert manifest["name"] == "vera"
-    assert (ROOT / manifest["skills"] / "vera/SKILL.md").is_file()
+    assert (ROOT / manifest["skills"] / "vera-search/SKILL.md").is_file()
+    assert (ROOT / manifest["apps"]).is_file()
+    apps = json.loads((ROOT / manifest["apps"]).read_text())
+    assert apps["apps"]["vera"]["id"]
     assert (ROOT / manifest["mcpServers"]).is_file()
     config = json.loads((ROOT / manifest["mcpServers"]).read_text())
     assert config["mcpServers"]["vera"]["env"]["VERA_AUTO_INSTALL_SEMANTIC_DEPS"] == "1"
-    reference = (ROOT / "skills/vera/references/mcp-workflow.md").read_text()
+    reference = (ROOT / "skills/vera-search/references/mcp-workflow.md").read_text()
     guide = (ROOT / "docs/plugin.md").read_text()
     for tool in await build_server().list_tools():
         assert tool.name in reference
@@ -62,9 +65,14 @@ async def test_configured_stdio_search_read_refine(tmp_path, monkeypatch):
             ]
         )
     original = archive.read_bytes()
-    config = json.loads((ROOT / ".mcp.json").read_text())["mcpServers"]["vera"]
+    config = json.loads((ROOT / ".mcp.json").read_text())["mcpServers"]["vera"].copy()
+    configured_env = config.pop("env", {})
     # Match an activated environment without replacing the configured executable.
-    env = {"PATH": os.pathsep.join([str(Path(sys.executable).parent), os.environ["PATH"]])}
+    env = {
+        **os.environ,
+        **configured_env,
+        "PATH": os.pathsep.join([str(Path(sys.executable).parent), os.environ["PATH"]]),
+    }
     # Windows resolves the executable using the parent's PATH before child env.
     monkeypatch.setenv("PATH", env["PATH"])
     params = StdioServerParameters(**config, cwd=str(tmp_path), env=env)

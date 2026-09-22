@@ -10,9 +10,10 @@ independent.
 ```text
 vera/
   .codex-plugin/plugin.json       Plugin metadata and component paths
+  .app.json                       ChatGPT registered app id for tunnel MCP
   .mcp.json                      Starts the installed vera-mcp executable
-  skills/vera/SKILL.md            Shared CLI and MCP workflow
-  skills/vera/references/         CLI reference and retrieval workflows
+  skills/vera-search/SKILL.md     Shared CLI and MCP workflow
+  skills/vera-search/references/  CLI reference and retrieval workflows
   packages/vera-mcp/              Existing tools
   packages/vera-ingest/           Existing citation and viewer helpers
   packages/vera-doc/              Existing archive and search engine
@@ -33,6 +34,7 @@ weights.
 
 | Workflow | Existing actions |
 | --- | --- |
+| Library scope | `vera_library_info` |
 | Search | `vera_search`, `vera_corpus_search` |
 | Read | `vera_get_chunk`, `vera_get_page` |
 | Refine | Repeat search with query, mode, `where`, and `context_chunks`; corpus also supports `includes`, `excludes`, `recursive` |
@@ -72,11 +74,33 @@ set `command` in your local `.mcp.json` to its absolute executable path:
 The process waits for MCP messages on stdin; it is not a one-shot command.
 
 Register the complete `vera` checkout as the plugin root, not
-`.codex-plugin/` or `skills/vera/`, using the host's
+`.codex-plugin/` or `skills/vera-search/`, using the host's
 [local plugin installation workflow](https://developers.openai.com/plugins/deploy/connect-chatgpt/).
 This source change does not register a personal marketplace, install the plugin
 in the app, or publish it. For independent client setup, see
 [Agent skills](agent-skills.md) and [MCP integration](mcp.md).
+
+### One ChatGPT app (developer mode)
+
+Use one branded VERA entry in ChatGPT developer mode: the plugin bundles skills,
+MCP tools, and the icon. Do not keep a second generic MCP tile for the same
+tunnel.
+
+1. Connect VERA first through the desktop **ChatGPT Bridge** (Secure MCP Tunnel)
+   or another supported tunnel so ChatGPT shows a connected VERA MCP app.
+2. Copy that connection's technical id from the ChatGPT URL or app details. It
+   looks like `plugin_asdk_app_…`.
+3. Put the id in the repository root [`.app.json`](../.app.json) under
+   `apps.vera.id` (replace the placeholder if present).
+4. Install or refresh the local plugin from this repository root (not
+   `.codex-plugin/` alone).
+5. In ChatGPT, disconnect or disable the standalone MCP connection for the same
+   tunnel so only the VERA plugin tile remains.
+
+The plugin manifest's `apps` field links the registered tunnel MCP to this
+package. Keep [`.mcp.json`](../.mcp.json) for local Codex and other hosts that
+still launch `vera-mcp` over stdio. Public HTTPS MCP relay and marketplace
+distribution are out of scope for this wiring.
 
 ### ChatGPT connection
 
