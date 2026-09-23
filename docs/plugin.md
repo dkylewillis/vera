@@ -11,8 +11,8 @@ independent.
 vera/
   .agents/plugins/marketplace.json  Local marketplace entry for ChatGPT/Codex
   .codex-plugin/plugin.json         Plugin metadata and component paths
-  .app.json                         ChatGPT registered app id for tunnel MCP
-  .mcp.json                        Starts the installed vera-mcp executable
+  examples/remote-bridge/           Optional remote connector example (not loaded)
+  .mcp.json                         Starts the installed vera-mcp executable
   skills/vera-search/SKILL.md       Shared CLI and MCP workflow
   skills/vera-search/references/    CLI reference and retrieval workflows
   packages/vera-mcp/                Existing tools
@@ -46,6 +46,42 @@ Refine means improving retrieval, not editing archives. Conversion, index
 management, and export remain CLI operations.
 
 ## Local setup
+
+The default plugin is **VERA Local**: stdio MCP runs on the Codex task host.
+Neither VERA Desktop nor a tunnel needs to be running. A task running on another
+host searches that host, not the computer displaying Codex. `vera_library_info`
+returns `unrestricted: true` and `library_root: null`; supply a local archive or
+folder explicitly. Host filesystem permissions still apply.
+
+The default package contains no root `.app.json` or manifest `apps` field.
+Removing only the manifest field is insufficient because component discovery
+can still load a root `.app.json`. Keep remote connectors separate; never fall
+back to the remote bridge when a local search fails.
+
+For a local marketplace checkout, stage the package with an installed executable:
+
+```powershell
+.venv/Scripts/python.exe scripts/package-local-plugin.py --output-dir C:/path/outside/repo/plugins/vera --mcp-command C:/path/to/vera/.venv/Scripts/vera-mcp.exe
+```
+
+The repository root is the only maintained plugin source. This writes a generated
+installation package outside the repository, including an absolute executable path that works
+when Codex has a different PATH or working directory. Do not distribute that
+machine-specific staged config; the root `.mcp.json` uses `vera-mcp` on PATH.
+The output directory must be new and named `vera`; the packager rejects paths
+inside the repository and never merges old generated files into a new package.
+Keep local marketplace registration outside the repository too, pointing at the
+generated package. Generated packages and Codex's installed cache are disposable
+installation artifacts, not additional sources to edit.
+Refresh/reinstall the local marketplace plugin and start a new task to load the
+changed tools. An existing task can retain its previous remote tool inventory.
+
+The desktop ChatGPT Bridge remains available for cloud ChatGPT or deliberate
+remote access. Its connector example is in
+`examples/remote-bridge/connector.app.json`, outside automatic discovery.
+See that folder's README and the desktop bridge guide. Use separate tunnel
+connections for separate computers; this change does not implement remote device
+selection or bind existing remote sessions to a particular computer.
 
 For the new source viewer, use the **modified server installation** under
 [Source viewer (0.2.0)](#source-viewer-020) below. Published versions only provide
@@ -86,7 +122,7 @@ independent client setup, see [Agent skills](agent-skills.md) and
 
 ### Local marketplace
 
-[`.agents/plugins/marketplace.json`](../.agents/plugins/marketplace.json) is the
+[`.agents/plugins/marketplace.json`](https://github.com/dkylewillis/vera/blob/main/.agents/plugins/marketplace.json) is the
 repo-scoped marketplace catalog. It lists one plugin, `vera`, with
 `source.path` `./` (this repository root). OpenAI resolves that path relative to
 the marketplace root (the checkout), not relative to `.agents/plugins/`.
@@ -107,32 +143,19 @@ Then install from the Plugins Directory:
 4. Choose the **VERA local** marketplace source.
 5. Install **vera**, then start a **new chat** with the plugin enabled.
 
-After you change plugin files (manifest, skills, `.app.json`), refresh or
+After you change plugin files (manifest, skills, or connector configuration), refresh or
 reinstall from that marketplace source and start a new chat so the host picks up
 the update.
 
 ### One ChatGPT app (developer mode)
 
-Use one branded VERA entry in ChatGPT developer mode: the plugin bundles skills,
-MCP tools, and the icon. Do not keep a second generic MCP tile for the same
-tunnel.
-
-1. Connect VERA first through the desktop **ChatGPT Bridge** (Secure MCP Tunnel)
-   or another supported tunnel so ChatGPT shows a connected VERA MCP app.
-2. Copy that connection's technical id from the ChatGPT URL or app details. It
-   looks like `plugin_asdk_app_…`.
-3. Put the id in the repository root [`.app.json`](../.app.json) under
-   `apps.vera.id`.
-4. Install or refresh the plugin from the **VERA local** marketplace (see
-   [Local marketplace](#local-marketplace)), not by browsing for
-   `.codex-plugin/` alone.
-5. In ChatGPT, disconnect or disable the standalone MCP connection for the same
-   tunnel so only the VERA plugin tile remains.
-
-The plugin manifest's `apps` field links the registered tunnel MCP to this
-package. Keep [`.mcp.json`](../.mcp.json) for local Codex and other hosts that
-still launch `vera-mcp` over stdio. Public HTTPS MCP relay and public plugin
-directory submission are out of scope for this wiring.
+Connect VERA through the desktop **ChatGPT Bridge** for browser ChatGPT.
+Keep that remote connection separate from VERA Local in Codex. The preserved
+connector example is documented in the
+[remote bridge example](https://github.com/dkylewillis/vera/tree/main/examples/remote-bridge).
+Do not add its `apps` component or a root `.app.json` to the local plugin.
+Name remote connections by computer and use a dedicated tunnel per computer.
+Public HTTPS MCP relay and marketplace distribution are out of scope here.
 
 ### ChatGPT connection
 
@@ -234,7 +257,7 @@ and source lines travel in tool-result _meta, not model-visible image strings.
 Citation text and errors remain available as structuredContent for non-UI hosts.
 Browser ChatGPT still needs a reachable MCP connection, such as a tunnel.
 
-Preview limits: originals over 40 MiB fall back to stored text; PDFs render one
+Preview limits: originals over 100 MiB fall back to stored text; PDFs render one
 page with a maximum 1,400-pixel edge and a 3 MiB PNG limit. Missing originals,
 unsupported formats, or missing PDF renderer show a text fallback. Highlights
 are withheld on rotated PDFs and when stored page dimensions disagree with the

@@ -20,6 +20,21 @@ def test_compact_mcp_output_is_documented():
 
 
 DOCS = ROOT / "docs"
+
+
+def test_local_plugin_and_optional_remote_bridge_are_documented():
+    for relative in (
+        "README.md",
+        "docs/plugin.md",
+        "skills/vera-search/SKILL.md",
+        "skills/vera-search/references/mcp-workflow.md",
+        "examples/remote-bridge/README.md",
+    ):
+        text = (ROOT / relative).read_text(encoding="utf-8")
+        assert "VERA Local" in text
+        assert "remote" in text.lower()
+
+
 PACKAGES = ROOT / "packages"
 CLI_REFERENCE = DOCS / "cli-reference.md"
 
@@ -982,9 +997,7 @@ def test_pretty_search_is_documented_across_public_surfaces():
     )
     retrieval = (
         ROOT / "skills" / "vera-search" / "references" / "retrieval-workflows.md"
-    ).read_text(
-        encoding="utf-8"
-    )
+    ).read_text(encoding="utf-8")
 
     for document in (readme, searching, cli_reference, examples, basic, skill, skill_cli):
         assert "--pretty" in document

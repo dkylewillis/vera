@@ -29,6 +29,12 @@ Use only the archive or library paths within the user's requested scope.
 
 ## Choose the available integration
 
+The default VERA Local plugin uses local stdio MCP on the Codex task host,
+without the desktop app or a tunnel. The optional remote ChatGPT Bridge is a
+separate connection. Prefer local tools for a local-library request; do not
+silently switch to a remote connector if local tools fail. A remote task host
+is not the user's desktop. Check `vera_library_info` before searching.
+
 Use MCP whenever `vera_search`, `vera_corpus_search`, or another VERA MCP tool
 is available. If `vera_library_info` is present, call it to learn whether the
 server is unrestricted local MCP or limited to an approved library root.

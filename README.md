@@ -222,6 +222,8 @@ for figure metadata or `--regions` for source highlights.
 - **Codex plugin:** install the local [VERA plugin](docs/plugin.md) from its
   repo marketplace (`.agents/plugins/marketplace.json`) to use the
   same MCP tools and skill, plus source-viewer buttons with citation highlights.
+  VERA Local runs on the Codex task host; no desktop app or tunnel is required.
+  The remote ChatGPT Bridge remains a separate, optional connection.
   Before the first hybrid or semantic search it installs Sentence Transformers
   in the MCP server's Python environment; the first model use may still download
   model weights.

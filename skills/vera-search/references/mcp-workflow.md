@@ -15,6 +15,11 @@ automatically exist on the server's computer.
 
 ## Search
 
+VERA Local uses stdio on the task host and does not register the remote app.
+The optional remote bridge is separate; never silently substitute its tools
+for a local-library request. Local discovery has no configured library root:
+use the path supplied by the user rather than guessing a Downloads folder.
+
 Call `vera_library_info` when the server may be a Desktop bridge grant.
 Unrestricted local MCP returns `unrestricted: true` and no `library_root`.
 Bridge mode returns the approved library root and search bounds; use that

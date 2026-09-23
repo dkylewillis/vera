@@ -18,7 +18,7 @@ from vera_ingest.viewer import get_chunk_json, get_source_document
 from .access_policy import AccessDenied, AccessPolicy
 
 RESOURCE_URI = "ui://vera/source-viewer-v1.html"
-MAX_SOURCE_BYTES = 40 * 1024 * 1024
+MAX_SOURCE_BYTES = 100 * 1024 * 1024
 MAX_IMAGE_BYTES = 3 * 1024 * 1024
 READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
 
@@ -135,7 +135,7 @@ def source_view(
         except ValueError as exc:
             return {**base, "kind": "text", "notice": str(exc)}
     if len(source.data) > MAX_SOURCE_BYTES:
-        return {**base, "kind": "text", "notice": "Original exceeds the 40 MiB preview limit."}
+        return {**base, "kind": "text", "notice": "Original exceeds the 100 MiB preview limit."}
     regions = chunk.get("regions", [])
     if source.media_type == "application/pdf":
         start = chunk.get("page_start")

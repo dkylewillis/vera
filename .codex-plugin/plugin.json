@@ -1,19 +1,21 @@
 {
   "name": "vera",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Search, read, and refine evidence from local VERA archives with source citations.",
   "author": {
     "name": "Kyle Willis"
   },
   "skills": "./skills/",
-  "apps": "./.app.json",
   "interface": {
-    "displayName": "VERA",
+    "displayName": "VERA Local",
     "shortDescription": "Search archives and inspect highlighted citations.",
     "longDescription": "Search .vera files or libraries, cite answers in normal prose, and open highlighted PDF pages or Markdown passages in the VERA viewer.",
     "developerName": "Kyle Willis",
     "category": "Productivity",
-    "capabilities": [],
+    "capabilities": [
+      "Read",
+      "Interactive"
+    ],
     "brandColor": "#282A2F",
     "composerIcon": "./assets/icon.png",
     "logo": "./assets/icon.png",
