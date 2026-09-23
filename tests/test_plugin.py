@@ -63,10 +63,10 @@ async def test_plugin_components_and_documented_actions():
     assert marketplace["name"] == "vera-local"
     assert marketplace["plugins"][0]["name"] == "vera"
     assert marketplace["plugins"][0]["source"] == {"source": "local", "path": "./"}
-    assert (ROOT / marketplace["plugins"][0]["source"]["path"] / ".codex-plugin/plugin.json").is_file()
-    reference = (ROOT / "skills/vera-search/references/mcp-workflow.md").read_text(
-        encoding="utf-8"
-    )
+    assert (
+        ROOT / marketplace["plugins"][0]["source"]["path"] / ".codex-plugin/plugin.json"
+    ).is_file()
+    reference = (ROOT / "skills/vera-search/references/mcp-workflow.md").read_text(encoding="utf-8")
     guide = (ROOT / "docs/plugin.md").read_text(encoding="utf-8")
     assert "Local marketplace" in guide
     for tool in await build_server().list_tools():
