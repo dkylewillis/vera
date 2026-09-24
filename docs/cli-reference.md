@@ -22,7 +22,7 @@ vera ocr-languages download
 
 Run `vera COMMAND --help` for parser-generated usage. This page is the
 human-oriented overview. The portable skill's
-[exhaustive CLI contract](https://github.com/dkylewillis/vera/blob/main/skills/vera-search/references/cli-reference.md) documents
+[exhaustive CLI contract](https://github.com/dkylewillis/vera/blob/main/plugins/vera/skills/vera-search/references/cli-reference.md) documents
 complete JSON object shapes, stdout/stderr behavior, exit codes, and filesystem
 effects without duplicating that contract here.
 

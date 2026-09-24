@@ -216,8 +216,8 @@ for figure metadata or `--regions` for source highlights.
 - **CLI:** any agent that can run shell commands can use VERA.
 - **MCP:** install `vera[mcp]` and run `vera mcp`. Search with `output: "compact"`
   for concise evidence and viewer-ready citations. [Connect a client](docs/mcp.md).
-- **Agent Skill:** install the portable [VERA skill](skills/vera-search/SKILL.md), with its
-  [CLI reference](skills/vera-search/references/cli-reference.md).
+- **Agent Skill:** install the portable [VERA skill](plugins/vera/skills/vera-search/SKILL.md), with its
+  [CLI reference](plugins/vera/skills/vera-search/references/cli-reference.md).
   [Installation guide](docs/agent-skills.md).
 - **Codex plugin:** install the local [VERA plugin](docs/plugin.md) from its
   repo marketplace (`.agents/plugins/marketplace.json`) to use the

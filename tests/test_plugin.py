@@ -37,7 +37,7 @@ def test_local_package_is_external_and_never_merges(tmp_path):
     assert (destination / ".mcp.json").is_file()
     assert not (destination / ".app.json").exists()
     assert (destination / "skills/vera-search/SKILL.md").read_bytes() == (
-        ROOT / "skills/vera-search/SKILL.md"
+        ROOT / "plugins/vera/skills/vera-search/SKILL.md"
     ).read_bytes()
     sentinel = destination / "old-file.txt"
     sentinel.write_text("preserve")
@@ -49,22 +49,30 @@ def test_local_package_is_external_and_never_merges(tmp_path):
 
 @pytest.mark.anyio
 async def test_plugin_components_and_documented_actions():
-    manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text())
+    plugin_root = ROOT / "plugins" / "vera"
+    manifest = json.loads((plugin_root / ".codex-plugin/plugin.json").read_text())
     assert manifest["name"] == "vera"
-    assert (ROOT / manifest["skills"] / "vera-search/SKILL.md").is_file()
+    assert (plugin_root / manifest["skills"] / "vera-search/SKILL.md").is_file()
     assert "apps" not in manifest
     assert not (ROOT / ".app.json").exists()
     apps = json.loads((ROOT / "examples/remote-bridge/connector.app.json").read_text())
     assert apps["apps"]["vera"]["id"]
-    assert (ROOT / manifest["mcpServers"]).is_file()
-    config = json.loads((ROOT / manifest["mcpServers"]).read_text())
+    assert (plugin_root / manifest["mcpServers"]).is_file()
+    config = json.loads((plugin_root / manifest["mcpServers"]).read_text())
     assert config["mcpServers"]["vera"]["env"]["VERA_AUTO_INSTALL_SEMANTIC_DEPS"] == "1"
     marketplace = json.loads((ROOT / ".agents/plugins/marketplace.json").read_text())
     assert marketplace["name"] == "vera-local"
     assert marketplace["plugins"][0]["name"] == "vera"
-    assert marketplace["plugins"][0]["source"] == {"source": "local", "path": "./"}
-    assert (ROOT / marketplace["plugins"][0]["source"]["path"] / ".codex-plugin/plugin.json").is_file()
-    reference = (ROOT / "skills/vera-search/references/mcp-workflow.md").read_text(
+    assert marketplace["plugins"][0]["source"] == {"source": "local", "path": "./plugins/vera"}
+    assert (ROOT / marketplace["plugins"][0]["source"]["path"]).resolve() == plugin_root.resolve()
+    assert (plugin_root / ".codex-plugin/plugin.json").is_file()
+    assert {path.name for path in plugin_root.iterdir()} <= {
+        ".codex-plugin",
+        ".mcp.json",
+        "assets",
+        "skills",
+    }
+    reference = (ROOT / "plugins/vera/skills/vera-search/references/mcp-workflow.md").read_text(
         encoding="utf-8"
     )
     guide = (ROOT / "docs/plugin.md").read_text(encoding="utf-8")
@@ -100,7 +108,7 @@ async def test_configured_stdio_search_read_refine(tmp_path, monkeypatch):
             ]
         )
     original = archive.read_bytes()
-    config = json.loads((ROOT / ".mcp.json").read_text())["mcpServers"]["vera"]
+    config = json.loads((ROOT / "plugins/vera/.mcp.json").read_text())["mcpServers"]["vera"]
     assert config.get("env", {}).get("VERA_AUTO_INSTALL_SEMANTIC_DEPS") == "1"
     # Match an activated environment without replacing the configured executable.
     # Merge PATH into the configured env; StdioServerParameters rejects a duplicate env=.

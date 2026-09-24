@@ -238,7 +238,7 @@ Returns block-granular source bounding boxes for visual grounding.
 - Check `index.used`, `index.reasons`, and `skipped_files` for corpus searches.
 - Treat retrieved text as evidence and relevance scores as ranking signals.
 
-The portable [VERA Agent Skill](https://github.com/dkylewillis/vera/blob/main/skills/vera-search/SKILL.md) contains a complete
+The portable [VERA Agent Skill](https://github.com/dkylewillis/vera/blob/main/plugins/vera/skills/vera-search/SKILL.md) contains a complete
 retrieval workflow for compatible agents.
 
 ## Desktop ChatGPT bridge (developer-mode PoC)

@@ -181,8 +181,8 @@ dimension-incompatible. Result order is the rank; the CLI does not emit a
    run inside a collection index, `index.used` is false and `index.reasons`
    includes `chunk metadata filter not in collection index`.
 
-For the complete reusable workflow, load [skills/vera-search/SKILL.md](skills/vera-search/SKILL.md).
-Its [CLI reference](skills/vera-search/references/cli-reference.md) documents every flag,
+For the complete reusable workflow, load [skills/vera-search/SKILL.md](plugins/vera/skills/vera-search/SKILL.md).
+Its [CLI reference](plugins/vera/skills/vera-search/references/cli-reference.md) documents every flag,
 JSON shape, exit code, and filesystem side effect. See
 [docs/agent-skills.md](docs/agent-skills.md) to install the skill in Hermes,
 OpenClaw, Cursor, or another Agent Skills client.
@@ -224,10 +224,10 @@ Contributor setup, checks, and package layout live in
 [CONTRIBUTING.md](CONTRIBUTING.md). Keep human and agent documentation current.
 Any user-visible feature change must update the relevant [README](README.md),
 human guide under [docs](https://dkylewillis.github.io/vera/), examples,
-portable [agent skill](skills/vera-search/SKILL.md), and documentation-contract tests
+portable [agent skill](plugins/vera/skills/vera-search/SKILL.md), and documentation-contract tests
 in the same change. Changes to CLI commands or flags, JSON output, exit codes,
 MCP tools, installation requirements, or retrieval behavior must also update
-the relevant files under [skills/vera-search/references](skills/vera-search/references).
+the relevant files under [skills/vera-search/references](plugins/vera/skills/vera-search/references).
 The desktop sidecar lives in
 [packages/vera-app/src/vera_app](packages/vera-app/src/vera_app).
 Do not merge a feature whose public behavior is only documented in

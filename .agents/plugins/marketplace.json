@@ -8,7 +8,7 @@
       "name": "vera",
       "source": {
         "source": "local",
-        "path": "./"
+        "path": "./plugins/vera"
       },
       "policy": {
         "installation": "AVAILABLE",

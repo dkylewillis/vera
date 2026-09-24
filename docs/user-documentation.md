@@ -35,7 +35,7 @@ figures, and citation metadata in one portable `.vera` file.
 - [Desktop app product overview](desktop-app-overview.md)
 - [Collection index design and behavior](collection-index.md)
 - [Library index structure diagrams](library-index-structure.md)
-- [Portable Agent Skill](https://github.com/dkylewillis/vera/blob/main/skills/vera-search/SKILL.md)
+- [Portable Agent Skill](https://github.com/dkylewillis/vera/blob/main/plugins/vera/skills/vera-search/SKILL.md)
 - [Agent-skill installation and authoring](agent-skills.md)
 
 ## Contributor and architecture documentation
@@ -50,5 +50,5 @@ figures, and citation metadata in one portable `.vera` file.
 - [Roadmap](https://github.com/dkylewillis/vera/blob/main/ROADMAP.md)
 
 The README is the product overview, these pages are the human user
-documentation, and `skills/vera-search/` is the self-contained package for AI agents.
+documentation, and `plugins/vera/skills/vera-search/` is the self-contained package for AI agents.
 When behavior changes, update all affected layers in the same change.

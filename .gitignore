@@ -16,7 +16,3 @@ site/
 .env.*.local
 
 .vera-plugin-venv/
-
-# Local plugin staging and marketplace registration are not source.
-/plugins/
-/.agents/plugins/marketplace.json

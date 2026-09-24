@@ -26,12 +26,13 @@ def main():
         parser.error("--output-dir must be new; existing packages are never merged")
     if args.mcp_command and not Path(args.mcp_command).is_file():
         parser.error("--mcp-command must name an existing executable")
-    for folder in (".codex-plugin", "skills", "assets"):
-        shutil.copytree(root / folder, dest / folder, dirs_exist_ok=True)
-    config = json.loads((root / ".mcp.json").read_text(encoding="utf-8"))
+    plugin_root = root / "plugins" / "vera"
+    shutil.copytree(plugin_root, dest)
     if args.mcp_command:
+        config_path = dest / ".mcp.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
         config["mcpServers"]["vera"]["command"] = str(Path(args.mcp_command).resolve())
-    (dest / ".mcp.json").write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     print(dest)
 
 

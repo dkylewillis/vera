@@ -66,5 +66,5 @@ server and is the exception.
 - [CLI command reference](../cli-reference.md) — commands and options.
 - [`vera_cli` Python reference](../reference/vera-cli.md) — exported parser and
   evaluation functions.
-- [Agent CLI contract](https://github.com/dkylewillis/vera/blob/main/skills/vera-search/references/cli-reference.md)
+- [Agent CLI contract](https://github.com/dkylewillis/vera/blob/main/plugins/vera/skills/vera-search/references/cli-reference.md)
   — exhaustive JSON shapes, exit codes, and filesystem effects.
