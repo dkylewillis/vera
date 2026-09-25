@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BridgeManager } from './bridge-manager.js';
+import { BridgeManager, findTunnelClientOnPath } from './bridge-manager.js';
 
 class FakeChild extends EventEmitter {
   killed = false;
@@ -195,5 +195,70 @@ describe('BridgeManager', () => {
     const status = await manager.start();
     expect(status.state).toBe('error');
     expect(status.message).toMatch(/Secure credential storage/i);
+  });
+
+  it('never fetches a health URL that is not http loopback with an explicit port', async () => {
+    const checked: string[] = [];
+    const rejected = [
+      'http://example.com:8080/',
+      'https://127.0.0.1:40123/',
+      'http://localhost:40123/',
+      'http://127.0.0.1/',
+      'http://127.0.0.1:40123/readyz',
+    ];
+    for (const value of rejected) {
+      const { manager } = createManager({
+        readHealthUrl: () => value,
+        fetchReady: async (url) => {
+          checked.push(url);
+          return true;
+        },
+        startupTimeoutMs: 50,
+        readyPollMs: 15,
+      });
+      const status = await manager.start();
+      expect(status.state).toBe('error');
+      expect(status.lastError || status.message).toMatch(/timed out/i);
+    }
+    expect(checked).toEqual([]);
+  });
+
+  it('accepts IPv6 loopback health URLs', async () => {
+    const checked: string[] = [];
+    const { manager } = createManager({
+      readHealthUrl: () => 'http://[::1]:40123/',
+      fetchReady: async (url) => {
+        checked.push(url);
+        return url.endsWith('/readyz');
+      },
+    });
+    const status = await manager.start();
+    expect(status.state).toBe('connected');
+    expect(checked[0]).toMatch(/http:\/\/\[::1\]:40123\/readyz$/u);
+  });
+});
+
+describe('findTunnelClientOnPath', () => {
+  it('prefers VERA_TUNNEL_CLIENT when that file exists', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vera-tunnel-'));
+    const client = join(dir, 'custom-client');
+    writeFileSync(client, 'fake');
+    expect(findTunnelClientOnPath({
+      VERA_TUNNEL_CLIENT: client,
+      PATH: '',
+    })).toBe(client);
+  });
+
+  it('discovers tunnel-client on PATH and otherwise returns null', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vera-tunnel-path-'));
+    const name = process.platform === 'win32' ? 'tunnel-client.exe' : 'tunnel-client';
+    const client = join(dir, name);
+    writeFileSync(client, 'fake');
+    expect(findTunnelClientOnPath({ PATH: dir, VERA_TUNNEL_CLIENT: '' })).toBe(client);
+    expect(findTunnelClientOnPath({ PATH: '', VERA_TUNNEL_CLIENT: '' })).toBeNull();
+    expect(findTunnelClientOnPath({
+      PATH: '',
+      VERA_TUNNEL_CLIENT: join(dir, 'missing-client'),
+    })).toBeNull();
   });
 });
