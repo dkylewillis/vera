@@ -140,6 +140,15 @@ summarizes PyMuPDF-shaped keys; Markdown's empty `ocr: {}` and Docling's
 `engine` field do not produce a complete Info line. Use
 `vera inspect FILE --json` and read [Inspect metadata](validation-and-export.md#inspect-metadata).
 
+## Opening a `.vera` file cleared my library
+
+**File > Open...** and a Windows/macOS shell open of a `.vera` are standalone
+document routes. They set Search/Ask to that archive and clear the saved
+active library (`preserveLibrary: false`). Explorer preview and checking
+files in a library do **not** do this. Re-activate the folder with
+**File > Open Folder...** or by clicking a library header already listed in
+Explorer. The parent of the opened archive is not added automatically.
+
 ## Explorer is missing nested files
 
 The desktop Explorer lists `.vera`, `.pdf`, and `.md` / `.markdown` files up
@@ -388,8 +397,10 @@ The desktop viewer copies the original source into a local cache before PDF.js
 or the Markdown preview can render it. Large stormwater manuals can take a while on first open. VERA
 now prefers a sibling `manual.pdf` next to `manual.vera` and reuses a cache
 file on later opens instead of extracting and re-hashing the embedded
-original. If the load still exceeds five minutes, cancel it from the viewer
-close control and keep the matching PDF beside the archive.
+original. If the load still exceeds five minutes, the renderer watchdog reports
+`Opening timed out after 300 seconds`. Cancel it from the viewer close
+control and keep the matching PDF beside the archive. Ask uses
+`timeoutMs: 0` (no automatic deadline; use Stop).
 
 ## `--where` returns no hits
 
