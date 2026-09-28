@@ -47,6 +47,64 @@ def test_local_package_is_external_and_never_merges(tmp_path):
     assert sentinel.read_text() == "preserve"
 
 
+def test_local_package_rejects_bad_names_and_rewrites_mcp_command(tmp_path):
+    script = str(ROOT / "scripts/package-local-plugin.py")
+    wrong_name = subprocess.run(
+        [sys.executable, script, "--output-dir", str(tmp_path / "vera-plugin")],
+        capture_output=True,
+        text=True,
+    )
+    assert wrong_name.returncode == 2
+    assert "end in vera" in wrong_name.stderr
+
+    inside_root = subprocess.run(
+        [sys.executable, script, "--output-dir", str(ROOT)],
+        capture_output=True,
+        text=True,
+    )
+    assert inside_root.returncode == 2
+    assert "outside this repository" in inside_root.stderr
+
+    destination = tmp_path / "vera"
+    missing = subprocess.run(
+        [
+            sys.executable,
+            script,
+            "--output-dir",
+            str(destination),
+            "--mcp-command",
+            str(tmp_path / "missing-vera-mcp"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert missing.returncode == 2
+    assert "existing executable" in missing.stderr
+    assert not destination.exists()
+
+    fake = tmp_path / "bin" / "vera-mcp"
+    fake.parent.mkdir()
+    fake.write_text("#!/bin/sh\n", encoding="utf-8")
+    packaged = subprocess.run(
+        [
+            sys.executable,
+            script,
+            "--output-dir",
+            str(destination),
+            "--mcp-command",
+            str(fake.relative_to(tmp_path)),
+        ],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    config = json.loads((destination / ".mcp.json").read_text(encoding="utf-8"))
+    assert config["mcpServers"]["vera"]["command"] == str(fake.resolve())
+    assert config["mcpServers"]["vera"]["env"]["VERA_AUTO_INSTALL_SEMANTIC_DEPS"] == "1"
+    assert packaged.stdout.strip() == str(destination.resolve())
+
+
 @pytest.mark.anyio
 async def test_plugin_components_and_documented_actions():
     plugin_root = ROOT / "plugins" / "vera"
@@ -72,6 +130,10 @@ async def test_plugin_components_and_documented_actions():
         "assets",
         "skills",
     }
+    launcher = (ROOT / "scripts/launch-vera-mcp.cmd").read_text(encoding="utf-8")
+    assert "where vera-mcp" in launcher
+    assert "vera-mcp not found" in launcher
+    assert "exit /b 1" in launcher
     reference = (ROOT / "plugins/vera/skills/vera-search/references/mcp-workflow.md").read_text(
         encoding="utf-8"
     )
