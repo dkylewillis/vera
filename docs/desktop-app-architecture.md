@@ -145,11 +145,33 @@ in the background. The corpus is opened on the first Search or Ask request.
 Cached library summaries from an earlier Inspect are restored when
 available. Selecting a library folder activates its Search/Ask scope and resets
 the viewer to an empty document view; selecting an individual `.vera` scope
-does not replace an open preview. Previewing an archive does not replace the
-library scope. Checking one or more archives in Explorer
-explicitly narrows retrieval to those files; clearing the checks restores
-whole-library search. Chat sessions persist the scope path so reopening a
-library-backed conversation restores its context.
+does not replace an open preview. Explorer preview of an archive keeps the
+library scope (`preserveLibrary` defaults to `true`). **File > Open...** and
+Windows/macOS shell open of a `.vera` are the opposite: they clear the saved
+active library (`preserveLibrary: false`). Checking one or more archives in
+Explorer explicitly narrows retrieval to those files; clearing the checks
+restores whole-library search. Chat sessions persist the scope path so
+reopening a library-backed conversation restores its context.
+
+## Opening archives from the shell or File menu
+
+The Windows installer advertises a `.vera` file association
+(`build.fileAssociations` in `packages/vera-app/package.json`). Electron takes
+`app.requestSingleInstanceLock()` so a second launch restores the existing
+window instead of starting another process. `veraArchivePathFromArgs()` reads
+the first `.vera` path on `process.argv` (quoted paths and case-insensitive
+`.VERA` included; PDFs and flags are ignored). A second instance and macOS
+`open-file` send that path over `IPC_CHANNELS.openTarget` once the renderer
+calls `openTargetReady`.
+
+`routeOpenTarget()` splits the payload: a directory goes to **Open Folder**
+(add/activate a library); a `.vera` goes to `previewSourceDocument` with
+`preserveLibrary: false` and `replacePending: true`. That clears
+`activeLibraryPath` and removes `vera.activeLibraryPath` from `localStorage`.
+**File > Open...** (`pickArchivePath`) filters to `.vera` only.
+**File > Open Folder...** (`pickFolderPath`) picks a directory. Explorer
+double-click / **View in document viewer** omits `preserveLibrary` so the
+library stays the Search/Ask scope.
 
 The center workspace has **Chat** and **Search** modes. Chat keeps LLM-backed
 conversations and their history, while Search runs direct hybrid, semantic, or

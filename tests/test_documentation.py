@@ -1017,6 +1017,77 @@ def test_pretty_search_is_documented_across_public_surfaces():
     assert "- `--pretty`" in search_section
 
 
+def test_desktop_file_open_clears_library_scope():
+    """Pin File/shell open vs Explorer preview library-scope behavior."""
+    architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    app_pkg = (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
+
+    assert "Opening archives from the shell or File menu" in architecture
+    assert "requestSingleInstanceLock" in architecture
+    assert "veraArchivePathFromArgs" in architecture
+    assert "preserveLibrary: false" in architecture
+    assert "preserveLibrary` defaults to `true" in architecture
+    assert "routeOpenTarget()" in architecture
+    assert "vera.activeLibraryPath" in architecture
+    assert "pickArchivePath" in architecture
+    assert "pickFolderPath" in architecture
+
+    assert "standalone document" in desktop
+    assert "preserveLibrary: false" in desktop
+    assert "vera.activeLibraryPath" in desktop
+    assert "File > Open Folder..." in desktop
+
+    assert "Opening a `.vera` file cleared my library" in troubleshooting
+    assert "preserveLibrary: false" in troubleshooting
+    assert "Opening timed out after 300 seconds" in troubleshooting
+    assert "timeoutMs: 0" in troubleshooting
+
+    assert "preserveLibrary: false" in changelog
+    assert "requestSingleInstanceLock" in changelog
+    assert "ChatGPT Bridge" in changelog
+    assert 'output: "compact"' in changelog
+    assert "vera_show_sources" in changelog
+
+    assert "clears the saved active library" in readme
+    assert "preserveLibrary: false" in app_pkg
+
+
+def test_desktop_bridge_poc_describes_shipped_behavior():
+    """The PoC page is current-state, not a pre-implementation plan."""
+    poc = (DOCS / "desktop-bridge-poc.md").read_text(encoding="utf-8")
+    plugin = (DOCS / "plugin.md").read_text(encoding="utf-8")
+    production = (DOCS / "desktop-bridge-production.md").read_text(encoding="utf-8")
+    runbook = (DOCS / "desktop-bridge-poc-setup-runbook.md").read_text(encoding="utf-8")
+    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
+    mcp_pkg = (DOCS / "packages" / "vera-mcp.md").read_text(encoding="utf-8")
+    index = (DOCS / "user-documentation.md").read_text(encoding="utf-8")
+
+    assert "Status: **implemented locally**" in poc
+    assert "Status: proposed, not implemented" not in poc
+    assert "VERA_BRIDGE_POLICY_PATH" in poc
+    assert "`vera_validate` is omitted" in poc
+    assert "userData/bridge/policy.json" in poc
+    assert "category: \"denied\"" in poc
+    assert "tunnel_[A-Za-z0-9_-]+" in poc
+    assert "vera-sidecar mcp-bridge" in poc
+
+    assert "Proposed Desktop bridge" not in plugin
+    assert "not current plugin behavior" not in plugin
+    assert "implemented developer-mode" in plugin
+    assert "does not register `vera_validate`" in plugin
+
+    assert "current Desktop bridge PoC" in production
+    assert "proof-of-concept plan" not in production
+    assert "once milestone 3" not in runbook
+    assert "ChatGPT Bridge will not start" in troubleshooting
+    assert "vera-mcp-bridge" in mcp_pkg
+    assert "Desktop ChatGPT bridge PoC" in index
+
+
 def test_desktop_security_and_markdown_locator_docs():
     architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
     troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
