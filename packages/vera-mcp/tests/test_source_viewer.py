@@ -97,6 +97,32 @@ def test_oversized_original_falls_back(source_archives, monkeypatch):
     assert view["kind"] == "text" and "preview limit" in view["notice"]
 
 
+def test_oversized_page_preview_falls_back(source_archives, monkeypatch):
+    monkeypatch.setattr("vera_mcp.source_viewer.MAX_IMAGE_BYTES", 1)
+    view = source_view(source_archives[0])
+    assert view["kind"] == "text"
+    assert "too large" in view["notice"]
+
+
+def test_pdf_preview_without_pymupdf_falls_back(monkeypatch):
+    import builtins
+    from types import SimpleNamespace
+
+    real_import = builtins.__import__
+
+    def blocked(name, *args, **kwargs):
+        if name == "pymupdf":
+            raise ImportError("blocked")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", blocked)
+    view = _pdf_view(SimpleNamespace(data=b"%PDF-1.4"), [], 1, 1)
+    assert view == {
+        "kind": "text",
+        "notice": 'PDF preview requires pip install "vera-mcp[viewer]".',
+    }
+
+
 def test_rotated_pdf_does_not_claim_verified_highlights(tmp_path):
     path = tmp_path / "rotated.pdf"
     with pymupdf.open() as pdf:

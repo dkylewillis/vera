@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -188,6 +188,38 @@ describe('BridgeManager', () => {
     await new Promise((resolve) => setTimeout(resolve, 550));
     expect(children).toHaveLength(2);
     expect((await manager.start()).state).toBe('connected');
+  });
+
+  it('stops an active tunnel when library settings change', async () => {
+    const { manager, userDataDir } = createManager();
+    await manager.start();
+    const policyPath = join(userDataDir, 'bridge', 'policy.json');
+    expect(existsSync(policyPath)).toBe(true);
+    manager.updateConfig({ libraryPath: userDataDir, tunnelId: 'tunnel_test' });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(manager.getStatus().state).toBe('connected');
+    expect(children[0]?.killed).toBe(false);
+
+    const otherDir = mkdtempSync(join(tmpdir(), 'vera-bridge-lib-'));
+    manager.updateConfig({ libraryPath: otherDir });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(manager.getStatus().state).toBe('disabled');
+    expect(manager.getStatus().message).toMatch(/settings changed/i);
+    expect(children[0]?.killed).toBe(true);
+    expect(existsSync(policyPath)).toBe(false);
+    expect(children).toHaveLength(1);
+    expect((await manager.start()).state).toBe('connected');
+    expect(children).toHaveLength(2);
+  });
+
+  it('fails after the restart budget is exhausted', async () => {
+    const { manager } = createManager({ maxRestartAttempts: 0 });
+    await manager.start();
+    children[0]?.emit('exit', 1, null);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(manager.getStatus().state).toBe('error');
+    expect(manager.getStatus().lastError).toMatch(/exited/i);
+    expect(children).toHaveLength(1);
   });
 
   it('fails clearly without encryption', async () => {
