@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -21,16 +22,61 @@ def anyio_backend():
     return "asyncio"
 
 
+def test_local_package_is_external_and_never_merges(tmp_path):
+    script = str(ROOT / "scripts/package-local-plugin.py")
+    inside = subprocess.run(
+        [sys.executable, script, "--output-dir", str(ROOT / "plugins/vera")],
+        capture_output=True,
+        text=True,
+    )
+    assert inside.returncode == 2
+    assert "outside this repository" in inside.stderr
+    destination = tmp_path / "vera"
+    command = [sys.executable, script, "--output-dir", str(destination)]
+    subprocess.run(command, check=True, capture_output=True)
+    assert (destination / ".mcp.json").is_file()
+    assert not (destination / ".app.json").exists()
+    assert (destination / "skills/vera-search/SKILL.md").read_bytes() == (
+        ROOT / "plugins/vera/skills/vera-search/SKILL.md"
+    ).read_bytes()
+    sentinel = destination / "old-file.txt"
+    sentinel.write_text("preserve")
+    repeated = subprocess.run(command, capture_output=True, text=True)
+    assert repeated.returncode == 2
+    assert "never merged" in repeated.stderr
+    assert sentinel.read_text() == "preserve"
+
+
 @pytest.mark.anyio
 async def test_plugin_components_and_documented_actions():
-    manifest = json.loads((ROOT / ".codex-plugin/plugin.json").read_text())
+    plugin_root = ROOT / "plugins" / "vera"
+    manifest = json.loads((plugin_root / ".codex-plugin/plugin.json").read_text())
     assert manifest["name"] == "vera"
-    assert (ROOT / manifest["skills"] / "vera/SKILL.md").is_file()
-    assert (ROOT / manifest["mcpServers"]).is_file()
-    config = json.loads((ROOT / manifest["mcpServers"]).read_text())
+    assert (plugin_root / manifest["skills"] / "vera-search/SKILL.md").is_file()
+    assert "apps" not in manifest
+    assert not (ROOT / ".app.json").exists()
+    apps = json.loads((ROOT / "examples/remote-bridge/connector.app.json").read_text())
+    assert apps["apps"]["vera"]["id"]
+    assert (plugin_root / manifest["mcpServers"]).is_file()
+    config = json.loads((plugin_root / manifest["mcpServers"]).read_text())
     assert config["mcpServers"]["vera"]["env"]["VERA_AUTO_INSTALL_SEMANTIC_DEPS"] == "1"
-    reference = (ROOT / "skills/vera/references/mcp-workflow.md").read_text()
-    guide = (ROOT / "docs/plugin.md").read_text()
+    marketplace = json.loads((ROOT / ".agents/plugins/marketplace.json").read_text())
+    assert marketplace["name"] == "vera-local"
+    assert marketplace["plugins"][0]["name"] == "vera"
+    assert marketplace["plugins"][0]["source"] == {"source": "local", "path": "./plugins/vera"}
+    assert (ROOT / marketplace["plugins"][0]["source"]["path"]).resolve() == plugin_root.resolve()
+    assert (plugin_root / ".codex-plugin/plugin.json").is_file()
+    assert {path.name for path in plugin_root.iterdir()} <= {
+        ".codex-plugin",
+        ".mcp.json",
+        "assets",
+        "skills",
+    }
+    reference = (ROOT / "plugins/vera/skills/vera-search/references/mcp-workflow.md").read_text(
+        encoding="utf-8"
+    )
+    guide = (ROOT / "docs/plugin.md").read_text(encoding="utf-8")
+    assert "Local marketplace" in guide
     for tool in await build_server().list_tools():
         assert tool.name in reference
         assert tool.name in guide
@@ -62,7 +108,7 @@ async def test_configured_stdio_search_read_refine(tmp_path, monkeypatch):
             ]
         )
     original = archive.read_bytes()
-    config = json.loads((ROOT / ".mcp.json").read_text())["mcpServers"]["vera"]
+    config = json.loads((ROOT / "plugins/vera/.mcp.json").read_text())["mcpServers"]["vera"]
     assert config.get("env", {}).get("VERA_AUTO_INSTALL_SEMANTIC_DEPS") == "1"
     # Match an activated environment without replacing the configured executable.
     # Merge PATH into the configured env; StdioServerParameters rejects a duplicate env=.
@@ -76,6 +122,7 @@ async def test_configured_stdio_search_read_refine(tmp_path, monkeypatch):
     params = StdioServerParameters(
         command=config["command"],
         args=list(config.get("args") or []),
+        # The local server must work from any task's working directory.
         cwd=str(tmp_path),
         env=env,
     )
@@ -83,6 +130,9 @@ async def test_configured_stdio_search_read_refine(tmp_path, monkeypatch):
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
+                info = _payload(await session.call_tool("vera_library_info", {}))
+                assert info["unrestricted"] is True
+                assert info["library_root"] is None
                 tools = {tool.name for tool in (await session.list_tools()).tools}
                 assert {
                     "vera_search",

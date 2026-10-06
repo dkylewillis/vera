@@ -1,6 +1,6 @@
 # VERA plugin
 
-The repository root is a local plugin named `vera`. It packages the existing
+`plugins/vera` is a local plugin named `vera`. It packages the existing
 agent skill and MCP tools for search, reading, and iterative refinement.
 Plugin version 0.2.0, Python package version 0.3.x, and archive format 0.2 are
 independent.
@@ -9,13 +9,14 @@ independent.
 
 ```text
 vera/
-  .codex-plugin/plugin.json       Plugin metadata and component paths
-  .mcp.json                      Starts the installed vera-mcp executable
-  skills/vera/SKILL.md            Shared CLI and MCP workflow
-  skills/vera/references/         CLI reference and retrieval workflows
-  packages/vera-mcp/              Existing tools
-  packages/vera-ingest/           Existing citation and viewer helpers
-  packages/vera-doc/              Existing archive and search engine
+  .agents/plugins/marketplace.json       Local marketplace entry for ChatGPT/Codex
+  plugins/vera/.codex-plugin/plugin.json Plugin metadata and component paths
+  plugins/vera/.mcp.json                 Starts the installed vera-mcp executable
+  plugins/vera/skills/vera-search/       Shared CLI and MCP workflow
+  examples/remote-bridge/                Optional remote connector example (not loaded)
+  packages/vera-mcp/                     Existing tools
+  packages/vera-ingest/                  Existing citation and viewer helpers
+  packages/vera-doc/                     Existing archive and search engine
 ```
 
 The source launcher and viewer live in packages/vera-mcp/src/vera_mcp/ui/ and
@@ -45,6 +46,44 @@ management, and export remain CLI operations.
 
 ## Local setup
 
+The default plugin is **VERA Local**: stdio MCP runs on the Codex task host.
+Neither VERA Desktop nor a tunnel needs to be running. A task running on another
+host searches that host, not the computer displaying Codex. `vera_library_info`
+returns `unrestricted: true` and `library_root: null`; supply a local archive or
+folder explicitly. Host filesystem permissions still apply.
+
+The default package contains no root `.app.json` or manifest `apps` field.
+Removing only the manifest field is insufficient because component discovery
+can still load a root `.app.json`. Keep remote connectors separate; never fall
+back to the remote bridge when a local search fails.
+
+For a local marketplace checkout, stage the package with an installed executable:
+
+```powershell
+.venv/Scripts/python.exe scripts/package-local-plugin.py --output-dir C:/path/outside/repo/plugins/vera --mcp-command C:/path/to/vera/.venv/Scripts/vera-mcp.exe
+```
+
+`plugins/vera` is the maintained plugin package. The packager copies that
+directory outside the repository and can rewrite `.mcp.json` to an absolute
+`vera-mcp` path for a host whose PATH does not include the console script.
+Do not distribute that machine-specific copy. The checked-in
+`plugins/vera/.mcp.json` uses `vera-mcp` on PATH. The output directory must be
+new and named `vera`; the packager rejects paths inside the repository and
+never merges old generated files into a new package. A generated package needs
+its own marketplace entry outside the repository. The repository marketplace
+already points at `./plugins/vera` and does not need that extra registration.
+Generated packages and Codex's installed cache are disposable installation
+artifacts, not additional sources to edit.
+Refresh/reinstall the local marketplace plugin and start a new task to load the
+changed tools. An existing task can retain its previous remote tool inventory.
+
+The desktop ChatGPT Bridge remains available for cloud ChatGPT or deliberate
+remote access. Its connector example is in
+`examples/remote-bridge/connector.app.json`, outside automatic discovery.
+See that folder's README and the desktop bridge guide. Use separate tunnel
+connections for separate computers; this change does not implement remote device
+selection or bind existing remote sessions to a particular computer.
+
 For the new source viewer, use the **modified server installation** under
 [Source viewer (0.2.0)](#source-viewer-020) below. Published versions only provide
 the earlier retrieval tools.
@@ -67,17 +106,60 @@ python -m pip install -e packages/vera-doc -e packages/vera-ingest -e packages/v
 ```
 
 Ensure `vera-mcp` is on the host application's PATH. With a virtual environment,
-set `command` in your local `.mcp.json` to its absolute executable path:
+set `command` in `plugins/vera/.mcp.json` to its absolute executable path:
 `C:/path/to/venv/Scripts/vera-mcp.exe` on Windows or
 `/path/to/venv/bin/vera-mcp` on POSIX. Do not commit machine-specific paths.
 The process waits for MCP messages on stdin; it is not a one-shot command.
 
-Register the complete `vera` checkout as the plugin root, not
-`.codex-plugin/` or `skills/vera/`, using the host's
-[local plugin installation workflow](https://developers.openai.com/plugins/deploy/connect-chatgpt/).
-This source change does not register a personal marketplace, install the plugin
-in the app, or publish it. For independent client setup, see
-[Agent skills](agent-skills.md) and [MCP integration](mcp.md).
+`plugins/vera` is the plugin package (not `.codex-plugin/` or the skill
+directory alone). Codex copies only that directory when you install. ChatGPT
+and Codex discover it through a **local marketplace**, not a folder-picker
+"add local plugin" control. See OpenAI's
+[package your plugin](https://developers.openai.com/plugins/build/plugins)
+guide (local marketplace + Plugins Directory) and
+[connect and test](https://developers.openai.com/plugins/deploy/connect-chatgpt/).
+This checkout does not publish VERA to the public Plugins Directory. For
+independent client setup, see [Agent skills](agent-skills.md) and
+[MCP integration](mcp.md).
+
+### Local marketplace
+
+[`.agents/plugins/marketplace.json`](https://github.com/dkylewillis/vera/blob/main/.agents/plugins/marketplace.json) is the
+repo-scoped marketplace catalog. It lists one plugin, `vera`, with
+`source.path` `./plugins/vera`. OpenAI resolves that path relative to the
+marketplace root (the checkout), not relative to `.agents/plugins/`. Install
+copies only `plugins/vera`. A source path of `./` would copy the checkout,
+including `.git` and `.venv`, and the install would appear to hang.
+
+Register the marketplace with Codex (optional if the desktop app already sees
+the checkout):
+
+```bash
+codex plugin marketplace add .
+codex plugin marketplace list
+```
+
+Then install from the Plugins Directory:
+
+1. Prefer the **ChatGPT desktop** app (local marketplaces show up there).
+2. Restart the app after adding or changing the marketplace file.
+3. Open **Plugins** / the **Plugins Directory**.
+4. Choose the **VERA local** marketplace source.
+5. Install **vera**, then start a **new chat** with the plugin enabled.
+
+After you change plugin files (manifest, skills, or connector configuration), refresh or
+reinstall from that marketplace source and start a new chat so the host picks up
+the update.
+
+### One ChatGPT app (developer mode)
+
+Connect VERA through the desktop **ChatGPT Bridge** for browser ChatGPT.
+Keep that remote connection separate from VERA Local in Codex. The preserved
+connector example is documented in the
+[remote bridge example](https://github.com/dkylewillis/vera/tree/main/examples/remote-bridge).
+Do not add its `apps` component or a root `.app.json` to the local plugin.
+Name remote connections by computer and use a dedicated tunnel per computer.
+Public HTTPS MCP relay and marketplace distribution are out of scope here.
 
 ### ChatGPT connection
 
@@ -128,8 +210,8 @@ and model tool selection require a separate check in the target host.
 
 ## Source viewer (0.2.0)
 
-Keep the plugin in this VERA monorepo. The root manifest and skill are the
-installation package; packages/vera-mcp owns the rendering tools and the
+Keep the plugin in this VERA monorepo. `plugins/vera` is the installation
+package; packages/vera-mcp owns the rendering tools and the
 self-contained ui/source-viewer.html asset. Personal plugin/cache directories
 are installed copies, not the source of truth. The desktop app remains a
 separate client; it shares the ingest citation helpers, not Electron components.
@@ -141,7 +223,7 @@ published vera-mcp package. Install from the repository root:
 python -m pip install -e packages/vera-doc -e packages/vera-ingest -e "packages/vera-mcp[viewer]"
 ```
 
-Point the installed plugin's .mcp.json command at that environment's absolute
+Point `plugins/vera/.mcp.json` at that environment's absolute
 vera-mcp executable, then refresh/reinstall the plugin and start a new task.
 A plugin ZIP contains the manifest and skill; install the modified Python server
 separately. PyMuPDF is optional for PDF previews; Markdown works without it.
@@ -179,7 +261,7 @@ and source lines travel in tool-result _meta, not model-visible image strings.
 Citation text and errors remain available as structuredContent for non-UI hosts.
 Browser ChatGPT still needs a reachable MCP connection, such as a tunnel.
 
-Preview limits: originals over 40 MiB fall back to stored text; PDFs render one
+Preview limits: originals over 100 MiB fall back to stored text; PDFs render one
 page with a maximum 1,400-pixel edge and a 3 MiB PNG limit. Missing originals,
 unsupported formats, or missing PDF renderer show a text fallback. Highlights
 are withheld on rotated PDFs and when stored page dimensions disagree with the
