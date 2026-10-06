@@ -281,9 +281,9 @@ def test_hardening_json_contracts_are_documented():
     assert "`file`, `path`," in conversion
     assert "`ok`, `error`" in conversion
     assert "`file`, `path`, `ok`, `error`" in cli_reference
-    skill_cli = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "cli-reference.md").read_text(
-        encoding="utf-8"
-    )
+    skill_cli = (
+        ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "cli-reference.md"
+    ).read_text(encoding="utf-8")
     assert "file`/`path`/`ok`/`error`" in skill_cli
     assert "requires OCR" in conversion
     assert "## Pipeline options" in conversion
@@ -682,7 +682,9 @@ def test_release_0_3_versioning_and_install_pins():
     roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
     mkdocs = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
     index = (DOCS / "user-documentation.md").read_text(encoding="utf-8")
-    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(encoding="utf-8")
+    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
 
     assert (ROOT / "CHANGELOG.md").is_file()
     assert "Release **0.3.x** versions the software" in readme
@@ -691,9 +693,9 @@ def test_release_0_3_versioning_and_install_pins():
     assert "vera>=0.3.2" in readme
     assert "vera>=0.3.2" in getting_started
     assert "vera-doc>=0.3.0" in (PACKAGES / "vera-doc" / "README.md").read_text(encoding="utf-8")
-    skill_cli = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "cli-reference.md").read_text(
-        encoding="utf-8"
-    )
+    skill_cli = (
+        ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "cli-reference.md"
+    ).read_text(encoding="utf-8")
     human_cli = (DOCS / "cli-reference.md").read_text(encoding="utf-8")
     assert "vera>=0.3.2" in skill_cli
     assert "Windows installer vendors Heron" not in human_cli
@@ -782,7 +784,9 @@ def test_docs_index_library_install_includes_default_pdf_pipeline():
 
 
 def test_skill_version_is_schema_not_product_or_format():
-    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(encoding="utf-8")
+    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
     assert 'version: "1.0.0"' in skill
     assert "skill's schema version" in skill
     assert "not the VERA" in skill
@@ -791,7 +795,9 @@ def test_skill_version_is_schema_not_product_or_format():
 
 def test_agents_and_skill_document_convert_json_on_failure():
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(encoding="utf-8")
+    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
     assert "failed `convert`" in agents
     assert "failed `convert`" in skill
     assert "exit 2" in agents
@@ -812,7 +818,9 @@ def test_operational_docs_cover_recent_public_interfaces():
     lab = (DOCS / "packages" / "vera-lab.md").read_text(encoding="utf-8")
     packages_index = (DOCS / "packages" / "index.md").read_text(encoding="utf-8")
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(encoding="utf-8")
+    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "falls back to hashing" not in troubleshooting
     assert "UnknownEmbeddingModelError" in troubleshooting
@@ -944,10 +952,12 @@ def test_index_ask_and_embedder_operational_docs():
     desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
     architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
     searching = (DOCS / "searching.md").read_text(encoding="utf-8")
-    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(encoding="utf-8")
-    skill_cli = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "cli-reference.md").read_text(
+    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(
         encoding="utf-8"
     )
+    skill_cli = (
+        ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "cli-reference.md"
+    ).read_text(encoding="utf-8")
 
     assert "future explicit garbage-collection command" not in collection
     assert "deletes every other generation directory" in collection
@@ -991,12 +1001,20 @@ def test_pretty_search_is_documented_across_public_surfaces():
     ingest_pkg = (DOCS / "packages" / "vera-ingest.md").read_text(encoding="utf-8")
     figures = (DOCS / "figures-and-regions.md").read_text(encoding="utf-8")
     troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
-    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(encoding="utf-8")
-    skill_cli = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "cli-reference.md").read_text(
+    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(
         encoding="utf-8"
     )
+    skill_cli = (
+        ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "cli-reference.md"
+    ).read_text(encoding="utf-8")
     retrieval = (
-        ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "retrieval-workflows.md"
+        ROOT
+        / "plugins"
+        / "vera"
+        / "skills"
+        / "vera-search"
+        / "references"
+        / "retrieval-workflows.md"
     ).read_text(encoding="utf-8")
 
     for document in (readme, searching, cli_reference, examples, basic, skill, skill_cli):
@@ -1101,10 +1119,12 @@ def test_inspect_diagnostics_and_fts_fallback_docs():
     python_api = (DOCS / "python-api.md").read_text(encoding="utf-8")
     mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
     pymupdf = (DOCS / "packages" / "vera-ingest-pymupdf.md").read_text(encoding="utf-8")
-    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(encoding="utf-8")
-    skill_cli = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "cli-reference.md").read_text(
+    skill = (ROOT / "plugins" / "vera" / "skills" / "vera-search" / "SKILL.md").read_text(
         encoding="utf-8"
     )
+    skill_cli = (
+        ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "cli-reference.md"
+    ).read_text(encoding="utf-8")
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     examples_pkg = (DOCS / "packages" / "vera-ingest-examples.md").read_text(encoding="utf-8")
     pipeline_guide = (DOCS / "creating-an-ingest-pipeline.md").read_text(encoding="utf-8")
