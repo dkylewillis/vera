@@ -1089,7 +1089,7 @@ def test_desktop_bridge_poc_describes_shipped_behavior():
     assert "VERA_BRIDGE_POLICY_PATH" in poc
     assert "`vera_validate` is omitted" in poc
     assert "userData/bridge/policy.json" in poc
-    assert "category: \"denied\"" in poc
+    assert 'category: "denied"' in poc
     assert "tunnel_[A-Za-z0-9_-]+" in poc
     assert "vera-sidecar mcp-bridge" in poc
 
