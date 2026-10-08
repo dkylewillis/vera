@@ -80,7 +80,7 @@ ChatGPT listed the tunnel under developer-mode app creation.
 
 Connection guide: [Connect ChatGPT](https://developers.openai.com/plugins/deploy/connect-chatgpt/).
 
-## VERA Desktop bridge profile (after milestones 1–3)
+## VERA Desktop bridge profile
 
 Desktop owns `tunnel-client` and writes a fail-closed policy file. Manual
 equivalent for debugging (do not put secrets in shell history if avoidable):
@@ -104,9 +104,9 @@ tunnel-client doctor --profile vera-desktop-bridge --explain
 tunnel-client run --profile vera-desktop-bridge
 ```
 
-Prefer the Desktop **Settings → ChatGPT Bridge** setup wizard once milestone 3
-lands. It selects the approved library and `tunnel-client` executable, stores
-the runtime key in encrypted storage, validates the local paths and `tunnel_…`
+Prefer the Desktop **File > Settings → ChatGPT Bridge** setup wizard. It
+selects the approved library and `tunnel-client` executable, stores the
+runtime key in encrypted storage, validates the local paths and `tunnel_…`
 ID, then enables **Save & Connect**. Library, client, or tunnel changes require
 Disconnect then Connect so the policy file is rewritten.
 The Desktop supervisor passes `--health.listen-addr 127.0.0.1:0` and a private

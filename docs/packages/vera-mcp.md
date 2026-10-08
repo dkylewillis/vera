@@ -50,6 +50,11 @@ output to stdout.
 MCP intentionally does not expose conversion, index mutation, source export, or
 retrieval evaluation. Use `vera` or the Python packages for those tasks.
 
+Desktop ChatGPT Bridge is a separate fail-closed entry (`vera-mcp-bridge` /
+`vera-sidecar mcp-bridge`) that requires `VERA_BRIDGE_POLICY_PATH` and omits
+`vera_validate`. Ordinary `vera mcp` stays unrestricted. See
+[desktop-bridge-poc.md](../desktop-bridge-poc.md).
+
 Source viewer: `vera_show_sources` adds an **Open VERA sources** button beside
 a normally rendered answer. The user selects `[C#]` references inside the
 viewer; `vera_source_page` loads the highlighted passage. See the
