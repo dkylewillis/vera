@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -225,9 +226,68 @@ def test_main_bridge_fail_closed(monkeypatch, capsys):
     from vera_mcp import server as module
 
     monkeypatch.delenv(POLICY_ENV, raising=False)
+    monkeypatch.setenv("VERA_AUTO_INSTALL_SEMANTIC_DEPS", "1")
     assert module.main_bridge() == 2
     err = capsys.readouterr().err
     assert POLICY_ENV in err
+    assert "VERA_AUTO_INSTALL_SEMANTIC_DEPS" not in os.environ
+
+
+def test_policy_file_must_be_object_and_max_sources_positive(approved_library, tmp_path):
+    listed = tmp_path / "listed.json"
+    listed.write_text("[1]", encoding="utf-8")
+    with pytest.raises(ValueError, match="JSON object"):
+        AccessPolicy.load(listed)
+    with pytest.raises(ValueError, match="max_sources"):
+        AccessPolicy.from_mapping({"library_root": str(approved_library["root"]), "max_sources": 0})
+
+
+def test_rejects_device_and_extended_unc_paths():
+    with pytest.raises(AccessDenied, match="Network and device"):
+        canonicalize_path("//./pipe/vera", require_directory=False)
+    with pytest.raises(AccessDenied, match="Network and device"):
+        canonicalize_path("//?/UNC/server/share/library", require_directory=True)
+
+
+def test_check_library_root_allows_nested_and_rejects_files(approved_library):
+    policy = approved_library["policy"]
+    nested = approved_library["root"] / "nested"
+    nested.mkdir()
+    assert policy.check_library_root(nested) == nested.resolve()
+    with pytest.raises(AccessDenied, match="directory"):
+        policy.check_library_root(approved_library["archive"])
+
+
+@pytest.mark.anyio
+async def test_show_sources_sanitizes_pathful_errors_under_policy(approved_library, monkeypatch):
+    from vera_mcp import build_server
+    from vera_mcp import source_viewer as viewer
+
+    leaked = str(approved_library["archive"])
+
+    def boom(*_args, **_kwargs):
+        raise ValueError(leaked)
+
+    monkeypatch.setattr(viewer.VeraDocument, "open", boom)
+    server = build_server(policy=approved_library["policy"])
+    result = await server.call_tool(
+        "vera_show_sources",
+        {
+            "sources": [
+                {
+                    "file": leaked,
+                    "chunk_id": "chunk_0001",
+                    "id": "C1",
+                }
+            ]
+        },
+    )
+    payload = _payload(result)
+    blob = json.dumps(payload)
+    assert payload["sources"][0]["file"] == "(omitted)"
+    assert payload["sources"][0]["error"] == "Source could not be opened."
+    assert leaked not in blob
+    assert "UNIQUE_SENTINEL" not in blob
 
 
 def test_junction_escape_denied(approved_library):
