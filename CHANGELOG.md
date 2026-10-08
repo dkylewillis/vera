@@ -15,6 +15,21 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   requested figure captions. MCP `vera_search` and `vera_corpus_search` accept
   `pretty: true` and add the same rendering as a top-level `context` field while
   preserving structured results.
+- Windows installer registers `.vera` archives. Double-click, a second-instance
+  argv, or **File > Open...** reuses the running window
+  (`requestSingleInstanceLock`) and opens the archive as a standalone document
+  (`preserveLibrary: false`), which clears the saved active library.
+  **File > Open Folder...** still adds or activates a library. Explorer preview
+  keeps the current library scope.
+- Desktop **File > Settings → ChatGPT Bridge** (developer-mode PoC) supervises
+  OpenAI Secure MCP Tunnel against one approved library via
+  `vera-sidecar mcp-bridge` and a fail-closed policy file.
+- Local VERA plugin (`plugins/vera`) plus the repo marketplace
+  (`.agents/plugins/marketplace.json`) for Codex / ChatGPT desktop: stdio
+  `vera-mcp`, the portable `vera-search` skill, compact search output
+  (`output: "compact"`), and the source viewer (`vera_show_sources` /
+  `vera_source_page`). The desktop ChatGPT Bridge remains a separate remote
+  connection.
 
 ### Fixed
 

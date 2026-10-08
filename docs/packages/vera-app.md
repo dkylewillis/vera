@@ -36,7 +36,9 @@ Download `VERA.Setup.<version>.exe` from the
    archive and choose **Reconvert…** to replace it with a different ingest
    pipeline or embedding model. Reconvert writes to the clicked archive even
    when its name differs from the source file.
-2. Use **File > Open Folder** to activate a document library.
+2. Use **File > Open Folder...** to activate a document library.
+   **File > Open...** and a Windows shell open of a `.vera` are standalone
+   (`preserveLibrary: false`) and clear the saved active library.
 3. Open **Search** for fully local hybrid retrieval.
 4. To use **Ask**, configure a provider under **File > Settings → LLM Providers**.
 5. Optional: save a Hugging Face token under **File > Settings → Hugging
