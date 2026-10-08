@@ -34,6 +34,7 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 - Jump from answer citations directly to source location
 - Work in a two-pane layout with Ask on the left and Source Document on the right
 - Open documents from the native File menu and show file metrics in the bottom status bar
+- On Windows, double-click a `.vera` file (or **File > Open...**) to open it as a standalone document in the running window; **File > Open Folder...** activates a library
 - Drag the Source Document divider to resize the grounded PDF review area
 
 ### 2. Prompt Input + Retrieval
