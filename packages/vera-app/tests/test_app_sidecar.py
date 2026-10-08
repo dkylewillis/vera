@@ -73,6 +73,38 @@ def test_sidecar_start_does_not_import_torch(monkeypatch):
     assert "torch" not in sys.modules
 
 
+def test_sidecar_main_rejects_malformed_lines_and_missing_ids(monkeypatch):
+    sidecar = importlib.import_module("vera_app.sidecar")
+    responses = []
+    monkeypatch.setattr(sidecar, "_write_response", responses.append)
+    monkeypatch.setattr(
+        sidecar.sys,
+        "stdin",
+        io.StringIO(
+            "{not json}\n"
+            '{"action":"search","path":"manual.vera","query":"detention"}\n'
+            '{"id":"cancel","action":"cancel","target_id":"missing"}\n'
+            '{"id":"skip","action":"skip","target_id":"missing"}\n'
+        ),
+    )
+
+    assert sidecar.main() == 0
+    assert responses[0]["id"] is None
+    assert responses[0]["ok"] is False
+    assert responses[0]["error"]
+    assert responses[1] == {"id": None, "ok": False, "error": "search requests require an id"}
+    assert responses[2] == {
+        "id": "cancel",
+        "ok": True,
+        "result": {"target_id": "missing", "cancelled": False},
+    }
+    assert responses[3] == {
+        "id": "skip",
+        "ok": True,
+        "result": {"target_id": "missing", "skipped": False},
+    }
+
+
 @pytest.fixture
 def nested_app_library(tmp_path):
     root = tmp_path / "proposals"

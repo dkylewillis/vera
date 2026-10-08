@@ -70,6 +70,56 @@ def test_semantic_dependency_setup_skips_keyword_search(monkeypatch):
     module.ensure_semantic_dependencies("keyword")
 
 
+def test_semantic_dependency_setup_reports_pip_failure(monkeypatch):
+    from vera_mcp import server as module
+
+    def import_module(name):
+        raise ImportError("missing")
+
+    monkeypatch.setenv("VERA_AUTO_INSTALL_SEMANTIC_DEPS", "1")
+    monkeypatch.setattr(module.importlib, "import_module", import_module)
+    monkeypatch.setattr(
+        module.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(returncode=1)
+    )
+
+    with pytest.raises(RuntimeError, match="could not install Sentence Transformers"):
+        module.ensure_semantic_dependencies("hybrid")
+
+
+def test_semantic_dependency_setup_reports_pip_oserror(monkeypatch):
+    from vera_mcp import server as module
+
+    def import_module(name):
+        raise ImportError("missing")
+
+    def run_pip(*args, **kwargs):
+        raise OSError("no pip")
+
+    monkeypatch.setenv("VERA_AUTO_INSTALL_SEMANTIC_DEPS", "1")
+    monkeypatch.setattr(module.importlib, "import_module", import_module)
+    monkeypatch.setattr(module.subprocess, "run", run_pip)
+
+    with pytest.raises(RuntimeError, match="could not start pip"):
+        module.ensure_semantic_dependencies("hybrid")
+
+
+def test_semantic_dependency_setup_reports_still_unavailable(monkeypatch):
+    from vera_mcp import server as module
+
+    def import_module(name):
+        raise ImportError("missing")
+
+    monkeypatch.setenv("VERA_AUTO_INSTALL_SEMANTIC_DEPS", "1")
+    monkeypatch.setattr(module.importlib, "import_module", import_module)
+    monkeypatch.setattr(module.importlib, "invalidate_caches", lambda: None)
+    monkeypatch.setattr(
+        module.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(returncode=0)
+    )
+
+    with pytest.raises(RuntimeError, match="still unavailable"):
+        module.ensure_semantic_dependencies("hybrid")
+
+
 def test_mcp_server_starts_before_semantic_dependency_setup(monkeypatch):
     from vera_mcp import server as module
 
@@ -359,6 +409,14 @@ async def test_get_chunk_missing_id_returns_error(server, vera_file):
         await server.call_tool("vera_get_chunk", {"file": str(vera_file), "chunk_id": "chunk_zzzz"})
     )
     assert payload == {"ok": False, "error": "chunk not found: chunk_zzzz"}
+
+
+@pytest.mark.anyio
+async def test_get_chunk_whitespace_id_returns_error(server, vera_file):
+    payload = _payload(
+        await server.call_tool("vera_get_chunk", {"file": str(vera_file), "chunk_id": "   "})
+    )
+    assert payload == {"ok": False, "error": "chunk not found:    "}
 
 
 @pytest.mark.anyio
