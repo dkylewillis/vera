@@ -12,7 +12,7 @@
     "build": "npm run build:electron && npm run typecheck:renderer && vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:sidecar": "node scripts/build-sidecar.cjs",
-    "dist": "npm run build && npm run build:sidecar && electron-builder",
+    "dist": "node scripts/write-pro-cloud.cjs && npm run build && npm run build:sidecar && electron-builder",
     "typecheck": "npm run typecheck:electron && npm run typecheck:renderer",
     "typecheck:electron": "tsc -p tsconfig.electron.json --noEmit",
     "typecheck:renderer": "tsc -p tsconfig.renderer.json",
@@ -21,6 +21,7 @@
     "start": "electron ."
   },
   "dependencies": {
+    "electron-updater": "6.6.2",
     "katex": "0.16.47",
     "lucide-react": "1.21.0",
     "pdfjs-dist": "6.2.108",
@@ -64,10 +65,35 @@
       {
         "from": "src/vera_app/modes_builtin",
         "to": "python/vera_app/modes_builtin"
+      },
+      {
+        "from": "build/pro-cloud.json",
+        "to": "pro-cloud.json"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "VERA",
+        "schemes": [
+          "vera"
+        ]
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "dkylewillis",
+        "repo": "vera"
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "azureSignOptions": {
+        "publisherName": "VERA",
+        "endpoint": "https://eus.codesigning.azure.net/",
+        "certificateProfileName": "VERADesktop",
+        "codeSigningAccountName": "vera-signing"
+      }
     },
     "fileAssociations": [
       {

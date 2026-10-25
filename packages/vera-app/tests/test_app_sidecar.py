@@ -685,12 +685,12 @@ def test_sidecar_forwards_ocr_options_for_single_and_batch_conversion(monkeypatc
     assert captured["single"][2]["ocr_mode"] == "force"
     assert captured["single"][2]["ocr_language"] == "spa"
     assert captured["single"][2]["ocr_dpi"] == 240
-    assert captured["single"][2]["model"] == "hashing"
+    assert captured["single"][2]["model"] == convert_mod.DEFAULT_DESKTOP_EMBEDDING_MODEL
     assert batch["ok"] is True
     assert captured["batch"][1]["ocr_mode"] == "off"
     assert captured["batch"][1]["ocr_language"] == "deu"
     assert captured["batch"][1]["ocr_dpi"] == 200
-    assert captured["batch"][1]["model"] == "hashing"
+    assert captured["batch"][1]["model"] == convert_mod.DEFAULT_DESKTOP_EMBEDDING_MODEL
 
 
 def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):

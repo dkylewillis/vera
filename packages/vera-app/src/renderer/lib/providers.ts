@@ -1,3 +1,4 @@
+import { PRO_DEFAULT_MODELS, PRO_OPENROUTER_BASE_URL, PRO_PRESET_KEY } from '../../shared/pro';
 import type { ProviderProfile } from '../types';
 
 export type ProviderPreset = {
@@ -12,6 +13,22 @@ export type ProviderPreset = {
 export const REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
+  {
+    key: PRO_PRESET_KEY,
+    label: 'VERA Pro',
+    description: 'Subscription Ask. The key is issued to your account and stored apart from a personal OpenRouter key.',
+    kind: 'hosted',
+    catalog: [...PRO_DEFAULT_MODELS],
+    value: {
+      label: 'VERA Pro',
+      provider: 'openai_compatible',
+      models: [],
+      base_url: PRO_OPENROUTER_BASE_URL,
+      api_key_env: '',
+      auth_type: 'api_key',
+      temperature: 0.2,
+    },
+  },
   {
     key: 'ollama',
     label: 'Ollama',

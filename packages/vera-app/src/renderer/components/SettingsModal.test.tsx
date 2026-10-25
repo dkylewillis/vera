@@ -38,6 +38,8 @@ describe('SettingsModal', () => {
     expect(html).toContain('id="settings-title"');
     expect(html).toContain('Settings');
     expect(html).toContain('LLM Providers');
+    expect(html).toContain('Account');
+    expect(html).toContain('VERA Pro');
     expect(html).toContain('Embeddings');
     expect(html).toContain('Hugging Face');
     expect(html).toContain('ChatGPT Bridge');
@@ -48,6 +50,14 @@ describe('SettingsModal', () => {
     expect(html).toContain('OpenAI');
     expect(html).not.toContain('Use an external Python environment');
     expect(html).not.toContain('huggingface.co/settings/tokens');
+  });
+
+  it('opens Account with sign-in and Get Pro', () => {
+    const html = renderSettings('account');
+    expect(html).toContain('Sign in');
+    expect(html).toContain('Get Pro');
+    expect(html).toContain('Activate Pro');
+    expect(html).toContain('Search stays on this computer');
   });
 
   it('opens the Diagnostics section when requested', () => {

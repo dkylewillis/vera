@@ -6,6 +6,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   windows-sidecar:
     runs-on: windows-latest
@@ -54,11 +57,26 @@ jobs:
       - name: Build renderer and Electron main process
         run: npm --prefix packages/vera-app run build
 
+      - name: Write packaged Pro config
+        env:
+          VERA_PRO_SITE_URL: ${{ secrets.VERA_PRO_SITE_URL }}
+          VERA_PRO_SUPABASE_URL: ${{ secrets.VERA_PRO_SUPABASE_URL }}
+          VERA_PRO_SUPABASE_ANON_KEY: ${{ secrets.VERA_PRO_SUPABASE_ANON_KEY }}
+        run: node packages/vera-app/scripts/write-pro-cloud.cjs
+
       - name: Build Windows NSIS installer
         working-directory: packages/vera-app
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx electron-builder --win nsis --publish never
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGN_ENDPOINT: ${{ secrets.AZURE_SIGN_ENDPOINT }}
+          AZURE_SIGN_PROFILE: ${{ secrets.AZURE_SIGN_PROFILE }}
+          AZURE_SIGN_ACCOUNT: ${{ secrets.AZURE_SIGN_ACCOUNT }}
+          AZURE_SIGN_PUBLISHER: ${{ secrets.AZURE_SIGN_PUBLISHER }}
+        run: npx electron-builder --win nsis --publish ${{ github.ref_type == 'tag' && 'always' || 'never' }}
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
