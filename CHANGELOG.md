@@ -10,6 +10,16 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Added
 
+- Desktop Convert defaults to local MiniLM
+  (`sentence-transformers:all-MiniLM-L6-v2`). Hashing stays in the dropdown.
+  CLI `vera convert` still defaults to hashing.
+- VERA Pro account sign-in (`vera://auth/callback`) and a subscription Ask
+  provider whose OpenRouter key is stored apart from a personal OpenRouter key.
+  Ask with no provider offers **Use VERA Pro** and **Add your own provider**.
+- Installed Windows builds check GitHub Releases for updates. **Help > Check
+  for updates** checks on demand. Azure Trusted Signing is used when the
+  release environment supplies the `AZURE_SIGN_*` credentials, and it signs
+  `.exe` and `.dll` files, including the bundled sidecar.
 - `vera search --pretty` prints readable context with headings, source/page
   citations, complete matches, neighboring chunks, corpus archive paths, and
   requested figure captions. MCP `vera_search` and `vera_corpus_search` accept

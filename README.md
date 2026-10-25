@@ -240,7 +240,8 @@ That shell open (and **File > Open...**) is a standalone document: it reuses
 the running window and clears the saved active library. Use
 **File > Open Folder...** when you want the whole folder as the Search/Ask
 scope.
-Connect an LLM provider for grounded questions and answers.
+Connect an LLM provider, or a VERA Pro subscription, for grounded questions and answers.
+The Windows installer checks GitHub Releases for updates.
 For private developer-mode testing, its ChatGPT Bridge setup wizard selects the
 approved library and tunnel client, stores the runtime key securely, verifies
 the local bridge, and records redacted tunnel diagnostics.
