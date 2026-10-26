@@ -9,9 +9,12 @@ sections describe running and packaging it from a repository checkout.
 
 Download the `VERA.Setup.<version>.exe` installer from the
 [latest GitHub Release](https://github.com/dkylewillis/vera/releases), run it,
-and then open VERA from the Start menu.
+and then open VERA from the Start menu. Installed builds check that release
+for updates at startup. **Help > Check for updates** checks again. A download
+installs the next time you restart VERA.
 
-The installer registers `.vera` archives with Windows. After choosing VERA as
+The installer registers `.vera` archives and the `vera://` link used by VERA
+Pro sign-in. After choosing VERA as
 the default app for `.vera` files, double-click an archive in File Explorer or
 on the desktop to open it directly in Document Preview. If VERA is already
 running, the existing window is restored and reused instead of starting a
@@ -25,6 +28,28 @@ saved active library is cleared (`preserveLibrary: false`, including
 preview of a `.vera` does **not** replace the library — only File/shell open
 does. Restore a library with **File > Open Folder...** (`Ctrl/Cmd+Shift+O`)
 or by activating a folder already listed in Explorer.
+
+## VERA Pro
+
+**File > Settings → Account** signs this computer in through the browser.
+The site redirects to `vera://auth/callback`, and VERA stores the session with
+Electron `safeStorage`. **Activate Pro** fetches a per-account OpenRouter key
+with a monthly spending limit and saves it separately from any OpenRouter key
+you paste under **LLM Providers**. Ask then uses the **VERA Pro** provider.
+**Get Pro** opens the subscription page.
+
+Search does not need Pro. Without a subscription, add your own provider
+(OpenAI, OpenRouter, Ollama, or LM Studio). If Ask is opened with no provider,
+VERA offers **Use VERA Pro** and **Add your own provider**.
+
+A packaged build with empty `pro-cloud.json` shows Account as not connected.
+Release builds fill that file from `VERA_PRO_SITE_URL`,
+`VERA_PRO_SUPABASE_URL`, and `VERA_PRO_SUPABASE_ANON_KEY`. Those values are
+the public site URL and the Supabase anon key, not the service role key.
+
+Pro Ask sends the question and retrieved passages to OpenRouter and the
+selected model provider. Canceling the subscription disables the key. Signing
+out of Account leaves a saved key on disk until you clear it.
 
 ## ChatGPT Bridge (developer-mode PoC)
 
@@ -85,8 +110,10 @@ to stop both processes.
 Open a PDF or Markdown file from the app's Convert view to create a `.vera`
 archive, or use the native File menu to open an existing archive or document
 library.
-Desktop conversions default to the PyMuPDF ingest pipeline and the
-offline `hashing` embedder. The Convert view exposes dropdowns for
+Desktop conversions default to the PyMuPDF ingest pipeline and
+**Local semantic (MiniLM)** (`sentence-transformers:all-MiniLM-L6-v2`).
+Hashing remains available in the Convert dropdown. The CLI `vera convert`
+default is still hashing. The Convert view exposes dropdowns for
 `ingest_pipeline` (PyMuPDF in 0.3.0) and
 embedding model presets such as `sentence-transformers:all-MiniLM-L6-v2` and
 `openai:text-embedding-3-small`, plus

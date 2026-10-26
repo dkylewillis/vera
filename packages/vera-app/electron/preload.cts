@@ -1,4 +1,5 @@
 import type { AppSettings, Session, StreamEvent } from '../src/shared/contracts.js';
+import type { ProAccount } from '../src/shared/pro.js';
 import type { IPC_CHANNELS as IpcChannels } from '../src/shared/protocol.js';
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -24,6 +25,14 @@ const IPC_CHANNELS: typeof IpcChannels = {
   clearHfToken: 'vera:clearHfToken',
   saveEnvSecret: 'vera:saveEnvSecret',
   clearEnvSecret: 'vera:clearEnvSecret',
+  proGetAccount: 'vera:proGetAccount',
+  proSignIn: 'vera:proSignIn',
+  proSignOut: 'vera:proSignOut',
+  proActivate: 'vera:proActivate',
+  proClearKey: 'vera:proClearKey',
+  proOpenPage: 'vera:proOpenPage',
+  checkForUpdates: 'vera:checkForUpdates',
+  proAccountChanged: 'vera:proAccountChanged',
   getSessions: 'vera:getSessions',
   saveSession: 'vera:saveSession',
   deleteSession: 'vera:deleteSession',
@@ -71,6 +80,18 @@ contextBridge.exposeInMainWorld('vera', {
   clearHfToken: () => ipcRenderer.invoke(IPC_CHANNELS.clearHfToken),
   saveEnvSecret: (name: string, value: string) => ipcRenderer.invoke(IPC_CHANNELS.saveEnvSecret, name, value),
   clearEnvSecret: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.clearEnvSecret, name),
+  proGetAccount: () => ipcRenderer.invoke(IPC_CHANNELS.proGetAccount),
+  proSignIn: () => ipcRenderer.invoke(IPC_CHANNELS.proSignIn),
+  proSignOut: () => ipcRenderer.invoke(IPC_CHANNELS.proSignOut),
+  proActivate: () => ipcRenderer.invoke(IPC_CHANNELS.proActivate),
+  proClearKey: () => ipcRenderer.invoke(IPC_CHANNELS.proClearKey),
+  proOpenPage: (page: 'pricing' | 'account') => ipcRenderer.invoke(IPC_CHANNELS.proOpenPage, page),
+  checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
+  onProAccountChanged: (callback: (account: ProAccount) => void) => {
+    const listener = (_event: unknown, account: ProAccount) => callback(account);
+    ipcRenderer.on(IPC_CHANNELS.proAccountChanged, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.proAccountChanged, listener);
+  },
   getSessions: () => ipcRenderer.invoke(IPC_CHANNELS.getSessions),
   saveSession: (session: Session) => ipcRenderer.invoke(IPC_CHANNELS.saveSession, session),
   deleteSession: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.deleteSession, id),

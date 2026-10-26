@@ -58,7 +58,8 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 - Optional domain-specific response templates
 
 ### 6. LLM Ask
-- Connect to one or more LLM providers under **File > Settings**
+- Connect to one or more LLM providers under **File > Settings**, or sign in
+  to **VERA Pro** under **File > Settings → Account** for Ask without your own key
 - Optionally connect an approved local library to ChatGPT developer mode under
   **File > Settings → ChatGPT Bridge** (private Secure MCP Tunnel PoC; see
   [desktop-bridge-poc.md](desktop-bridge-poc.md))
@@ -121,6 +122,7 @@ LLM Ask are already shipped. Remaining product follow-ups:
 
 - Voyage and Ollama embeddings after an optional query/document hint on
   `EmbeddingFunction`. OpenAI already ships as `vera-embed-openai`.
+  Desktop Convert defaults to local MiniLM; hashing remains available.
 - Advanced reranking and confidence scoring
 - Evaluation dashboard for groundedness and retrieval quality
 - Role-based governance and audit trails

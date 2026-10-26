@@ -54,7 +54,8 @@ describe('convertPresets', () => {
     expect(isKnownEmbeddingPreset('hashing')).toBe(true);
     expect(isKnownEmbeddingPreset('sentence-transformers:all-MiniLM-L6-v2')).toBe(true);
     expect(EMBEDDING_MODEL_PRESETS.find((item) => item.value === 'sentence-transformers:all-MiniLM-L6-v2')?.label)
-      .toBe('Local semantic (MiniLM)');
+      .toBe('Local semantic (MiniLM) — default');
+    expect(EMBEDDING_MODEL_PRESETS[0]?.value).toBe('sentence-transformers:all-MiniLM-L6-v2');
     expect(isKnownEmbeddingPreset('openai:text-embedding-3-small')).toBe(true);
     expect(isKnownEmbeddingPreset('openai:text-embedding-3-large')).toBe(true);
   });
@@ -63,6 +64,21 @@ describe('convertPresets', () => {
     expect(embeddingProviderFromSpec('hashing')).toBe('hashing');
     expect(embeddingProviderFromSpec('sentence-transformers:all-MiniLM-L6-v2')).toBe('sentence-transformers');
     expect(embeddingProviderFromSpec('openai:text-embedding-3-small')).toBe('openai');
+  });
+
+  it('keeps the MiniLM preset when the sidecar reports sentence-transformers', () => {
+    const options = embeddingSelectOptions([
+      {
+        provider: 'sentence-transformers',
+        label: 'Local semantic',
+        description: '',
+        installed: true,
+        default_model_id: 'all-MiniLM-L6-v2',
+        fields: [],
+        source: 'bundled',
+      },
+    ]);
+    expect(options.some((item) => item.value === 'sentence-transformers:all-MiniLM-L6-v2')).toBe(true);
   });
 
   it('adds external embedder options after bundled presets', () => {
