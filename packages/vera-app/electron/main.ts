@@ -13,11 +13,44 @@ import type {
   Session,
 } from '../src/shared/contracts.js';
 import { IPC_CHANNELS, SIDECAR_ACTIONS } from '../src/shared/protocol.js';
+import { DESKTOP_DEFAULT_EMBEDDING_MODEL } from '../src/shared/desktop-defaults.js';
+import {
+  PRO_KEY_SECRET,
+  PRO_PKCE_SECRET,
+  PRO_PRESET_KEY,
+  PRO_SESSION_SECRET,
+  parseVeraAuthCallback,
+  providerCredentialKey,
+  veraAuthCallbackFromArgs,
+  withProProvider,
+  type ProAccount,
+  type ProActionResult,
+  type ProSession,
+} from '../src/shared/pro.js';
 import { BridgeManager, findTunnelClientOnPath } from './bridge-manager.js';
 import { listFolderEntries } from './folder-listing.js';
 import { veraArchivePathFromArgs } from './file-open.js';
 import { type JsonLineEvent } from './json-line-process.js';
+import {
+  claimProKey,
+  createPkcePair,
+  emptyProAccount,
+  exchangeDesktopCode,
+  fetchProUsage,
+  mergeProCloudConfig,
+  parseStoredPkce,
+  parseStoredSession,
+  proCloudConfigFromEnv,
+  proCloudConfigFromFile,
+  proCloudConfigured,
+  proPageUrl,
+  proSignInUrl,
+  refreshProSession,
+  sessionNeedsRefresh,
+  type ProCloudConfig,
+} from './pro-account.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
+import { checkForUpdatesManually, configureAutoUpdate } from './updates.js';
 import {
   configureSidecarLogFile,
   ensureSidecarLogFile,
@@ -96,14 +129,12 @@ interface SessionStore {
   sessions: Session[];
 }
 
-const DEFAULT_EMBEDDING_MODEL = 'sentence-transformers:all-MiniLM-L6-v2';
-
 const DEFAULT_SETTINGS: AppSettings = {
   providers: [],
   active_provider_id: '',
   active_model: '',
   active_mode_id: '',
-  embedding_model: DEFAULT_EMBEDDING_MODEL,
+  embedding_model: DESKTOP_DEFAULT_EMBEDDING_MODEL,
   ingest_pipeline: 'pymupdf',
   ingest_pipeline_configs: {},
   embedder_configs: {},
@@ -695,7 +726,7 @@ function withRuntime(settings: AppSettings): AppSettings {
     ...settings,
     providers: settings.providers.map((profile) => ({
       ...profile,
-      has_api_key: Boolean(keys[credentialKey(profile.base_url)]),
+      has_api_key: Boolean((keys[providerCredentialKey(profile)] || '').trim()),
     })),
     has_hf_token: Boolean(resolveHfToken()),
     has_env_secrets: Object.fromEntries(
@@ -783,7 +814,7 @@ function readSettings(): AppSettings {
       active_mode_id: typeof raw.active_mode_id === 'string' ? raw.active_mode_id : '',
       embedding_model: typeof raw.embedding_model === 'string' && raw.embedding_model.trim()
         ? raw.embedding_model.trim()
-        : DEFAULT_EMBEDDING_MODEL,
+        : DESKTOP_DEFAULT_EMBEDDING_MODEL,
       ingest_pipeline: typeof raw.ingest_pipeline === 'string' && raw.ingest_pipeline.trim()
         ? raw.ingest_pipeline.trim()
         : 'pymupdf',
@@ -816,7 +847,7 @@ function writeSettings(settings: AppSettings): AppSettings {
     active_provider_id: settings.active_provider_id || '',
     active_model: settings.active_model || '',
     active_mode_id: settings.active_mode_id || '',
-    embedding_model: settings.embedding_model?.trim() || DEFAULT_EMBEDDING_MODEL,
+    embedding_model: settings.embedding_model?.trim() || DESKTOP_DEFAULT_EMBEDDING_MODEL,
     ingest_pipeline: settings.ingest_pipeline?.trim() || 'pymupdf',
     ingest_pipeline_configs: normalizePipelineConfigs(settings.ingest_pipeline_configs),
     embedder_configs: normalizePipelineConfigs(settings.embedder_configs),
@@ -879,6 +910,211 @@ function clearHfToken(): CredentialResult {
   return { ok: true, has_api_key: Boolean(environmentHfToken()) };
 }
 
+function proCloudConfig(): ProCloudConfig {
+  let fileConfig = proCloudConfigFromFile(null);
+  const packaged = join(process.resourcesPath, 'pro-cloud.json');
+  const devRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const candidates = app.isPackaged
+    ? [packaged]
+    : [join(devRoot, 'pro-cloud.json'), join(devRoot, 'build', 'pro-cloud.json'), packaged];
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue;
+    try {
+      fileConfig = proCloudConfigFromFile(JSON.parse(readFileSync(candidate, 'utf8')));
+      break;
+    } catch {
+      /* try the next candidate */
+    }
+  }
+  return mergeProCloudConfig(fileConfig, proCloudConfigFromEnv(process.env));
+}
+
+function readSecretJson(slot: string): string {
+  const value = readApiKeys()[slot];
+  return typeof value === 'string' ? value : '';
+}
+
+function writeSecretJson(slot: string, value: string | null): void {
+  const keys = readApiKeys();
+  if (value === null) delete keys[slot];
+  else keys[slot] = value;
+  writeApiKeys(keys);
+}
+
+function readProSession(): ProSession | null {
+  return parseStoredSession(readSecretJson(PRO_SESSION_SECRET));
+}
+
+function writeProSession(session: ProSession | null): void {
+  writeSecretJson(PRO_SESSION_SECRET, session ? JSON.stringify(session) : null);
+}
+
+function hasProKey(): boolean {
+  return Boolean(readSecretJson(PRO_KEY_SECRET).trim());
+}
+
+function broadcastProAccount(account: ProAccount): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.proAccountChanged, account);
+  }
+}
+
+async function ensureFreshProSession(config: ProCloudConfig, session: ProSession): Promise<ProSession> {
+  if (!sessionNeedsRefresh(session, Date.now())) return session;
+  const refreshed = await refreshProSession(config, session, fetch);
+  writeProSession(refreshed);
+  return refreshed;
+}
+
+async function currentProAccount(): Promise<ProAccount> {
+  const config = proCloudConfig();
+  const session = readProSession();
+  const base = emptyProAccount(config, {
+    signedIn: Boolean(session),
+    email: session?.email || '',
+    hasProKey: hasProKey(),
+  });
+  if (!session || !proCloudConfigured(config)) return base;
+  try {
+    const fresh = await ensureFreshProSession(config, session);
+    const usage = await fetchProUsage(config, fresh.access_token, fetch);
+    return {
+      ...base,
+      signedIn: true,
+      email: fresh.email || base.email,
+      subscriptionStatus: usage.subscriptionStatus,
+      usageUsd: usage.usageUsd,
+      limitUsd: usage.limitUsd,
+      remainingUsd: usage.remainingUsd,
+    };
+  } catch (error) {
+    return {
+      ...base,
+      error: error instanceof Error ? error.message : 'Unable to reach VERA Pro.',
+    };
+  }
+}
+
+async function signInToPro(): Promise<ProActionResult> {
+  const config = proCloudConfig();
+  if (!proCloudConfigured(config)) {
+    return {
+      ok: false,
+      error: 'This build is not connected to VERA Pro. Set VERA_PRO_SITE_URL, VERA_PRO_SUPABASE_URL, and VERA_PRO_SUPABASE_ANON_KEY.',
+      account: await currentProAccount(),
+    };
+  }
+  if (!safeStorage.isEncryptionAvailable()) {
+    return { ok: false, error: 'Secure credential storage is unavailable on this system.', account: await currentProAccount() };
+  }
+  const pair = createPkcePair();
+  writeSecretJson(PRO_PKCE_SECRET, JSON.stringify({ verifier: pair.verifier, state: pair.state }));
+  await shell.openExternal(proSignInUrl(config, pair.challenge, pair.state));
+  return { ok: true, account: await currentProAccount() };
+}
+
+async function completeProAuthCallback(rawUrl: string): Promise<void> {
+  const parsed = parseVeraAuthCallback(rawUrl);
+  if (!parsed) return;
+  const pkce = parseStoredPkce(readSecretJson(PRO_PKCE_SECRET));
+  const config = proCloudConfig();
+  if (!pkce || pkce.state !== parsed.state) {
+    await dialog.showMessageBox({
+      type: 'error',
+      title: 'VERA Pro',
+      message: 'This sign-in link does not match the request from this computer.',
+    });
+    return;
+  }
+  try {
+    const session = await exchangeDesktopCode(config, {
+      code: parsed.code,
+      code_verifier: pkce.verifier,
+      state: parsed.state,
+    }, fetch);
+    writeProSession(session);
+    writeSecretJson(PRO_PKCE_SECRET, null);
+    const account = await currentProAccount();
+    broadcastProAccount(account);
+    const win = preferredWindow();
+    if (win) revealWindow(win);
+    await dialog.showMessageBox({
+      type: 'info',
+      title: 'VERA Pro',
+      message: session.email ? `Signed in as ${session.email}.` : 'Signed in to VERA Pro.',
+      detail: 'Open File > Settings → Account to activate Ask.',
+    });
+  } catch (error) {
+    await dialog.showMessageBox({
+      type: 'error',
+      title: 'VERA Pro',
+      message: error instanceof Error ? error.message : 'Unable to finish sign-in.',
+    });
+  }
+}
+
+async function signOutOfPro(): Promise<ProActionResult> {
+  writeProSession(null);
+  writeSecretJson(PRO_PKCE_SECRET, null);
+  const account = await currentProAccount();
+  broadcastProAccount(account);
+  return {
+    ok: true,
+    account,
+  };
+}
+
+async function activatePro(): Promise<ProActionResult> {
+  const config = proCloudConfig();
+  if (!proCloudConfigured(config)) {
+    return { ok: false, error: 'This build is not connected to VERA Pro.', account: await currentProAccount() };
+  }
+  const existing = readProSession();
+  if (!existing) {
+    return { ok: false, error: 'Sign in before activating VERA Pro.', account: await currentProAccount() };
+  }
+  if (!safeStorage.isEncryptionAvailable()) {
+    return { ok: false, error: 'Secure credential storage is unavailable on this system.', account: await currentProAccount() };
+  }
+  try {
+    const session = await ensureFreshProSession(config, existing);
+    const claimed = await claimProKey(config, session.access_token, fetch);
+    writeSecretJson(PRO_KEY_SECRET, claimed.apiKey);
+    const settings = writeSettings(withProProvider(readSettings()));
+    const account = await currentProAccount();
+    broadcastProAccount(account);
+    return { ok: true, account, settings };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Unable to activate VERA Pro.',
+      account: await currentProAccount(),
+    };
+  }
+}
+
+function clearProKey(): ProActionResult {
+  writeSecretJson(PRO_KEY_SECRET, null);
+  const settings = withRuntime(readSettings());
+  return { ok: true, settings };
+}
+
+async function openProPage(page: 'pricing' | 'account'): Promise<ProActionResult> {
+  const config = proCloudConfig();
+  if (!proCloudConfigured(config)) {
+    return { ok: false, error: 'This build is not connected to VERA Pro.', account: emptyProAccount(config) };
+  }
+  await shell.openExternal(proPageUrl(config, page));
+  return { ok: true, account: emptyProAccount(config, { signedIn: Boolean(readProSession()), hasProKey: hasProKey() }) };
+}
+
+function storedApiKeyForLlm(llm: Record<string, unknown>): string | undefined {
+  const preset = typeof llm.provider_key === 'string' ? llm.provider_key : '';
+  const slot = preset === PRO_PRESET_KEY ? PRO_KEY_SECRET : credentialKey(llm.base_url);
+  const apiKey = slot ? readApiKeys()[slot] : undefined;
+  return apiKey && apiKey.trim() ? apiKey : undefined;
+}
+
 function withStoredApiKey(payload: SidecarPayload): SidecarPayload {
   if ((payload.action !== 'answer' && payload.action !== 'list_models') || typeof payload.llm !== 'object' || payload.llm === null) {
     return payload;
@@ -887,8 +1123,7 @@ function withStoredApiKey(payload: SidecarPayload): SidecarPayload {
   if (llm.auth_type !== 'api_key') {
     return payload;
   }
-  const key = credentialKey(llm.base_url);
-  const apiKey = key ? readApiKeys()[key] : undefined;
+  const apiKey = storedApiKeyForLlm(llm);
   return apiKey ? { ...payload, llm: { ...llm, api_key: apiKey } } : payload;
 }
 
@@ -1166,6 +1401,12 @@ function configureMenu(): void {
       label: 'Help',
       submenu: [
         {
+          label: 'Check for updates',
+          click: () => {
+            void checkForUpdatesManually();
+          },
+        },
+        {
           label: 'About VERA',
           click: () => {
             void dialog.showMessageBox({
@@ -1223,11 +1464,25 @@ const singleInstanceLock = app.requestSingleInstanceLock();
 if (!singleInstanceLock) {
   app.quit();
 } else {
-  sendOpenTarget(veraArchivePathFromArgs(process.argv));
+  const startupAuth = veraAuthCallbackFromArgs(process.argv);
+  if (startupAuth) {
+    const startupUrl = process.argv.find((arg) => parseVeraAuthCallback(arg));
+    if (startupUrl) {
+      void app.whenReady().then(() => completeProAuthCallback(startupUrl));
+    }
+  } else {
+    sendOpenTarget(veraArchivePathFromArgs(process.argv));
+  }
   app.on('second-instance', (_event, argv) => {
-    sendOpenTarget(veraArchivePathFromArgs(argv));
+    const authUrl = argv.find((arg) => parseVeraAuthCallback(arg));
+    if (authUrl) void completeProAuthCallback(authUrl);
+    else sendOpenTarget(veraArchivePathFromArgs(argv));
     const win = preferredWindow();
     if (win) revealWindow(win);
+  });
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    if (parseVeraAuthCallback(url)) void completeProAuthCallback(url);
   });
   app.on('open-file', (event, path) => {
     event.preventDefault();
@@ -1238,6 +1493,12 @@ if (!singleInstanceLock) {
 if (singleInstanceLock) app.whenReady().then(() => {
   configureSidecarLogFile(sidecarLogFilePath(app.getPath('userData')));
   configureMenu();
+  if (process.defaultApp && process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('vera', process.execPath, [resolve(process.argv[1])]);
+  } else {
+    app.setAsDefaultProtocolClient('vera');
+  }
+  configureAutoUpdate();
   mkdirSync(sourceCacheDir(), { recursive: true });
   protocol.handle('vera-source', (request) => {
     try {
@@ -1313,6 +1574,17 @@ if (singleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.openModesFolder, async () => shell.openPath(modesDir()));
   ipcMain.handle(IPC_CHANNELS.getSettings, async () => readSettings());
   ipcMain.handle(IPC_CHANNELS.saveSettings, async (_event, settings: AppSettings) => writeSettings(settings));
+  ipcMain.handle(IPC_CHANNELS.proGetAccount, async () => currentProAccount());
+  ipcMain.handle(IPC_CHANNELS.proSignIn, async () => signInToPro());
+  ipcMain.handle(IPC_CHANNELS.proSignOut, async () => signOutOfPro());
+  ipcMain.handle(IPC_CHANNELS.proActivate, async () => activatePro());
+  ipcMain.handle(IPC_CHANNELS.proClearKey, () => clearProKey());
+  ipcMain.handle(IPC_CHANNELS.proOpenPage, async (_event, page: 'pricing' | 'account') => (
+    openProPage(page === 'account' ? 'account' : 'pricing')
+  ));
+  ipcMain.handle(IPC_CHANNELS.checkForUpdates, async () => {
+    await checkForUpdatesManually();
+  });
   ipcMain.handle(IPC_CHANNELS.saveApiKey, async (_event, providerId: string, apiKey: string) => saveApiKey(providerId, apiKey));
   ipcMain.handle(IPC_CHANNELS.clearApiKey, async (_event, providerId: string) => clearApiKey(providerId));
   ipcMain.handle(IPC_CHANNELS.saveHfToken, async (_event, token: string) => saveHfToken(token));

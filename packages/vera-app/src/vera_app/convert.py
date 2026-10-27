@@ -23,6 +23,9 @@ from vera_ingest_pymupdf import (
     download_ocr_language_data,
 )
 
+# Desktop Convert default. CLI `vera convert` keeps hashing unless `--model` is set.
+DEFAULT_DESKTOP_EMBEDDING_MODEL = "sentence-transformers:all-MiniLM-L6-v2"
+
 _CONVERT_ALIAS_CASTERS = (
     ("chunk_size", int),
     ("overlap", int),
@@ -31,6 +34,14 @@ _CONVERT_ALIAS_CASTERS = (
     ("ocr_dpi", int),
     ("ocr_download", bool),
 )
+
+
+def requested_embedding_model(request: Request) -> str:
+    """Embedder spec for a desktop conversion request."""
+    raw = request.get("model")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return DEFAULT_DESKTOP_EMBEDDING_MODEL
 
 
 def explicit_convert_aliases(request: Request) -> dict[str, Any]:
@@ -96,11 +107,12 @@ def handle_convert(
     embedder_options = (
         dict(raw_embedder_options) if isinstance(raw_embedder_options, dict) else None
     )
-    require_ready_embedder(str(request.get("model", "hashing")))
+    model = requested_embedding_model(request)
+    require_ready_embedder(model)
     output = convert(
         input_path,
         str(request["output"]),
-        model=str(request.get("model", "hashing")),
+        model=model,
         parser=requested_parser(request),
         store_original=bool(request.get("store_original", True)),
         pipeline_options=pipeline_options,
@@ -164,14 +176,15 @@ def handle_batch_convert(
     if cancel:
         cancel.raise_if_interrupted()
     _reject_excluded_desktop_parser(request)
-    require_ready_embedder(str(request.get("model", "hashing")))
+    model = requested_embedding_model(request)
+    require_ready_embedder(model)
 
     return batch_convert(
         None if paths is not None else str(directory),
         paths=paths,
         recursive=bool(request.get("recursive", True)),
         overwrite=bool(request.get("overwrite", False)),
-        model=str(request.get("model", "hashing")),
+        model=model,
         parser=requested_parser(request),
         store_original=bool(request.get("store_original", True)),
         pipeline_options=(
@@ -215,7 +228,7 @@ def handle_list_embedding_models(request: Request) -> dict[str, Any]:
 
 def handle_preflight_embedder(request: Request) -> dict[str, Any]:
     """Check credential/env readiness for a model spec without loading runtimes."""
-    model = str(request.get("model") or "hashing")
+    model = requested_embedding_model(request)
     return preflight_embedder(model).as_dict()
 
 

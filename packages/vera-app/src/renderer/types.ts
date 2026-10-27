@@ -6,6 +6,7 @@ import type {
   Session,
   StreamEvent,
 } from '../shared/contracts';
+import type { ProAccount, ProActionResult } from '../shared/pro';
 
 export type {
   AppSettings,
@@ -38,6 +39,8 @@ export type {
   TraceToolCall,
 } from '../shared/contracts';
 
+export type { ProAccount, ProActionResult } from '../shared/pro';
+
 export interface VeraResponse<T = unknown> {
   id?: string;
   ok: boolean;
@@ -63,6 +66,14 @@ export interface VeraApi {
   clearHfToken(): Promise<CredentialResult>;
   saveEnvSecret(name: string, value: string): Promise<CredentialResult>;
   clearEnvSecret(name: string): Promise<CredentialResult>;
+  proGetAccount(): Promise<ProAccount>;
+  proSignIn(): Promise<ProActionResult>;
+  proSignOut(): Promise<ProActionResult>;
+  proActivate(): Promise<ProActionResult>;
+  proClearKey(): Promise<ProActionResult>;
+  proOpenPage(page: 'pricing' | 'account'): Promise<ProActionResult>;
+  checkForUpdates(): Promise<void>;
+  onProAccountChanged(callback: (account: ProAccount) => void): () => void;
   getSessions(): Promise<Session[]>;
   saveSession(session: Session): Promise<Session[]>;
   deleteSession(id: string): Promise<Session[]>;

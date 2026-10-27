@@ -1,6 +1,7 @@
 /** Convert-view presets for embedding models and optional pipeline install hints. */
 
 import type { EmbedderDescriptor, PipelineDescriptor } from '../../shared/contracts';
+import { DESKTOP_DEFAULT_EMBEDDING_MODEL } from '../../shared/desktop-defaults';
 
 export type ConvertPresetOption = {
   value: string;
@@ -11,11 +12,11 @@ export type ConvertPresetOption = {
 };
 
 /** Desktop default for new installs; saved settings keep their own model. */
-export const DEFAULT_EMBEDDING_MODEL = 'sentence-transformers:all-MiniLM-L6-v2';
+export const DEFAULT_EMBEDDING_MODEL = DESKTOP_DEFAULT_EMBEDDING_MODEL;
 
 export const EMBEDDING_MODEL_PRESETS: ConvertPresetOption[] = [
   {
-    value: 'sentence-transformers:all-MiniLM-L6-v2',
+    value: DESKTOP_DEFAULT_EMBEDDING_MODEL,
     label: 'Standard — local semantic (MiniLM)',
     requiresProvider: 'sentence-transformers',
   },
@@ -94,7 +95,10 @@ export function embeddingSelectOptions(
   const known = new Set(descriptors.map((item) => item.provider));
   const presets = EMBEDDING_MODEL_PRESETS.filter((preset) => {
     const provider = preset.requiresProvider || embeddingProviderFromSpec(preset.value);
-    return !known.has(provider) || preset.value === 'hashing' || provider === 'openai';
+    return !known.has(provider)
+      || preset.value === 'hashing'
+      || provider === 'openai'
+      || provider === 'sentence-transformers';
   });
   const extra = installed.filter((option) => {
     const provider = option.requiresProvider || embeddingProviderFromSpec(option.value);

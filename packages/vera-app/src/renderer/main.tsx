@@ -27,7 +27,9 @@ import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexMo
 import { NestedLibraryModal } from './components/NestedLibraryModal';
 import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { MarkdownSourceViewer } from './components/MarkdownSourceViewer';
-import { ModelManager, SettingsModal } from './components/ProviderManagers';
+import { ModelManager, SettingsModal, type SettingsSectionId } from './components/ProviderManagers';
+import { AskSetupDialog } from './components/AskSetupDialog';
+import { PRO_PRESET_KEY } from '../shared/pro';
 import { embedderAsPipelineDescriptor } from './components/EmbedderConfigForm';
 import { mergePipelineFieldValues } from './components/PipelineConfigForm';
 import { VeraIcon } from './components/VeraIcon';
@@ -138,6 +140,8 @@ function App() {
   const [convertLogPath, setConvertLogPath] = useState('');
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId>('providers');
+  const [askSetupOpen, setAskSetupOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [modelFilter, setModelFilter] = useState('');
   const [hoveredModelOptions, setHoveredModelOptions] = useState<{
@@ -1178,8 +1182,7 @@ function App() {
     }
     const provider = activeProvider;
     if (!provider) {
-      setErrorMessage('Select a provider and model before asking.');
-      setSettingsOpen(true);
+      setAskSetupOpen(true);
       return;
     }
     const model = activeModel.trim();
@@ -1194,6 +1197,12 @@ function App() {
       return;
     }
     if (provider.auth_type === 'api_key' && !provider.has_api_key) {
+      if (provider.preset_key === PRO_PRESET_KEY) {
+        setErrorMessage('Activate VERA Pro under File > Settings → Account before asking.');
+        setSettingsSection('account');
+        setSettingsOpen(true);
+        return;
+      }
       setErrorMessage(`Save an API key for "${providerDisplayName(provider)}" before asking with API key auth.`);
       setSettingsOpen(true);
       return;
@@ -1721,6 +1730,7 @@ function App() {
   }, []);
 
   useEffect(() => window.vera.onOpenSettings(() => {
+    setSettingsSection('providers');
     setSettingsOpen(true);
   }), []);
 
@@ -2039,7 +2049,7 @@ function App() {
         )}
         onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
         onSideViewChange={(view) => openSide(view)}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => { setSettingsSection('providers'); setSettingsOpen(true); }}
         onExplorerBlankPointer={handleExplorerBlankPointer}
         onResizeSide={(clientX) => { setIsResizingSide(true); resizeSidePanel(clientX); }}
         onResetSideWidth={() => setSidePanelWidth(260)}
@@ -2165,7 +2175,9 @@ function App() {
             onSelectActiveModel={(providerId, model) => { void selectActiveModel(providerId, model); }}
             onRefreshProviderModels={(providerId) => { void refreshProviderModels(providerId); }}
             modelRefreshBusyId={modelRefreshBusyId}
-            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenSettings={() => { setSettingsSection('providers'); setSettingsOpen(true); }}
+            onUseVeraPro={() => { setAskSetupOpen(false); setSettingsSection('account'); setSettingsOpen(true); }}
+            onAddOwnProvider={() => { setAskSetupOpen(false); setSettingsSection('providers'); setSettingsOpen(true); }}
             onOpenModelManager={() => setModelManagerOpen(true)}
             onUpdateModelOptions={(providerId, model, options) => { void updateModelOptions(providerId, model, options); }}
             onShowTraceChange={setShowTrace}
@@ -2467,6 +2479,7 @@ function App() {
           onRefresh={(providerId) => void refreshProviderModels(providerId)}
           onAddProvider={() => {
             setModelManagerOpen(false);
+            setSettingsSection('providers');
             setSettingsOpen(true);
           }}
           onClose={() => setModelManagerOpen(false)}
@@ -2486,9 +2499,17 @@ function App() {
           hasHfToken={hasHfToken}
           hasEnvSecrets={hasEnvSecrets}
           convertLogPath={convertLogPath}
+          initialSection={settingsSection}
           onPersist={persistSettings}
           onRefresh={refreshSettings}
           onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
+      {askSetupOpen ? (
+        <AskSetupDialog
+          onUseVeraPro={() => { setAskSetupOpen(false); setSettingsSection('account'); setSettingsOpen(true); }}
+          onAddOwnProvider={() => { setAskSetupOpen(false); setSettingsSection('providers'); setSettingsOpen(true); }}
+          onClose={() => setAskSetupOpen(false)}
         />
       ) : null}
       <LibraryIndexModal

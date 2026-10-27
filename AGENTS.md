@@ -254,14 +254,18 @@ non-obvious caveats for this environment; standard commands live in the sections
   otherwise the sidecar fails to import its deps. In the cloud VM also set `DISPLAY=:1` and
   `ELECTRON_DISABLE_SANDBOX=1`. The dbus/GLib warnings Electron prints in the container are
   harmless.
-- The desktop app's "Ask"/chat feature requires configuring an external or local LLM provider
-  (OpenAI/OpenRouter/Ollama/LM Studio) — there is no offline/extractive answer mode, so Ask is
-  blocked without a provider/API key. For fully offline testing use the left-sidebar **Search**
+- The desktop app's "Ask"/chat feature needs a model provider. **File > Settings → Account**
+  signs in to VERA Pro (browser `vera://` handoff, per-user OpenRouter key in `safeStorage`,
+  separate from a personal OpenRouter key) when the build includes `pro-cloud.json` or
+  `VERA_PRO_SITE_URL` / `VERA_PRO_SUPABASE_URL` / `VERA_PRO_SUPABASE_ANON_KEY`. Otherwise add
+  OpenAI, OpenRouter, Ollama, or LM Studio under **LLM Providers**. There is no offline answer
+  mode, so Ask offers **Use VERA Pro** and **Add your own provider** when none is configured.
+  For fully offline testing use the left-sidebar **Search**
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
   **Convert** view. Convert lists PyMuPDF (PDF) and the bundled `markdown`
   pipeline. OpenAI embeddings are
-  bundled (`openai:text-embedding-3-small` / `-large`); the desktop default is
-  MiniLM (`DEFAULT_EMBEDDING_MODEL`), while the CLI default stays hashing. Save `OPENAI_API_KEY` under **File > Settings → Embeddings** (or
+  bundled (`openai:text-embedding-3-small` / `-large`). Desktop Convert defaults to
+  local MiniLM (`DEFAULT_EMBEDDING_MODEL`); the CLI default embedder is still hashing. Save `OPENAI_API_KEY` under **File > Settings → Embeddings** (or
   export it for CLI convert). Archives converted with OpenAI are not portable
   for semantic search. Docling is a CLI extra
   (`uv sync --extra docling`; `vera convert --parser docling`), not a desktop
@@ -273,8 +277,10 @@ non-obvious caveats for this environment; standard commands live in the sections
   and vendors MiniLM into `packages/vera-app/build/minilm` before launch. Convert
   timing lines (`elapsed_ms`) go to
   sidecar stderr and are teed to `userData/logs/sidecar.log`; open it from
-  **File > Open convert log...**. Ask is
-  blocked without a provider/API key.
+  **File > Open convert log...**. Installed Windows builds check GitHub Releases
+  for updates (**Help > Check for updates**). Azure Trusted Signing runs only when
+  the release workflow has `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`,
+  `AZURE_SIGN_ENDPOINT`, `AZURE_SIGN_PROFILE`, and `AZURE_SIGN_ACCOUNT`.
 - MCP server (optional): `uv run --extra mcp vera mcp` (long-running stdio; no `--json`).
 - There are no PDFs in the repo; generate one with the `reportlab` dev dependency when you need
   a sample to `vera convert`.

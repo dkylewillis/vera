@@ -1073,7 +1073,7 @@ def test_desktop_quick_convert_and_simplified_convert_view():
     assert "embeddingModelsMatch" in architecture
     for text in (architecture, changelog, agents):
         assert "DEFAULT_EMBEDDING_MODEL" in text
-    assert "The CLI default is still `hashing`." in desktop
+    assert "The CLI `vera convert` default is still hashing." in desktop
     assert "hashing remains the" not in agents
     for text in (desktop, architecture, app_pkg):
         assert "Advanced pipeline options" not in text
@@ -1306,3 +1306,30 @@ def test_inspect_diagnostics_and_fts_fallback_docs():
     assert "Text-mode `vera inspect` omits it" in basic
     assert "docs/validation-and-export.md" in readme
     assert "there is no text-mode omit" in skill_cli
+
+
+def test_desktop_pro_and_minilm_default_are_documented():
+    """Desktop Convert defaults to MiniLM. CLI hashing and VERA Pro stay distinct."""
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    overview = (DOCS / "desktop-app-overview.md").read_text(encoding="utf-8")
+    app_pkg = (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    assert "Local semantic (MiniLM)" in desktop
+    assert "sentence-transformers:all-MiniLM-L6-v2" in desktop
+    assert "CLI `vera convert`" in desktop
+    assert "default is still hashing" in desktop
+    assert "VERA Pro" in desktop
+    assert "vera://auth/callback" in desktop
+    assert "Check for updates" in desktop
+    assert "separately from any OpenRouter key" in desktop
+    assert "VERA Pro" in overview
+    assert "Use VERA Pro" in app_pkg
+    assert "Local semantic (MiniLM)" in app_pkg
+    assert "The default embedder is `hashing`" in readme
+    assert "VERA Pro subscription" in readme
+    assert "Desktop Convert defaults to" in agents
+    assert "CLI default embedder is still hashing" in agents
+    assert "Desktop Convert defaults to local MiniLM" in changelog

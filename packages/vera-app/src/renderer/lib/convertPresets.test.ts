@@ -80,6 +80,21 @@ describe('convertPresets', () => {
     expect(embeddingProviderFromSpec('openai:text-embedding-3-small')).toBe('openai');
   });
 
+  it('keeps the MiniLM preset when the sidecar reports sentence-transformers', () => {
+    const options = embeddingSelectOptions([
+      {
+        provider: 'sentence-transformers',
+        label: 'Local semantic',
+        description: '',
+        installed: true,
+        default_model_id: 'all-MiniLM-L6-v2',
+        fields: [],
+        source: 'bundled',
+      },
+    ]);
+    expect(options.some((item) => item.value === 'sentence-transformers:all-MiniLM-L6-v2')).toBe(true);
+  });
+
   it('adds external embedder options after bundled presets', () => {
     const options = embeddingSelectOptions([
       {

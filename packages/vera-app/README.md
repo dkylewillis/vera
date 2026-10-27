@@ -13,10 +13,12 @@ Runtime, and OpenAI embeddings. The Windows installer vendors a VERA-exported Mi
 PyTorch). Docling remains
 a CLI extra (`vera[docling]`) and is not listed in Convert.
 
-Packaged Windows installs register `.vera` archives as editable files. Shell
-activation from File Explorer or the desktop opens the archive in Document
-Preview as a standalone document and reuses the running VERA instance when one
-exists. Shell-open does not persist the archive's parent as a library.
+Packaged Windows installs register `.vera` archives and the `vera://` sign-in
+link. Shell activation from File Explorer or the desktop opens the archive in
+Document Preview as a standalone document and reuses the running VERA instance
+when one exists. Shell-open does not persist the archive's parent as a library.
+Convert defaults to local MiniLM (`sentence-transformers:all-MiniLM-L6-v2`);
+hashing stays in the dropdown. The CLI default embedder is still hashing.
 
 See the [vera-app documentation](https://dkylewillis.github.io/vera/packages/vera-app/)
 for installation, user workflows, and architecture.

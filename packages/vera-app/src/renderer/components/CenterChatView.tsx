@@ -79,6 +79,8 @@ export function CenterChatView({
   onRefreshProviderModels,
   modelRefreshBusyId,
   onOpenSettings,
+  onUseVeraPro,
+  onAddOwnProvider,
   onOpenModelManager,
   onUpdateModelOptions,
   onShowTraceChange,
@@ -136,6 +138,8 @@ export function CenterChatView({
   onRefreshProviderModels: (providerId: string) => void;
   modelRefreshBusyId: string | null;
   onOpenSettings: () => void;
+  onUseVeraPro: () => void;
+  onAddOwnProvider: () => void;
   onOpenModelManager: () => void;
   onUpdateModelOptions: (
     providerId: string,
@@ -315,7 +319,29 @@ export function CenterChatView({
                       <input value={modelFilter} onChange={(event) => onModelFilterChange(event.target.value)} placeholder="Search models" autoFocus />
                     </div>
                     {providers.length === 0 ? (
-                      <div className="modelPickerEmpty">No providers yet — add one below.</div>
+                      <div className="modelPickerEmpty">
+                        <span>Ask needs a model.</span>
+                        <button
+                          type="button"
+                          className="modelOption"
+                          onClick={() => {
+                            onModelPickerOpenChange(false);
+                            onUseVeraPro();
+                          }}
+                        >
+                          Use VERA Pro
+                        </button>
+                        <button
+                          type="button"
+                          className="modelOption"
+                          onClick={() => {
+                            onModelPickerOpenChange(false);
+                            onAddOwnProvider();
+                          }}
+                        >
+                          Add your own provider
+                        </button>
+                      </div>
                     ) : null}
                     {providers.map((profile) => (
                       <div className="modelPickerGroup" key={profile.id}>

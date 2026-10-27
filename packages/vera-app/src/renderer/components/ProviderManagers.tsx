@@ -18,9 +18,12 @@ import {
   ShieldCheck,
   Trash2,
   Sparkles,
+  UserRound,
   X,
 } from 'lucide-react';
 import type { AppSettings, BridgeStatus, EmbedderDescriptor, ProviderProfile } from '../types';
+import { AccountSection } from './AccountSection';
+import { PRO_PRESET_KEY } from '../../shared/pro';
 import {
   defaultEnabledModels,
   emptyProvider,
@@ -120,7 +123,7 @@ type ProviderRowInfo = {
   profile: ProviderProfile | null;
 };
 
-export type SettingsSectionId = 'providers' | 'embeddings' | 'huggingface' | 'bridge' | 'diagnostics';
+export type SettingsSectionId = 'account' | 'providers' | 'embeddings' | 'huggingface' | 'bridge' | 'diagnostics';
 
 const SETTINGS_SECTIONS: {
   id: SettingsSectionId;
@@ -128,6 +131,12 @@ const SETTINGS_SECTIONS: {
   description: string;
   icon: typeof Settings;
 }[] = [
+  {
+    id: 'account',
+    label: 'Account',
+    description: 'Sign in to VERA Pro and see this month’s Ask usage.',
+    icon: UserRound,
+  },
   {
     id: 'providers',
     label: 'LLM Providers',
@@ -480,7 +489,15 @@ export function SettingsModal({
     if (!row.profile) return;
     setBusy(true);
     try {
-      await window.vera.clearApiKey(row.profile.base_url);
+      if (row.preset?.key === PRO_PRESET_KEY) {
+        const result = await window.vera.proClearKey();
+        if (!result.ok) {
+          setMessage(result.error || 'Unable to clear the VERA Pro key');
+          return;
+        }
+      } else {
+        await window.vera.clearApiKey(row.profile.base_url);
+      }
       const refreshed = await onRefresh();
       setList(refreshed.providers.map(withPresetModels));
       setMessage('API key cleared');
@@ -725,7 +742,7 @@ export function SettingsModal({
           </label>
         ) : null}
 
-        {row.kind === 'hosted' ? (
+        {row.kind === 'hosted' && row.preset?.key !== PRO_PRESET_KEY ? (
           <label className="field">
             <span>Base URL override</span>
             <input
@@ -805,6 +822,7 @@ export function SettingsModal({
     const hasKey = Boolean(profile?.has_api_key);
     const keyValue = keyInputs[row.key] ?? '';
     const configured = Boolean(profile && (profile.models.length || hasKey));
+    const managedByAccount = row.preset?.key === PRO_PRESET_KEY;
     return (
       <section key={row.key} className={expanded ? 'providerItem expanded' : 'providerItem'}>
         <div className="providerItemHead">
@@ -815,7 +833,11 @@ export function SettingsModal({
             {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
           <div className="providerItemSide">
-            {authType === 'api_key' ? (
+            {managedByAccount ? (
+              <button type="button" className="secondaryAction compactAction" onClick={() => setSection('account')}>
+                Managed in Account
+              </button>
+            ) : authType === 'api_key' ? (
               hasKey && !keyValue ? (
                 <span className="connectedTag"><CheckCircle2 size={13} />Key saved</span>
               ) : (
@@ -902,6 +924,15 @@ export function SettingsModal({
               <h3>{activeSection.label}</h3>
               <p>{activeSection.description}</p>
             </header>
+
+            {section === 'account' ? (
+              <AccountSection onChanged={async () => {
+                const refreshed = await onRefresh();
+                setList(refreshed.providers.map(withPresetModels));
+                setActiveId(refreshed.active_provider_id);
+                setActiveModelLocal(refreshed.active_model);
+              }} />
+            ) : null}
 
             {section === 'providers' ? (
               <div className="providerStack">

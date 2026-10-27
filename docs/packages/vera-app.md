@@ -28,7 +28,7 @@ Download `VERA.Setup.<version>.exe` from the
    **Advanced** for schema-driven settings from
    `describe_ingest_pipelines` / `PipelineConfigForm`. Convert lists PyMuPDF
    and the bundled Markdown pipeline. Convert embedding presets are
-   **Standard — local semantic (MiniLM)** (desktop default),
+   **Standard — Local semantic (MiniLM)** (desktop default),
    **Fast — offline lexical (hashing)**, and OpenAI `text-embedding-3-*`.
    Converting into a library reuses that library's embedding model. MiniLM is ONNX Runtime under the same
    `sentence-transformers/all-MiniLM-L6-v2` identity, and the installer
@@ -42,7 +42,9 @@ Download `VERA.Setup.<version>.exe` from the
    **File > Open...** and a Windows shell open of a `.vera` are standalone
    (`preserveLibrary: false`) and clear the saved active library.
 3. Open **Search** for fully local hybrid retrieval.
-4. To use **Ask**, configure a provider under **File > Settings → LLM Providers**.
+4. To use **Ask**, sign in to **VERA Pro** under **File > Settings → Account**
+   or configure your own provider under **File > Settings → LLM Providers**.
+   With no provider, Ask offers **Use VERA Pro** and **Add your own provider**.
 5. Optional: save a Hugging Face token under **File > Settings → Hugging
    Face** (or set `HF_TOKEN`) for Hub model downloads used by some converters
    and embedders. **File > Open convert log...** (or Convert **Advanced → Open convert log** /

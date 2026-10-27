@@ -243,7 +243,8 @@ scope; **File > Open Folder...** browses a folder of mixed files without
 making it a library.
 Right-click a library and choose **Convert** to convert its new files with
 local MiniLM semantic search (the desktop default) in one step.
-Connect an LLM provider for grounded questions and answers.
+Connect an LLM provider, or a VERA Pro subscription, for grounded questions and answers.
+The Windows installer checks GitHub Releases for updates.
 For private developer-mode testing, its ChatGPT Bridge setup wizard selects the
 approved library and tunnel client, stores the runtime key securely, verifies
 the local bridge, and records redacted tunnel diagnostics.
