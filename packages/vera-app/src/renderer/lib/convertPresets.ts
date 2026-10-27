@@ -10,27 +10,51 @@ export type ConvertPresetOption = {
   source?: 'bundled' | 'external';
 };
 
+/** Desktop default for new installs; saved settings keep their own model. */
+export const DEFAULT_EMBEDDING_MODEL = 'sentence-transformers:all-MiniLM-L6-v2';
+
 export const EMBEDDING_MODEL_PRESETS: ConvertPresetOption[] = [
   {
-    value: 'hashing',
-    label: 'hashing — offline lexical (default)',
-  },
-  {
     value: 'sentence-transformers:all-MiniLM-L6-v2',
-    label: 'Local semantic (MiniLM)',
+    label: 'Standard — local semantic (MiniLM)',
     requiresProvider: 'sentence-transformers',
   },
   {
+    value: 'hashing',
+    label: 'Fast — offline lexical (hashing)',
+  },
+  {
     value: 'openai:text-embedding-3-small',
-    label: 'OpenAI text-embedding-3-small',
+    label: 'OpenAI text-embedding-3-small (cloud)',
     requiresProvider: 'openai',
   },
   {
     value: 'openai:text-embedding-3-large',
-    label: 'OpenAI text-embedding-3-large',
+    label: 'OpenAI text-embedding-3-large (cloud)',
     requiresProvider: 'openai',
   },
 ];
+
+/** Short name for a model spec, e.g. in "This library uses MiniLM". */
+export function embeddingModelLabel(model: string): string {
+  const key = embeddingModelKey(model);
+  if (key === 'hashing') return 'hashing';
+  if (key === 'sentence-transformers:all-minilm-l6-v2') return 'MiniLM';
+  return model.trim();
+}
+
+function embeddingModelKey(model: string): string {
+  const provider = embeddingProviderFromSpec(model);
+  if (provider === 'hashing') return 'hashing';
+  const raw = model.trim();
+  const id = raw.includes(':') ? raw.slice(raw.indexOf(':') + 1) : raw;
+  return `${provider}:${id.replace(/^sentence-transformers\//i, '').toLowerCase()}`;
+}
+
+/** Archives store either the convert spec or the bare model id; compare both forms. */
+export function embeddingModelsMatch(a: string, b: string): boolean {
+  return embeddingModelKey(a) === embeddingModelKey(b);
+}
 
 /** Optional pipelines that should appear disabled with an install hint when missing. */
 export const PIPELINE_INSTALL_HINTS: Record<string, { label: string; hint: string }> = {};
@@ -87,10 +111,21 @@ export function presetOptionAvailable(
   return installed.includes(option.requiresProvider);
 }
 
+/** Descriptors without `source_formats` predate the field and only handled PDFs. */
+export function pipelineAcceptsPdf(descriptor: PipelineDescriptor): boolean {
+  const formats = descriptor.capabilities?.source_formats;
+  if (!formats?.length) return true;
+  return formats.some((format) => format.replace(/^\./, '').toLowerCase() === 'pdf');
+}
+
+/**
+ * The pipeline select only chooses how PDFs are converted; Markdown and other
+ * formats are routed by file extension, so non-PDF pipelines are not listed.
+ */
 export function pipelineSelectOptions(
   descriptors: PipelineDescriptor[],
 ): ConvertPresetOption[] {
-  const ready = descriptors.filter((descriptor) => descriptor.installed);
+  const ready = descriptors.filter((descriptor) => descriptor.installed && pipelineAcceptsPdf(descriptor));
   const installed = ready.map((descriptor) => ({
     value: descriptor.spec,
     label: descriptor.label || descriptor.spec,

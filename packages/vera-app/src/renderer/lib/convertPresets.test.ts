@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest';
 import type { PipelineDescriptor } from '../../shared/contracts';
 import {
   CUSTOM_EMBEDDING_VALUE,
+  DEFAULT_EMBEDDING_MODEL,
   EMBEDDING_MODEL_PRESETS,
+  embeddingModelLabel,
+  embeddingModelsMatch,
   embeddingProviderFromSpec,
   embeddingSelectOptions,
   embeddingSelectValue,
   isKnownEmbeddingPreset,
+  pipelineAcceptsPdf,
   pipelineInstallHint,
   pipelineSelectOptions,
   presetOptionAvailable,
@@ -54,9 +58,20 @@ describe('convertPresets', () => {
     expect(isKnownEmbeddingPreset('hashing')).toBe(true);
     expect(isKnownEmbeddingPreset('sentence-transformers:all-MiniLM-L6-v2')).toBe(true);
     expect(EMBEDDING_MODEL_PRESETS.find((item) => item.value === 'sentence-transformers:all-MiniLM-L6-v2')?.label)
-      .toBe('Local semantic (MiniLM)');
+      .toBe('Standard — local semantic (MiniLM)');
+    expect(EMBEDDING_MODEL_PRESETS[0].value).toBe(DEFAULT_EMBEDDING_MODEL);
     expect(isKnownEmbeddingPreset('openai:text-embedding-3-small')).toBe(true);
     expect(isKnownEmbeddingPreset('openai:text-embedding-3-large')).toBe(true);
+  });
+
+  it('matches archive model names against convert specs', () => {
+    expect(embeddingModelsMatch('all-MiniLM-L6-v2', 'sentence-transformers:all-MiniLM-L6-v2')).toBe(true);
+    expect(embeddingModelsMatch('sentence-transformers/all-MiniLM-L6-v2', 'all-MiniLM-L6-v2')).toBe(true);
+    expect(embeddingModelsMatch('vera-hashing-384', 'hashing')).toBe(true);
+    expect(embeddingModelsMatch('hashing', 'sentence-transformers:all-MiniLM-L6-v2')).toBe(false);
+    expect(embeddingModelsMatch('openai:text-embedding-3-small', 'openai:text-embedding-3-large')).toBe(false);
+    expect(embeddingModelLabel('all-MiniLM-L6-v2')).toBe('MiniLM');
+    expect(embeddingModelLabel('vera-hashing-384')).toBe('hashing');
   });
 
   it('parses provider names from embedding specs', () => {
@@ -112,6 +127,21 @@ describe('convertPresets', () => {
 
     const withoutDocling = pipelineSelectOptions([pymupdfDescriptor]);
     expect(withoutDocling.map((option) => option.value)).toEqual(['pymupdf']);
+  });
+
+  it('lists only pipelines that convert PDFs', () => {
+    const markdownDescriptor: PipelineDescriptor = {
+      ...pymupdfDescriptor,
+      provider: 'markdown',
+      spec: 'markdown',
+      label: 'Markdown',
+      capabilities: { source_formats: ['md', 'markdown'] },
+    };
+    expect(pipelineAcceptsPdf(markdownDescriptor)).toBe(false);
+    expect(pipelineAcceptsPdf({ ...pymupdfDescriptor, capabilities: { source_formats: ['pdf'] } })).toBe(true);
+    expect(pipelineAcceptsPdf(pymupdfDescriptor)).toBe(true);
+    expect(pipelineSelectOptions([pymupdfDescriptor, markdownDescriptor]).map((option) => option.value))
+      .toEqual(['pymupdf']);
   });
 
   it('omits uninstalled descriptors instead of advertising a missing install hint', () => {

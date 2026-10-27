@@ -101,6 +101,18 @@ vera search "./library" "termination clause" --json
 VERA automatically uses a fresh index. You do not need to repeat `--recursive`
 or `--exclude`; the saved index settings control discovery.
 
+To search one part of an indexed library, add `--include`:
+
+```bash
+vera search "./library" "termination clause" --include "projects/smith/**" --json
+```
+
+When the index was built without `--include`, it covers every archive, so a
+narrower include still uses the index (`index.used` stays true); results come
+only from matching archives, and the filter is applied before `top_k`. If the
+index was built with its own include patterns, a different `--include` falls
+back to per-file search.
+
 The response reports:
 
 ```json

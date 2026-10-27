@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createConversionController, type ConversionHost } from './useConversion';
+import { createConversionController, pipelineForRun, type ConversionHost } from './useConversion';
+import type { BatchConvertResult } from '../types';
 
 function host(overrides: Partial<ConversionHost> = {}): ConversionHost {
   return {
@@ -17,6 +18,7 @@ function host(overrides: Partial<ConversionHost> = {}): ConversionHost {
     activeLibraryPath: '',
     conversionInProgress: false,
     folders: [],
+    libraryPaths: [],
     ingestPipelineDescriptors: [],
     ingestPipelineConfigs: {},
     call: async () => null,
@@ -302,5 +304,119 @@ describe('createConversionController', () => {
         outputs: ['C:\\library\\project-alpha.vera'],
       }),
     );
+  });
+
+  describe('pipelineForRun', () => {
+    const descriptor = (spec: string, formats: string[]) => ({
+      provider: spec,
+      variant: '',
+      spec,
+      label: spec,
+      description: '',
+      installed: true,
+      capabilities: { source_formats: formats },
+      fields: [{ key: 'chunk_size', label: 'Chunk size', type: 'integer' as const, default: 500 }],
+    });
+    const markdownSelected = {
+      ingestPipeline: 'markdown',
+      pipelineOptions: { max_words: 300 },
+      ingestPipelineDescriptors: [descriptor('pymupdf', ['pdf']), descriptor('markdown', ['md', 'markdown'])],
+      ingestPipelineConfigs: { pymupdf: { chunk_size: 800 } },
+    };
+
+    it('falls back to a PDF pipeline and its own options when PDFs are converted', () => {
+      expect(pipelineForRun(markdownSelected, true)).toEqual({
+        ingestPipeline: 'pymupdf',
+        pipelineOptions: { chunk_size: 800 },
+      });
+    });
+
+    it('keeps the selected pipeline for Markdown-only runs and PDF pipelines', () => {
+      expect(pipelineForRun(markdownSelected, false)).toEqual({
+        ingestPipeline: 'markdown',
+        pipelineOptions: { max_words: 300 },
+      });
+      expect(pipelineForRun({ ...markdownSelected, ingestPipeline: 'pymupdf' }, true).ingestPipeline)
+        .toBe('pymupdf');
+    });
+  });
+
+  describe('quickConvert', () => {
+    const library = {
+      path: 'C:\\library',
+      name: 'library',
+      entries: [
+        { path: 'C:\\library\\old.vera', name: 'old.vera', relativePath: 'old.vera', type: 'vera' as const },
+        { path: 'C:\\library\\new\\report.pdf', name: 'report.pdf', relativePath: 'new/report.pdf', type: 'pdf' as const },
+      ],
+    };
+
+    function batchResult(overrides: Partial<BatchConvertResult> = {}): BatchConvertResult {
+      return {
+        directory: 'C:\\library\\new',
+        recursive: true,
+        overwrite: false,
+        discovered: 1,
+        converted: 1,
+        skipped: 0,
+        user_skipped: 0,
+        malformed: 0,
+        failed: 0,
+        outputs: [],
+        skipped_existing: [],
+        skipped_by_user: [],
+        malformed_existing: [],
+        errors: [],
+        ...overrides,
+      };
+    }
+
+    function setup(result: BatchConvertResult) {
+      const request = vi.fn(async (payload: Record<string, unknown>) => {
+        if (payload.action === 'inspect') {
+          return { ok: true, result: { default_embedding_model: 'vera-hashing-384' } };
+        }
+        return { ok: true, result };
+      });
+      vi.stubGlobal('crypto', { randomUUID: () => 'req-quick' });
+      vi.stubGlobal('window', { vera: { request, onAnswerEvent: () => () => undefined } });
+      const setSideView = vi.fn();
+      const controller = createConversionController(() => host({
+        folders: [library],
+        libraryPaths: ['C:\\library'],
+        embeddingModel: 'sentence-transformers:all-MiniLM-L6-v2',
+        batchOverwrite: true,
+        call: (async () => ({ ok: true })) as ConversionHost['call'],
+        setSideView,
+      }));
+      return { request, setSideView, controller };
+    }
+
+    it('converts a folder now with the library model, skipping existing archives', async () => {
+      const { request, setSideView, controller } = setup(batchResult());
+
+      await controller.quickConvert({ directory: 'C:\\library\\new' });
+
+      expect(request).toHaveBeenCalledWith({ action: 'inspect', path: 'C:\\library\\old.vera' });
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'batch_convert',
+          directory: 'C:\\library\\new',
+          recursive: true,
+          overwrite: false,
+          model: 'vera-hashing-384',
+        }),
+        'req-quick',
+      );
+      expect(setSideView).not.toHaveBeenCalled();
+    });
+
+    it('opens the Convert view when a file fails', async () => {
+      const { setSideView, controller } = setup(batchResult({ converted: 0, failed: 1 }));
+
+      await controller.quickConvert({ paths: ['C:\\library\\new\\report.pdf'] });
+
+      expect(setSideView).toHaveBeenCalledWith('convert');
+    });
   });
 });

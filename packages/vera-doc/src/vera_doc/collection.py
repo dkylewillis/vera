@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -198,6 +198,14 @@ class VeraCollectionIndex:
             return True
         _, _, unknown = self._partition_where(where)
         return not unknown
+
+    def _file_ids_for_paths(self, relative_paths: Collection[str]) -> list[int]:
+        wanted = set(relative_paths)
+        return [
+            int(row["file_id"])
+            for row in self.conn.execute("SELECT file_id, relative_path FROM files")
+            if str(row["relative_path"]) in wanted
+        ]
 
     def _matching_file_ids(self, file_where: Mapping[str, Any]) -> list[int]:
         ids: list[int] = []
@@ -412,7 +420,13 @@ class VeraCollectionIndex:
         top_k: int = 10,
         *,
         where: Mapping[str, Any] | None = None,
+        relative_paths: Collection[str] | None = None,
     ) -> list[IndexHit]:
+        """Rank indexed chunks.
+
+        ``relative_paths`` limits candidates to those root-relative archives
+        before ``top_k`` (used for include-pattern scopes inside the library).
+        """
         mode = mode.lower()
         if mode not in {"semantic", "keyword", "hybrid"}:
             raise ValueError("mode must be semantic, keyword, or hybrid")
@@ -432,6 +446,14 @@ class VeraCollectionIndex:
         file_ids: list[int] | None = None
         if file_where:
             file_ids = self._matching_file_ids(file_where)
+            if not file_ids:
+                return []
+        if relative_paths is not None:
+            scoped = self._file_ids_for_paths(relative_paths)
+            if file_ids is not None:
+                scoped_ids = set(scoped)
+                scoped = [item for item in file_ids if item in scoped_ids]
+            file_ids = scoped
             if not file_ids:
                 return []
         candidate_limit = max(top_k * 5, 50)

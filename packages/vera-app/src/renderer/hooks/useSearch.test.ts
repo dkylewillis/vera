@@ -8,6 +8,7 @@ function host(overrides: Partial<SearchHost> = {}): SearchHost {
     searchScopePath: 'C:\\lib',
     selectedFiles: [],
     activeLibraryPath: 'C:\\lib',
+    folderScopePath: '',
     searchQuery: 'detention',
     mode: 'hybrid',
     topK: 8,

@@ -1,4 +1,4 @@
-import { CheckCircle2, RefreshCw } from 'lucide-react';
+import { CheckCircle2, RefreshCw, Square } from 'lucide-react';
 import {
   formatBackgroundTask,
   taskIsDeterminate,
@@ -8,6 +8,8 @@ import {
 interface AppStatusBarProps {
   tasks: BackgroundTask[];
   busyFolderPath?: string;
+  /** Conversions can start from Explorer, so Stop must not require the Convert view. */
+  onStopConversion?: () => void;
 }
 
 const MAX_VISIBLE_TASKS = 2;
@@ -19,6 +21,7 @@ function itemName(value: string): string {
 export function AppStatusBar({
   tasks,
   busyFolderPath = '',
+  onStopConversion,
 }: AppStatusBarProps) {
   // User-initiated work should be visible immediately instead of appearing
   // only after older background jobs leave the limited footer.
@@ -57,6 +60,18 @@ export function AppStatusBar({
               />
             ) : null}
             <span className="appStatusText">{description}</span>
+            {task.kind === 'conversion' && onStopConversion ? (
+              <button
+                type="button"
+                className="appStatusAction"
+                onClick={onStopConversion}
+                disabled={task.message === 'Stopping…'}
+                title="Stop conversion"
+                aria-label="Stop conversion"
+              >
+                <Square size={9} fill="currentColor" aria-hidden="true" />
+              </button>
+            ) : null}
           </span>
         );
       })}

@@ -267,6 +267,24 @@ button {
   color: var(--accent-text);
 }
 
+.appStatusAction {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+.appStatusAction:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+}
+
 .appStatusItem--idle > svg {
   color: var(--good);
 }
@@ -522,6 +540,119 @@ button {
 .explorerFileFilter button:focus-visible {
   outline: none;
   box-shadow: var(--ring);
+}
+
+.explorerSection {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  align-content: start;
+}
+
+.explorerSection + .explorerSection {
+  margin-top: 10px;
+}
+
+.explorerSectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 4px 6px;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.explorerSectionAction {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: var(--text-faint);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+}
+
+.explorerSectionAction:hover {
+  color: var(--text);
+  background: var(--bg-surface-3);
+}
+
+.explorerSectionHint {
+  margin: 0 6px 4px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.sideEmpty .sideEmptyHint {
+  max-width: 200px;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.sideLink {
+  padding: 2px 4px;
+  color: var(--accent-text);
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+}
+
+.sideLink:hover {
+  text-decoration: underline;
+}
+
+.subfolderGroup {
+  display: grid;
+  min-width: 0;
+}
+
+.subfolderRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 6px 3px calc(9px + var(--depth, 0) * 14px);
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-size: 12px;
+  user-select: none;
+}
+
+.subfolderRow:hover {
+  background: var(--bg-surface-3);
+}
+
+.subfolderRow.scoped {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-soft-border);
+}
+
+.subfolderRow.scoped .subfolderIcon {
+  color: var(--accent-text);
+}
+
+.subfolderCaret,
+.subfolderIcon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.subfolderName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .folderGroup {
@@ -791,8 +922,12 @@ button {
   align-items: center;
   gap: 2px;
   min-width: 0;
-  padding-left: 9px;
+  padding-left: calc(9px + var(--depth, 0) * 14px);
   user-select: none;
+}
+
+.fileRow.pending .fileRowName {
+  color: var(--text-muted);
 }
 
 .fileRowWrap .fileRow {
@@ -826,6 +961,10 @@ button {
 
 .fileRowIcon.pdf {
   color: #d9534f;
+}
+
+.fileRowIcon.md {
+  color: var(--text-faint);
 }
 
 .fileRowName {
@@ -1131,41 +1270,13 @@ select option {
   align-content: start;
 }
 
-.convertModeToggle {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  padding: 2px;
-  background: var(--bg-surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-
-.convertModeToggle button {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 6px 8px;
-  color: var(--text-muted);
-  background: transparent;
-  border: 0;
-  border-radius: calc(var(--radius-sm) - 2px);
-  font-size: 11.5px;
-  font-weight: 650;
-}
-
-.convertModeToggle button.active {
-  color: var(--text-strong);
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.selectedPdfList {
+.convertTarget {
   display: grid;
   gap: 6px;
   min-width: 0;
 }
 
-.selectedPdfList .fieldLabel {
+.convertTarget .fieldLabel {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 650;
@@ -1173,39 +1284,87 @@ select option {
   letter-spacing: 0.03em;
 }
 
-.selectedPdfList ul {
+.convertTargetList {
   display: grid;
-  gap: 2px;
-  max-height: 160px;
   margin: 0;
   padding: 0;
-  overflow: auto;
   list-style: none;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
 }
 
-.selectedPdfList li {
+.convertTargetList > li + li {
+  border-top: 1px solid var(--border-faint);
+}
+
+.convertTargetItem {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
   padding: 4px 4px 4px 8px;
   color: var(--text);
   font-size: 12px;
 }
 
-.selectedPdfList li + li {
-  border-top: 1px solid var(--border-faint);
+div.convertTargetItem {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
 }
 
-.selectedPdfList li span {
+.convertTargetItem > svg {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.convertTargetName {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.convertTargetHint {
+  color: var(--text-faint);
+}
+
+.convertTargetMore {
+  padding: 4px 8px;
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.convertTargetActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.convertWarning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--warn) 10%, var(--bg-surface));
+  border: 1px solid color-mix(in srgb, var(--warn) 28%, transparent);
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.convertWarning > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--warn);
+}
+
+.convertWarning .sideLink {
+  padding: 0;
+  font-size: inherit;
 }
 
 .convertGrid {
@@ -1234,13 +1393,18 @@ select option {
   display: none;
 }
 
-.convertAdvanced > summary::after {
-  content: ' ▸';
+.convertAdvanced > summary::before {
+  content: '▸ ';
   font-size: 11px;
 }
 
-.convertAdvanced[open] > summary::after {
-  content: ' ▾';
+.convertAdvanced[open] > summary::before {
+  content: '▾ ';
+}
+
+.convertAdvancedHint {
+  font-weight: 400;
+  color: var(--text-faint);
 }
 
 .convertAdvanced[open] > summary {
@@ -1288,6 +1452,26 @@ select option {
 .batchConvertReport strong {
   color: var(--text-strong);
   font-size: 12.5px;
+}
+
+.batchConvertReport.hasProblems {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+}
+
+.batchConvertReport details {
+  display: grid;
+  gap: 4px;
+}
+
+.batchConvertReport summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--accent-text);
+}
+
+.convertAdvanced > .sideLink {
+  justify-self: start;
+  padding: 0;
 }
 
 .batchConvertError {
@@ -2606,6 +2790,17 @@ details.traceEntry[open] > summary {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.composerScopeAction {
+  margin-left: 8px;
+  padding: 0;
+  color: var(--accent-text);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
 }
 
 .composerScopeDocuments {

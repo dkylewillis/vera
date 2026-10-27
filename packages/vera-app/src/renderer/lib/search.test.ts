@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SIDECAR_ACTIONS } from '../../shared/protocol';
-import { buildSearchPayload, libraryQueryScope, unwrapSearchReport } from './search';
+import { buildSearchPayload, folderScopeInclude, libraryQueryScope, unwrapSearchReport } from './search';
 
 describe('libraryQueryScope', () => {
   it('omits recursive options when files are selected or no library is active', () => {
@@ -21,6 +21,32 @@ describe('libraryQueryScope', () => {
       recursive: true,
       excludes: [],
     });
+  });
+
+  it('limits a library search to one subfolder with an include pattern', () => {
+    expect(libraryQueryScope('C:\\lib', [], null, 'C:\\lib\\projects\\smith')).toEqual({
+      recursive: true,
+      excludes: [],
+      includes: ['projects/smith/**'],
+    });
+    expect(libraryQueryScope('C:\\lib', ['C:\\lib\\a.vera'], null, 'C:\\lib\\projects')).toEqual({});
+    expect(libraryQueryScope('C:\\lib', [], null, 'C:\\other\\projects')).not.toHaveProperty('includes');
+  });
+});
+
+describe('folderScopeInclude', () => {
+  it('builds a root-relative pattern only for folders strictly inside the library', () => {
+    expect(folderScopeInclude('C:\\lib', 'C:\\lib\\a\\b')).toBe('a/b/**');
+    expect(folderScopeInclude('/home/me/lib/', '/home/me/lib/a')).toBe('a/**');
+    expect(folderScopeInclude('C:\\lib', 'c:\\LIB\\a')).toBe('a/**');
+    expect(folderScopeInclude('C:\\lib', 'C:\\lib')).toBeNull();
+    expect(folderScopeInclude('C:\\lib', 'C:\\library\\a')).toBeNull();
+    expect(folderScopeInclude('C:\\lib', '')).toBeNull();
+  });
+
+  it('escapes glob characters in folder names', () => {
+    expect(folderScopeInclude('C:\\lib', 'C:\\lib\\Phase [1]')).toBe('Phase [[]1]/**');
+    expect(folderScopeInclude('C:\\lib', 'C:\\lib\\what?*')).toBe('what[?][*]/**');
   });
 });
 

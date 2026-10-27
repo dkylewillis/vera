@@ -1,7 +1,9 @@
 import {
+  AlertTriangle,
+  FilePlus,
   FileText,
   Folder,
-  FolderOpen,
+  FolderPlus,
   RefreshCw,
   SkipForward,
   Square,
@@ -12,20 +14,25 @@ import { PipelineConfigForm } from './PipelineConfigForm';
 import { OcrLanguagePackManager } from './OcrLanguagePackManager';
 import {
   CUSTOM_EMBEDDING_VALUE,
+  DEFAULT_EMBEDDING_MODEL,
   EMBEDDING_MODEL_PRESETS,
+  embeddingModelLabel,
+  embeddingModelsMatch,
   embeddingProviderFromSpec,
   embeddingSelectValue,
   pipelineInstallHint,
   pipelineSelectOptions,
   presetOptionAvailable,
 } from '../lib/convertPresets';
-import { convertDefaultsFromSelection, type ExplorerSelection } from '../lib/formatting';
+import { fileName } from '../lib/formatting';
 import type {
   BatchConvertResult,
   EmbedderDescriptor,
   PipelineDescriptor,
   PipelineOptions,
 } from '../types';
+
+const MAX_LISTED_FILES = 6;
 
 export function ConvertPanel({
   convertMode,
@@ -41,8 +48,7 @@ export function ConvertPanel({
   ingestPipeline,
   ingestPipelineDescriptors,
   pipelineOptions,
-  explorerSelection,
-  activeLibraryPath,
+  libraryModel,
   busy,
   convertLocked,
   conversionInProgress,
@@ -52,7 +58,6 @@ export function ConvertPanel({
   conversionStatus,
   conversionError,
   batchConvertResult,
-  onConvertModeChange,
   onSelectedPdfsChange,
   onBatchDirectoryChange,
   onBatchRecursiveChange,
@@ -83,8 +88,8 @@ export function ConvertPanel({
   ingestPipeline: string;
   ingestPipelineDescriptors: PipelineDescriptor[];
   pipelineOptions: PipelineOptions;
-  explorerSelection: ExplorerSelection | null;
-  activeLibraryPath: string;
+  /** Model already used by the library the target belongs to. */
+  libraryModel: { library: string; model: string } | null;
   busy: boolean;
   convertLocked: boolean;
   conversionInProgress: boolean;
@@ -94,7 +99,6 @@ export function ConvertPanel({
   conversionStatus: string | null;
   conversionError: string | null;
   batchConvertResult: BatchConvertResult | null;
-  onConvertModeChange: (mode: 'batch' | 'selected') => void;
   onSelectedPdfsChange: (paths: string[]) => void;
   onBatchDirectoryChange: (value: string) => void;
   onBatchRecursiveChange: (value: boolean) => void;
@@ -123,244 +127,112 @@ export function ConvertPanel({
   const installedPipelineProviders = ingestPipelineDescriptors
     .filter((item) => item.installed)
     .map((item) => item.provider);
+  const showPipelineSelect = pipelineOptionsForSelect.length > 1;
+  const isCustomModel = embeddingSelectValue(embeddingModel) === CUSTOM_EMBEDDING_VALUE;
+  const modelMismatch = Boolean(
+    libraryModel && embeddingModel.trim() && !embeddingModelsMatch(libraryModel.model, embeddingModel),
+  );
+  // A non-default model is otherwise hidden inside the collapsed Advanced section.
+  const customizedModel = !embeddingModelsMatch(embeddingModel, DEFAULT_EMBEDDING_MODEL);
+  const hasTarget = convertMode === 'selected' ? selectedPdfs.length > 0 : Boolean(batchDirectory.trim());
+  const listedFiles = selectedPdfs.slice(0, MAX_LISTED_FILES);
+  const unlistedFiles = selectedPdfs.length - listedFiles.length;
+
+  const convertLabel = conversionInProgress
+    ? 'Converting…'
+    : modelsPreparing
+      ? 'Downloading models…'
+      : reconvertBusy
+        ? 'Preparing…'
+        : convertMode === 'batch'
+          ? 'Convert folder'
+          : selectedPdfs.length
+            ? `Convert ${selectedPdfs.length} file${selectedPdfs.length === 1 ? '' : 's'}`
+            : 'Convert';
 
   return (
     <div className="convertView">
-      <div className="convertModeToggle">
-        <button
-          className={convertMode === 'selected' ? 'active' : ''}
-          onClick={() => onConvertModeChange('selected')}
-        >
-          {selectedPdfs.length > 0 ? `Individual files (${selectedPdfs.length})` : 'Individual files'}
-        </button>
-        <button
-          className={convertMode === 'batch' ? 'active' : ''}
-          onClick={() => {
-            onConvertModeChange('batch');
-            const defaults = convertDefaultsFromSelection(explorerSelection, activeLibraryPath);
-            const directory = defaults?.batchDirectory
-              || (selectedPdfs[0]
-                ? selectedPdfs[0].replace(/[/\\][^/\\]+$/, '')
-                : activeLibraryPath);
-            if (directory) onBatchDirectoryChange(directory);
-          }}
-        >
-          Directory
-        </button>
-      </div>
-      {convertMode === 'selected' ? (
-        <>
-          <div className="selectedPdfList">
-            <span className="fieldLabel">{selectedPdfs.length} file{selectedPdfs.length === 1 ? '' : 's'} selected</span>
-            {selectedPdfs.length > 0 ? (
-              <ul>
-                {selectedPdfs.map((filePath) => (
-                  <li key={filePath} title={filePath}>
-                    <span>{filePath.replace(/^.*[/\\]/, '')}</span>
-                    <button
-                      type="button"
-                      className="ghostIcon tiny visible"
-                      onClick={() => onToggleSelectedPdf(filePath)}
-                      title="Remove from selection"
-                      aria-label={`Remove ${filePath}`}
-                    >
-                      <X size={12} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="sideMuted">No files selected yet.</p>
-            )}
+      <section className="convertTarget" aria-label="What to convert">
+        <span className="fieldLabel">What to convert</span>
+        {convertMode === 'batch' && batchDirectory.trim() ? (
+          <div className="convertTargetItem" title={batchDirectory}>
+            <Folder size={14} aria-hidden="true" />
+            <span className="convertTargetName">
+              {fileName(batchDirectory) || batchDirectory}
+              <span className="convertTargetHint">{batchRecursive ? ' and subfolders' : ''}</span>
+            </span>
+            <button
+              type="button"
+              className="ghostIcon tiny visible"
+              onClick={() => onBatchDirectoryChange('')}
+              disabled={convertLocked}
+              title="Clear folder"
+              aria-label="Clear folder"
+            >
+              <X size={12} />
+            </button>
           </div>
-          <button
-            type="button"
-            className="secondaryAction"
-            onClick={() => void onChoosePdfs()}
-            disabled={busy || convertLocked}
-          >
-            <FolderOpen size={16} />
-            Choose files
-          </button>
-          <button
-            type="button"
-            className="secondaryAction"
-            onClick={() => onSelectedPdfsChange([])}
-            disabled={!selectedPdfs.length || busy || convertLocked}
-          >
-            Clear selection
-          </button>
-          <label className="miniCheck">
-            <input type="checkbox" checked={batchOverwrite} onChange={(event) => onBatchOverwriteChange(event.target.checked)} />
-            <span>Overwrite existing .vera files</span>
-          </label>
-          <p className="sideMuted">Each archive is created beside its source file with the same base filename. Choose PDFs or Markdown files here, or select them in Explorer (click, Ctrl/Cmd+click, or Shift+click).</p>
-        </>
-      ) : null}
-      {convertMode === 'batch' ? (
-        <>
-          <label className="field">
-            <span>Source directory</span>
-            <div className="pathInput">
-              <Folder size={16} />
-              <input value={batchDirectory} onChange={(event) => onBatchDirectoryChange(event.target.value)} placeholder="C:\\proposals" />
-            </div>
-          </label>
-          <button className="secondaryAction" onClick={onChooseDirectory} disabled={busy || convertLocked}><FolderOpen size={16} />Choose Directory</button>
-          <label className="miniCheck">
-            <input type="checkbox" checked={batchRecursive} onChange={(event) => onBatchRecursiveChange(event.target.checked)} />
-            <span>Include nested folders</span>
-          </label>
-          <label className="miniCheck">
-            <input type="checkbox" checked={batchOverwrite} onChange={(event) => onBatchOverwriteChange(event.target.checked)} />
-            <span>Overwrite existing .vera files</span>
-          </label>
-          <p className="sideMuted">Each archive is created beside its source file with the same base filename. Existing archives are skipped unless overwrite is enabled. Directory conversion discovers PDFs and Markdown files.</p>
-        </>
-      ) : null}
-      <label className="field">
-        <span>Ingest pipeline</span>
-        <select
-          value={
-            pipelineOptionsForSelect.some((option) => option.value === ingestPipeline)
-              ? ingestPipeline
-              : ingestPipeline || 'pymupdf'
-          }
-          onChange={(event) => void onSaveIngestPipeline(event.target.value)}
-          disabled={convertLocked}
-        >
-          {pipelineOptionsForSelect.map((option) => {
-            const available = presetOptionAvailable(option, installedPipelineProviders);
-            return (
-              <option key={option.value} value={option.value} disabled={!available}>
-                {available ? option.label : `${option.label} (not installed)`}
-              </option>
-            );
-          })}
-          {!pipelineOptionsForSelect.some((option) => option.value === ingestPipeline)
-            && ingestPipeline
-            ? <option value={ingestPipeline}>{ingestPipeline}</option>
-            : null}
-        </select>
-      </label>
-      <p className="sideMuted">
-        {activePipelineDescriptor?.installed
-          ? (activePipelineDescriptor.description || 'Pipeline ready for conversion.')
-          : (pipelineInstallHint(ingestPipeline, ingestPipelineDescriptors)
-            || 'Choose an ingest pipeline.')}
-        {' '}PyMuPDF is the default PDF ingest pipeline. Markdown files use the bundled markdown pipeline. Optional layout-aware PDF conversion remains a CLI extra (`vera[docling]`), not part of the 0.3.x desktop app.
-      </p>
-      <label className="field">
-        <span>Embedding model</span>
-        <select
-          value={embeddingSelectValue(embeddingModel)}
-          onChange={(event) => {
-            const next = event.target.value;
-            if (next === CUSTOM_EMBEDDING_VALUE) {
-              if (embeddingSelectValue(embeddingModel) !== CUSTOM_EMBEDDING_VALUE) {
-                onEmbeddingModelChange('');
-              }
-              return;
-            }
-            void onSaveEmbeddingModel(next);
-          }}
-          disabled={convertLocked}
-        >
-          {EMBEDDING_MODEL_PRESETS.map((option) => {
-            const available = presetOptionAvailable(option, embeddingProviders);
-            return (
-              <option key={option.value} value={option.value} disabled={!available}>
-                {available ? option.label : `${option.label} (not installed)`}
-              </option>
-            );
-          })}
-          {embeddingDescriptors
-            .filter((item) => {
-              const covered = new Set(
-                EMBEDDING_MODEL_PRESETS.map((preset) => preset.requiresProvider || embeddingProviderFromSpec(preset.value)),
-              );
-              return !covered.has(item.provider);
-            })
-            .map((item) => {
-              const spec = item.default_model_id
-                ? `${item.provider}:${item.default_model_id}`
-                : item.provider;
-              return (
-                <option key={item.provider} value={spec}>
-                  {item.label || spec}
-                </option>
-              );
-            })}
-          <option value={CUSTOM_EMBEDDING_VALUE}>Custom provider:model-id…</option>
-        </select>
-      </label>
-      {embeddingSelectValue(embeddingModel) === CUSTOM_EMBEDDING_VALUE ? (
-        <label className="field">
-          <span>Custom embedding spec</span>
-          <input
-            list="embedding-provider-specs"
-            value={embeddingModel}
-            onChange={(event) => onEmbeddingModelChange(event.target.value)}
-            onBlur={() => void onSaveEmbeddingModel(embeddingModel)}
-            placeholder="provider:model-id"
-            disabled={convertLocked}
-          />
-          <datalist id="embedding-provider-specs">
-            <option value="hashing" />
-            <option value="hashing:vera-hashing-384" />
-            <option value="sentence-transformers:all-MiniLM-L6-v2" />
-            {embeddingDescriptors.map((item) => (
-              <option
-                key={item.provider}
-                value={item.default_model_id ? `${item.provider}:${item.default_model_id}` : `${item.provider}:`}
-              />
+        ) : convertMode === 'selected' && selectedPdfs.length > 0 ? (
+          <ul className="convertTargetList">
+            {listedFiles.map((filePath) => (
+              <li key={filePath} className="convertTargetItem" title={filePath}>
+                <FileText size={14} aria-hidden="true" />
+                <span className="convertTargetName">{fileName(filePath)}</span>
+                <button
+                  type="button"
+                  className="ghostIcon tiny visible"
+                  onClick={() => onToggleSelectedPdf(filePath)}
+                  disabled={convertLocked}
+                  title="Remove from selection"
+                  aria-label={`Remove ${filePath}`}
+                >
+                  <X size={12} />
+                </button>
+              </li>
             ))}
-            {embeddingProviders.map((provider) => (
-              <option key={`name-${provider}`} value={`${provider}:`} />
-            ))}
-          </datalist>
-        </label>
+            {unlistedFiles > 0 ? (
+              <li className="convertTargetMore">
+                and {unlistedFiles} more ·{' '}
+                <button type="button" className="sideLink" onClick={() => onSelectedPdfsChange([])} disabled={convertLocked}>
+                  Clear
+                </button>
+              </li>
+            ) : null}
+          </ul>
+        ) : (
+          <p className="sideMuted">
+            Choose files or a folder, or right-click in Explorer and choose Convert to start right away.
+          </p>
+        )}
+        <div className="convertTargetActions">
+          <button type="button" className="secondaryAction" onClick={() => void onChoosePdfs()} disabled={busy || convertLocked}>
+            <FilePlus size={15} />
+            Add files…
+          </button>
+          <button type="button" className="secondaryAction" onClick={() => void onChooseDirectory()} disabled={busy || convertLocked}>
+            <FolderPlus size={15} />
+            Choose folder…
+          </button>
+        </div>
+      </section>
+
+      {modelMismatch && libraryModel ? (
+        <div className="convertWarning" role="note">
+          <AlertTriangle size={14} aria-hidden="true" />
+          <span>
+            {fileName(libraryModel.library)} uses {embeddingModelLabel(libraryModel.model)}, but this conversion uses {embeddingModelLabel(embeddingModel)}. Mixing models leaves some documents out of semantic search.{' '}
+            <button
+              type="button"
+              className="sideLink"
+              disabled={convertLocked}
+              onClick={() => void onSaveEmbeddingModel(libraryModel.model)}
+            >
+              Use {embeddingModelLabel(libraryModel.model)}
+            </button>
+          </span>
+        </div>
       ) : null}
-      <p className="sideMuted">
-        {embeddingProviders.includes('sentence-transformers')
-          ? 'Local semantic (MiniLM) is bundled in the desktop app. The installer vendors a VERA-exported ONNX MiniLM graph, so first use does not download and does not need PyTorch. Hashing stays the default. OpenAI embeddings are bundled too: they bill per conversion and need OPENAI_API_KEY under File > Settings → Embeddings for convert and later semantic search. Those archives are not portable for semantic search: a recipient needs their own key. Keyword search still works without a key. The conversion embedding model is independent of Chat.'
-          : <>MiniLM is not available in this sidecar. From the repo root run <code>uv sync --extra app</code> (or <code>uv sync --extra onnx</code> for the CLI) and restart the app. Other Sentence Transformers models need <code>uv sync --extra ml</code>.</>}
-        {' '}Custom specs are saved when the field loses focus.
-      </p>
-      <label className="miniCheck">
-        <input type="checkbox" checked={storeOriginal} onChange={(event) => onStoreOriginalChange(event.target.checked)} />
-        <span>Store original PDF</span>
-      </label>
-      <details className="convertAdvanced">
-        <summary>Advanced pipeline options</summary>
-        <p className="sideMuted">
-          Controls advertised by the selected ingest pipeline descriptor
-          {activePipelineDescriptor?.spec ? ` (${activePipelineDescriptor.spec})` : ''}.
-          Defaults apply until you change them.
-        </p>
-        <PipelineConfigForm
-          descriptor={activePipelineDescriptor}
-          values={pipelineOptions}
-          disabled={convertLocked}
-          onChange={(next) => { void onSavePipelineOptions(next); }}
-        />
-        <p className="sideMuted">
-          Controls advertised by the selected embedding provider
-          {activeEmbedderDescriptor?.provider ? ` (${activeEmbedderDescriptor.provider})` : ''}.
-        </p>
-        <EmbedderConfigForm
-          descriptor={activeEmbedderDescriptor}
-          values={embedderOptions}
-          disabled={convertLocked}
-          onChange={(next) => { void onSaveEmbedderOptions(next); }}
-        />
-        {activePipelineDescriptor?.capabilities?.ocr_engine === 'tesseract' ? (
-          <OcrLanguagePackManager
-            language={String(pipelineOptions.ocr_language ?? 'eng')}
-            disabled={convertLocked}
-          />
-        ) : null}
-      </details>
+
       {reconvertNotice ? (
         <p className="sideMuted reconvertStatus" role="status">
           {reconvertBusy ? <RefreshCw size={12} className="spinning" aria-hidden="true" /> : null}
@@ -371,32 +243,12 @@ export function ConvertPanel({
         <button
           className="sidePrimary"
           onClick={onConvert}
-          disabled={convertMode === 'selected'
-            ? selectedPdfs.length === 0 || busy || convertLocked || Boolean(modelsPreparing)
-            : !batchDirectory.trim() || busy || convertLocked || Boolean(modelsPreparing)}
+          disabled={!hasTarget || busy || convertLocked || Boolean(modelsPreparing)}
         >
           <RefreshCw size={16} className={convertLocked || modelsPreparing ? 'spinning' : undefined} />
-          {conversionInProgress
-            ? 'Converting…'
-            : modelsPreparing
-              ? 'Downloading models…'
-              : reconvertBusy
-              ? 'Preparing…'
-              : convertMode === 'selected'
-                ? `Convert (${selectedPdfs.length})`
-                : 'Convert Directory'}
+          {convertLabel}
         </button>
-        <button
-          type="button"
-          className="secondaryAction convertStop"
-          onClick={() => { void window.vera.openConvertLog(); }}
-          title="Open convert log"
-          aria-label="Open convert log"
-        >
-          <FileText size={14} />
-          Open log
-        </button>
-        {conversionInProgress && (convertMode === 'batch' || convertMode === 'selected') ? (
+        {conversionInProgress ? (
           <button
             type="button"
             className="secondaryAction convertStop"
@@ -409,19 +261,7 @@ export function ConvertPanel({
             Skip
           </button>
         ) : null}
-        {conversionInProgress ? (
-          <button
-            type="button"
-            className="secondaryAction convertStop"
-            onClick={onStop}
-            disabled={conversionStatus === 'Stopping…'}
-            title="Stop conversion"
-            aria-label="Stop conversion"
-          >
-            <Square size={12} fill="currentColor" />
-            Stop
-          </button>
-        ) : modelsPreparing ? (
+        {conversionInProgress || modelsPreparing ? (
           <button
             type="button"
             className="secondaryAction convertStop"
@@ -436,24 +276,194 @@ export function ConvertPanel({
         ) : null}
       </div>
       {conversionError ? <p className="sideMuted" role="alert">{conversionError}</p> : null}
-      {(convertMode === 'batch' || convertMode === 'selected') && batchConvertResult ? (
-        <div className="batchConvertReport">
-          <strong>{batchConvertResult.converted} converted</strong>
-          <span>
-            {batchConvertResult.discovered} files found · {batchConvertResult.skipped} skipped
-            {batchConvertResult.user_skipped ? ` · ${batchConvertResult.user_skipped} user-skipped` : ''}
-            {' · '}{batchConvertResult.malformed} malformed · {batchConvertResult.failed} failed
-          </span>
-          {batchConvertResult.malformed_existing.map((entry) => (
-            <span className="batchConvertError" key={entry.output} title={entry.issues.join('; ')}>{entry.output}: {entry.issues.join('; ')}</span>
+      {batchConvertResult ? <ConvertResult result={batchConvertResult} /> : null}
+
+      <details className="convertAdvanced">
+        <summary>
+          Advanced
+          {customizedModel ? <span className="convertAdvancedHint"> · {embeddingModelLabel(embeddingModel) || 'custom model'}</span> : null}
+        </summary>
+        <label className="miniCheck">
+          <input type="checkbox" checked={batchOverwrite} onChange={(event) => onBatchOverwriteChange(event.target.checked)} />
+          <span>Replace existing .vera files</span>
+        </label>
+        {convertMode === 'batch' ? (
+          <label className="miniCheck">
+            <input type="checkbox" checked={batchRecursive} onChange={(event) => onBatchRecursiveChange(event.target.checked)} />
+            <span>Include subfolders</span>
+          </label>
+        ) : null}
+        <label
+          className="miniCheck"
+          title="Makes each .vera self-contained, so you can share it or preview it without the source file."
+        >
+          <input type="checkbox" checked={storeOriginal} onChange={(event) => onStoreOriginalChange(event.target.checked)} />
+          <span>Include a copy of the original file</span>
+        </label>
+        <p className="sideMuted">Each .vera is saved next to its source with the same name. Files that are already converted are skipped unless you replace them.</p>
+        <label className="field">
+          <span>Search model</span>
+          <select
+            value={embeddingSelectValue(embeddingModel)}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (next === CUSTOM_EMBEDDING_VALUE) {
+                if (!isCustomModel) onEmbeddingModelChange('');
+                return;
+              }
+              void onSaveEmbeddingModel(next);
+            }}
+            disabled={convertLocked}
+          >
+            {EMBEDDING_MODEL_PRESETS.map((option) => {
+              const available = presetOptionAvailable(option, embeddingProviders);
+              return (
+                <option key={option.value} value={option.value} disabled={!available}>
+                  {available ? option.label : `${option.label} (not installed)`}
+                </option>
+              );
+            })}
+            {embeddingDescriptors
+              .filter((item) => {
+                const covered = new Set(
+                  EMBEDDING_MODEL_PRESETS.map((preset) => preset.requiresProvider || embeddingProviderFromSpec(preset.value)),
+                );
+                return !covered.has(item.provider);
+              })
+              .map((item) => {
+                const spec = item.default_model_id
+                  ? `${item.provider}:${item.default_model_id}`
+                  : item.provider;
+                return (
+                  <option key={item.provider} value={spec}>
+                    {item.label || spec}
+                  </option>
+                );
+              })}
+            <option value={CUSTOM_EMBEDDING_VALUE}>Custom provider:model-id…</option>
+          </select>
+        </label>
+        {isCustomModel ? (
+          <label className="field">
+            <span>Custom embedding spec</span>
+            <input
+              list="embedding-provider-specs"
+              value={embeddingModel}
+              onChange={(event) => onEmbeddingModelChange(event.target.value)}
+              onBlur={() => void onSaveEmbeddingModel(embeddingModel)}
+              placeholder="provider:model-id"
+              disabled={convertLocked}
+            />
+            <datalist id="embedding-provider-specs">
+              <option value="hashing" />
+              <option value="sentence-transformers:all-MiniLM-L6-v2" />
+              {embeddingDescriptors.map((item) => (
+                <option
+                  key={item.provider}
+                  value={item.default_model_id ? `${item.provider}:${item.default_model_id}` : `${item.provider}:`}
+                />
+              ))}
+            </datalist>
+          </label>
+        ) : null}
+        {activeEmbedderProvider === 'openai' ? (
+          <p className="sideMuted">Needs an OpenAI API key (File &gt; Settings → Embeddings) and bills per conversion. Others need their own key to search these archives semantically.</p>
+        ) : !embeddingProviders.includes('sentence-transformers') && activeEmbedderProvider === 'sentence-transformers' ? (
+          <p className="sideMuted">MiniLM is not available in this sidecar. Run <code>uv sync --extra app</code> and restart the app, or choose another model.</p>
+        ) : null}
+        {showPipelineSelect ? (
+          <>
+            <label className="field">
+              <span>Ingest pipeline</span>
+              <select
+                value={
+                  pipelineOptionsForSelect.some((option) => option.value === ingestPipeline)
+                    ? ingestPipeline
+                    : ingestPipeline || 'pymupdf'
+                }
+                onChange={(event) => void onSaveIngestPipeline(event.target.value)}
+                disabled={convertLocked}
+              >
+                {pipelineOptionsForSelect.map((option) => {
+                  const available = presetOptionAvailable(option, installedPipelineProviders);
+                  return (
+                    <option key={option.value} value={option.value} disabled={!available}>
+                      {available ? option.label : `${option.label} (not installed)`}
+                    </option>
+                  );
+                })}
+                {!pipelineOptionsForSelect.some((option) => option.value === ingestPipeline)
+                  && ingestPipeline
+                  ? <option value={ingestPipeline}>{ingestPipeline}</option>
+                  : null}
+              </select>
+            </label>
+            {!activePipelineDescriptor?.installed ? (
+              <p className="sideMuted">{pipelineInstallHint(ingestPipeline, ingestPipelineDescriptors) || 'Choose an ingest pipeline.'}</p>
+            ) : null}
+          </>
+        ) : null}
+        <PipelineConfigForm
+          descriptor={activePipelineDescriptor}
+          values={pipelineOptions}
+          disabled={convertLocked}
+          onChange={(next) => { void onSavePipelineOptions(next); }}
+        />
+        <EmbedderConfigForm
+          descriptor={activeEmbedderDescriptor}
+          values={embedderOptions}
+          disabled={convertLocked}
+          onChange={(next) => { void onSaveEmbedderOptions(next); }}
+        />
+        {activePipelineDescriptor?.capabilities?.ocr_engine === 'tesseract' ? (
+          <OcrLanguagePackManager
+            language={String(pipelineOptions.ocr_language ?? 'eng')}
+            disabled={convertLocked}
+          />
+        ) : null}
+        <button
+          type="button"
+          className="sideLink"
+          onClick={() => { void window.vera.openConvertLog(); }}
+        >
+          Open convert log
+        </button>
+      </details>
+    </div>
+  );
+}
+
+function ConvertResult({ result }: { result: BatchConvertResult }) {
+  const upToDate = result.skipped;
+  const problems = result.failed + result.malformed;
+  const parts = [
+    upToDate ? `${upToDate} already up to date` : '',
+    result.user_skipped ? `${result.user_skipped} skipped by you` : '',
+    result.failed ? `${result.failed} failed` : '',
+    result.malformed ? `${result.malformed} damaged .vera file${result.malformed === 1 ? '' : 's'}` : '',
+  ].filter(Boolean);
+  const details = [
+    ...result.errors.map((entry) => ({ key: entry.input, text: `${fileName(entry.input)}: ${entry.error}`, title: entry.error, error: true })),
+    ...result.malformed_existing.map((entry) => ({ key: entry.output, text: `${fileName(entry.output)}: ${entry.issues.join('; ')}`, title: entry.issues.join('; '), error: true })),
+    ...(result.skipped_by_user || []).map((filePath) => ({ key: filePath, text: `${fileName(filePath)}: skipped`, title: filePath, error: false })),
+  ];
+  return (
+    <div className={problems ? 'batchConvertReport hasProblems' : 'batchConvertReport'} role="status">
+      <strong>
+        {result.converted === 0 && problems === 0 && upToDate > 0
+          ? 'Everything is already converted'
+          : `${result.converted} converted`}
+      </strong>
+      {parts.length ? <span>{parts.join(' · ')}</span> : null}
+      {details.length ? (
+        <details>
+          <summary>Show details</summary>
+          {details.map((entry) => (
+            <span className={entry.error ? 'batchConvertError' : 'batchConvertSkipped'} key={entry.key} title={entry.title}>
+              {entry.text}
+            </span>
           ))}
-          {(batchConvertResult.skipped_by_user || []).map((filePath) => (
-            <span className="batchConvertSkipped" key={filePath} title="Skipped by user">{filePath}: skipped</span>
-          ))}
-          {batchConvertResult.errors.map((entry) => (
-            <span className="batchConvertError" key={entry.input} title={entry.error}>{entry.input}: {entry.error}</span>
-          ))}
-        </div>
+        </details>
       ) : null}
     </div>
   );

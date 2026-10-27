@@ -10,9 +10,13 @@ import {
   isExplorerBlankPointerTarget,
   partitionExplorerSelection,
   pruneExplorerSelectionForFilter,
+  buildExplorerTree,
+  filterExplorerTree,
+  pairExplorerDocuments,
+  pendingSourcesInTree,
   routeOpenTarget,
   syncCollapsedFolders,
-  visibleExplorerEntries,
+  visibleExplorerDocuments,
 } from './explorer';
 
 describe('syncCollapsedFolders', () => {
@@ -39,6 +43,11 @@ describe('syncCollapsedFolders', () => {
   it('seeds startup collapse from saved folders and the last active library', () => {
     expect(syncCollapsedFolders(['/a', '/b', '/c'], '/a')).toEqual(['/b', '/c']);
   });
+
+  it('leaves plain folders in their current state when a library activates', () => {
+    expect(syncCollapsedFolders(['/lib', '/other', '/plain', '/closed'], '/lib', ['/closed'], ['/lib', '/other']))
+      .toEqual(['/other', '/closed']);
+  });
 });
 
 describe('partitionExplorerSelection', () => {
@@ -61,30 +70,90 @@ describe('explorerEntryType', () => {
   });
 });
 
-describe('visibleExplorerEntries', () => {
-  const folders = [
-    {
-      path: '/lib',
-      entries: [
-        { path: '/lib/a.vera', type: 'vera' as const },
-        { path: '/lib/b.pdf', type: 'pdf' as const },
-      ],
-    },
-    {
-      path: '/other',
-      entries: [{ path: '/other/c.vera', type: 'vera' as const }],
-    },
-  ];
+function entry(root: string, relativePath: string) {
+  const name = relativePath.split('/').pop() as string;
+  return {
+    path: `${root}/${relativePath}`,
+    name,
+    relativePath,
+    type: explorerEntryType(name) as 'vera' | 'pdf' | 'md',
+  };
+}
 
-  it('skips collapsed folders and honors the type filter', () => {
-    expect(visibleExplorerEntries(folders, ['/other'], 'vera').map((entry) => entry.path)).toEqual([
-      '/lib/a.vera',
+describe('pairExplorerDocuments', () => {
+  it('shows a source and its archive as one ready document', () => {
+    const docs = pairExplorerDocuments([
+      entry('/lib', 'budget.pdf'),
+      entry('/lib', 'budget.vera'),
+      entry('/lib', 'notes.md'),
+      entry('/lib', 'orphan.vera'),
     ]);
-    expect(visibleExplorerEntries(folders, [], 'all').map((entry) => entry.path)).toEqual([
-      '/lib/a.vera',
-      '/lib/b.pdf',
-      '/other/c.vera',
+    expect(docs.map((doc) => [doc.label, doc.path, doc.type, Boolean(doc.source)])).toEqual([
+      ['budget', '/lib/budget.vera', 'vera', true],
+      ['notes.md', '/lib/notes.md', 'md', true],
+      ['orphan', '/lib/orphan.vera', 'vera', false],
     ]);
+  });
+
+  it('pairs the PDF when a PDF and Markdown file share a stem', () => {
+    const docs = pairExplorerDocuments([
+      entry('/lib', 'a.md'),
+      entry('/lib', 'a.pdf'),
+      entry('/lib', 'a.vera'),
+    ]);
+    expect(docs.map((doc) => [doc.label, doc.source?.name])).toEqual([
+      ['a', 'a.pdf'],
+      ['a.md', 'a.md'],
+    ]);
+  });
+});
+
+describe('buildExplorerTree', () => {
+  const root = {
+    path: 'C:\\lib',
+    name: 'lib',
+    entries: [
+      entry('C:\\lib', 'top.vera'),
+      entry('C:\\lib', 'reports/2024/q1.pdf'),
+      entry('C:\\lib', 'reports/2024/q1.vera'),
+      entry('C:\\lib', 'reports/2024/q2.pdf'),
+      entry('C:\\lib', 'specs/a.vera'),
+      entry('C:\\lib', 'specs/drafts/b.md'),
+    ],
+  };
+
+  it('nests subfolders, compacts single-child chains, and counts the subtree', () => {
+    const tree = buildExplorerTree(root);
+    expect(tree.path).toBe('C:\\lib');
+    expect(tree.documents.map((doc) => doc.label)).toEqual(['top']);
+    expect(tree.folders.map((folder) => [folder.name, folder.path])).toEqual([
+      ['reports/2024', 'C:\\lib\\reports\\2024'],
+      ['specs', 'C:\\lib\\specs'],
+    ]);
+    expect(tree.folders[1].folders.map((folder) => folder.name)).toEqual(['drafts']);
+    expect([tree.readyCount, tree.pendingCount]).toEqual([3, 2]);
+    expect([tree.folders[0].readyCount, tree.folders[0].pendingCount]).toEqual([1, 1]);
+    expect(pendingSourcesInTree(tree)).toEqual([
+      'C:\\lib/reports/2024/q2.pdf',
+      'C:\\lib/specs/drafts/b.md',
+    ]);
+  });
+
+  it('filters documents and drops subfolders left empty', () => {
+    const pending = filterExplorerTree(buildExplorerTree(root), 'pending');
+    expect(pending.documents).toEqual([]);
+    expect(pending.folders.map((folder) => folder.name)).toEqual(['reports/2024', 'specs']);
+    expect(pending.folders[1].documents).toEqual([]);
+    const ready = filterExplorerTree(buildExplorerTree(root), 'ready');
+    expect(ready.folders[1].folders).toEqual([]);
+  });
+
+  it('lists visible rows in tree order, skipping collapsed roots and subfolders', () => {
+    const tree = buildExplorerTree(root);
+    expect(visibleExplorerDocuments([tree], [], []).map((doc) => doc.label)).toEqual(['top']);
+    expect(visibleExplorerDocuments([tree], [], ['C:\\lib\\reports\\2024']).map((doc) => doc.label))
+      .toEqual(['q1', 'q2.pdf', 'top']);
+    expect(visibleExplorerDocuments([tree], ['C:\\lib'], ['C:\\lib\\reports\\2024'])).toEqual([]);
   });
 });
 
@@ -98,10 +167,16 @@ describe('routeOpenTarget', () => {
   it('routes File → Open Folder through add-folder and archives through open-file', () => {
     const addFolder = vi.fn();
     const openFile = vi.fn();
-    routeOpenTarget('C:\\proposals', { addFolder, openFile });
+    routeOpenTarget('C:\\proposals', { addFolder, openFile }, 'folder');
     routeOpenTarget('C:\\proposals\\manual.vera', { addFolder, openFile });
-    expect(addFolder).toHaveBeenCalledWith('C:\\proposals');
+    expect(addFolder).toHaveBeenCalledWith('C:\\proposals', 'folder');
     expect(openFile).toHaveBeenCalledWith('C:\\proposals\\manual.vera');
+  });
+
+  it('opens directories without a kind as libraries', () => {
+    const addFolder = vi.fn();
+    routeOpenTarget('C:\\proposals', { addFolder, openFile: vi.fn() });
+    expect(addFolder).toHaveBeenCalledWith('C:\\proposals', 'library');
   });
 });
 
@@ -115,24 +190,25 @@ describe('pruneExplorerSelectionForFilter', () => {
     });
   });
 
-  it('drops hidden PDFs when filtering to VERA', () => {
-    expect(pruneExplorerSelectionForFilter(mixed, 'vera', '/lib/b.pdf')).toEqual({
+  it('drops unconverted sources when filtering to Ready', () => {
+    expect(pruneExplorerSelectionForFilter(mixed, 'ready', '/lib/b.pdf')).toEqual({
       selected: ['/lib/a.vera', '/lib/c.vera'],
       anchor: null,
     });
   });
 
-  it('drops hidden archives when filtering to PDFs and keeps a still-visible anchor', () => {
-    expect(pruneExplorerSelectionForFilter(mixed, 'pdf', '/lib/b.pdf')).toEqual({
+  it('drops archives when filtering to To convert and keeps a still-visible anchor', () => {
+    expect(pruneExplorerSelectionForFilter(mixed, 'pending', '/lib/b.pdf')).toEqual({
       selected: ['/lib/b.pdf'],
       anchor: '/lib/b.pdf',
     });
   });
 
-  it('reports whether a file type remains visible under the filter', () => {
-    expect(explorerFileMatchesFilter('pdf', 'vera')).toBe(false);
+  it('reports whether a row type remains visible under the filter', () => {
+    expect(explorerFileMatchesFilter('pdf', 'ready')).toBe(false);
+    expect(explorerFileMatchesFilter('md', 'pending')).toBe(true);
     expect(explorerFileMatchesFilter('pdf', 'all')).toBe(true);
-    expect(explorerFileMatchesFilter('vera', 'vera')).toBe(true);
+    expect(explorerFileMatchesFilter('vera', 'ready')).toBe(true);
   });
 });
 

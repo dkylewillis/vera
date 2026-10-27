@@ -23,8 +23,46 @@ the Search/Ask scope, its parent folder is not added to Explorer, and the
 saved active library is cleared (`preserveLibrary: false`, including
 `localStorage` key `vera.activeLibraryPath`). A later Explorer click or
 preview of a `.vera` does **not** replace the library — only File/shell open
-does. Restore a library with **File > Open Folder...** (`Ctrl/Cmd+Shift+O`)
-or by activating a folder already listed in Explorer.
+does. Restore a library with **File > Add Library...** (`Ctrl/Cmd+Shift+O`)
+or by activating a library already listed in Explorer.
+
+## Libraries and folders
+
+Explorer has two sections. **Libraries** are folders you search as a whole:
+clicking a library header makes it the Search/Ask scope, its badge tracks the
+collection index, and the last active library is restored on startup. Add one
+with **File > Add Library...**, the library button in the Explorer header, or
+the **+** beside **Libraries**. **Folders** are places you only browse —
+for example a project folder that holds a few `.vera` files among other
+documents. **File > Open Folder...** adds one. A plain folder has no index
+badge and never becomes the active library; clicking its header expands or
+collapses it. Check its `.vera` files to search them, convert its PDFs or
+Markdown files, or right-click it and choose **Make this a library**.
+Right-clicking a library offers **Remove from Libraries**, which keeps it
+open as a plain folder. Folders saved before this split reopen as libraries.
+Adding a library inside another library asks first: **Search this folder**
+searches it within the existing library without a second index, and
+**Add as separate library** adds it anyway. Adding a folder that contains libraries
+offers **Use “…”**, which closes the inner libraries and shows them inside the
+new one, or **Keep both**.
+The library list is stored in `localStorage` (`vera.libraryPaths`).
+
+Each folder is a tree. Subfolders start collapsed and remember whether you
+expanded them; a chain of folders that only contain one subfolder is shown as
+one row (for example `reports/2024`). A PDF or Markdown file and the `.vera`
+converted from it — same folder, same file name stem — appear as one document
+row with the VERA icon. Sources that are not converted yet show their file
+name in a muted style. The filter
+above the tree shows **All** documents, **Ready** (converted) documents, or
+files still **To convert**. Right-click a subfolder to convert it or show it
+in the system file manager. Inside a library, a subfolder also offers
+**Search this folder**: Search and Ask then use only documents in that folder
+and its subfolders, using the library's index. The folder row is highlighted
+and the scope line under the search box reads **Folder “…” in “…”**; select
+**Whole library** there (or **Search whole library** on the folder) to go back.
+Checking files overrides the folder scope. Right-clicking a converted document offers
+**Preview document**, **Reconvert…**, and **Move .vera to Recycle Bin**,
+which leaves the source file in place.
 
 ## ChatGPT Bridge (developer-mode PoC)
 
@@ -82,18 +120,44 @@ This starts the Vite development server and then opens the Electron window.
 Keep the terminal running while using the app. Press `Ctrl+C` in that terminal
 to stop both processes.
 
-Open a PDF or Markdown file from the app's Convert view to create a `.vera`
-archive, or use the native File menu to open an existing archive or document
-library.
-Desktop conversions default to the PyMuPDF ingest pipeline and the
-offline `hashing` embedder. The Convert view exposes dropdowns for
-`ingest_pipeline` (PyMuPDF in 0.3.0) and
-embedding model presets such as `sentence-transformers:all-MiniLM-L6-v2` and
-`openai:text-embedding-3-small`, plus
-a custom `provider:model-id` field. Chunking and OCR controls are schema-driven:
+## Convert documents
+
+Most conversions start from Explorer. Right-click a library, folder,
+subfolder, or unconverted file and choose **Convert** (the menu shows how many
+files are new, for example **Convert 3 new files**). Conversion starts right away
+with your saved settings: files that already have an up-to-date `.vera` are
+skipped, subfolders are included, and progress shows in the footer status bar,
+which also has a Stop button. When the target is inside a library that already
+has archives, Explorer's Convert uses that library's embedding model so the
+library stays searchable as one corpus. The Convert view opens on its own only
+when something needs attention, such as a failed file or a missing API key.
+Choose **Convert with options…** instead to review settings first.
+
+The Convert view shows **What to convert** (a folder or a list of files;
+**Add files…** and **Choose folder…** replace the Explorer selection) and the
+Convert button. The result summary reports
+converted, already-up-to-date, and failed files, with **Show details** for
+per-file errors. If the target library already uses a different model,
+Convert warns that mixing models leaves some documents out of semantic search
+and offers to switch back. Everything else lives under a collapsed
+**Advanced** section: **Replace existing .vera files**, **Include
+subfolders**, **Include a copy of the original file** (embeds the source PDF
+or Markdown file so the `.vera` is self-contained), the **Search model**
+dropdown (the section header names the model when it isn't the default), the ingest pipeline
+dropdown for PDFs (shown only when more than one PDF pipeline is installed;
+Markdown always uses the `markdown` pipeline), pipeline and
+embedder settings, OCR languages, and **Open convert log**.
+
+Desktop conversions default to the PyMuPDF ingest pipeline (Markdown uses the
+bundled `markdown` pipeline) and the bundled, offline
+`sentence-transformers:all-MiniLM-L6-v2` model, labeled **Standard** in the
+**Advanced → Search model** dropdown. **Fast** (`hashing`) converts faster but only matches
+shared words; OpenAI presets need an API key. Settings saved before MiniLM
+became the default keep their model. The CLI default is still `hashing`.
+The dropdown also accepts a custom `provider:model-id`. Chunking and OCR controls are schema-driven:
 the sidecar `describe_ingest_pipelines` action supplies descriptors, and
-`PipelineConfigForm` renders only advertised fields under a collapsed
-**Advanced pipeline options** section (PyMuPDF includes overlap, OCR DPI, and
+`PipelineConfigForm` renders only advertised fields under the collapsed
+**Advanced** section (PyMuPDF includes overlap, OCR DPI, and
 a Tesseract OCR language dropdown of bundled/downloadable codes plus Custom
 for combinations such as `eng+spa`). These settings are independent of the Chat
 model and are persisted in app settings. `npm run app:dev` installs the `app`
@@ -108,15 +172,14 @@ resolver error. Save an optional token under **File > Settings → Hugging Face*
 (or set `HF_TOKEN` in the environment / a local `.env` from `.env.example`) for
 Hub access used by extras. Conversion progress and the current filename appear in
 the footer status bar, so progress remains visible when you switch away from
-the Convert view. **File > Open convert log...**, Convert **Open log**, and
+the Convert view. **File > Open convert log...**, Convert **Advanced → Open convert log**, and
 **Settings → Diagnostics** open the same append-only file
 (`userData/logs/sidecar.log`: `%APPDATA%\VERA\logs\sidecar.log` when packaged,
 `%APPDATA%\@vera\app\logs\sidecar.log` in `app:dev`). Timed convert
 steps (`elapsed_ms`) go there so freeze vs `.venv` times can be
 compared; CLI `vera convert` still prints those lines on stderr only.
-Right-click a folder in Explorer and choose **Convert…**
-to open directory conversion for that folder. To rebuild an existing archive with a different ingest
-pipeline or embedding model, right-click the `.vera` file in Explorer and
+To rebuild an existing archive with a different ingest
+pipeline or embedding model, right-click the converted document in Explorer and
 choose **Reconvert…**; Convert opens immediately with a preparing status while
 the archive is read, then prefills the current pipeline, embedding, and OCR
 settings and turns overwrite on. Convert replaces the `.vera` you clicked, even
@@ -130,11 +193,15 @@ readable. Document Info's OCR line is PyMuPDF-shaped (`ocr_engine`,
 `Unknown mode · 0 pages OCR’d`; Docling recovery uses `engine` /
 `recovered_pages`, so the Info line can look incomplete after a successful
 convert. Use `vera inspect FILE --json` (or sidecar inspect) for the full bag.
+
+## Select documents and search
+
 In Explorer, click a file to select it, Ctrl/Cmd+click to add or remove it, and
 Shift+click to select a range. The checkbox next to a file adds or removes that
 row from the same list — unchecking it deselects it, and the highlight and the
-Chat/Search “selected document” count stay in sync. Selected `.vera` files become the Search/Ask
-scope and selected PDFs or Markdown files become the Convert list. Click the folder name, empty
+Chat/Search “selected document” count stay in sync. Selected converted documents become the Search/Ask
+scope and selected unconverted PDFs or Markdown files become the Convert list. Shift+click ranges
+follow the rows currently visible in the tree. Click the library name, empty
 Explorer space, or press Escape to search the whole library again.
 Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,
@@ -215,13 +282,14 @@ can continue browsing and using Search or Ask while the existing index, or
 recursive fallback search, remains available. A completed warning badge means
 some archives were skipped; select it to review the latest indexing report.
 
-On startup, Explorer collapses inactive folders immediately so every library
-header stays visible and the last active library stays expanded. Folders show
+On startup, Explorer collapses inactive libraries immediately so every library
+header stays visible and the last active library stays expanded. Plain folders
+keep the expanded or collapsed state you left them in. Folders show
 their last verified badge state while VERA checks the current filesystem in
 the background. A neutral spinner is shown when there is no saved status yet,
 rather than treating the folder as unindexed.
 
-Parent and empty folders can also be activated as libraries. Nested `.vera`
+Parent and empty folders can also be added as libraries. Nested `.vera`
 files are discovered recursively when there is no saved index configuration.
 Explorer lists `.vera`, `.pdf`, and `.md` / `.markdown` files up to 32 directory levels below a
 library root (the root itself is depth 0). Deeper files are omitted from the

@@ -238,8 +238,11 @@ Set it as the default app for `.vera` files to open an archive in Document
 Preview by double-clicking it in Windows File Explorer or on the desktop.
 That shell open (and **File > Open...**) is a standalone document: it reuses
 the running window and clears the saved active library. Use
-**File > Open Folder...** when you want the whole folder as the Search/Ask
-scope.
+**File > Add Library...** when you want the whole folder as the Search/Ask
+scope; **File > Open Folder...** browses a folder of mixed files without
+making it a library.
+Right-click a library and choose **Convert** to convert its new files with
+local MiniLM semantic search (the desktop default) in one step.
 Connect an LLM provider for grounded questions and answers.
 For private developer-mode testing, its ChatGPT Bridge setup wizard selects the
 approved library and tunnel client, stores the runtime key securely, verifies

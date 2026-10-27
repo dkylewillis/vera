@@ -148,9 +148,11 @@ continues after an individual file fails and exits nonzero if any conversion
 failed or malformed existing output was found.
 
 In the desktop app, right-click a folder in Explorer and choose
-**Convert…** to open Convert in **Directory** mode for that folder.
-Confirm the ingest pipeline, embedding model, overwrite, and nested-folder
-options, then convert.
+**Convert** to batch-convert its new files immediately (existing up-to-date
+archives are skipped, subfolders are included, and a library's existing
+embedding model is reused). Choose **Convert with options…** to confirm the
+ingest pipeline, embedding model, overwrite, and nested-folder options in the
+Convert view first.
 
 ## Reconvert with a different parser or embedding
 
@@ -421,7 +423,7 @@ converter initializes. The Convert UI is
 schema-driven: the sidecar
 `describe_ingest_pipelines` action supplies descriptors, and
 `PipelineConfigForm` renders only the fields each pipeline advertises under a
-collapsed **Advanced pipeline options** section. For PyMuPDF, **OCR language**
+collapsed **Advanced** section. For PyMuPDF, **OCR language**
 is a dropdown of bundled and downloadable Tesseract codes (for example
 `Spanish (spa)`), with a **Custom…** option for combinations such as
 `eng+spa` or a manually installed `TESSDATA_PREFIX` code.

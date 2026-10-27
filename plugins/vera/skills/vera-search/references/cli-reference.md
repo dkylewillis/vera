@@ -355,6 +355,9 @@ Options:
   repeatable. If any include is present, a file must match at least one
   include and no exclude. Directory search only; a single-file target
   exits 2 with `{"ok": false, "error": "--include applies to directory search only"}`.
+  A fresh index built without includes still serves a narrower include
+  (`index.used` stays true) and filters to matching archives before `top_k`;
+  use `--include "sub/folder/**"` to search one subfolder of a library.
 - `--where KEY=VALUE` is applied before `top_k` and is repeatable. Distinct
   keys are AND. Comma-separated values are IN. Repeated flags for the same
   key union the IN set. Values coerce like `--pipeline-option`. A missing key fails the predicate.

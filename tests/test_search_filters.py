@@ -428,6 +428,40 @@ def test_indexed_archive_where_and_chunk_fallback(tmp_path: Path) -> None:
         assert CHUNK_METADATA_FILTER_REASON in report["reasons"]
 
 
+def test_include_scope_uses_unscoped_library_index(tmp_path: Path) -> None:
+    library = tmp_path / "library"
+    (library / "projects" / "smith").mkdir(parents=True)
+    _convert_company(library / "grid.vera", "GRID", sections=6)
+    _convert_company(library / "projects" / "smith" / "pwrx.vera", "PWRX", sections=6)
+    build_library_index(str(library), recursive=True)
+
+    with VeraCorpus.open(str(library), includes=["projects/smith/**"]) as corpus:
+        assert [Path(path).name for path in corpus.paths] == ["pwrx.vera"]
+        results = corpus.search("adding capacity", mode="hybrid", top_k=4)
+        assert corpus.uses_index is True
+        assert len(results) == 4
+        assert all(Path(hit.file).name == "pwrx.vera" for hit in results)
+        summary = corpus.inspect_summary()
+        assert summary["discovered_file_count"] == 1
+
+    with VeraCorpus.open(str(library), includes=["nowhere/**"], allow_empty=True) as corpus:
+        assert corpus.paths == []
+        assert corpus.search("adding capacity", mode="keyword", top_k=4) == []
+
+
+def test_escaped_include_matches_folder_with_glob_characters(tmp_path: Path) -> None:
+    library = tmp_path / "library"
+    (library / "Phase [1]").mkdir(parents=True)
+    (library / "Phase 1").mkdir()
+    _convert_company(library / "Phase [1]" / "grid.vera", "GRID", sections=2)
+    _convert_company(library / "Phase 1" / "pwrx.vera", "PWRX", sections=2)
+    build_library_index(str(library), recursive=True)
+
+    with VeraCorpus.open(str(library), includes=["Phase [[]1]/**"]) as corpus:
+        assert [Path(path).name for path in corpus.paths] == ["grid.vera"]
+        assert corpus.uses_index is True
+
+
 def _chunk_only_archive(path: Path, discipline: str, text: str) -> None:
     with VeraDocument.create(path) as document:
         document.add(

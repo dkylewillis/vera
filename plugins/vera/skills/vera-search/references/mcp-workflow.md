@@ -55,7 +55,9 @@ or `semantic` for paraphrases. Add context to resolve definitions or exceptions.
 Apply `where` before ranking, for example `{"company": "GRID"}` or
 `{"company": ["GRID", "OTHER"]}`. Do not post-filter a top-k result list.
 For corpus discovery use `includes`, `excludes`, and `recursive`; these
-parameters do not exist on single-file search. Use known metadata keys.
+parameters do not exist on single-file search. To search one subfolder of an
+indexed library, pass `includes: ["sub/folder/**"]`; an index built without
+includes still serves it. Use known metadata keys.
 
 Inspect corpus `skipped_files`, `skipped_semantic_model_groups`, and `index`
 diagnostics. Missing embedders or credentials can limit semantic coverage;
