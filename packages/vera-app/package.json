@@ -12,7 +12,7 @@
     "build": "npm run build:electron && npm run typecheck:renderer && vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:sidecar": "node scripts/build-sidecar.cjs",
-    "dist": "node scripts/write-pro-cloud.cjs && npm run build && npm run build:sidecar && electron-builder",
+    "dist": "node scripts/write-pro-cloud.cjs && npm run build && npm run build:sidecar && electron-builder --config electron-builder.config.cjs",
     "typecheck": "npm run typecheck:electron && npm run typecheck:renderer",
     "typecheck:electron": "tsc -p tsconfig.electron.json --noEmit",
     "typecheck:renderer": "tsc -p tsconfig.renderer.json",
@@ -87,13 +87,7 @@
       }
     ],
     "win": {
-      "target": "nsis",
-      "azureSignOptions": {
-        "publisherName": "VERA",
-        "endpoint": "https://eus.codesigning.azure.net/",
-        "certificateProfileName": "VERADesktop",
-        "codeSigningAccountName": "vera-signing"
-      }
+      "target": "nsis"
     },
     "fileAssociations": [
       {

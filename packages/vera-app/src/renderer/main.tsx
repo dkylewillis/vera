@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { TraceView } from './components/activity/TraceView';
 import { AppShell } from './components/AppShell';
+import { SidebarAccount } from './components/SidebarAccount';
 import type { CenterView, SideView } from './components/AppShell';
 import { AppStatusBar } from './components/AppStatusBar';
 import { CenterChatView } from './components/CenterChatView';
@@ -1950,9 +1951,15 @@ function App() {
             ) : null}
           </>
         )}
+        accountBar={(
+          <SidebarAccount
+            collapsed={sidebarCollapsed}
+            onOpenAccount={() => { setSettingsSection('account'); setSettingsOpen(true); }}
+            onOpenSettings={() => { setSettingsSection('providers'); setSettingsOpen(true); }}
+          />
+        )}
         onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
         onSideViewChange={(view) => openSide(view)}
-        onOpenSettings={() => { setSettingsSection('providers'); setSettingsOpen(true); }}
         onExplorerBlankPointer={handleExplorerBlankPointer}
         onResizeSide={(clientX) => { setIsResizingSide(true); resizeSidePanel(clientX); }}
         onResetSideWidth={() => setSidePanelWidth(260)}

@@ -6,7 +6,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
-  Settings,
 } from 'lucide-react';
 
 export type SideView = 'explorer' | 'chats' | 'convert';
@@ -25,9 +24,9 @@ export function AppShell({
   isResizingSource,
   headerActions,
   sidebarBody,
+  accountBar,
   onToggleSidebar,
   onSideViewChange,
-  onOpenSettings,
   onExplorerBlankPointer,
   onResizeSide,
   onResetSideWidth,
@@ -53,9 +52,9 @@ export function AppShell({
   isResizingSource: boolean;
   headerActions: ReactNode;
   sidebarBody: ReactNode;
+  accountBar: ReactNode;
   onToggleSidebar: () => void;
   onSideViewChange: (view: SideView) => void;
-  onOpenSettings: () => void;
   onExplorerBlankPointer: (event: MouseEvent<HTMLDivElement>) => void;
   onResizeSide: (clientX: number) => void;
   onResetSideWidth: () => void;
@@ -114,7 +113,6 @@ export function AppShell({
               </nav>
               <div className="sidePanelActions">
                 {headerActions}
-                <button className="ghostIcon" onClick={onOpenSettings} title="Settings" aria-label="Settings"><Settings size={15} /></button>
               </div>
             </>
           ) : null}
@@ -128,6 +126,7 @@ export function AppShell({
             {sidebarBody}
           </div>
         ) : null}
+        {accountBar}
       </aside>
 
       {!sidebarCollapsed ? (

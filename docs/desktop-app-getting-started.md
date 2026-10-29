@@ -31,12 +31,16 @@ or by activating a folder already listed in Explorer.
 
 ## VERA Pro
 
-**File > Settings → Account** signs this computer in through the browser.
+The bottom of the left sidebar shows the signed-in email, a **Pro** mark when
+the subscription is active, and the settings gear. **Sign in** there opens the
+browser when this build is connected to VERA Pro. **File > Settings → Account**
+signs this computer in through the same browser handoff.
 The site redirects to `vera://auth/callback`, and VERA stores the session with
-Electron `safeStorage`. **Activate Pro** fetches a per-account OpenRouter key
-with a monthly spending limit and saves it separately from any OpenRouter key
-you paste under **LLM Providers**. Ask then uses the **VERA Pro** provider.
-**Get Pro** opens the subscription page.
+Electron `safeStorage`. A current subscription saves this computer’s model key
+during that sign-in. **Account** shows the percent of this month's allowance
+already used. **Get Pro** opens the subscription page only when the
+account has no current subscription. **Manage subscription** opens the account
+page instead.
 
 Search does not need Pro. Without a subscription, add your own provider
 (OpenAI, OpenRouter, Ollama, or LM Studio). If Ask is opened with no provider,

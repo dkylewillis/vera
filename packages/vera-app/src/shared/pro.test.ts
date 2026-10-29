@@ -8,6 +8,7 @@ import {
   parseVeraAuthCallback,
   providerCredentialKey,
   veraAuthCallbackFromArgs,
+  usagePercent,
   withProProvider,
 } from './pro.js';
 import type { AppSettings } from './contracts.js';
@@ -61,6 +62,17 @@ describe('VERA Pro credential separation', () => {
     expect(next.embedding_model).toBe('hashing');
     const again = withProProvider(next);
     expect(again.providers.filter((profile) => profile.preset_key === PRO_PRESET_KEY)).toHaveLength(1);
+  });
+});
+
+describe('Pro usage display', () => {
+  it('reports a percentage and hides the dollar cap', () => {
+    expect(usagePercent(1.5, 6)).toBe(25);
+    expect(usagePercent(0, 6)).toBe(0);
+    expect(usagePercent(9, 6)).toBe(100);
+    expect(usagePercent(null, 6)).toBe(0);
+    expect(usagePercent(1, null)).toBeNull();
+    expect(usagePercent(1, 0)).toBeNull();
   });
 });
 
