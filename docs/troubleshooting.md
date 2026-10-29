@@ -146,7 +146,7 @@ summarizes PyMuPDF-shaped keys; Markdown's empty `ocr: {}` and Docling's
 document routes. They set Search/Ask to that archive and clear the saved
 active library (`preserveLibrary: false`). Explorer preview and checking
 files in a library do **not** do this. Re-activate the folder with
-**File > Open Folder...** or by clicking a library header already listed in
+**File > Add Library...** or by clicking a library header already listed in
 Explorer. The parent of the opened archive is not added automatically.
 
 ## ChatGPT Bridge will not start
@@ -166,7 +166,9 @@ The desktop Explorer lists `.vera`, `.pdf`, and `.md` / `.markdown` files up
 to 32 directory levels below a library root. Files deeper than that are
 omitted from the tree; the listing payload sets `truncated: true`, but
 Explorer does not show a banner for that cap. Flatten the folder layout or
-open the nested directory as its own library. Office and HTML sources
+open the nested directory as its own library. Subfolders start collapsed;
+expand a subfolder row to see its documents, and use **All** if the
+**Ready** or **To convert** filter is hiding them. Office and HTML sources
 (`.docx`, `.pptx`, `.xlsx`, `.html`, `.htm`) are not listed — convert those
 with the CLI Docling extra, then search the resulting `.vera`.
 
@@ -355,7 +357,7 @@ If a CLI Docling convert is slow or sits on model download, check stderr for
 timing lines such as
 `2026-08-19T20:44:01.123Z timing step=import_docling elapsed_ms=12450`.
 Set `DOCLING_ARTIFACTS_PATH` for a local layout-model cache. The desktop
-convert log (**File > Open convert log...**, Convert **Open log**, or
+convert log (**File > Open convert log...**, Convert **Advanced → Open convert log**, or
 **Settings → Diagnostics**) records PyMuPDF convert timing in
 `userData/logs/sidecar.log` for `app:dev` and packaged VERA. CLI `vera convert`
 prints the same timing on stderr without writing that desktop file. Each step

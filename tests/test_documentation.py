@@ -294,7 +294,7 @@ def test_hardening_json_contracts_are_documented():
     assert "IngestRequest" in conversion
     assert "describe_ingest_pipelines" in conversion
     assert "PipelineConfigForm" in conversion
-    assert "Advanced pipeline options" in conversion
+    assert "**Advanced**" in conversion
     assert "compatibility alias" in conversion.lower() or "Compatibility aliases" in conversion
     assert "ocr_language=en" in conversion
     assert "whitespace-split words" in conversion
@@ -376,7 +376,7 @@ def test_hardening_json_contracts_are_documented():
     assert "loads image previews" in desktop
     assert "describe_ingest_pipelines" in desktop
     assert "PipelineConfigForm" in desktop
-    assert "Advanced pipeline options" in desktop
+    assert "**Advanced**" in desktop
     assert "same environment" in desktop
     assert "vera.ingest_pipelines" in desktop
     assert "pip install -e" in desktop
@@ -412,17 +412,17 @@ def test_hardening_json_contracts_are_documented():
     assert "embedder_options" in desktop_architecture
     assert "pipeline_options" in desktop_architecture
     assert "PipelineConfigForm" in desktop_architecture
-    assert "Advanced pipeline options" in desktop_architecture
+    assert "**Advanced**" in desktop_architecture
     assert "**Reconvert…**" in desktop_architecture
     assert "opens Convert immediately" in desktop_architecture
     assert "the folder badge spins" in desktop_architecture
-    assert "**Convert…**" in desktop_architecture
+    assert "**Convert with options…**" in desktop_architecture
     assert "not for an explicit menu action" in desktop_architecture
     assert "Shift+click" in desktop_architecture
     assert "does not leave the last file looking selected" in desktop_architecture
     assert "distinct marker" in desktop_architecture
     assert "checkbox sets that row's membership" in desktop_architecture
-    assert "collapses inactive folders immediately" in desktop
+    assert "collapses inactive libraries immediately" in desktop
     assert "active library stays expanded" in desktop_architecture
     assert "index-status checks" in desktop_architecture
     assert "Ctrl/Cmd+click" in desktop
@@ -568,7 +568,7 @@ def test_hardening_json_contracts_are_documented():
     assert "from openai import OpenAI" not in guide
     assert "vera-embed-openai" in guide
     assert "Do not call the network from `__init__`" in guide
-    assert "Advanced pipeline options" in (DOCS / "packages" / "vera-app.md").read_text(
+    assert "**Advanced**" in (DOCS / "packages" / "vera-app.md").read_text(
         encoding="utf-8"
     )
     assert "`attachment_metadata()`" in python_api
@@ -1033,6 +1033,76 @@ def test_pretty_search_is_documented_across_public_surfaces():
     convert_section, search_section = skill_cli.split("### `vera search", 1)
     assert "- `--pretty`" not in convert_section
     assert "- `--pretty`" in search_section
+
+
+def test_desktop_explorer_libraries_folders_and_tree():
+    """Pin the Libraries / Folders split and the document tree in Explorer."""
+    architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    for text in (architecture, desktop, changelog):
+        assert "File > Add Library..." in text
+        assert "vera.libraryPaths" in text
+        assert "Make this a library" in text
+    assert "## Libraries and folders" in desktop
+    assert "**Ready**" in desktop and "**To convert**" in desktop
+    assert "Remove from Libraries" in desktop
+    assert "buildExplorerTree" in architecture
+    assert "pairExplorerDocuments" in architecture
+    assert "vera.expandedSubfolders" in architecture
+    assert "File > Add Library..." in readme
+
+
+def test_desktop_quick_convert_and_simplified_convert_view():
+    """Pin immediate Explorer convert, the Options section, and the MiniLM default."""
+    architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    app_pkg = (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+
+    for text in (architecture, desktop, changelog, app_pkg):
+        assert "Convert with options…" in text
+    for text in (desktop, changelog):
+        assert "Include a copy of the original file" in text
+        assert "**What to convert**" in text
+    assert "quickConvert" in architecture
+    assert "libraryEmbeddingModel" in architecture
+    assert "embeddingModelsMatch" in architecture
+    for text in (architecture, changelog, agents):
+        assert "DEFAULT_EMBEDDING_MODEL" in text
+    assert "The CLI `vera convert` default is still hashing." in desktop
+    assert "hashing remains the" not in agents
+    for text in (desktop, architecture, app_pkg):
+        assert "Advanced pipeline options" not in text
+        assert "Convert **Open log**" not in text
+        assert "Convert **Options" not in text
+    assert "**Advanced → Search model**" in desktop
+
+
+def test_folder_scope_search_and_nested_library_warning_are_documented():
+    """Pin subfolder search, indexed include scopes, and the nested-library prompt."""
+    architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    libraries = (DOCS / "document-libraries.md").read_text(encoding="utf-8")
+    cli = (DOCS / "cli-reference.md").read_text(encoding="utf-8")
+    skill_cli = (
+        ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "cli-reference.md"
+    ).read_text(encoding="utf-8")
+
+    for text in (architecture, desktop, changelog):
+        assert "Search this folder" in text
+    assert "Add as separate library" in desktop
+    assert "Whole library" in desktop
+    assert "folderScopeInclude" in architecture
+    assert "nestedLibraryConflict" in architecture
+    assert "NestedLibraryModal" in architecture
+    assert '--include "projects/smith/**"' in libraries
+    for text in (libraries, cli, skill_cli, changelog):
+        assert "before `top_k`" in text
 
 
 def test_desktop_file_open_clears_library_scope():

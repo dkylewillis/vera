@@ -92,7 +92,7 @@ export interface VeraApi {
   pickPdf(): Promise<string[]>;
   saveAny(): Promise<string | null>;
   openTargetReady(): Promise<void>;
-  onOpenTarget(callback: (path: string) => void): () => void;
+  onOpenTarget(callback: (path: string, kind?: 'library' | 'folder') => void): () => void;
   onOpenSettings(callback: () => void): () => void;
   onFolderChanged(callback: (path: string) => void): () => void;
   onAnswerEvent(callback: (data: StreamEvent) => void): () => void;

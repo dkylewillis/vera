@@ -29,8 +29,38 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   argv, or **File > Open...** reuses the running window
   (`requestSingleInstanceLock`) and opens the archive as a standalone document
   (`preserveLibrary: false`), which clears the saved active library.
-  **File > Open Folder...** still adds or activates a library. Explorer preview
+  **File > Add Library...** adds or activates a library. Explorer preview
   keeps the current library scope.
+- Desktop Explorer **Search this folder** on a library subfolder limits
+  Search and Ask to that folder and its subfolders, using the library's
+  index. Adding a library inside another library (or around one) now asks
+  first and offers to search the folder in the existing library instead.
+- A fresh library index built without include patterns now serves a narrower
+  `--include` / `includes` search (for example one subfolder) instead of
+  falling back to per-file search; `index.used` stays true and the filter is
+  applied before `top_k`.
+- Desktop Explorer **Convert** (library, folder, subfolder, or unconverted
+  files) converts new files immediately with saved settings, skips
+  up-to-date archives, reuses the library's existing embedding model, and
+  opens the Convert view only when a file fails. **Convert with options…**
+  opens the Convert view first. The footer conversion status has a Stop button.
+- The desktop Convert view is simpler: **What to convert** (Add files… /
+  Choose folder…) and Convert, with overwrite, subfolders,
+  **Include a copy of the original file** (formerly the PDF-only "keep
+  original" wording, which also applies to Markdown), the **Search model** dropdown, pipeline,
+  OCR, and the convert log under a collapsed **Advanced** section. Results show
+  converted, up-to-date, and failed counts with expandable details. Convert
+  warns when the selected model differs from the target library's model.
+
+- Desktop Explorer separates **Libraries** from plain **Folders**. **File >
+  Add Library...** (`Ctrl/Cmd+Shift+O`) adds an indexed Search/Ask library;
+  **File > Open Folder...** browses a folder of mixed files without an index
+  badge or active-library scope (check its `.vera` files to search them, or
+  choose **Make this a library**). Folders saved before this change reopen as
+  libraries (`vera.libraryPaths`). Explorer now shows nested subfolders as a
+  collapsible tree, shows a source and the `.vera` converted from it as one
+  document row, shows unconverted sources in a muted style, and filters by
+  **All / Ready / To convert**.
 - Desktop **File > Settings → ChatGPT Bridge** (developer-mode PoC) supervises
   OpenAI Secure MCP Tunnel against one approved library via
   `vera-sidecar mcp-bridge` and a fail-closed policy file.
@@ -41,8 +71,20 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   `vera_source_page`). The desktop ChatGPT Bridge remains a separate remote
   connection.
 
+### Changed
+
+- The desktop default embedding model is now MiniLM
+  (`sentence-transformers:all-MiniLM-L6-v2`, `DEFAULT_EMBEDDING_MODEL`)
+  instead of `hashing`. Saved settings keep their model; the CLI default is
+  still `hashing`.
+
 ### Fixed
 
+- Desktop PDF conversion no longer fails with "Not a supported source file
+  (.markdown, .md)" after the Markdown pipeline was chosen in the pipeline
+  dropdown or left selected by reconverting a Markdown archive. The dropdown
+  lists only PDF pipelines, and PDF runs fall back to an installed PDF
+  pipeline with its own saved options.
 - Directory and selected-file batch convert refuse same-stem sources that would
   write the same `.vera` path (`manual.pdf` and `manual.md` → `manual.vera`).
   Previously both were reported as converted while the later file silently

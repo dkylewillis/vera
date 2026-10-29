@@ -1315,7 +1315,9 @@ function stopFolderWatchers(): void {
   folderChangeTimers.clear();
 }
 
-let pendingOpenTarget: string | null = null;
+type OpenTargetKind = 'library' | 'folder';
+
+let pendingOpenTarget: { path: string; kind?: OpenTargetKind } | null = null;
 const openTargetReadyWindows = new Set<number>();
 
 function preferredWindow(): BrowserWindow | null {
@@ -1329,22 +1331,22 @@ function revealWindow(win: BrowserWindow): void {
   win.focus();
 }
 
-function sendOpenTarget(path: string | null): void {
+function sendOpenTarget(path: string | null, kind?: OpenTargetKind): void {
   if (!path) return;
   const win = preferredWindow();
   if (!win || !openTargetReadyWindows.has(win.webContents.id)) {
-    pendingOpenTarget = path;
+    pendingOpenTarget = { path, kind };
     return;
   }
   revealWindow(win);
-  win.webContents.send(IPC_CHANNELS.openTarget, path);
+  win.webContents.send(IPC_CHANNELS.openTarget, path, kind);
 }
 
 function flushOpenTargets(win: BrowserWindow): void {
   if (!pendingOpenTarget || win.isDestroyed()) return;
-  const path = pendingOpenTarget;
+  const { path, kind } = pendingOpenTarget;
   pendingOpenTarget = null;
-  win.webContents.send(IPC_CHANNELS.openTarget, path);
+  win.webContents.send(IPC_CHANNELS.openTarget, path, kind);
 }
 
 function sendOpenSettings(): void {
@@ -1363,9 +1365,13 @@ function configureMenu(): void {
           click: async () => sendOpenTarget(await pickArchivePath()),
         },
         {
-          label: 'Open Folder...',
+          label: 'Add Library...',
           accelerator: 'CmdOrCtrl+Shift+O',
-          click: async () => sendOpenTarget(await pickFolderPath()),
+          click: async () => sendOpenTarget(await pickFolderPath(), 'library'),
+        },
+        {
+          label: 'Open Folder...',
+          click: async () => sendOpenTarget(await pickFolderPath(), 'folder'),
         },
         { type: 'separator' },
         {

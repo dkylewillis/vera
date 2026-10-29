@@ -4,10 +4,14 @@ import {
   ACTIVE_LIBRARY_STORAGE_KEY,
   dropFolder,
   FOLDERS_STORAGE_KEY,
+  LIBRARY_PATHS_STORAGE_KEY,
+  nestedLibraryConflict,
   persistFolderPaths,
+  persistLibraryPaths,
   readCachedIndexStatuses,
   readSavedActiveLibraryPath,
   readSavedFolderPaths,
+  readSavedLibraryPaths,
   replaceListedFolder,
   upsertFolder,
   workspaceRestorePlan,
@@ -81,6 +85,33 @@ describe('workspaceRestorePlan', () => {
       refreshPaths: ['C:\\a'],
     });
   });
+
+  it('never restores or index-checks a plain folder', () => {
+    expect(workspaceRestorePlan(['C:\\lib', 'C:\\plain'], 'C:\\plain', ['C:\\lib'])).toEqual({
+      restoreActive: null,
+      refreshPaths: ['C:\\lib'],
+    });
+  });
+});
+
+describe('readSavedLibraryPaths', () => {
+  it('treats every saved folder as a library before the key exists', () => {
+    const storage = memoryStorage({
+      [FOLDERS_STORAGE_KEY]: JSON.stringify(['C:\\docs', 'C:\\library']),
+    });
+    expect(readSavedLibraryPaths(storage)).toEqual(['C:\\docs', 'C:\\library']);
+  });
+
+  it('round-trips the persisted library list', () => {
+    const storage = memoryStorage({
+      [FOLDERS_STORAGE_KEY]: JSON.stringify(['C:\\docs', 'C:\\library']),
+    });
+    persistLibraryPaths(['C:\\library'], storage);
+    expect(storage.getItem(LIBRARY_PATHS_STORAGE_KEY)).toBe(JSON.stringify(['C:\\library']));
+    expect(readSavedLibraryPaths(storage)).toEqual(['C:\\library']);
+    persistLibraryPaths([], storage);
+    expect(readSavedLibraryPaths(storage)).toEqual([]);
+  });
 });
 
 describe('folder list updates', () => {
@@ -134,5 +165,32 @@ describe('readCachedIndexStatuses', () => {
   it('ignores missing or invalid cache JSON', () => {
     expect(readCachedIndexStatuses(new Set(['C:\\docs']), memoryStorage())).toEqual({});
     expect(readCachedIndexStatuses(new Set(['C:\\docs']), memoryStorage({ 'vera.indexStatuses': '[' }))).toEqual({});
+  });
+});
+
+describe('nestedLibraryConflict', () => {
+  const libraries = ['C:\\work', 'C:\\work\\projects', 'D:\\codes'];
+
+  it('reports the closest library that already contains the folder', () => {
+    expect(nestedLibraryConflict('C:\\work\\projects\\smith', libraries)).toEqual({
+      kind: 'inside',
+      path: 'C:\\work\\projects\\smith',
+      library: 'C:\\work\\projects',
+    });
+  });
+
+  it('reports libraries inside a folder being added around them', () => {
+    expect(nestedLibraryConflict('D:\\', ['D:\\codes', 'D:\\specs\\2024'])).toEqual({
+      kind: 'contains',
+      path: 'D:\\',
+      libraries: ['D:\\codes', 'D:\\specs\\2024'],
+    });
+  });
+
+  it('ignores the folder itself, siblings, and look-alike prefixes', () => {
+    expect(nestedLibraryConflict('C:\\work', ['C:\\work'])).toBeNull();
+    expect(nestedLibraryConflict('c:\\WORK\\', ['C:\\work'])).toBeNull();
+    expect(nestedLibraryConflict('C:\\workshop', ['C:\\work'])).toBeNull();
+    expect(nestedLibraryConflict('E:\\other', libraries)).toBeNull();
   });
 });

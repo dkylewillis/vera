@@ -16,6 +16,7 @@ import {
 } from '../lib/conversion';
 import { convertDefaultsFromSelection, fileName, isPathInsideFolder, siblingSourcePath, type ExplorerSelection } from '../lib/formatting';
 import { explorerEntryType } from '../lib/explorer';
+import { pipelineAcceptsPdf } from '../lib/convertPresets';
 import {
   findSiblingSourcePath,
   reconvertConvertOutput,
@@ -54,6 +55,7 @@ export type ConversionHost = {
   activeLibraryPath: string;
   conversionInProgress: boolean;
   folders: WorkspaceFolderResult[];
+  libraryPaths: string[];
   ingestPipelineDescriptors: PipelineDescriptor[];
   ingestPipelineConfigs: Record<string, PipelineOptions>;
   call: SidecarCall;
@@ -78,6 +80,29 @@ export type ConversionHost = {
 };
 
 export type ConversionController = ReturnType<typeof createConversionController>;
+
+/**
+ * Reconverting a Markdown archive (or an older settings file) can leave a
+ * non-PDF pipeline selected; PDF runs then fall back to an installed PDF
+ * pipeline and that pipeline's saved options, which may differ in schema.
+ */
+export function pipelineForRun(
+  host: Pick<ConversionHost, 'ingestPipeline' | 'pipelineOptions' | 'ingestPipelineDescriptors' | 'ingestPipelineConfigs'>,
+  includesPdfs: boolean,
+): { ingestPipeline: string; pipelineOptions: PipelineOptions } {
+  const current = { ingestPipeline: host.ingestPipeline, pipelineOptions: host.pipelineOptions };
+  if (!includesPdfs) return current;
+  const selected = host.ingestPipelineDescriptors.find(
+    (item) => item.spec === host.ingestPipeline || item.provider === host.ingestPipeline,
+  );
+  if (!selected || pipelineAcceptsPdf(selected)) return current;
+  const fallback = host.ingestPipelineDescriptors.find((item) => item.installed && pipelineAcceptsPdf(item));
+  if (!fallback) return current;
+  return {
+    ingestPipeline: fallback.spec,
+    pipelineOptions: mergePipelineFieldValues(fallback, host.ingestPipelineConfigs[fallback.spec]),
+  };
+}
 
 export function createConversionController(getHost: () => ConversionHost) {
   const conversionRequestIdRef = { current: null as string | null };
@@ -291,7 +316,72 @@ export function createConversionController(getHost: () => ConversionHost) {
     const chosen = await window.vera.pickFolder();
     if (chosen) {
       host.setBatchDirectory(chosen);
+      host.setConvertMode('batch');
+      host.setExplorerSelection({ kind: 'folder', path: chosen });
       host.setBatchConvertResult(null);
+    }
+  }
+
+  /**
+   * The embedding model the library containing `targetPath` already uses, read
+   * from one of its archives (nearest to the target first). Mixing models in a
+   * library leaves the minority out of semantic search.
+   */
+  async function libraryEmbeddingModel(targetPath: string): Promise<{ library: string; model: string } | null> {
+    const host = getHost();
+    const target = targetPath.trim();
+    if (!target) return null;
+    const library = host.folders.find((folder) => (
+      host.libraryPaths.includes(folder.path) && isPathInsideFolder(target, folder.path)
+    ));
+    if (!library) return null;
+    const archives = library.entries.filter((entry) => entry.type === 'vera');
+    const targetDir = explorerEntryType(target) ? target.replace(/[/\\][^/\\]+$/, '') : target;
+    const sample = archives.find((entry) => isPathInsideFolder(entry.path, targetDir)) ?? archives[0];
+    if (!sample) return null;
+    const response = await window.vera.request<InspectResult>({ action: SIDECAR_ACTIONS.inspect, path: sample.path });
+    const result = response.ok ? response.result : null;
+    const model = result?.default_embedding_model?.trim()
+      || result?.embedding_model?.trim()
+      || result?.embedding_models?.[0]?.trim();
+    return model ? { library: library.path, model } : null;
+  }
+
+  /**
+   * Explorer's Convert: start immediately with saved defaults, skipping
+   * archives that are already up to date. Opens the Convert view only when
+   * something needs attention.
+   */
+  async function quickConvert(target: { paths?: string[]; directory?: string }) {
+    const host = getHost();
+    if (host.conversionInProgress || reconvertInFlightRef.current) return;
+    reconvertTargetRef.current = null;
+    const paths = (target.paths ?? []).filter(Boolean);
+    const directory = target.directory?.trim() || '';
+    if (!paths.length && !directory) return;
+    let libraryModel: Awaited<ReturnType<typeof libraryEmbeddingModel>> = null;
+    try {
+      libraryModel = await libraryEmbeddingModel(paths[0] || directory);
+    } catch {
+      libraryModel = null;
+    }
+    if (paths.length) {
+      host.setSelectedPdfs(paths);
+      host.setConvertMode('selected');
+    } else {
+      host.setBatchDirectory(directory);
+      host.setConvertMode('batch');
+    }
+    const outcome = await batchConvertPdfs({
+      paths,
+      directory,
+      overwrite: false,
+      recursive: true,
+      embeddingModel: libraryModel?.model ?? host.embeddingModel,
+    });
+    if (outcome !== 'ok') {
+      host.setSideView('convert');
+      host.setSidebarCollapsed(false);
     }
   }
 
@@ -392,13 +482,26 @@ export function createConversionController(getHost: () => ConversionHost) {
     return activeRequestId !== null && activeRequestId !== requestId;
   }
 
-  async function batchConvertPdfs(options: { paths?: string[] } = {}) {
+  /**
+   * Run a conversion. Options override the Convert view's directory, overwrite,
+   * nested-folder, and embedding settings for this run only. Resolves `ok`
+   * when every file converted or was already up to date (or the user stopped
+   * it), and `attention` when the Convert view has an error or failures to show.
+   */
+  async function batchConvertPdfs(options: {
+    paths?: string[];
+    directory?: string;
+    overwrite?: boolean;
+    recursive?: boolean;
+    embeddingModel?: string;
+  } = {}): Promise<'ok' | 'attention'> {
     const host = getHost();
     const selectedPaths = (options.paths ?? []).map((entry) => entry.trim()).filter(Boolean);
-    const directory = host.batchDirectory.trim();
+    const directory = (options.directory ?? host.batchDirectory).trim();
+    const embeddingModel = options.embeddingModel?.trim() || host.embeddingModel;
     if (!selectedPaths.length && !directory) {
       host.setConversionError(conversionMissingTargetMessage(host.convertMode));
-      return;
+      return 'attention';
     }
     conversionCanceledRef.current = false;
     conversionInterruptRef.current = null;
@@ -412,10 +515,10 @@ export function createConversionController(getHost: () => ConversionHost) {
       detail?: string;
       missing_credential_env?: string;
     }>(
-      { action: SIDECAR_ACTIONS.preflightEmbedder, model: host.embeddingModel },
+      { action: SIDECAR_ACTIONS.preflightEmbedder, model: embeddingModel },
       'Checking embedder',
     );
-    if (!preflight) return;
+    if (!preflight) return 'attention';
     if (!preflight.ok) {
       const missing = preflight.missing_credential_env?.trim();
       host.setConversionError(
@@ -423,7 +526,7 @@ export function createConversionController(getHost: () => ConversionHost) {
           ? `Embedding provider is not ready. Set ${missing} under File > Settings → Embeddings, then convert again.`
           : (preflight.detail || 'Embedding provider is not ready.'),
       );
-      return;
+      return 'attention';
     }
     const conversionRequestId = crypto.randomUUID();
     conversionRequestIdRef.current = conversionRequestId;
@@ -443,11 +546,15 @@ export function createConversionController(getHost: () => ConversionHost) {
       applyConversionProgress(conversionRequestId, event, progressMode);
     });
     conversionProgressCleanupRef.current = { requestId: conversionRequestId, off: offProgress };
+    const pipeline = pipelineForRun(
+      host,
+      !selectedPaths.length || selectedPaths.some((entry) => entry.toLowerCase().endsWith('.pdf')),
+    );
     const convertFields = {
-      embeddingModel: host.embeddingModel,
-      ingestPipeline: host.ingestPipeline,
+      embeddingModel,
+      ingestPipeline: pipeline.ingestPipeline,
       storeOriginal: host.storeOriginal,
-      pipelineOptions: host.pipelineOptions,
+      pipelineOptions: pipeline.pipelineOptions,
       embedderOptions: host.embedderOptions,
     };
     try {
@@ -468,19 +575,19 @@ export function createConversionController(getHost: () => ConversionHost) {
             buildBatchConvertPayload({
               selectedPaths,
               directory,
-              batchRecursive: host.batchRecursive,
-              batchOverwrite: host.batchOverwrite,
+              batchRecursive: options.recursive ?? host.batchRecursive,
+              batchOverwrite: options.overwrite ?? host.batchOverwrite,
               ...convertFields,
             }),
             conversionRequestId,
           ),
           () => settleConversionRequest(conversionRequestId),
         );
-      if (conversionRequestWasSuperseded(conversionRequestId)) return;
+      if (conversionRequestWasSuperseded(conversionRequestId)) return 'ok';
       if (response.cancelled || response.error?.includes('cancelled')) {
         refreshFoldersAfterConversion(refreshRoot);
         host.setConversionError(null);
-        return;
+        return 'ok';
       }
       if (!response.ok || !response.result) {
         throw new Error(response.error || conversionFailedMessage(selectedPaths.length > 0));
@@ -497,17 +604,19 @@ export function createConversionController(getHost: () => ConversionHost) {
       if (selectedPaths.length) {
         host.setSelectedPdfs([]);
       }
+      return result.failed > 0 || result.malformed > 0 ? 'attention' : 'ok';
     } catch (error) {
-      if (conversionRequestWasSuperseded(conversionRequestId)) return;
+      if (conversionRequestWasSuperseded(conversionRequestId)) return 'ok';
       const message = error instanceof Error
         ? error.message
         : conversionFailedMessage(selectedPaths.length > 0);
       if (conversionCanceledRef.current || message.toLowerCase().includes('cancelled')) {
         refreshFoldersAfterConversion(refreshRoot);
         host.setConversionError(null);
-        return;
+        return 'ok';
       }
       host.setConversionError(message);
+      return 'attention';
     } finally {
       settleConversionRequest(conversionRequestId);
       if (conversionRequestIdRef.current === null) {
@@ -527,6 +636,8 @@ export function createConversionController(getHost: () => ConversionHost) {
     toggleSelectedPdf,
     choosePdfs,
     chooseBatchDirectory,
+    libraryEmbeddingModel,
+    quickConvert,
     stopConversion,
     skipCurrentConversion,
     batchConvertPdfs,

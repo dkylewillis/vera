@@ -130,7 +130,7 @@ and forwards tqdm `\r` Hub progress as `[vera-sidecar]` lines. Electron tees
 that stderr (plus a `sidecar_spawn` line with the executable and `isPackaged`)
 into `userData/logs/sidecar.log`, rotated to
 `sidecar.log.1` at about 2 MB. **File > Open convert log...**, Convert
-**Open log**, and **Settings → Diagnostics** open that file. Search
+**Advanced → Open convert log**, and **Settings → Diagnostics** open that file. Search
 reports `skipped_semantic_model_groups` when a query embedder is unavailable.
 `list_embedding_models` and `credential_env` drive Convert presets and
 **File > Settings → Embeddings**. OpenAI is bundled; Voyage and Ollama still
@@ -138,7 +138,18 @@ need a query-versus-document hint on `EmbeddingFunction` before they can ship.
 
 ## Active Libraries and Collection Indexes
 
-Opening a workspace folder activates it as the default Search and Ask scope
+Workspace folders are either libraries or plain folders. `useWorkspaceFolders`
+keeps the open folder list in `vera.folders` and the subset that are libraries
+in `vera.libraryPaths`; when that key is absent, every saved folder is a
+library, which is how workspaces from earlier releases migrate. Only libraries
+get index-status checks, an index badge, the active-library highlight, and
+startup restore (`workspaceRestorePlan`). A plain folder's header only expands
+or collapses it, and `syncCollapsedFolders` leaves plain folders in their
+current state when a library activates. **Make this a library** and **Remove
+from Libraries** move a folder between the sets; removing the active library
+clears `activeLibraryPath`.
+
+Adding a library activates it as the default Search and Ask scope
 without opening the corpus. Activation is instantaneous: it sets the active
 library path, clears file-selection overrides, and refreshes the index badge
 in the background. The corpus is opened on the first Search or Ask request.
@@ -164,12 +175,16 @@ the first `.vera` path on `process.argv` (quoted paths and case-insensitive
 `open-file` send that path over `IPC_CHANNELS.openTarget` once the renderer
 calls `openTargetReady`.
 
-`routeOpenTarget()` splits the payload: a directory goes to **Open Folder**
-(add/activate a library); a `.vera` goes to `previewSourceDocument` with
+`routeOpenTarget()` splits the payload: a directory is added to Explorer as
+the kind sent with it (`library` or `folder`; a directory without a kind is a
+library); a `.vera` goes to `previewSourceDocument` with
 `preserveLibrary: false` and `replacePending: true`. That clears
 `activeLibraryPath` and removes `vera.activeLibraryPath` from `localStorage`.
 **File > Open...** (`pickArchivePath`) filters to `.vera` only.
-**File > Open Folder...** (`pickFolderPath`) picks a directory. Explorer
+**File > Add Library...** and **File > Open Folder...** both use
+`pickFolderPath` and send `library` or `folder` as the second
+`IPC_CHANNELS.openTarget` argument. Opening an existing library as a folder
+leaves it a library. Explorer
 double-click / **View in document viewer** omits `preserveLibrary` so the
 library stays the Search/Ask scope.
 
@@ -217,10 +232,62 @@ generation/build/check timestamps, and per-model dimensions and counts. Its
 close action clears the viewer in the same way as closing a document preview.
 Libraries with at least 100
 discovered archives prompt to build or update an unavailable index on Search or
-Ask. Folder context menus expose **Convert…**, **Build index**, **Update
-index**, rescan, show-in-system-folder, and close. **Convert…** opens
-Convert in directory mode for that folder so pipeline, embedding, overwrite,
-and nested-folder settings can be confirmed before converting. **Build index**
+Ask. Library context menus expose **Convert**, **Convert with options…**,
+**Build index**, **Update index**, rescan, show-in-system-folder, **Remove
+from Libraries**, and close; plain folders offer **Make this a library**
+instead of the index actions.
+
+Explorer renders each folder as a tree built in the renderer from the flat
+`listFolder` entries (`buildExplorerTree` in `lib/explorer.ts`). Chains of
+single-child folders are compacted into one row, subfolders start collapsed,
+and their expansion persists in `vera.expandedSubfolders`.
+`pairExplorerDocuments` shows a source and its same-folder, same-stem `.vera`
+as one document row whose selection path is the archive; when a PDF and a
+Markdown file share a stem, the PDF is paired. Rows without an archive select
+the source. Each tree folder counts unconverted sources across its subtree
+(`pendingCount`), which labels the **Convert N new files** menu item. The
+filter (`ExplorerFileFilter`: `all`, `ready`, `pending`) hides non-matching
+rows and empty subfolders, and Shift+click ranges use the visible rows in tree
+order (`visibleExplorerDocuments`). Subfolder context menus offer the same
+two convert actions and show-in-system-folder; inside a library they also
+offer **Search this folder** (or **Search whole library** when it is already
+scoped).
+
+Folder scope is renderer state in `main.tsx`. It applies only while its
+library is active and no files are checked. `libraryQueryScope` turns it into
+`includes: ["<relative folder>/**"]` (glob characters escaped by
+`folderScopeInclude`) on both the `search` and `answer` sidecar requests.
+`VeraCorpus.open` keeps using a fresh library index built without includes
+and filters it to matching archives before `top_k`, so scoped search costs no
+extra index. Adding a library or **Make this a library** first runs
+`nestedLibraryConflict` against existing libraries; overlap opens
+`NestedLibraryModal` instead of adding (`addFolderFromPath(..., { allowNested:
+true })` skips the check).
+
+Explorer's **Convert** (folder, subfolder, or unconverted files) calls `quickConvert` in
+`useConversion`: it starts `batch_convert` immediately with
+`overwrite: false` and `recursive: true`, so up-to-date archives are skipped.
+`libraryEmbeddingModel` inspects one archive in the containing library
+(nearest the target first) and uses its `default_embedding_model`, so a
+library is not split across embedding models; outside a library, or in a
+library with no archives yet, the saved Convert model is used. The Convert
+view opens only when the run needs attention (preflight failure, error, or a
+failed or malformed file). The footer conversion item has a Stop button.
+**Convert with options…** opens the Convert view prefilled with the target
+instead. The Convert view shows the target and the Convert button;
+overwrite, nested folders, embedding the original, the **Search model**
+dropdown (the summary shows the model label when it differs from
+`DEFAULT_EMBEDDING_MODEL`), the PDF ingest pipeline (only when more than one installed pipeline
+accepts PDFs; `pipelineSelectOptions` drops non-PDF pipelines such as
+`markdown`, and `pipelineForRun` falls back to a PDF pipeline and its saved
+options if a Markdown reconvert left `markdown` selected), descriptor
+options, OCR languages, and the convert log sit under a collapsed
+**Advanced** section. When the target's library uses a different model than
+the one selected (`embeddingModelsMatch` compares convert specs with stored
+model names), Convert shows a warning with a one-click switch. The desktop
+default model is `DEFAULT_EMBEDDING_MODEL`
+(`sentence-transformers:all-MiniLM-L6-v2`) in Electron settings and the
+renderer; saved settings keep their model. **Build index**
 and **Update index** from that menu start immediately: the folder badge spins
 and the footer reports progress.
 The Search/Ask dialog (with **Search anyway** and **Don't ask again**) is only
@@ -237,10 +304,10 @@ returns Search/Ask to the whole library. Clicking empty Explorer space or pressi
 checkboxes, and a single-document scope (restoring the parent library when
 possible) — and does not leave the last file looking selected. Clicking a `.vera` does not collapse
 the folder or replace the document viewer. Double-click or right-click **View in document
-viewer** / **Preview embedded source** loads that PDF, Markdown file, or archive original in
-the source pane; right-clicking a PDF or Markdown file also offers **Convert file** /
-**Convert files (N)** for the current selection (one or more files). Right-clicking a
-`.vera` archive offers **Reconvert…**, which opens Convert immediately with a
+viewer** / **Preview document** loads that PDF, Markdown file, or archive original in
+the source pane; right-clicking an unconverted PDF or Markdown file also offers **Convert file** /
+**Convert N files** for the current selection (one or more files) and **Convert with options…**. Right-clicking a
+converted document offers **Reconvert…**, which opens Convert immediately with a
 preparing status (and footer activity) while the sibling source or embedded
 original is resolved. Overwrite is enabled and the archive's current parser,
 embedding, and OCR options are prefilled so they can be changed before replacing
@@ -250,9 +317,10 @@ and no sibling source is listed (**Could not read archive metadata**). A second
 Reconvert click is ignored until that preparation finishes. The same menus can be opened from the keyboard with
 Shift+F10 or the Menu key, support arrow key navigation, and close with
 Escape. Show-in-folder opens a library directory in the OS file manager, or
-reveals a selected `.vera` / `.pdf` / `.md` file in its parent folder. Explorer restores
+reveals a selected `.vera` / `.pdf` / `.md` file in its parent folder. For a converted
+document, **Move .vera to Recycle Bin** trashes only the archive. Explorer restores
 collapse from the last session as soon as folders appear: the active library stays expanded
-and the rest stay collapsed, so every folder header remains visible without first
+and the other libraries stay collapsed, so every folder header remains visible without first
 flashing every tree open. Restoring the saved library does not wait for other folders'
 index-status checks; those badges still refresh in the background. Explorer keeps
 the active-folder highlight without an Active text label, including when
@@ -323,13 +391,12 @@ publish, VERA deletes every other generation directory under
 ## Batch conversion
 
 The Convert view supports an Explorer selection of one or more PDFs or
-Markdown files, or an entire directory. Opening the view (or switching
-Individual files / Directory) prefills from the latest Explorer selection: a
-non-empty file selection opens **Individual files**, and a folder or active
-library seeds directory conversion.
-**Individual files** also offers **Choose files** to browse for one or more
-PDFs or Markdown files without using Explorer. Directory conversion can
-include nested folders. Individual and directory modes
+Markdown files, or an entire directory. Opening the view prefills
+**What to convert** from the latest Explorer selection: a non-empty file
+selection becomes the file list, and a folder or active library seeds
+directory conversion. **Add files…** browses for PDFs or Markdown files and
+**Choose folder…** picks a directory; each replaces the other kind of target.
+Directory conversion can include nested folders. File-list and directory runs
 create each `.vera` archive beside its source file using the same base filename
 (`proposal.pdf` becomes `proposal.vera`; `notes.md` becomes `notes.vera`).
 Existing archives are validated
@@ -348,8 +415,8 @@ engine determine which legacy ingest aliases are forwarded (Tesseract
 `ocr_language`/`ocr_dpi`/`ocr_download` are not sent to Docling); explicit
 `pipeline_options` win.
 The Convert UI loads ingest descriptors through `describe_ingest_pipelines`
-and renders them with `PipelineConfigForm` inside a collapsed
-**Advanced pipeline options** section. Embedding providers are listed via
+and renders them with `PipelineConfigForm` inside the collapsed
+**Advanced** section. Embedding providers are listed via
 `list_embedding_providers`; `describe_embedding_providers` returns the same
 Options-derived field metadata for schema-driven embedder controls.
 `list_embedding_models` returns provider-advertised model presets, and

@@ -110,8 +110,8 @@ contextBridge.exposeInMainWorld('vera', {
   pickPdf: () => ipcRenderer.invoke(IPC_CHANNELS.pickPdf),
   saveAny: () => ipcRenderer.invoke(IPC_CHANNELS.saveAny),
   openTargetReady: () => ipcRenderer.invoke(IPC_CHANNELS.openTargetReady),
-  onOpenTarget: (callback: (path: string) => void) => {
-    const listener = (_event: unknown, path: string) => callback(path);
+  onOpenTarget: (callback: (path: string, kind?: 'library' | 'folder') => void) => {
+    const listener = (_event: unknown, path: string, kind?: 'library' | 'folder') => callback(path, kind);
     ipcRenderer.on(IPC_CHANNELS.openTarget, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.openTarget, listener);
   },

@@ -45,6 +45,8 @@ export function CenterChatView({
   selectedFiles,
   activeLibraryIsEmpty,
   activeLibraryPath,
+  folderScopeName = '',
+  onClearFolderScope,
   path,
   attachments,
   busyAction,
@@ -101,6 +103,9 @@ export function CenterChatView({
   selectedFiles: string[];
   activeLibraryIsEmpty: boolean;
   activeLibraryPath: string;
+  /** Library-relative folder Ask is limited to, or '' for the whole library. */
+  folderScopeName?: string;
+  onClearFolderScope?: () => void;
   path: string;
   attachments: ChatAttachment[];
   busyAction: string | null;
@@ -148,6 +153,7 @@ export function CenterChatView({
     : selectedFiles.length > 0
       ? null
       : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
+        : folderScopeName ? `Folder “${folderScopeName}” in “${fileName(activeLibraryPath)}”`
         : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? `Current document: “${fileName(path)}”` : 'No search scope';
 
   return (
@@ -209,6 +215,9 @@ export function CenterChatView({
               </ul>
             </details>
           ) : scopeLabel}
+          {folderScopeName && selectedFiles.length === 0 && !conversionInProgress && onClearFolderScope ? (
+            <button type="button" className="composerScopeAction" onClick={onClearFolderScope}>Whole library</button>
+          ) : null}
         </div>
         <ChatComposer
           attachments={attachments}

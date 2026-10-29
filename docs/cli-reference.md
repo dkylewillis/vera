@@ -163,7 +163,9 @@ on single-file and corpus search. Convert-owned archive headers such as
 `source_file_name` and `page_count` are not copied onto chunks: indexed
 directory search can filter them at the archive level, but single-file
 search and per-file fallback evaluate chunk metadata only. `--include` and
-`--exclude` choose files during discovery. When a `--where` key is not
+`--exclude` choose files during discovery. A fresh index built without
+includes still serves a narrower `--include` (for example one subfolder) and
+filters to matching archives before `top_k`. When a `--where` key is not
 archive metadata or an indexed citation column, directory search falls back
 to per-file search and sets `index.used` to false with
 `chunk metadata filter not in collection index` in `index.reasons`.

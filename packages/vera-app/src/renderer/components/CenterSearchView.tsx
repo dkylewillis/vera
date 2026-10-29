@@ -21,6 +21,7 @@ export function CenterSearchView({
   onSearchQueryChange,
   onSearch,
   onClearSelectedFiles,
+  onClearFolderScope,
   onModeChange,
   onTopKChange,
   onContextChunksChange,
@@ -44,6 +45,8 @@ export function CenterSearchView({
   onSearchQueryChange: (value: string) => void;
   onSearch: () => void;
   onClearSelectedFiles: () => void;
+  /** Present while Search is limited to one folder of the library. */
+  onClearFolderScope?: () => void;
   onModeChange: (value: string) => void;
   onTopKChange: (value: number) => void;
   onContextChunksChange: (value: number) => void;
@@ -99,6 +102,8 @@ export function CenterSearchView({
           <span>{scopeLabel}</span>
           {selectedFilesCount > 0 ? (
             <button type="button" onClick={onClearSelectedFiles}>Clear</button>
+          ) : onClearFolderScope ? (
+            <button type="button" onClick={onClearFolderScope}>Whole library</button>
           ) : null}
         </div>
         <div className="searchComposer">

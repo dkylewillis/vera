@@ -87,7 +87,13 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "azureSignOptions": {
+        "publisherName": "VERA",
+        "endpoint": "https://eus.codesigning.azure.net/",
+        "certificateProfileName": "VERADesktop",
+        "codeSigningAccountName": "vera-signing"
+      }
     },
     "fileAssociations": [
       {

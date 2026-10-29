@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderOpen,
+  Library,
   Maximize2,
   Minimize2,
   PanelRightClose,
@@ -24,11 +25,11 @@ import { ConvertPanel } from './components/ConvertPanel';
 import { DocumentInfoPanel } from './components/DocumentInfoPanel';
 import { ExplorerPanel } from './components/ExplorerPanel';
 import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexModal';
+import { NestedLibraryModal } from './components/NestedLibraryModal';
 import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { MarkdownSourceViewer } from './components/MarkdownSourceViewer';
 import { ModelManager, SettingsModal, type SettingsSectionId } from './components/ProviderManagers';
 import { AskSetupDialog } from './components/AskSetupDialog';
-import { DESKTOP_DEFAULT_EMBEDDING_MODEL } from '../shared/desktop-defaults';
 import { PRO_PRESET_KEY } from '../shared/pro';
 import { embedderAsPipelineDescriptor } from './components/EmbedderConfigForm';
 import { mergePipelineFieldValues } from './components/PipelineConfigForm';
@@ -57,15 +58,19 @@ import {
   INDEX_STATUSES_STORAGE_KEY,
   readSavedActiveLibraryPath,
   readSavedFolderPaths,
+  readSavedLibraryPaths,
+  nestedLibraryConflict,
+  type NestedLibraryConflict,
 } from './lib/workspaceFolders';
 import {
   isExplorerBlankPointerTarget,
   routeOpenTarget,
   syncCollapsedFolders,
   type ExplorerFileFilter,
+  type OpenTargetKind,
 } from './lib/explorer';
-import { embeddingProviderFromSpec } from './lib/convertPresets';
-import { libraryQueryScope } from './lib/search';
+import { DEFAULT_EMBEDDING_MODEL, embeddingProviderFromSpec } from './lib/convertPresets';
+import { folderScopeInclude, libraryQueryScope } from './lib/search';
 import { hydrateSessionTurns, stripTrace, traceKey } from './lib/sessions';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS } from './lib/providers';
 import { SIDECAR_ACTIONS } from '../shared/protocol';
@@ -122,7 +127,7 @@ function App() {
   const [activeModel, setActiveModel] = useState('');
   const [modes, setModes] = useState<Mode[]>([]);
   const [activeModeId, setActiveModeId] = useState('');
-  const [embeddingModel, setEmbeddingModel] = useState(DESKTOP_DEFAULT_EMBEDDING_MODEL);
+  const [embeddingModel, setEmbeddingModel] = useState(DEFAULT_EMBEDDING_MODEL);
   const [embeddingProviders, setEmbeddingProviders] = useState<string[]>([]);
   const [embeddingDescriptors, setEmbeddingDescriptors] = useState<EmbedderDescriptor[]>([]);
   const [ingestPipeline, setIngestPipeline] = useState('pymupdf');
@@ -183,10 +188,12 @@ function App() {
   const [citationJumpVersion, setCitationJumpVersion] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [selectionAnchorPath, setSelectionAnchorPath] = useState<string | null>(null);
+  const [folderScopeRequest, setFolderScopeRequest] = useState('');
+  const [nestedLibraryPrompt, setNestedLibraryPrompt] = useState<NestedLibraryConflict | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState(() => (
-    syncCollapsedFolders(readSavedFolderPaths(), readSavedActiveLibraryPath())
+    syncCollapsedFolders(readSavedFolderPaths(), readSavedActiveLibraryPath(), [], readSavedLibraryPaths())
   ));
-  const [explorerFileFilter, setExplorerFileFilter] = useState<ExplorerFileFilter>('vera');
+  const [explorerFileFilter, setExplorerFileFilter] = useState<ExplorerFileFilter>('all');
   const [chatAnswer, setChatAnswer] = useState<ChatAnswerResult | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -233,10 +240,12 @@ function App() {
   ) => Promise<LibraryIndexStatus | null>>(async () => null);
   const {
     folders,
+    libraryPaths,
     busyFolderPath,
     addFolderFromPath,
     addFolder,
     removeFolder,
+    setFolderKind,
     refreshFolder,
     loadFolders,
   } = useWorkspaceFolders({
@@ -296,6 +305,7 @@ function App() {
         setInspect(null);
       }
     },
+    onNestedLibrary: setNestedLibraryPrompt,
   });
   const indexingFolders = useMemo(
     () => Object.fromEntries(
@@ -318,6 +328,15 @@ function App() {
   const searchBusy = operationTasks.some((task) => task.label === 'Searching');
 
   const searchScopePath = activeLibraryPath || path;
+  // Only meaningful while that folder's library is active and nothing is checked.
+  const folderScopePath = activeLibraryPath
+    && selectedFiles.length === 0
+    && folderScopeInclude(activeLibraryPath, folderScopeRequest)
+    ? folderScopeRequest
+    : '';
+  const folderScopeName = folderScopePath
+    ? folderScopePath.slice(activeLibraryPath.replace(/[\\/]+$/, '').length + 1).replace(/\\/g, '/')
+    : '';
   const activeIndexStatus = activeLibraryPath ? indexStatuses[activeLibraryPath] : undefined;
   const activeLibraryIsEmpty = Boolean(
     activeLibraryPath
@@ -465,6 +484,7 @@ function App() {
     activeLibraryPath,
     conversionInProgress,
     folders,
+    libraryPaths,
     ingestPipelineDescriptors,
     ingestPipelineConfigs,
     call,
@@ -512,6 +532,7 @@ function App() {
     selectedFiles,
     activeLibraryPath,
     activeIndexStatus,
+    folderScopePath,
     searchQuery,
     mode,
     topK,
@@ -545,10 +566,29 @@ function App() {
     toggleSelectedPdf,
     choosePdfs,
     chooseBatchDirectory,
+    libraryEmbeddingModel,
+    quickConvert,
     stopConversion,
     skipCurrentConversion,
     batchConvertPdfs,
   } = conversion;
+  const [convertLibraryModel, setConvertLibraryModel] = useState<{ library: string; model: string } | null>(null);
+  const convertTarget = convertMode === 'batch' ? batchDirectory.trim() : (selectedPdfs[0] ?? '');
+  const libraryArchiveKey = folders
+    .filter((folder) => libraryPaths.includes(folder.path) && isPathInsideFolder(convertTarget, folder.path))
+    .map((folder) => `${folder.path}:${folder.entries.filter((entry) => entry.type === 'vera').length}`)
+    .join('|');
+  useEffect(() => {
+    if (sideView !== 'convert' || !convertTarget || !libraryArchiveKey) {
+      setConvertLibraryModel(null);
+      return;
+    }
+    let canceled = false;
+    void libraryEmbeddingModel(convertTarget)
+      .then((value) => { if (!canceled) setConvertLibraryModel(value); })
+      .catch(() => { if (!canceled) setConvertLibraryModel(null); });
+    return () => { canceled = true; };
+  }, [sideView, convertTarget, libraryArchiveKey, libraryEmbeddingModel]);
   const { loadSourceDocument, closeSourceDocument, previewSourceDocument } = source;
   const { searchTarget, selectSearchResult, selectChunkResult, selectCitation } = search;
 
@@ -569,11 +609,21 @@ function App() {
   }
 
   function selectExplorerFolder(folderPath: string) {
+    setFolderScopeRequest('');
     setLibraryInfoPath('');
     setSelected(null);
     setViewerMode('document');
     setExplorerSelection({ kind: 'folder', path: folderPath });
     void openTargetPath(folderPath, { asLibrary: true });
+  }
+
+  function searchExplorerFolder(libraryPath: string, folderPath: string) {
+    if (activeLibraryPath !== libraryPath) selectExplorerFolder(libraryPath);
+    setSelectedFiles([]);
+    setSelectedPdfs([]);
+    setSelectionAnchorPath(null);
+    setExplorerSelection({ kind: 'folder', path: folderPath });
+    setFolderScopeRequest(folderPath);
   }
 
   async function openLibraryInfo(folderPath: string) {
@@ -685,7 +735,7 @@ function App() {
 
     if (scopedVera) {
       const parent = parentFolderForPath(path);
-      if (parent) {
+      if (parent && libraryPaths.includes(parent)) {
         setExplorerSelection({ kind: 'folder', path: parent });
         void openTargetPath(parent, { asLibrary: true });
         return true;
@@ -742,6 +792,44 @@ function App() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : `Unable to ${label.toLowerCase()}`);
     }
+  }
+
+  function makeLibrary(folderPath: string, allowNested = false) {
+    const conflict = allowNested ? null : nestedLibraryConflict(folderPath, libraryPaths);
+    if (conflict) {
+      setNestedLibraryPrompt(conflict);
+      return;
+    }
+    setFolderKind(folderPath, 'library');
+    selectExplorerFolder(folderPath);
+  }
+
+  function addNestedLibraryAnyway(folderPath: string) {
+    setNestedLibraryPrompt(null);
+    if (folders.some((folder) => folder.path === folderPath)) {
+      makeLibrary(folderPath, true);
+      return;
+    }
+    void addFolderFromPath(folderPath, 'library', { allowNested: true });
+  }
+
+  function replaceInnerLibraries(folderPath: string, innerLibraries: string[]) {
+    setNestedLibraryPrompt(null);
+    for (const library of innerLibraries) removeFolder(library);
+    if (folders.some((folder) => folder.path === folderPath)) {
+      makeLibrary(folderPath, true);
+      return;
+    }
+    void addFolderFromPath(folderPath, 'library', { allowNested: true });
+  }
+
+  function makePlainFolder(folderPath: string) {
+    setFolderKind(folderPath, 'folder');
+    if (activeLibraryPath !== folderPath) return;
+    setActiveLibraryPath('');
+    try { localStorage.removeItem('vera.activeLibraryPath'); } catch { /* ignore persistence errors */ }
+    setExplorerSelection((current) => (current?.kind === 'folder' && current.path === folderPath ? null : current));
+    if (path === folderPath) updateTargetPath('');
   }
 
   function clampSourcePaneWidth(value: number): number {
@@ -1217,7 +1305,7 @@ function App() {
       action: SIDECAR_ACTIONS.answer,
       path: searchScopePath,
       ...(selectedFiles.length ? { paths: selectedFiles } : {}),
-      ...libraryQueryScope(activeLibraryPath, selectedFiles, activeIndexStatus),
+      ...libraryQueryScope(activeLibraryPath, selectedFiles, activeIndexStatus, folderScopePath),
       prompt,
       mode_id: activeModeId || activeMode?.id || '',
       history,
@@ -1403,7 +1491,7 @@ function App() {
     setActiveProviderId(saved.active_provider_id);
     setActiveModel(saved.active_model || '');
     setActiveModeId(saved.active_mode_id || '');
-    setEmbeddingModel(saved.embedding_model || DESKTOP_DEFAULT_EMBEDDING_MODEL);
+    setEmbeddingModel(saved.embedding_model || DEFAULT_EMBEDDING_MODEL);
     setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
     setEmbedderConfigs(saved.embedder_configs || {});
@@ -1418,7 +1506,7 @@ function App() {
     setActiveProviderId(saved.active_provider_id);
     setActiveModel(saved.active_model || '');
     setActiveModeId(saved.active_mode_id || '');
-    setEmbeddingModel(saved.embedding_model || DESKTOP_DEFAULT_EMBEDDING_MODEL);
+    setEmbeddingModel(saved.embedding_model || DEFAULT_EMBEDDING_MODEL);
     setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
     setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
     setEmbedderConfigs(saved.embedder_configs || {});
@@ -1442,7 +1530,7 @@ function App() {
   }
 
   async function saveEmbeddingModel(model: string) {
-    const nextModel = model.trim() || DESKTOP_DEFAULT_EMBEDDING_MODEL;
+    const nextModel = model.trim() || DEFAULT_EMBEDDING_MODEL;
     setEmbeddingModel(nextModel);
     await persistSettings(settingsSnapshot({ embedding_model: nextModel }));
   }
@@ -1615,10 +1703,10 @@ function App() {
 
   const stableSelectCitation = selectCitation;
 
-  const handleOpenTargetRef = useRef<(targetPath: string) => void>(() => {});
-  handleOpenTargetRef.current = (targetPath: string) => {
+  const handleOpenTargetRef = useRef<(targetPath: string, kind?: OpenTargetKind) => void>(() => {});
+  handleOpenTargetRef.current = (targetPath: string, kind?: OpenTargetKind) => {
     routeOpenTarget(targetPath, {
-      addFolder: (folderPath) => { void addFolderFromPath(folderPath); },
+      addFolder: (folderPath, folderKind) => { void addFolderFromPath(folderPath, folderKind); },
       openFile: (filePath) => {
         const name = fileName(filePath);
         void previewSourceDocument({
@@ -1631,12 +1719,12 @@ function App() {
           replacePending: true,
         });
       },
-    });
+    }, kind);
   };
 
   useEffect(() => {
-    const unsubscribe = window.vera.onOpenTarget((targetPath) => {
-      handleOpenTargetRef.current(targetPath);
+    const unsubscribe = window.vera.onOpenTarget((targetPath, kind) => {
+      handleOpenTargetRef.current(targetPath, kind);
     });
     void window.vera.openTargetReady();
     return unsubscribe;
@@ -1648,6 +1736,7 @@ function App() {
   }), []);
 
   const folderPathsKey = folders.map((folder) => folder.path).join('\n');
+  const libraryPathsKey = libraryPaths.join('\n');
 
   // Keep folder headers scannable: expand the active library, collapse the rest.
   // Selecting a .vera clears the active library for Search/Ask scope but must
@@ -1657,8 +1746,9 @@ function App() {
   // every folder expanded.
   useLayoutEffect(() => {
     const folderPaths = folderPathsKey ? folderPathsKey.split('\n') : [];
-    setCollapsedFolders((prev) => syncCollapsedFolders(folderPaths, activeLibraryPath, prev));
-  }, [folderPathsKey, activeLibraryPath]);
+    const libraries = libraryPathsKey ? libraryPathsKey.split('\n') : [];
+    setCollapsedFolders((prev) => syncCollapsedFolders(folderPaths, activeLibraryPath, prev, libraries));
+  }, [folderPathsKey, libraryPathsKey, activeLibraryPath]);
 
   useAppBootstrap({
     applySettings: (saved) => {
@@ -1666,7 +1756,7 @@ function App() {
       setActiveProviderId(saved.active_provider_id);
       setActiveModel(saved.active_model || '');
       setActiveModeId(saved.active_mode_id || '');
-      setEmbeddingModel(saved.embedding_model || DESKTOP_DEFAULT_EMBEDDING_MODEL);
+      setEmbeddingModel(saved.embedding_model || DEFAULT_EMBEDDING_MODEL);
       setIngestPipeline(saved.ingest_pipeline || 'pymupdf');
       setIngestPipelineConfigs(saved.ingest_pipeline_configs || {});
       setEmbedderConfigs(saved.embedder_configs || {});
@@ -1836,7 +1926,8 @@ function App() {
         isResizingSource={isResizingSource}
         headerActions={sideView === 'explorer' ? (
           <>
-            <button className="ghostIcon" onClick={() => void addFolder()} title="Open folder"><FolderOpen size={15} /></button>
+            <button className="ghostIcon" onClick={() => void addFolder('library')} title="Add library"><Library size={15} /></button>
+            <button className="ghostIcon" onClick={() => void addFolder('folder')} title="Open folder"><FolderOpen size={15} /></button>
             <button className="ghostIcon" onClick={async () => { const f = await window.vera.pickArchive(); if (f) void openTargetPath(f); }} title="Open .vera file"><VeraIcon size={15} /></button>
           </>
         ) : null}
@@ -1845,7 +1936,9 @@ function App() {
             {sideView === 'explorer' ? (
                 <ExplorerPanel
                   folders={folders}
+                  libraryPaths={libraryPaths}
                   activeLibraryPath={activeLibraryPath}
+                  folderScopePath={folderScopePath}
                   path={path}
                   selectedFiles={selectedFiles}
                   selectedPdfs={selectedPdfs}
@@ -1863,9 +1956,10 @@ function App() {
                   busyFolderPath={busyFolderPath}
                   busyAction={busyAction}
                   convertLocked={convertLocked}
-                  escapeBlocked={Boolean(settingsOpen || indexPrompt || indexReport)}
+                  escapeBlocked={Boolean(settingsOpen || indexPrompt || indexReport || nestedLibraryPrompt)}
                   onClearFileSelection={clearExplorerFileSelection}
-                  onAddFolder={() => { void addFolder(); }}
+                  onAddLibrary={() => { void addFolder('library'); }}
+                  onAddFolder={() => { void addFolder('folder'); }}
                   onFileFilterChange={setExplorerFileFilter}
                   onCollapsedFoldersChange={setCollapsedFolders}
                   onFileSelectionChange={(next) => {
@@ -1875,6 +1969,7 @@ function App() {
                     setExplorerSelection(next.explorerSelection);
                   }}
                   onSelectFolder={selectExplorerFolder}
+                  onSearchFolder={searchExplorerFolder}
                   onOpenLibraryInfo={(folderPath) => { void openLibraryInfo(folderPath); }}
                   onUpdateTargetPath={updateTargetPath}
                   onPreview={(entry) => { void previewSourceDocument(entry); }}
@@ -1882,12 +1977,16 @@ function App() {
                     setIndexPrompt(null);
                     setIndexReport(report);
                   }}
-                  onConvertFolder={openConvertFolder}
-                  onConvertSelected={openConvertSelected}
+                  onConvertFolder={(folderPath) => { void quickConvert({ directory: folderPath }); }}
+                  onConvertSelected={(paths) => { void quickConvert({ paths }); }}
+                  onConvertFolderWithOptions={openConvertFolder}
+                  onConvertSelectedWithOptions={openConvertSelected}
                   onReconvert={(entry, folderPath) => { void openReconvert(entry, folderPath); }}
                   onManageIndex={(folderPath) => { void manageLibraryIndex(folderPath); }}
                   onRefreshFolder={(folderPath) => { void refreshFolder(folderPath); }}
                   onRevealInFolder={(targetPath) => { void revealInFolder(targetPath); }}
+                  onMakeLibrary={makeLibrary}
+                  onMakeFolder={makePlainFolder}
                   onRemoveFolder={removeFolder}
                   onTrashEntry={(entry, folderPath) => { void trashEntry(entry, folderPath); }}
                 />
@@ -1916,8 +2015,7 @@ function App() {
                   ingestPipeline={ingestPipeline}
                   ingestPipelineDescriptors={ingestPipelineDescriptors}
                   pipelineOptions={pipelineOptions}
-                  explorerSelection={explorerSelection}
-                  activeLibraryPath={activeLibraryPath}
+                  libraryModel={convertLibraryModel}
                   busy={busy}
                   convertLocked={convertLocked}
                   conversionInProgress={conversionInProgress}
@@ -1927,7 +2025,6 @@ function App() {
                   conversionStatus={conversionStatus}
                   conversionError={conversionError}
                   batchConvertResult={batchConvertResult}
-                  onConvertModeChange={setConvertMode}
                   onSelectedPdfsChange={setSelectedPdfs}
                   onBatchDirectoryChange={setBatchDirectory}
                   onBatchRecursiveChange={setBatchRecursive}
@@ -2016,8 +2113,10 @@ function App() {
               selectedFiles.length > 0
                 ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
                 : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
+                : folderScopePath ? `Folder “${folderScopeName}” in “${fileName(activeLibraryPath)}”`
                 : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? `Current document: “${fileName(path)}”` : 'No search scope'
             }
+            onClearFolderScope={folderScopePath ? () => setFolderScopeRequest('') : undefined}
             hasSearchableScope={hasSearchableScope}
             busy={busy}
             searchBusy={searchBusy}
@@ -2050,6 +2149,8 @@ function App() {
             selectedFiles={selectedFiles}
             activeLibraryIsEmpty={activeLibraryIsEmpty}
             activeLibraryPath={activeLibraryPath}
+            folderScopeName={folderScopeName}
+            onClearFolderScope={() => setFolderScopeRequest('')}
             path={path}
             attachments={attachments}
             busyAction={busyAction}
@@ -2374,6 +2475,7 @@ function App() {
       <AppStatusBar
         tasks={backgroundTasks}
         busyFolderPath={busyFolderPath}
+        onStopConversion={stopConversion}
       />
       {modelManagerOpen ? (
         <ModelManager
@@ -2428,6 +2530,16 @@ function App() {
         onSuppressPromptChange={setSuppressIndexPrompt}
         onConfirm={() => void confirmIndexAction()}
         onDismiss={dismissIndexPrompt}
+      />
+      <NestedLibraryModal
+        conflict={nestedLibraryPrompt}
+        onSearchFolder={(library, folderPath) => {
+          setNestedLibraryPrompt(null);
+          searchExplorerFolder(library, folderPath);
+        }}
+        onUseOuterLibrary={replaceInnerLibraries}
+        onAddAnyway={addNestedLibraryAnyway}
+        onDismiss={() => setNestedLibraryPrompt(null)}
       />
     </div>
   );

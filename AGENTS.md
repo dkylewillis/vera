@@ -267,8 +267,7 @@ non-obvious caveats for this environment; standard commands live in the sections
   **Convert** view. Convert lists PyMuPDF (PDF) and the bundled `markdown`
   pipeline. OpenAI embeddings are
   bundled (`openai:text-embedding-3-small` / `-large`). Desktop Convert defaults to
-  local MiniLM (`sentence-transformers:all-MiniLM-L6-v2`); hashing remains available.
-  The CLI default embedder is still hashing. Save `OPENAI_API_KEY` under **File > Settings → Embeddings** (or
+  local MiniLM (`DEFAULT_EMBEDDING_MODEL`); the CLI default embedder is still hashing. Save `OPENAI_API_KEY` under **File > Settings → Embeddings** (or
   export it for CLI convert). Archives converted with OpenAI are not portable
   for semantic search. Docling is a CLI extra
   (`uv sync --extra docling`; `vera convert --parser docling`), not a desktop

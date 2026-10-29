@@ -10,6 +10,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from ._index_layout import _included
 from ._util import _MAX_TOP_K
 from ._where import CHUNK_METADATA_FILTER_REASON, metadata_matches
 from .collection import (
@@ -157,8 +158,10 @@ class VeraCorpus:
         collection_index: VeraCollectionIndex | None = None,
         index_status: dict[str, Any] | None = None,
         invalid_files: list[dict[str, str]] | None = None,
+        index_scope: frozenset[str] | None = None,
     ):
         self.directory = directory
+        self._index_scope = index_scope
         self.paths = paths
         self.recursive = recursive
         self.excludes = excludes
@@ -228,18 +231,28 @@ class VeraCorpus:
             if includes is None and status.get("exists")
             else tuple(includes or ())
         )
+        index_includes = tuple(status.get("includes", ()))
+        # An index built without includes covers every archive, so a narrower
+        # include scope can filter its rows instead of falling back to fan-out.
+        narrows_index = bool(effective_includes) and not index_includes
         config_matches = (
             effective_recursive == bool(status.get("recursive", False))
             and effective_excludes == tuple(status.get("excludes", ()))
-            and effective_includes == tuple(status.get("includes", ()))
+            and (effective_includes == index_includes or narrows_index)
         )
         collection_index = None
+        index_scope: frozenset[str] | None = None
         if use_index and status.get("fresh") and config_matches:
             collection_index = VeraCollectionIndex.open(str(root), check_status=False)
-            paths = [
-                str((root / relative_path).resolve())
-                for relative_path in collection_index.document_paths()
-            ]
+            relative_paths = collection_index.document_paths()
+            if narrows_index:
+                relative_paths = [
+                    relative_path
+                    for relative_path in relative_paths
+                    if _included(relative_path, effective_includes)
+                ]
+                index_scope = frozenset(relative_paths)
+            paths = [str((root / relative_path).resolve()) for relative_path in relative_paths]
         else:
             paths = [
                 str(path)
@@ -263,6 +276,7 @@ class VeraCorpus:
                     "reason": str(entry["reason"]),
                 }
                 for entry in status.get("skipped_files", [])
+                if not effective_includes or _included(str(entry["file"]), effective_includes)
             ]
         return cls(
             str(root),
@@ -274,6 +288,7 @@ class VeraCorpus:
             collection_index=collection_index,
             index_status=status,
             invalid_files=invalid_files,
+            index_scope=index_scope,
         )
 
     @classmethod
@@ -432,7 +447,7 @@ class VeraCorpus:
         validated build. Missing or stale indexes return discovery counts only;
         callers can run ``inspect`` explicitly when they need a deep scan.
         """
-        if self._collection_index is not None:
+        if self._collection_index is not None and self._index_scope is None:
             summary = self._collection_index.inspect_summary()
             return {
                 "directory": self.directory,
@@ -753,7 +768,9 @@ class VeraCorpus:
     ) -> list[CorpusSearchResult]:
         assert self._collection_index is not None
         final: list[CorpusSearchResult] = []
-        for hit in self._collection_index.search(query, mode=mode, top_k=top_k, where=where):
+        for hit in self._collection_index.search(
+            query, mode=mode, top_k=top_k, where=where, relative_paths=self._index_scope
+        ):
             path = str((Path(self.directory) / Path(hit.relative_path)).resolve())
             doc = self.document(path)
             records = doc.get([hit.chunk_id])

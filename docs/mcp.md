@@ -143,7 +143,9 @@ When `pretty` is true, the response also includes the same `context` field as
 `vera_search`; corpus result sections include their archive paths.
 
 When `recursive`, `excludes`, and `includes` are null and an index exists, the
-corpus uses the index's saved discovery settings. `where` uses the same AND / IN
+corpus uses the index's saved discovery settings. An index built without
+includes also serves a narrower `includes` scope such as `["projects/smith/**"]`.
+`where` uses the same AND / IN
 semantics as the CLI. Chunk-only metadata filters that are not in the collection
 index set `index.used` to false.
 

@@ -22,13 +22,15 @@ Download `VERA.Setup.<version>.exe` from the
 
 ## First workflow
 
-1. Open **Convert** and convert selected PDFs or Markdown files, or a directory, or
-   right-click a folder and choose **Convert…**. Expand
-   **Advanced pipeline options** for schema-driven settings from
+1. Right-click a library or folder in Explorer and choose **Convert** to convert
+   its new PDFs and Markdown files right away with your saved settings, or choose
+   **Convert with options…** to open the Convert view first. Expand
+   **Advanced** for schema-driven settings from
    `describe_ingest_pipelines` / `PipelineConfigForm`. Convert lists PyMuPDF
    and the bundled Markdown pipeline. Convert embedding presets are
-   **Local semantic (MiniLM)** (default, `sentence-transformers:all-MiniLM-L6-v2`),
-   hashing, and OpenAI `text-embedding-3-*`. MiniLM is ONNX Runtime under the same
+   **Standard — Local semantic (MiniLM)** (desktop default),
+   **Fast — offline lexical (hashing)**, and OpenAI `text-embedding-3-*`.
+   Converting into a library reuses that library's embedding model. MiniLM is ONNX Runtime under the same
    `sentence-transformers/all-MiniLM-L6-v2` identity, and the installer
    vendors a VERA-exported, SHA256-pinned graph. Save `OPENAI_API_KEY` under
    **File > Settings → Embeddings**. Archives converted with OpenAI are not
@@ -45,7 +47,7 @@ Download `VERA.Setup.<version>.exe` from the
    With no provider, Ask offers **Use VERA Pro** and **Add your own provider**.
 5. Optional: save a Hugging Face token under **File > Settings → Hugging
    Face** (or set `HF_TOKEN`) for Hub model downloads used by some converters
-   and embedders. **File > Open convert log...** (or Convert **Open log** /
+   and embedders. **File > Open convert log...** (or Convert **Advanced → Open convert log** /
    **Settings → Diagnostics**) opens `userData/logs/sidecar.log` for timed
    convert steps.
 6. Select a citation in an answer to inspect the highlighted source passage.

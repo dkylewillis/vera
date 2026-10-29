@@ -7,8 +7,8 @@ import {
   PRO_PRESET_KEY,
   parseVeraAuthCallback,
   providerCredentialKey,
-  veraAuthCallbackFromArgs,
   usagePercent,
+  veraAuthCallbackFromArgs,
   withProProvider,
 } from './pro.js';
 import type { AppSettings } from './contracts.js';
