@@ -50,12 +50,7 @@ output to stdout.
 MCP intentionally does not expose conversion, index mutation, source export, or
 retrieval evaluation. Use `vera` or the Python packages for those tasks.
 
-Desktop ChatGPT Bridge is a separate fail-closed entry (`vera-mcp-bridge` /
-`vera-sidecar mcp-bridge`) that requires `VERA_BRIDGE_POLICY_PATH` and omits
-`vera_validate`. Ordinary `vera mcp` stays unrestricted. See
-[desktop-bridge-poc.md](../desktop-bridge-poc.md).
-
-Desktop Agent access is another restricted entry (`vera-sidecar mcp-service`
+Desktop Agent access is a restricted entry (`vera-sidecar mcp-service`
 and `mcp-connect`). It serves Streamable HTTP on `127.0.0.1` for the folders
 in `library_roots`. `vera mcp` does not start that service. See
 [mcp.md](../mcp.md).

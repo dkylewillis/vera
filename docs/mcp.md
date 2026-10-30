@@ -61,8 +61,9 @@ client.
 
 ### `vera_library_info`
 
-Returns the approved library root and search bounds when running under Desktop
-bridge policy. Unrestricted local MCP returns `unrestricted: true` and no grant.
+Returns the approved library folders and search bounds when running as the
+Desktop agent service. Unrestricted local MCP returns `unrestricted: true` and
+no grant.
 
 ### Compact search output
 
@@ -291,20 +292,6 @@ HTTP method, the status, and the duration. `vera_library_info` still returns
 the absolute `library_roots` paths, so the assistant can see those folder
 paths. The `.vera` files stay on the computer. `VERA_PRO_RELAY_URL` is the
 relay origin baked into `pro-cloud.json`.
-
-## Desktop ChatGPT bridge (developer-mode PoC)
-
-Desktop can supervise OpenAI Secure MCP Tunnel with a restricted MCP child
-(`vera-sidecar mcp-bridge` / `vera-mcp-bridge`). That mode requires
-`VERA_BRIDGE_POLICY_PATH` and only searches an approved local library. Ordinary
-`vera mcp` remains unrestricted for local IDE use. See
-[desktop-bridge-poc.md](desktop-bridge-poc.md) and the
-[setup runbook](desktop-bridge-poc-setup-runbook.md). In the app, open
-**Settings → ChatGPT Bridge**. Its setup wizard persists a selected
-`tunnel-client` path (or uses automatic detection), checks the approved library
-and tunnel ID before connecting, then has `tunnel-client` choose a loopback
-health port and reads the URL it reports. It records redacted tunnel diagnostics
-in the local sidecar log.
 
 ## CLI and MCP differences
 

@@ -113,8 +113,6 @@ async def test_plugin_components_and_documented_actions():
     assert (plugin_root / manifest["skills"] / "vera-search/SKILL.md").is_file()
     assert "apps" not in manifest
     assert not (ROOT / ".app.json").exists()
-    apps = json.loads((ROOT / "examples/remote-bridge/connector.app.json").read_text())
-    assert apps["apps"]["vera"]["id"]
     assert (plugin_root / manifest["mcpServers"]).is_file()
     config = json.loads((plugin_root / manifest["mcpServers"]).read_text())
     assert config["mcpServers"]["vera"]["env"]["VERA_AUTO_INSTALL_SEMANTIC_DEPS"] == "1"

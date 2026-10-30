@@ -222,8 +222,8 @@ for figure metadata or `--regions` for source highlights.
 - **Codex plugin:** install the local [VERA plugin](docs/plugin.md) from its
   repo marketplace (`.agents/plugins/marketplace.json`) to use the
   same MCP tools and skill, plus source-viewer buttons with citation highlights.
-  VERA Local runs on the Codex task host; no desktop app or tunnel is required.
-  The remote ChatGPT Bridge remains a separate, optional connection.
+  VERA Local runs on the Codex task host; no desktop app is required.
+  Cloud assistants use **Allow cloud agents** in VERA Desktop instead.
   Before the first hybrid or semantic search it installs Sentence Transformers
   in the MCP server's Python environment; the first model use may still download
   model weights.
@@ -249,9 +249,6 @@ one loopback MCP service while the app is open. VERA Pro can also turn on
 **Allow cloud agents** so a signed-in cloud assistant uses the same libraries.
 `vera mcp` on its own is unchanged.
 The Windows installer checks GitHub Releases for updates.
-For private developer-mode testing, its ChatGPT Bridge setup wizard selects the
-approved library and tunnel client, stores the runtime key securely, verifies
-the local bridge, and records redacted tunnel diagnostics.
 [Desktop guide](docs/desktop-app-getting-started.md).
 
 <img src="docs/assets/readme/hero-grounded-answer.png" alt="VERA desktop app with a document library, an answer with citations, and the supporting passage highlighted in the source PDF" width="85%">

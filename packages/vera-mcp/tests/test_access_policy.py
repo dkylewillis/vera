@@ -1,9 +1,8 @@
-"""Bridge access-policy denials and fail-closed launch behavior."""
+"""Restricted library-policy denials for the desktop agent service."""
 
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -13,11 +12,9 @@ from helpers.pdfs import make_pdf, make_topic_pdf
 from vera_doc import VeraDocument
 from vera_ingest import convert
 from vera_mcp.access_policy import (
-    POLICY_ENV,
     AccessDenied,
     AccessPolicy,
     canonicalize_path,
-    load_policy_from_env,
 )
 from vera_mcp.source_viewer import SourceRef, read_chunk, source_view
 
@@ -75,29 +72,6 @@ def approved_library(tmp_path):
             library_roots=(canonicalize_path(library, require_directory=True),)
         ),
     }
-
-
-def test_policy_load_fail_closed(tmp_path, monkeypatch):
-    monkeypatch.delenv(POLICY_ENV, raising=False)
-    with pytest.raises(ValueError, match=POLICY_ENV):
-        load_policy_from_env()
-
-    missing = tmp_path / "missing.json"
-    monkeypatch.setenv(POLICY_ENV, str(missing))
-    with pytest.raises(ValueError, match="missing"):
-        load_policy_from_env()
-
-    bad = tmp_path / "bad.json"
-    bad.write_text("{not-json", encoding="utf-8")
-    monkeypatch.setenv(POLICY_ENV, str(bad))
-    with pytest.raises(ValueError, match="JSON"):
-        load_policy_from_env()
-
-    empty = tmp_path / "empty.json"
-    empty.write_text("{}", encoding="utf-8")
-    monkeypatch.setenv(POLICY_ENV, str(empty))
-    with pytest.raises(ValueError, match="library_root"):
-        load_policy_from_env()
 
 
 def test_policy_from_file_round_trip(approved_library, tmp_path):
@@ -222,17 +196,6 @@ async def test_forged_viewer_request_denied(approved_library):
     assert payload["sources"][0]["error"]
     assert "UNIQUE_SENTINEL" not in blob
     assert payload["sources"][0]["file"] == "(omitted)"
-
-
-def test_main_bridge_fail_closed(monkeypatch, capsys):
-    from vera_mcp import server as module
-
-    monkeypatch.delenv(POLICY_ENV, raising=False)
-    monkeypatch.setenv("VERA_AUTO_INSTALL_SEMANTIC_DEPS", "1")
-    assert module.main_bridge() == 2
-    err = capsys.readouterr().err
-    assert POLICY_ENV in err
-    assert "VERA_AUTO_INSTALL_SEMANTIC_DEPS" not in os.environ
 
 
 def test_policy_file_must_be_object_and_max_sources_positive(approved_library, tmp_path):

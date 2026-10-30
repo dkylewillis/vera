@@ -8,6 +8,12 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+### Removed
+
+- Desktop **ChatGPT Bridge** and the OpenAI Secure MCP Tunnel supervisor.
+  Cloud assistants use **Allow cloud agents** and the VERA Pro relay. Local
+  **Agent access** and unrestricted `vera mcp` stay.
+
 ### Added
 
 - VERA Pro **Allow cloud agents** connects Desktop to one OAuth-protected

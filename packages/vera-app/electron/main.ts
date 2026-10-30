@@ -6,8 +6,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
   AgentServiceSettings,
   AppSettings,
-  BridgeSettings,
-  BridgeStatus,
   PipelineOptions,
   CredentialResult,
   ProviderProfile,
@@ -29,7 +27,6 @@ import {
   type ProActionResult,
   type ProSession,
 } from '../src/shared/pro.js';
-import { BridgeManager, findTunnelClientOnPath } from './bridge-manager.js';
 import { ServiceManager, type ServiceStatus } from './service-manager.js';
 import { listFolderEntries } from './folder-listing.js';
 import { veraArchivePathFromArgs } from './file-open.js';
@@ -144,7 +141,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   ingest_pipeline: 'pymupdf',
   ingest_pipeline_configs: {},
   embedder_configs: {},
-  bridge: { library_path: '', tunnel_id: '' },
   agent_service: { enabled: false, library_roots: [], port: DEFAULT_AGENT_SERVICE_PORT, cloud_enabled: false },
 };
 
@@ -471,17 +467,7 @@ class PythonSidecar {
 
 const sidecar = new PythonSidecar();
 
-function resolveBridgeMcpCommand(): { executable: string; args: string[] } {
-  if (app.isPackaged) {
-    return { executable: packagedSidecarExecutable(), args: ['mcp-bridge'] };
-  }
-  return {
-    executable: resolveDevPython(),
-    args: ['-m', 'vera_app.sidecar', 'mcp-bridge'],
-  };
-}
-
-function bridgeChildEnv(): NodeJS.ProcessEnv {
+function serviceChildEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   if (!app.isPackaged) {
     const sourcePaths = [
@@ -504,25 +490,6 @@ function bridgeChildEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
-function readTunnelCredential(): string {
-  const value = readApiKeys()[TUNNEL_API_KEY_SECRET];
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-function saveTunnelCredential(value: string): CredentialResult {
-  if (!safeStorage.isEncryptionAvailable()) {
-    return { ok: false, has_api_key: false, error: 'Secure credential storage is unavailable on this system.' };
-  }
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return { ok: false, has_api_key: false, error: 'Enter a tunnel runtime API key first.' };
-  }
-  const keys = readApiKeys();
-  keys[TUNNEL_API_KEY_SECRET] = trimmed;
-  writeApiKeys(keys);
-  return { ok: true, has_api_key: true };
-}
-
 function readServiceToken(): string {
   const value = readApiKeys()[SERVICE_TOKEN_SECRET];
   return typeof value === 'string' ? value.trim() : '';
@@ -534,33 +501,6 @@ function writeServiceToken(token: string): void {
   keys[SERVICE_TOKEN_SECRET] = token.trim();
   writeApiKeys(keys);
 }
-
-function clearTunnelCredential(): CredentialResult {
-  if (!safeStorage.isEncryptionAvailable()) {
-    return { ok: false, has_api_key: false, error: 'Secure credential storage is unavailable on this system.' };
-  }
-  const keys = readApiKeys();
-  delete keys[TUNNEL_API_KEY_SECRET];
-  writeApiKeys(keys);
-  return { ok: true, has_api_key: false };
-}
-
-function publishBridgeStatus(status: BridgeStatus): BridgeStatus {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.bridgeEvent, status);
-  }
-  return status;
-}
-
-const bridgeManager = new BridgeManager({
-  userDataDir: app.getPath('userData'),
-  resolveMcpCommand: resolveBridgeMcpCommand,
-  resolveTunnelClientPath: () => findTunnelClientOnPath(),
-  readTunnelCredential,
-  encryptionAvailable: () => safeStorage.isEncryptionAvailable(),
-  extraChildEnv: bridgeChildEnv,
-  logDiagnostic: (stream, chunk) => logSidecarStderr(`tunnel-client ${stream}`, chunk),
-});
 
 function publishServiceStatus(status: ServiceStatus): ServiceStatus {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -602,7 +542,7 @@ serviceManager = new ServiceManager({
   readToken: readServiceToken,
   writeToken: writeServiceToken,
   encryptionAvailable: () => safeStorage.isEncryptionAvailable(),
-  extraChildEnv: bridgeChildEnv,
+  extraChildEnv: serviceChildEnv,
   logDiagnostic: (chunk) => logSidecarStderr('agent-service', chunk),
   cloudStatus: (): RelayCloudStatus => relayClient.getStatus(),
 });
@@ -632,14 +572,6 @@ async function syncRelay(): Promise<void> {
   }
   relayClient.start();
   publishServiceStatus(serviceManager.getStatus());
-}
-
-function syncBridgeConfig(bridge: BridgeSettings | undefined): void {
-  bridgeManager.updateConfig({
-    libraryPath: bridge?.library_path || '',
-    tunnelId: bridge?.tunnel_id || '',
-    tunnelClientPath: bridge?.tunnel_client_path || '',
-  });
 }
 
 function settingsPath(): string {
@@ -706,7 +638,6 @@ function secretPath(): string {
 
 /** Reserved key inside the encrypted credential store (not a provider base URL). */
 const HF_TOKEN_SECRET_KEY = '__vera_hf_token__';
-const TUNNEL_API_KEY_SECRET = '__vera_tunnel_api_key__';
 const SERVICE_TOKEN_SECRET = '__vera_service_token__';
 const ENV_SECRET_PREFIX = 'env:';
 
@@ -826,7 +757,6 @@ function withRuntime(settings: AppSettings): AppSettings {
         .filter((name) => envSecretPresent(name))
         .map((name) => [name, true]),
     ),
-    has_bridge_credential: Boolean((keys[TUNNEL_API_KEY_SECRET] || '').trim()),
   };
 }
 
@@ -846,18 +776,6 @@ function normalizeAgentServiceSettings(raw: unknown): AgentServiceSettings {
     library_roots: roots,
     port,
     cloud_enabled: value.cloud_enabled === true,
-  };
-}
-
-function normalizeBridgeSettings(raw: unknown): BridgeSettings {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { library_path: '', tunnel_id: '', tunnel_client_path: '' };
-  }
-  const value = raw as Record<string, unknown>;
-  return {
-    library_path: typeof value.library_path === 'string' ? value.library_path.trim() : '',
-    tunnel_id: typeof value.tunnel_id === 'string' ? value.tunnel_id.trim() : '',
-    tunnel_client_path: typeof value.tunnel_client_path === 'string' ? value.tunnel_client_path.trim() : '',
   };
 }
 
@@ -931,7 +849,6 @@ function readSettings(): AppSettings {
         : 'pymupdf',
       ingest_pipeline_configs: normalizePipelineConfigs(raw.ingest_pipeline_configs),
       embedder_configs: normalizePipelineConfigs(raw.embedder_configs),
-      bridge: normalizeBridgeSettings(raw.bridge),
       agent_service: normalizeAgentServiceSettings(raw.agent_service),
     };
     return withRuntime(merged);
@@ -942,18 +859,13 @@ function readSettings(): AppSettings {
 
 function writeSettings(settings: AppSettings): AppSettings {
   mkdirSync(app.getPath('userData'), { recursive: true });
-  let previousBridge: BridgeSettings = { library_path: '', tunnel_id: '', tunnel_client_path: '' };
   let previousAgent: AgentServiceSettings = { enabled: false, library_roots: [], port: DEFAULT_AGENT_SERVICE_PORT };
   try {
     const raw = JSON.parse(readFileSync(settingsPath(), 'utf8')) as Partial<AppSettings>;
-    previousBridge = normalizeBridgeSettings(raw.bridge);
     previousAgent = normalizeAgentServiceSettings(raw.agent_service);
   } catch {
     /* first write */
   }
-  const incomingBridge = settings.bridge === undefined
-    ? previousBridge
-    : normalizeBridgeSettings(settings.bridge);
   const incomingAgent = settings.agent_service === undefined
     ? previousAgent
     : normalizeAgentServiceSettings(settings.agent_service);
@@ -968,14 +880,12 @@ function writeSettings(settings: AppSettings): AppSettings {
     ingest_pipeline: settings.ingest_pipeline?.trim() || 'pymupdf',
     ingest_pipeline_configs: normalizePipelineConfigs(settings.ingest_pipeline_configs),
     embedder_configs: normalizePipelineConfigs(settings.embedder_configs),
-    bridge: incomingBridge,
     agent_service: incomingAgent,
   };
   const target = settingsPath();
   const temp = `${target}.tmp`;
   writeFileSync(temp, JSON.stringify(sanitized, null, 2), 'utf8');
   renameSync(temp, target);
-  syncBridgeConfig(sanitized.bridge);
   syncAgentService(sanitized.agent_service);
   return withRuntime(sanitized);
 }
@@ -1288,18 +1198,6 @@ async function pickFolderPath(): Promise<string | null> {
   const result = await dialog.showOpenDialog({
     title: 'Open VERA library folder',
     properties: ['openDirectory'],
-  });
-  return result.canceled ? null : result.filePaths[0];
-}
-
-async function pickTunnelClientPath(): Promise<string | null> {
-  const result = await dialog.showOpenDialog({
-    title: 'Select OpenAI tunnel-client',
-    buttonLabel: 'Use tunnel-client',
-    properties: ['openFile'],
-    filters: process.platform === 'win32'
-      ? [{ name: 'Windows applications', extensions: ['exe'] }]
-      : [{ name: 'Executables', extensions: ['*'] }],
   });
   return result.canceled ? null : result.filePaths[0];
 }
@@ -1732,38 +1630,6 @@ if (singleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.clearHfToken, async () => clearHfToken());
   ipcMain.handle(IPC_CHANNELS.saveEnvSecret, async (_event, name: string, value: string) => saveEnvSecret(String(name || ''), String(value || '')));
   ipcMain.handle(IPC_CHANNELS.clearEnvSecret, async (_event, name: string) => clearEnvSecret(String(name || '')));
-  ipcMain.handle(IPC_CHANNELS.bridgeGetStatus, async () => bridgeManager.getStatus());
-  ipcMain.handle(IPC_CHANNELS.bridgePickTunnelClient, async () => pickTunnelClientPath());
-  ipcMain.handle(IPC_CHANNELS.bridgeUpdateConfig, async (_event, config: { libraryPath?: string; tunnelId?: string; tunnelClientPath?: string }) => {
-    const status = bridgeManager.updateConfig({
-      libraryPath: typeof config?.libraryPath === 'string' ? config.libraryPath : undefined,
-      tunnelId: typeof config?.tunnelId === 'string' ? config.tunnelId : undefined,
-      tunnelClientPath: typeof config?.tunnelClientPath === 'string' ? config.tunnelClientPath : undefined,
-    });
-    const settings = readSettings();
-    writeSettings({
-      ...settings,
-      bridge: {
-        library_path: status.libraryPath,
-        tunnel_id: status.tunnelId,
-        tunnel_client_path: status.tunnelClientPath,
-      },
-    });
-    return publishBridgeStatus(status);
-  });
-  ipcMain.handle(IPC_CHANNELS.bridgeStart, async () => publishBridgeStatus(await bridgeManager.start()));
-  ipcMain.handle(IPC_CHANNELS.bridgeStop, async () => publishBridgeStatus(await bridgeManager.stop()));
-  ipcMain.handle(IPC_CHANNELS.bridgeSaveCredential, async (_event, value: string) => {
-    const result = saveTunnelCredential(String(value || ''));
-    publishBridgeStatus(bridgeManager.getStatus());
-    return result;
-  });
-  ipcMain.handle(IPC_CHANNELS.bridgeClearCredential, async () => {
-    const result = clearTunnelCredential();
-    await bridgeManager.stop('Tunnel credential cleared.');
-    publishBridgeStatus(bridgeManager.getStatus());
-    return result;
-  });
   ipcMain.handle(IPC_CHANNELS.serviceGetStatus, async () => serviceManager.getStatus());
   ipcMain.handle(IPC_CHANNELS.serviceSave, async (_event, config: { enabled?: boolean; libraryRoots?: string[]; port?: number; cloudEnabled?: boolean }) => {
     const next = normalizeAgentServiceSettings({
@@ -1849,7 +1715,6 @@ if (singleInstanceLock) app.whenReady().then(() => {
   });
   createWindow();
   const launchSettings = readSettings();
-  syncBridgeConfig(launchSettings.bridge);
   syncAgentService(launchSettings.agent_service);
   if (launchSettings.agent_service?.enabled) {
     void serviceManager.start().then(async (status) => {
@@ -1867,7 +1732,6 @@ if (singleInstanceLock) app.whenReady().then(() => {
 app.on('before-quit', () => {
   stopFolderWatchers();
   relayClient.stop();
-  void bridgeManager.stop('App exit.');
   void serviceManager.stop('App exit.');
   sidecar.stop();
 });

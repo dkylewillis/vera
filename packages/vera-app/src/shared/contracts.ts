@@ -269,10 +269,6 @@ export interface AppSettings {
   has_hf_token?: boolean;
   /** Runtime-only: env var names that have a stored embedder/plugin secret. */
   has_env_secrets?: Record<string, boolean>;
-  /** Non-secret ChatGPT bridge settings (credentials stay in safeStorage). */
-  bridge?: BridgeSettings;
-  /** Runtime-only: whether a tunnel runtime API key is stored. */
-  has_bridge_credential?: boolean;
   /** Local agent service. The bearer token stays in safeStorage, not here. */
   agent_service?: AgentServiceSettings;
 }
@@ -315,35 +311,6 @@ export interface AgentServiceStatus {
     stdio: string;
     note: string;
   };
-}
-
-export interface BridgeSettings {
-  library_path?: string;
-  tunnel_id?: string;
-  /** Optional absolute path selected in the Bridge setup wizard. */
-  tunnel_client_path?: string;
-}
-
-export type BridgeState =
-  | 'disabled'
-  | 'needs_setup'
-  | 'starting'
-  | 'connected'
-  | 'reconnecting'
-  | 'error';
-
-export interface BridgeStatus {
-  state: BridgeState;
-  libraryPath: string;
-  tunnelId: string;
-  hasCredential: boolean;
-  message: string;
-  lastError?: string;
-  ready: boolean;
-  libraryValid: boolean;
-  tunnelIdValid: boolean;
-  tunnelClientPath: string;
-  clientDetected: boolean;
 }
 
 export interface CredentialResult {

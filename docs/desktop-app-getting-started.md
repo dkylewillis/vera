@@ -115,23 +115,6 @@ Copy the connector URL into a cloud assistant. That assistant signs in with
 the VERA account. Search works only while this app is open. Closing the app
 makes the assistant report that VERA Desktop is not connected.
 
-## ChatGPT Bridge (developer-mode PoC)
-
-**File > Settings → ChatGPT Bridge** supervises OpenAI Secure MCP Tunnel against
-one approved local library. The packaged sidecar launches `mcp-bridge` with a
-fail-closed policy file; ordinary desktop Search/Ask still use the JSON-lines
-sidecar. Tunnel runtime API keys are stored with Electron `safeStorage`. Setup
-and demo checklists live in
-[desktop-bridge-poc-setup-runbook.md](desktop-bridge-poc-setup-runbook.md) and
-[desktop-bridge-poc-demo-checklist.md](desktop-bridge-poc-demo-checklist.md).
-The setup wizard collects the approved library, a tunnel ID, a securely stored
-runtime key, and a detected or selected `tunnel-client` executable. It checks
-that the selected paths exist and validates the tunnel ID before it enables
-**Save & Connect**. The bridge asks `tunnel-client` to select a loopback health
-port and reads its reported URL rather than assuming a fixed port. Sanitized
-client diagnostics are appended to the local sidecar log; API keys are never
-written there.
-
 ## Requirements
 
 - Git

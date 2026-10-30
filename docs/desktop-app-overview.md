@@ -60,9 +60,6 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 ### 6. LLM Ask
 - Connect to one or more LLM providers under **File > Settings**, or sign in
   to **VERA Pro** under **File > Settings → Account** for Ask without your own key
-- Optionally connect an approved local library to ChatGPT developer mode under
-  **File > Settings → ChatGPT Bridge** (private Secure MCP Tunnel PoC; see
-  [desktop-bridge-poc.md](desktop-bridge-poc.md))
 - Optionally share libraries with local agents under **File > Settings →
   Agent access**. One loopback MCP service stays up while Desktop is open.
   **Allow cloud agents** lets a VERA Pro account reach that service from a

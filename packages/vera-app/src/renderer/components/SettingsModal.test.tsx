@@ -42,7 +42,6 @@ describe('SettingsModal', () => {
     expect(html).toContain('VERA Pro');
     expect(html).toContain('Embeddings');
     expect(html).toContain('Hugging Face');
-    expect(html).toContain('ChatGPT Bridge');
     expect(html).toContain('Agent access');
     expect(html).toContain('Diagnostics');
     expect(html).not.toContain('Python plugins');
@@ -97,16 +96,6 @@ describe('SettingsModal', () => {
     expect(html).toContain('Allow cloud agents (VERA Pro)');
     expect(html).toContain('Cloud assistants reach your library through VERA');
     expect(html).toContain('Get Pro');
-  });
-
-  it('opens the Bridge setup wizard when requested', () => {
-    const html = renderSettings('bridge');
-    expect(html).toContain('Set up ChatGPT Bridge');
-    expect(html).toContain('Choose the approved library');
-    expect(html).toContain('Locate OpenAI tunnel-client');
-    expect(html).toContain('Enter the tunnel credentials');
-    expect(html).toContain('Save &amp; Connect');
-    expect(html).toContain('Copy summary');
   });
 
   it('opens the Embeddings section with hosted credential fields', () => {

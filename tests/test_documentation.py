@@ -22,17 +22,16 @@ def test_compact_mcp_output_is_documented():
 DOCS = ROOT / "docs"
 
 
-def test_local_plugin_and_optional_remote_bridge_are_documented():
+def test_local_plugin_and_cloud_agents_are_documented():
     for relative in (
         "README.md",
         "docs/plugin.md",
         "plugins/vera/skills/vera-search/SKILL.md",
         "plugins/vera/skills/vera-search/references/mcp-workflow.md",
-        "examples/remote-bridge/README.md",
     ):
         text = (ROOT / relative).read_text(encoding="utf-8")
         assert "VERA Local" in text
-        assert "remote" in text.lower()
+        assert "Allow cloud agents" in text
 
 
 PACKAGES = ROOT / "packages"
@@ -1151,7 +1150,6 @@ def test_desktop_agent_service_is_documented():
     overview = (DOCS / "desktop-app-overview.md").read_text(encoding="utf-8")
     app_pkg = (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
     mcp_pkg = (DOCS / "packages" / "vera-mcp.md").read_text(encoding="utf-8")
-    bridge = (DOCS / "desktop-bridge-poc.md").read_text(encoding="utf-8")
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     workflow = (
         ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "mcp-workflow.md"
@@ -1167,7 +1165,7 @@ def test_desktop_agent_service_is_documented():
     assert "Agent access" in overview
     assert "mcp-connect" in app_pkg
     assert "mcp-service" in mcp_pkg
-    assert "library_roots" in bridge
+    assert "library_roots" in mcp_pkg
     assert "library_roots" in agents
     assert "library_roots" in workflow
     assert "Settings → Agent access" in changelog
@@ -1197,38 +1195,6 @@ def test_cloud_agent_relay_is_documented():
     assert "Allow cloud agents" in workflow
     assert "VERA_PRO_RELAY_URL" in changelog
     assert "stays unrestricted" in changelog
-
-
-def test_desktop_bridge_poc_describes_shipped_behavior():
-    """The PoC page is current-state, not a pre-implementation plan."""
-    poc = (DOCS / "desktop-bridge-poc.md").read_text(encoding="utf-8")
-    plugin = (DOCS / "plugin.md").read_text(encoding="utf-8")
-    production = (DOCS / "desktop-bridge-production.md").read_text(encoding="utf-8")
-    runbook = (DOCS / "desktop-bridge-poc-setup-runbook.md").read_text(encoding="utf-8")
-    troubleshooting = (DOCS / "troubleshooting.md").read_text(encoding="utf-8")
-    mcp_pkg = (DOCS / "packages" / "vera-mcp.md").read_text(encoding="utf-8")
-    index = (DOCS / "user-documentation.md").read_text(encoding="utf-8")
-
-    assert "Status: **implemented locally**" in poc
-    assert "Status: proposed, not implemented" not in poc
-    assert "VERA_BRIDGE_POLICY_PATH" in poc
-    assert "`vera_validate` is omitted" in poc
-    assert "userData/bridge/policy.json" in poc
-    assert 'category: "denied"' in poc
-    assert "tunnel_[A-Za-z0-9_-]+" in poc
-    assert "vera-sidecar mcp-bridge" in poc
-
-    assert "Proposed Desktop bridge" not in plugin
-    assert "not current plugin behavior" not in plugin
-    assert "implemented developer-mode" in plugin
-    assert "does not register `vera_validate`" in plugin
-
-    assert "current Desktop bridge PoC" in production
-    assert "proof-of-concept plan" not in production
-    assert "once milestone 3" not in runbook
-    assert "ChatGPT Bridge will not start" in troubleshooting
-    assert "vera-mcp-bridge" in mcp_pkg
-    assert "Desktop ChatGPT bridge PoC" in index
 
 
 def test_desktop_security_and_markdown_locator_docs():

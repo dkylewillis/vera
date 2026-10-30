@@ -1,8 +1,8 @@
 """Fail-closed access policy for restricted VERA MCP launch modes.
 
-Ordinary local ``vera mcp`` runs without a policy. Bridge mode and the Desktop
-agent service require an explicit policy and check every archive open, corpus
-root, indexed locator, and viewer navigation path. A policy may approve several
+Ordinary local ``vera mcp`` runs without a policy. The Desktop agent service
+requires an explicit policy and checks every archive open, corpus root,
+indexed locator, and viewer navigation path. A policy may approve several
 library folders. The legacy single ``library_root`` key is still accepted.
 """
 
@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
-POLICY_ENV = "VERA_BRIDGE_POLICY_PATH"
 DEFAULT_MAX_TOP_K = 20
 DEFAULT_MAX_CONTEXT_CHUNKS = 2
 DEFAULT_MAX_SOURCES = 12
@@ -33,12 +32,6 @@ BRIDGE_TOOLS = frozenset(
         "vera_show_sources",
         "vera_source_page",
     }
-)
-
-BRIDGE_DISCLOSURE = (
-    "Your library stays on your computer. Requested excerpts and source "
-    "previews are shared with ChatGPT. Absolute archive paths are visible "
-    "to the host in this PoC."
 )
 
 LOCAL_AGENT_DISCLOSURE = (
@@ -64,7 +57,7 @@ class AccessPolicy:
     max_context_chunks: int = DEFAULT_MAX_CONTEXT_CHUNKS
     max_sources: int = DEFAULT_MAX_SOURCES
     allowed_tools: frozenset[str] = BRIDGE_TOOLS
-    disclosure: str = BRIDGE_DISCLOSURE
+    disclosure: str = LOCAL_AGENT_DISCLOSURE
 
     def __post_init__(self) -> None:
         if not self.library_roots:
@@ -99,7 +92,7 @@ class AccessPolicy:
             unknown = allowed - BRIDGE_TOOLS
             if unknown:
                 raise ValueError(f"Bridge policy lists unsupported tools: {sorted(unknown)}")
-        disclosure = data.get("disclosure", BRIDGE_DISCLOSURE)
+        disclosure = data.get("disclosure", LOCAL_AGENT_DISCLOSURE)
         if not isinstance(disclosure, str) or not disclosure.strip():
             raise ValueError("Bridge policy disclosure must be a non-empty string.")
         return cls(
@@ -203,14 +196,6 @@ def _collapse_roots(roots: tuple[Path, ...] | list[Path]) -> tuple[Path, ...]:
         kept = [existing for existing in kept if not _is_relative_to(existing, root)]
         kept.append(root)
     return tuple(kept)
-
-
-def load_policy_from_env() -> AccessPolicy:
-    """Load the bridge policy path from ``VERA_BRIDGE_POLICY_PATH`` (fail closed)."""
-    raw = (os.environ.get(POLICY_ENV) or "").strip()
-    if not raw:
-        raise ValueError(f"Bridge mode requires {POLICY_ENV} pointing at a policy JSON file.")
-    return AccessPolicy.load(raw)
 
 
 def canonicalize_path(value: str | Path, *, require_directory: bool) -> Path:

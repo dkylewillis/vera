@@ -826,16 +826,11 @@ does not change CLI output flags.
 Both search tools accept `pretty: true`; this adds a top-level `context` string
 with the same readable rendering as CLI `--pretty` while preserving the
 structured `results` array.
-`vera_library_info` reports whether the process is unrestricted local MCP, a
-Desktop bridge grant, or the Desktop agent service (`library_roots`, and
-`library_root` when only one folder is approved, plus bounds and disclosure).
-Bridge mode
-(`vera-mcp-bridge` / `vera-sidecar mcp-bridge`) requires `VERA_BRIDGE_POLICY_PATH`
-and omits `vera_validate`. When VERA Desktop supervises that bridge, it lets
-`tunnel-client` select a loopback health port and reads the reported URL. Its
-ChatGPT Bridge setup wizard persists an approved library and optional client
-path, validates them before connecting, and the local app log receives redacted
-tunnel diagnostics only.
+`vera_library_info` reports whether the process is unrestricted local MCP or
+the Desktop agent service (`library_roots`, and `library_root` when only one
+folder is approved, plus bounds and disclosure). The agent service omits
+`vera_validate`. Cloud assistants use that same service through the VERA Pro
+relay while Desktop is open.
 `vera_inspect` and `vera_validate` include both `file` (requested) and
 `path` (opened). `vera_inspect` is the inspect JSON object (including `ocr`);
 there is no text-mode omit. `vera_get_figure` returns native image content for one

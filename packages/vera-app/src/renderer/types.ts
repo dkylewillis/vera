@@ -1,7 +1,6 @@
 import type {
   AgentServiceStatus,
   AppSettings,
-  BridgeStatus,
   ChatCitationResult,
   CredentialResult,
   Session,
@@ -14,9 +13,6 @@ export type {
   AgentServiceState,
   AgentServiceStatus,
   AppSettings,
-  BridgeSettings,
-  BridgeState,
-  BridgeStatus,
   ChatAttachment,
   ChatCitationResult,
   ContentPart,
@@ -100,14 +96,6 @@ export interface VeraApi {
   onOpenSettings(callback: () => void): () => void;
   onFolderChanged(callback: (path: string) => void): () => void;
   onAnswerEvent(callback: (data: StreamEvent) => void): () => void;
-  bridgeGetStatus(): Promise<BridgeStatus>;
-  bridgePickTunnelClient(): Promise<string | null>;
-  bridgeUpdateConfig(config: { libraryPath?: string; tunnelId?: string; tunnelClientPath?: string }): Promise<BridgeStatus>;
-  bridgeStart(): Promise<BridgeStatus>;
-  bridgeStop(): Promise<BridgeStatus>;
-  bridgeSaveCredential(value: string): Promise<CredentialResult>;
-  bridgeClearCredential(): Promise<CredentialResult>;
-  onBridgeEvent(callback: (status: BridgeStatus) => void): () => void;
   serviceGetStatus(): Promise<AgentServiceStatus>;
   serviceSave(config: { enabled?: boolean; libraryRoots?: string[]; port?: number; cloudEnabled?: boolean }): Promise<AgentServiceStatus>;
   serviceStart(): Promise<AgentServiceStatus>;

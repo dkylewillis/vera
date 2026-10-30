@@ -15,13 +15,14 @@ automatically exist on the server's computer.
 
 ## Search
 
-VERA Local uses stdio on the task host and does not register the remote app.
-The optional remote bridge is separate; never silently substitute its tools
-for a local-library request. Local discovery has no configured library root:
-use the path supplied by the user rather than guessing a Downloads folder.
+VERA Local uses stdio on the task host. Cloud assistants use the VERA Pro
+connector while Desktop is open with **Allow cloud agents**. Never substitute
+cloud tools for a local-library request. Local discovery has no configured
+library root: use the path supplied by the user rather than guessing a
+Downloads folder.
 
-Call `vera_library_info` when the server may be a Desktop bridge grant, the
-Desktop agent service, or the VERA Pro cloud connector. Unrestricted local MCP
+Call `vera_library_info` when the server may be the Desktop agent service or
+the VERA Pro cloud connector. Unrestricted local MCP
 returns `unrestricted: true` and no `library_root`. A restricted server returns
 `library_roots`. When exactly one folder is approved it also returns
 `library_root`. Use those roots for corpus search and only absolute archive

@@ -13,11 +13,6 @@ or configure in an MCP client (e.g. VS Code .vscode/mcp.json):
     }
 
 Install the integration package with: pip install vera-mcp
-
-Bridge (Desktop) mode fails closed without ``VERA_BRIDGE_POLICY_PATH``:
-
-    vera-mcp-bridge
-    # or: python -m vera_app.sidecar mcp-bridge
 """
 
 from __future__ import annotations
@@ -40,7 +35,7 @@ from vera_ingest.viewer import (
     result_payload,
 )
 
-from .access_policy import AccessDenied, AccessPolicy, load_policy_from_env
+from .access_policy import AccessDenied, AccessPolicy
 
 _AUTO_INSTALL_SEMANTIC_DEPS = "VERA_AUTO_INSTALL_SEMANTIC_DEPS"
 _SENTENCE_TRANSFORMERS_REQUIREMENT = "sentence-transformers>=2.7"
@@ -441,17 +436,4 @@ def build_server(policy: AccessPolicy | None = None):
 def main() -> int:
     """Entry point for ``vera mcp``: unrestricted local server over stdio."""
     build_server().run()
-    return 0
-
-
-def main_bridge() -> int:
-    """Fail-closed bridge entry: requires ``VERA_BRIDGE_POLICY_PATH``."""
-    # Packaged bridge must never auto-install semantic deps over the network.
-    os.environ.pop(_AUTO_INSTALL_SEMANTIC_DEPS, None)
-    try:
-        policy = load_policy_from_env()
-    except ValueError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-    build_server(policy=policy).run()
     return 0

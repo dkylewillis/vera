@@ -1,6 +1,6 @@
 """JSON-lines sidecar process: dispatch Electron requests to handler modules.
 
-Also hosts Desktop MCP entries: ``mcp-bridge``, ``mcp-service``, and ``mcp-connect``.
+Also hosts Desktop MCP entries: ``mcp-service`` and ``mcp-connect``.
 """
 
 from __future__ import annotations
@@ -11,22 +11,6 @@ import sys
 import threading
 import traceback
 from typing import Any
-
-
-def _run_mcp_bridge() -> int:
-    """Fail-closed MCP stdio server for Secure MCP Tunnel (Desktop bridge)."""
-    # Never emit logs on stdout — it is the MCP transport.
-    os.environ.pop("VERA_AUTO_INSTALL_SEMANTIC_DEPS", None)
-    try:
-        from vera_mcp.server import main_bridge
-    except ImportError as exc:  # pragma: no cover
-        print(
-            "vera-sidecar mcp-bridge requires the vera-mcp package in this runtime.",
-            file=sys.stderr,
-        )
-        print(str(exc), file=sys.stderr)
-        return 2
-    return main_bridge()
 
 
 def _run_mcp_service() -> int:
@@ -63,8 +47,6 @@ def _dispatch_early_command(argv: list[str]) -> int | None:
     if len(argv) < 2:
         return None
     command = argv[1]
-    if command == "mcp-bridge":
-        return _run_mcp_bridge()
     if command == "mcp-service":
         return _run_mcp_service()
     if command == "mcp-connect":

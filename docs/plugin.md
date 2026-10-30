@@ -13,7 +13,6 @@ vera/
   plugins/vera/.codex-plugin/plugin.json Plugin metadata and component paths
   plugins/vera/.mcp.json                 Starts the installed vera-mcp executable
   plugins/vera/skills/vera-search/       Shared CLI and MCP workflow
-  examples/remote-bridge/                Optional remote connector example (not loaded)
   packages/vera-mcp/                     Existing tools
   packages/vera-ingest/                  Existing citation and viewer helpers
   packages/vera-doc/                     Existing archive and search engine
@@ -47,15 +46,16 @@ management, and export remain CLI operations.
 ## Local setup
 
 The default plugin is **VERA Local**: stdio MCP runs on the Codex task host.
-Neither VERA Desktop nor a tunnel needs to be running. A task running on another
-host searches that host, not the computer displaying Codex. `vera_library_info`
-returns `unrestricted: true` and `library_root: null`; supply a local archive or
-folder explicitly. Host filesystem permissions still apply.
+VERA Local searches that host while the desktop app stays closed. A task running
+on another host searches that host, not the computer displaying Codex.
+`vera_library_info` returns `unrestricted: true` and `library_root: null`;
+supply a local archive or folder explicitly. Host filesystem permissions still
+apply.
 
 The default package contains no root `.app.json` or manifest `apps` field.
 Removing only the manifest field is insufficient because component discovery
-can still load a root `.app.json`. Keep remote connectors separate; never fall
-back to the remote bridge when a local search fails.
+can still load a root `.app.json`. Keep the cloud connector separate from this
+local plugin, and use local tools when a local search fails.
 
 For a local marketplace checkout, stage the package with an installed executable:
 
@@ -77,12 +77,9 @@ artifacts, not additional sources to edit.
 Refresh/reinstall the local marketplace plugin and start a new task to load the
 changed tools. An existing task can retain its previous remote tool inventory.
 
-The desktop ChatGPT Bridge remains available for cloud ChatGPT or deliberate
-remote access. Its connector example is in
-`examples/remote-bridge/connector.app.json`, outside automatic discovery.
-See that folder's README and the desktop bridge guide. Use separate tunnel
-connections for separate computers; this change does not implement remote device
-selection or bind existing remote sessions to a particular computer.
+Cloud assistants reach a desktop library through **Allow cloud agents** in
+VERA Desktop. That connection is separate from this local plugin. See
+[Cloud agents](mcp.md#cloud-agents-vera-pro).
 
 For the new source viewer, use the **modified server installation** under
 [Source viewer (0.2.0)](#source-viewer-020) below. Published versions only provide
@@ -151,25 +148,20 @@ After you change plugin files (manifest, skills, or connector configuration), re
 reinstall from that marketplace source and start a new chat so the host picks up
 the update.
 
-### One ChatGPT app (developer mode)
+### Cloud assistants
 
-Connect VERA through the desktop **ChatGPT Bridge** for browser ChatGPT.
-Keep that remote connection separate from VERA Local in Codex. The preserved
-connector example is documented in the
-[remote bridge example](https://github.com/dkylewillis/vera/tree/main/examples/remote-bridge).
-Do not add its `apps` component or a root `.app.json` to the local plugin.
-Name remote connections by computer and use a dedicated tunnel per computer.
-Public HTTPS MCP relay and marketplace distribution are out of scope here.
+ChatGPT, Claude, and Grok reach a library through the connector URL in
+**Settings → Agent access** when **Allow cloud agents** is on. Keep that
+connection separate from VERA Local in Codex. Do not add an `apps` component
+or a root `.app.json` to the local plugin.
 
 ### ChatGPT connection
 
-The default configuration uses local stdio. Browser ChatGPT cannot launch an
-executable on your computer from this JSON alone. OpenAI documents
-Secure MCP Tunnel for private stdio servers and HTTPS for hosted servers in
-its [connection guide](https://developers.openai.com/plugins/deploy/connect-chatgpt/).
-A tunnel can connect the existing `vera-mcp` process without another VERA API.
-Account/workspace availability and tunnel configuration are external
-prerequisites. Public deployment and authentication are outside this package.
+The default plugin configuration uses local stdio. Browser ChatGPT cannot
+launch an executable on your computer from this JSON alone. Connect browser
+ChatGPT with the connector URL from VERA Desktop **Settings → Agent access**
+while **Allow cloud agents** is on. See
+[Cloud agents](mcp.md#cloud-agents-vera-pro).
 
 ## Example workflow
 
@@ -259,7 +251,9 @@ The UI uses the MCP Apps initialization handshake and host tool bridge. Its
 HTML/CSS/JavaScript are packaged locally with no CDN or external fetch. PNGs
 and source lines travel in tool-result _meta, not model-visible image strings.
 Citation text and errors remain available as structuredContent for non-UI hosts.
-Browser ChatGPT still needs a reachable MCP connection, such as a tunnel.
+Browser ChatGPT uses the connector URL from VERA Desktop
+**Settings → Agent access** while **Allow cloud agents** is on. See
+[Cloud agents](mcp.md#cloud-agents-vera-pro).
 
 Preview limits: originals over 100 MiB fall back to stored text; PDFs render one
 page with a maximum 1,400-pixel edge and a 3 MiB PNG limit. Missing originals,
@@ -280,14 +274,9 @@ a separate integration check. See tests/test_source_viewer_browser.py in the
 vera-mcp package. The protocol follows the
 [OpenAI UI guide](https://developers.openai.com/plugins/build/chatgpt-ui/).
 
-## Desktop ChatGPT bridge (separate from this plugin)
+## Cloud agents (separate from this plugin)
 
-This plugin launches unrestricted `vera-mcp` over local stdio. Desktop
-**File > Settings → ChatGPT Bridge** is a separate, implemented developer-mode
-PoC: it supervises Secure MCP Tunnel and a fail-closed `mcp-bridge` child that
-can search only one approved library. That mode does not auto-install Sentence
-Transformers and does not register `vera_validate`. See the
-[Desktop bridge PoC](desktop-bridge-poc.md) for the current grant, tools, and
-supervisor behavior, and the
-[production architecture proposal](desktop-bridge-production.md) for the
-public relay, account linking, device authorization, and rollout design.
+This plugin launches unrestricted `vera-mcp` over local stdio. Cloud assistants
+use the VERA Pro relay and the desktop agent service, which searches only the
+approved library folders and does not register `vera_validate`. See
+[Cloud agents](mcp.md#cloud-agents-vera-pro).

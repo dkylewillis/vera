@@ -1,28 +1,24 @@
 import { SIDECAR_ACTIONS } from '../../shared/protocol';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Copy,
   FileText,
-  FolderOpen,
   KeyRound,
   Bot,
-  Link2,
   ListChecks,
   MessageSquareText,
   Plus,
   RefreshCw,
   Search,
   Settings,
-  ShieldCheck,
   Trash2,
   Sparkles,
   UserRound,
   X,
 } from 'lucide-react';
-import type { AppSettings, BridgeStatus, EmbedderDescriptor, ProviderProfile } from '../types';
+import type { AppSettings, EmbedderDescriptor, ProviderProfile } from '../types';
 import { AccountSection } from './AccountSection';
 import { AgentAccessSection } from './AgentAccessSection';
 import { PRO_PRESET_KEY } from '../../shared/pro';
@@ -125,7 +121,7 @@ type ProviderRowInfo = {
   profile: ProviderProfile | null;
 };
 
-export type SettingsSectionId = 'account' | 'providers' | 'embeddings' | 'huggingface' | 'bridge' | 'agents' | 'diagnostics';
+export type SettingsSectionId = 'account' | 'providers' | 'embeddings' | 'huggingface' | 'agents' | 'diagnostics';
 
 const SETTINGS_SECTIONS: {
   id: SettingsSectionId;
@@ -156,12 +152,6 @@ const SETTINGS_SECTIONS: {
     label: 'Hugging Face',
     description: 'Optional Hub token for Hugging Face model downloads.',
     icon: KeyRound,
-  },
-  {
-    id: 'bridge',
-    label: 'ChatGPT Bridge',
-    description: 'Private developer-mode connection for an approved local library.',
-    icon: Link2,
   },
   {
     id: 'agents',
@@ -227,13 +217,6 @@ export function SettingsModal({
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [bridgeLibraryPath, setBridgeLibraryPath] = useState('');
-  const [bridgeTunnelId, setBridgeTunnelId] = useState('');
-  const [bridgeTunnelClientPath, setBridgeTunnelClientPath] = useState('');
-  const [bridgeCredentialInput, setBridgeCredentialInput] = useState('');
-  const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus | null>(null);
-  const [bridgeLibraryExists, setBridgeLibraryExists] = useState(false);
-  const [bridgeClientExists, setBridgeClientExists] = useState(false);
 
   // Flat Hermes-style row list: hosted presets, local presets, then customs.
   const rows: ProviderRowInfo[] = [];
@@ -286,68 +269,8 @@ export function SettingsModal({
       ingest_pipeline: overrides?.ingest_pipeline ?? ingestPipeline,
       ingest_pipeline_configs: overrides?.ingest_pipeline_configs ?? ingestPipelineConfigs,
       embedder_configs: overrides?.embedder_configs ?? embedderConfigs,
-      bridge: {
-        library_path: bridgeLibraryPath,
-        tunnel_id: bridgeTunnelId,
-        tunnel_client_path: bridgeTunnelClientPath,
-      },
     };
   }
-
-  useEffect(() => {
-    let cancelled = false;
-    const api = typeof window !== 'undefined' ? window.vera : undefined;
-    if (!api?.bridgeGetStatus) return undefined;
-    void api.bridgeGetStatus().then((status) => {
-      if (cancelled) return;
-      setBridgeStatus(status);
-      setBridgeLibraryPath(status.libraryPath || '');
-      setBridgeTunnelId(status.tunnelId || '');
-      setBridgeTunnelClientPath(status.tunnelClientPath || '');
-    });
-    const unsubscribe = api.onBridgeEvent?.((status) => {
-      setBridgeStatus(status);
-    });
-    return () => {
-      cancelled = true;
-      unsubscribe?.();
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const value = bridgeLibraryPath.trim();
-    if (!value) {
-      setBridgeLibraryExists(false);
-      return undefined;
-    }
-    void window.vera.pathExists(value).then((exists) => {
-      if (!cancelled) setBridgeLibraryExists(exists);
-    });
-    return () => { cancelled = true; };
-  }, [bridgeLibraryPath]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const value = bridgeTunnelClientPath.trim();
-    if (!value) {
-      setBridgeClientExists(false);
-      return undefined;
-    }
-    void window.vera.pathExists(value).then((exists) => {
-      if (!cancelled) setBridgeClientExists(exists);
-    });
-    return () => { cancelled = true; };
-  }, [bridgeTunnelClientPath]);
-
-  const bridgeTunnelIdValid = /^tunnel_[A-Za-z0-9_-]+$/u.test(bridgeTunnelId.trim());
-  const bridgeCredentialReady = Boolean(bridgeStatus?.hasCredential || bridgeCredentialInput.trim());
-  const bridgePreflightReady = bridgeLibraryExists
-    && bridgeClientExists
-    && bridgeTunnelIdValid
-    && bridgeCredentialReady;
-  const bridgeCompletedSteps = [bridgeLibraryExists, bridgeClientExists, bridgeTunnelIdValid && bridgeCredentialReady]
-    .filter(Boolean).length;
 
   /** Materialize a draft profile for an unconfigured preset row on first edit. */
   function ensureProfile(row: ProviderRowInfo): { nextList: ProviderProfile[]; profile: ProviderProfile } {
@@ -418,53 +341,6 @@ export function SettingsModal({
       if (close) onClose();
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function connectBridge() {
-    if (!bridgePreflightReady) {
-      setMessage('Complete the three setup steps before connecting.');
-      return;
-    }
-    setBusy(true);
-    try {
-      if (bridgeCredentialInput.trim()) {
-        const credential = await window.vera.bridgeSaveCredential(bridgeCredentialInput.trim());
-        if (!credential.ok) {
-          setMessage(credential.error || 'Unable to save the tunnel runtime API key.');
-          return;
-        }
-        setBridgeCredentialInput('');
-      }
-      await onPersist(settingsPayload());
-      await window.vera.bridgeUpdateConfig({
-        libraryPath: bridgeLibraryPath,
-        tunnelId: bridgeTunnelId,
-        tunnelClientPath: bridgeTunnelClientPath,
-      });
-      const status = await window.vera.bridgeStart();
-      setBridgeStatus(status);
-      setMessage(status.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function copyBridgeSummary() {
-    const summary = [
-      'VERA ChatGPT Bridge',
-      `State: ${bridgeStatus?.state || 'unknown'}`,
-      `Library: ${bridgeLibraryPath || 'not selected'}`,
-      `Tunnel: ${bridgeTunnelId || 'not configured'}`,
-      `Client: ${bridgeTunnelClientPath || 'not found'}`,
-      `Ready: ${bridgeStatus?.ready ? 'yes' : 'no'}`,
-      bridgeStatus?.lastError ? `Error: ${bridgeStatus.lastError}` : '',
-    ].filter(Boolean).join('\n');
-    try {
-      await navigator.clipboard.writeText(summary);
-      setMessage('Bridge summary copied');
-    } catch {
-      setMessage('Unable to copy the bridge summary');
     }
   }
 
@@ -1051,181 +927,6 @@ export function SettingsModal({
             ) : null}
 
             {section === 'agents' ? <AgentAccessSection /> : null}
-            {section === 'bridge' ? (
-              <div className="settingsForm bridgeWizard">
-                <div className="bridgeWizardIntro">
-                  <div>
-                    <h3>Set up ChatGPT Bridge</h3>
-                    <p>{bridgeCompletedSteps} of 3 setup steps complete</p>
-                  </div>
-                  {bridgeStatus?.ready ? (
-                    <span className="connectedTag"><CheckCircle2 size={13} />Connected</span>
-                  ) : null}
-                </div>
-
-                <section className={`bridgeWizardStep ${bridgeLibraryExists ? 'complete' : ''}`}>
-                  <div className="bridgeWizardStepHead">
-                    <span className="bridgeStepNumber">1</span>
-                    <div><strong>Choose the approved library</strong><small>Only archives under this folder can be requested through the bridge.</small></div>
-                    {bridgeLibraryExists ? <CheckCircle2 size={18} /> : null}
-                  </div>
-                  <label className="field">
-                    <span>Library folder</span>
-                    <div className="pathInput">
-                      <input
-                        type="text"
-                        value={bridgeLibraryPath}
-                        onChange={(event) => setBridgeLibraryPath(event.target.value)}
-                        placeholder="C:\path\to\approved-library"
-                      />
-                      <button
-                        type="button"
-                        className="secondaryAction compactAction"
-                        disabled={busy}
-                        onClick={() => {
-                          void window.vera.pickFolder().then((path) => {
-                            if (path) setBridgeLibraryPath(path);
-                          });
-                        }}
-                      >
-                        <FolderOpen size={13} />Browse
-                      </button>
-                    </div>
-                    {bridgeLibraryPath && !bridgeLibraryExists ? <small className="bridgeFieldError">Folder not found.</small> : null}
-                  </label>
-                </section>
-
-                <section className={`bridgeWizardStep ${bridgeClientExists ? 'complete' : ''}`}>
-                  <div className="bridgeWizardStepHead">
-                    <span className="bridgeStepNumber">2</span>
-                    <div><strong>Locate OpenAI tunnel-client</strong><small>VERA detects PATH and VERA_TUNNEL_CLIENT, or you can select the executable once.</small></div>
-                    {bridgeClientExists ? <CheckCircle2 size={18} /> : null}
-                  </div>
-                  <label className="field">
-                    <span>Tunnel client</span>
-                    <div className="pathInput">
-                      <input
-                        type="text"
-                        value={bridgeTunnelClientPath}
-                        onChange={(event) => setBridgeTunnelClientPath(event.target.value)}
-                        placeholder="C:\Tools\tunnel-client\tunnel-client.exe"
-                      />
-                      <button
-                        type="button"
-                        className="secondaryAction compactAction"
-                        disabled={busy}
-                        onClick={() => {
-                          void window.vera.bridgePickTunnelClient().then((path) => {
-                            if (path) setBridgeTunnelClientPath(path);
-                          });
-                        }}
-                      >
-                        Browse
-                      </button>
-                    </div>
-                    {bridgeTunnelClientPath && !bridgeClientExists ? <small className="bridgeFieldError">Executable not found.</small> : null}
-                  </label>
-                </section>
-
-                <section className={`bridgeWizardStep ${bridgeTunnelIdValid && bridgeCredentialReady ? 'complete' : ''}`}>
-                  <div className="bridgeWizardStepHead">
-                    <span className="bridgeStepNumber">3</span>
-                    <div><strong>Enter the tunnel credentials</strong><small>Use the tunnel ID and runtime API key provisioned for this computer.</small></div>
-                    {bridgeTunnelIdValid && bridgeCredentialReady ? <CheckCircle2 size={18} /> : null}
-                  </div>
-                  <label className="field">
-                    <span>Tunnel ID</span>
-                    <input
-                      type="text"
-                      value={bridgeTunnelId}
-                      onChange={(event) => setBridgeTunnelId(event.target.value)}
-                      placeholder="tunnel_…"
-                    />
-                    {bridgeTunnelId && !bridgeTunnelIdValid ? <small className="bridgeFieldError">Enter a valid tunnel_ ID.</small> : null}
-                  </label>
-                  <label className="field">
-                    <span>Tunnel runtime API key</span>
-                    {bridgeStatus?.hasCredential && !bridgeCredentialInput ? (
-                      <div className="editorActions">
-                        <span className="connectedTag"><CheckCircle2 size={13} />Stored securely</span>
-                        <button
-                          className="secondaryAction compactAction"
-                          disabled={busy}
-                          onClick={() => {
-                            void window.vera.bridgeClearCredential().then((result) => {
-                              setMessage(result.ok ? 'Tunnel credential cleared' : (result.error || 'Clear failed'));
-                              return window.vera.bridgeGetStatus();
-                            }).then((status) => setBridgeStatus(status));
-                          }}
-                        >
-                          <Trash2 size={13} />Replace key
-                        </button>
-                      </div>
-                    ) : (
-                      <input
-                        type="password"
-                        value={bridgeCredentialInput}
-                        onChange={(event) => setBridgeCredentialInput(event.target.value)}
-                        placeholder="Paste runtime API key"
-                        autoComplete="off"
-                      />
-                    )}
-                  </label>
-                </section>
-
-                <div className={`bridgeConnectionCard bridgeConnectionCard--${bridgeStatus?.state || 'unknown'}`} role="status">
-                  <ShieldCheck size={20} />
-                  <div>
-                    <strong>{bridgeStatus?.ready ? 'Bridge connected' : bridgePreflightReady ? 'Ready to connect' : 'Setup incomplete'}</strong>
-                    <span>{bridgeStatus?.message || 'Complete the setup steps above.'}</span>
-                  </div>
-                </div>
-
-                <div className="editorActions">
-                  <button
-                    type="button"
-                    className="primaryAction"
-                    disabled={busy || !bridgePreflightReady || bridgeStatus?.state === 'starting'}
-                    onClick={() => { void connectBridge(); }}
-                  >
-                    <Link2 size={14} />{bridgeStatus?.ready ? 'Reconnect' : 'Save & Connect'}
-                  </button>
-                  {bridgeStatus?.state === 'connected' || bridgeStatus?.state === 'reconnecting' ? (
-                    <button
-                      type="button"
-                      className="secondaryAction"
-                      disabled={busy}
-                      onClick={() => {
-                        setBusy(true);
-                        void window.vera.bridgeStop().then((status) => {
-                          setBridgeStatus(status);
-                          setMessage(status.message);
-                        }).finally(() => setBusy(false));
-                      }}
-                    >
-                      Disconnect
-                    </button>
-                  ) : null}
-                  <button type="button" className="secondaryAction" onClick={() => { void copyBridgeSummary(); }}>
-                    <Copy size={14} />Copy summary
-                  </button>
-                </div>
-
-                <details className="bridgeAdvanced">
-                  <summary>Privacy and troubleshooting</summary>
-                  <p>
-                    Your library stays on this computer. Requested excerpts and source previews are shared with ChatGPT.
-                    Disconnecting stops future access; content already returned cannot be recalled.
-                  </p>
-                  <p>
-                    The bridge checks the client&apos;s loopback readiness endpoint automatically. Tunnel permissions and
-                    ChatGPT developer-mode access are configured separately by your OpenAI workspace administrator.
-                  </p>
-                  {bridgeStatus?.lastError ? <code>{bridgeStatus.lastError}</code> : null}
-                </details>
-              </div>
-            ) : null}
-
             {section === 'diagnostics' ? (
               <div className="settingsForm">
                 <p className="providerItemDescription">

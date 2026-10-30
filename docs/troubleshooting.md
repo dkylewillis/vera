@@ -149,17 +149,6 @@ files in a library do **not** do this. Re-activate the folder with
 **File > Add Library...** or by clicking a library header already listed in
 Explorer. The parent of the opened archive is not added automatically.
 
-## ChatGPT Bridge will not start
-
-Desktop **File > Settings → ChatGPT Bridge** requires an existing library
-folder, a `tunnel_[A-Za-z0-9_-]+` ID, a securely stored runtime key, and a
-`tunnel-client` on `PATH`, `VERA_TUNNEL_CLIENT`, or a selected path.
-**Save & Connect** stays disabled until those checks pass. The child
-`vera-sidecar mcp-bridge` process fails closed without
-`VERA_BRIDGE_POLICY_PATH` (stderr, exit 2). Ordinary `vera mcp` is
-unrestricted and is not the bridge. Live ChatGPT developer-mode validation is
-still blocked; see [desktop-bridge-poc.md](desktop-bridge-poc.md).
-
 ## Explorer is missing nested files
 
 The desktop Explorer lists `.vera`, `.pdf`, and `.md` / `.markdown` files up
