@@ -42,6 +42,13 @@ export interface ProAccount {
   error?: string;
 }
 
+/** Share of the monthly allowance already used, from 0 to 100. Dollar amounts stay off the screen. */
+export function usagePercent(usageUsd: number | null, limitUsd: number | null): number | null {
+  if (limitUsd === null || !Number.isFinite(limitUsd) || limitUsd <= 0) return null;
+  const used = usageUsd !== null && Number.isFinite(usageUsd) ? Math.max(0, usageUsd) : 0;
+  return Math.min(100, Math.round((used / limitUsd) * 100));
+}
+
 export interface ProActionResult {
   ok: boolean;
   error?: string;

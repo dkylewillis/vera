@@ -57,7 +57,7 @@ describe('SettingsModal', () => {
     const html = renderSettings('account');
     expect(html).toContain('Sign in');
     expect(html).toContain('Get Pro');
-    expect(html).toContain('Activate Pro');
+    expect(html).not.toContain('Activate Pro');
     expect(html).toContain('Search stays on this computer');
   });
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ProAccount } from '../../shared/pro';
+import { usagePercent, type ProAccount } from '../../shared/pro';
 
 const EMPTY_ACCOUNT: ProAccount = {
   configured: false,
@@ -12,11 +12,6 @@ const EMPTY_ACCOUNT: ProAccount = {
   limitUsd: null,
   remainingUsd: null,
 };
-
-function money(value: number | null): string {
-  if (value === null || Number.isNaN(value)) return '—';
-  return `$${value.toFixed(2)}`;
-}
 
 export function AccountSection({ onChanged }: { onChanged: () => Promise<void> }) {
   const [account, setAccount] = useState<ProAccount>(EMPTY_ACCOUNT);
@@ -54,6 +49,8 @@ export function AccountSection({ onChanged }: { onChanged: () => Promise<void> }
   }
 
   const status = account.subscriptionStatus || (account.signedIn ? 'signed in' : 'signed out');
+  const subscribed = ['active', 'trialing', 'past_due', 'paused'].includes(account.subscriptionStatus);
+  const used = usagePercent(account.usageUsd, account.limitUsd);
 
   return (
     <div className="settingsForm">
@@ -70,7 +67,7 @@ export function AccountSection({ onChanged }: { onChanged: () => Promise<void> }
           {account.email ? `${account.email} · ` : ''}
           {status}
           {account.hasProKey ? ' · key saved' : ''}
-          {account.limitUsd !== null ? ` · ${money(account.usageUsd)} of ${money(account.limitUsd)} used this month` : ''}
+          {used !== null ? ` · ${used}% of this month's allowance used` : ''}
         </p>
       )}
       <div className="editorActions">
@@ -83,12 +80,15 @@ export function AccountSection({ onChanged }: { onChanged: () => Promise<void> }
             Sign in
           </button>
         )}
-        <button type="button" className="secondaryAction" disabled={busy || !account.signedIn} onClick={() => void run(() => window.vera.proActivate())}>
-          Activate Pro
-        </button>
-        <button type="button" className="secondaryAction" disabled={busy} onClick={() => void run(() => window.vera.proOpenPage('pricing'))}>
-          Get Pro
-        </button>
+        {subscribed ? (
+          <button type="button" className="secondaryAction" disabled={busy} onClick={() => void run(() => window.vera.proOpenPage('account'))}>
+            Manage subscription
+          </button>
+        ) : (
+          <button type="button" className="secondaryAction" disabled={busy} onClick={() => void run(() => window.vera.proOpenPage('pricing'))}>
+            Get Pro
+          </button>
+        )}
       </div>
       {message ? <p className="modalMessage">{message}</p> : null}
     </div>

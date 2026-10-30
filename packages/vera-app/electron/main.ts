@@ -1097,14 +1097,26 @@ async function currentProAccount(): Promise<ProAccount> {
   try {
     const fresh = await ensureFreshProSession(config, session);
     const usage = await fetchProUsage(config, fresh.access_token, fetch);
+    let keyError = '';
+    if (!hasProKey() && (usage.subscriptionStatus === 'active' || usage.subscriptionStatus === 'trialing')) {
+      try {
+        const claimed = await claimProKey(config, fresh.access_token, fetch);
+        writeSecretJson(PRO_KEY_SECRET, claimed.apiKey);
+        writeSettings(withProProvider(readSettings()));
+      } catch (error) {
+        keyError = error instanceof Error ? error.message : 'Unable to save the VERA Pro key.';
+      }
+    }
     return {
       ...base,
       signedIn: true,
       email: fresh.email || base.email,
+      hasProKey: hasProKey(),
       subscriptionStatus: usage.subscriptionStatus,
       usageUsd: usage.usageUsd,
       limitUsd: usage.limitUsd,
       remainingUsd: usage.remainingUsd,
+      error: keyError || undefined,
     };
   } catch (error) {
     return {
@@ -1158,11 +1170,17 @@ async function completeProAuthCallback(rawUrl: string): Promise<void> {
     await syncRelay();
     const win = preferredWindow();
     if (win) revealWindow(win);
+    const ready = account.hasProKey;
+    const subscribed = account.subscriptionStatus === 'active' || account.subscriptionStatus === 'trialing';
     await dialog.showMessageBox({
-      type: 'info',
+      type: ready || !subscribed ? 'info' : 'warning',
       title: 'VERA Pro',
       message: session.email ? `Signed in as ${session.email}.` : 'Signed in to VERA Pro.',
-      detail: 'Open File > Settings → Account to activate Ask.',
+      detail: ready
+        ? 'VERA Pro is ready for Ask.'
+        : subscribed
+          ? (account.error || 'Signed in, but the Pro key could not be saved.')
+          : 'Subscribe to use Ask with VERA Pro.',
     });
   } catch (error) {
     await dialog.showMessageBox({
