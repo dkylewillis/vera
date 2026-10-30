@@ -261,7 +261,9 @@ Exits 1 if any expected answer is missed while still emitting a report.
 ## `vera mcp`
 
 Run the long-lived stdio MCP server. This command does not accept `--json`.
-Install the `mcp` optional dependency first.
+Install the `mcp` optional dependency first. Desktop **Agent access** is a
+separate loopback service (`mcp-service` / `mcp-connect`) and does not change
+this command. Restricted servers report `library_roots`. See [mcp.md](mcp.md).
 
 ## `vera ocr-languages list [LANGUAGE]`
 

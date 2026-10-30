@@ -20,10 +20,14 @@ The optional remote bridge is separate; never silently substitute its tools
 for a local-library request. Local discovery has no configured library root:
 use the path supplied by the user rather than guessing a Downloads folder.
 
-Call `vera_library_info` when the server may be a Desktop bridge grant.
-Unrestricted local MCP returns `unrestricted: true` and no `library_root`.
-Bridge mode returns the approved library root and search bounds; use that
-root for corpus search and only absolute archive paths the tools return.
+Call `vera_library_info` when the server may be a Desktop bridge grant, the
+Desktop agent service, or the VERA Pro cloud connector. Unrestricted local MCP
+returns `unrestricted: true` and no `library_root`. A restricted server returns
+`library_roots`. When exactly one folder is approved it also returns
+`library_root`. Use those roots for corpus search and only absolute archive
+paths the tools return. Stay inside `library_roots`. The cloud connector
+requires the user to sign in and VERA Desktop to be open with **Allow cloud agents**
+enabled.
 
 Call `vera_search` for one archive or `vera_corpus_search` for a directory.
 Start with `mode: "hybrid"`, `top_k: 5`, and the question as `query`.

@@ -132,7 +132,7 @@ def build_server(policy: AccessPolicy | None = None):
     if bridge:
         instructions = (
             "Search the approved local VERA library exposed by Desktop. Call "
-            "vera_library_info first for the approved library_root. Use absolute .vera "
+            "vera_library_info first for the approved library_roots. Use absolute .vera "
             "paths returned by search tools. Retrieval is read-only; conversion and "
             "export are unavailable."
         )
@@ -152,7 +152,12 @@ def build_server(policy: AccessPolicy | None = None):
 
         @server.tool()
         def vera_library_info() -> dict[str, Any]:
-            """Return the approved library root and supported search capabilities."""
+            """Return approved library roots and supported search capabilities.
+
+            A restricted server returns ``library_roots``. When exactly one folder
+            is approved it also returns ``library_root``. Unrestricted local MCP
+            returns ``library_root: null`` and ``unrestricted: true``.
+            """
             if policy is None:
                 return {
                     "library_root": None,

@@ -193,7 +193,7 @@ VERA ships an MCP server (stdio) exposing the same capabilities as tools:
 
 | Tool | Purpose |
 |------|---------|
-| `vera_library_info` | Approved library root and whether the server is unrestricted local MCP or a Desktop bridge grant |
+| `vera_library_info` | Approved `library_roots` (and `library_root` when there is one) and whether the server is unrestricted local MCP, a Desktop bridge grant, or the Desktop agent service |
 | `vera_search` | Hybrid/semantic/keyword search with optional figure metadata, highlight regions, and pretty context |
 | `vera_corpus_search` | Search every .vera file in a directory as one corpus; results attributed per file, with optional pretty context |
 | `vera_inspect` | Document metadata, page/chunk counts, embedding model, pipeline `ocr` diagnostics |
@@ -217,6 +217,13 @@ Requires the integration package: `pip install "vera[mcp]"` or `pip install vera
   }
 }
 ```
+
+When an agent is connected through **Settings → Agent access**, call
+`vera_library_info` first and stay inside `library_roots`. That service is
+loopback-only. Unrestricted `vera mcp` is separate and does not apply the
+Desktop grant. A cloud assistant uses the VERA Pro connector URL instead.
+**Allow cloud agents** must be on, and Desktop must be open. Sign-in is the
+VERA account. Stay inside the same `library_roots`.
 
 ## Working on this repository
 

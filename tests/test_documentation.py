@@ -1144,6 +1144,61 @@ def test_desktop_file_open_clears_library_scope():
     assert "preserveLibrary: false" in app_pkg
 
 
+def test_desktop_agent_service_is_documented():
+    """The loopback agent service is documented without changing unrestricted vera mcp."""
+    mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
+    getting_started = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    overview = (DOCS / "desktop-app-overview.md").read_text(encoding="utf-8")
+    app_pkg = (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
+    mcp_pkg = (DOCS / "packages" / "vera-mcp.md").read_text(encoding="utf-8")
+    bridge = (DOCS / "desktop-bridge-poc.md").read_text(encoding="utf-8")
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    workflow = (
+        ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "mcp-workflow.md"
+    ).read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    assert "Desktop agent service" in mcp
+    assert "mcp-service" in mcp
+    assert "mcp-connect" in mcp
+    assert "library_roots" in mcp
+    assert "VERA_SERVICE_TOKEN" in mcp
+    assert "Agent access" in getting_started
+    assert "Agent access" in overview
+    assert "mcp-connect" in app_pkg
+    assert "mcp-service" in mcp_pkg
+    assert "library_roots" in bridge
+    assert "library_roots" in agents
+    assert "library_roots" in workflow
+    assert "Settings → Agent access" in changelog
+    assert "stays unrestricted" in changelog
+
+
+def test_cloud_agent_relay_is_documented():
+    """Cloud assistants use the Pro relay without replacing unrestricted vera mcp."""
+    mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
+    getting_started = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    overview = (DOCS / "desktop-app-overview.md").read_text(encoding="utf-8")
+    app_pkg = (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    workflow = (
+        ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "mcp-workflow.md"
+    ).read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    assert "Cloud agents (VERA Pro)" in mcp
+    assert "Allow cloud agents" in mcp
+    assert "VERA_PRO_RELAY_URL" in mcp
+    assert "Allow cloud agents" in getting_started
+    assert "VERA_PRO_RELAY_URL" in getting_started
+    assert "Allow cloud agents" in overview
+    assert "Allow cloud agents" in app_pkg
+    assert "Allow cloud agents" in agents
+    assert "Allow cloud agents" in workflow
+    assert "VERA_PRO_RELAY_URL" in changelog
+    assert "stays unrestricted" in changelog
+
+
 def test_desktop_bridge_poc_describes_shipped_behavior():
     """The PoC page is current-state, not a pre-implementation plan."""
     poc = (DOCS / "desktop-bridge-poc.md").read_text(encoding="utf-8")

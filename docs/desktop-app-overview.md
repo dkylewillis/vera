@@ -63,6 +63,10 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 - Optionally connect an approved local library to ChatGPT developer mode under
   **File > Settings → ChatGPT Bridge** (private Secure MCP Tunnel PoC; see
   [desktop-bridge-poc.md](desktop-bridge-poc.md))
+- Optionally share libraries with local agents under **File > Settings →
+  Agent access**. One loopback MCP service stays up while Desktop is open.
+  **Allow cloud agents** lets a VERA Pro account reach that service from a
+  cloud assistant through the relay.
 - Select model by task profile (speed, quality, cost)
 - Stream grounded answers with citation links, Markdown, and rendered LaTeX
 - Search remains fully local when no provider is configured

@@ -1,4 +1,5 @@
 import type {
+  AgentServiceStatus,
   AppSettings,
   BridgeStatus,
   ChatCitationResult,
@@ -9,6 +10,9 @@ import type {
 import type { ProAccount, ProActionResult } from '../shared/pro';
 
 export type {
+  AgentServiceSettings,
+  AgentServiceState,
+  AgentServiceStatus,
   AppSettings,
   BridgeSettings,
   BridgeState,
@@ -104,6 +108,12 @@ export interface VeraApi {
   bridgeSaveCredential(value: string): Promise<CredentialResult>;
   bridgeClearCredential(): Promise<CredentialResult>;
   onBridgeEvent(callback: (status: BridgeStatus) => void): () => void;
+  serviceGetStatus(): Promise<AgentServiceStatus>;
+  serviceSave(config: { enabled?: boolean; libraryRoots?: string[]; port?: number; cloudEnabled?: boolean }): Promise<AgentServiceStatus>;
+  serviceStart(): Promise<AgentServiceStatus>;
+  serviceStop(): Promise<AgentServiceStatus>;
+  serviceRotateToken(): Promise<AgentServiceStatus>;
+  onServiceEvent(callback: (status: AgentServiceStatus) => void): () => void;
 }
 
 export interface FolderEntry {

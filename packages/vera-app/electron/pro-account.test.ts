@@ -45,6 +45,7 @@ describe('pro cloud config', () => {
       siteUrl: 'https://env.example',
       supabaseUrl: 'https://files.supabase.co',
       supabaseAnonKey: 'env-key',
+      relayUrl: '',
     });
   });
 
@@ -56,6 +57,7 @@ describe('pro cloud config', () => {
       siteUrl: 'https://pro.example',
       supabaseUrl: 'https://project.supabase.co',
       supabaseAnonKey: 'anon',
+      relayUrl: 'https://relay.example',
     }, pair.challenge, pair.state));
     expect(url.pathname).toBe('/login.html');
     expect(url.searchParams.get('code_challenge')).toBe(pair.challenge);
@@ -69,6 +71,7 @@ describe('desktop code exchange', () => {
       siteUrl: 'https://pro.example',
       supabaseUrl: 'https://project.supabase.co',
       supabaseAnonKey: 'anon',
+      relayUrl: '',
     }, { code: 'code', code_verifier: 'verifier', state: 'state' }, (async () => new Response(JSON.stringify({
       access_token: 'access',
       refresh_token: 'refresh',
@@ -86,6 +89,7 @@ describe('desktop code exchange', () => {
       siteUrl: 'https://pro.example',
       supabaseUrl: 'https://project.supabase.co',
       supabaseAnonKey: 'anon',
+      relayUrl: '',
     }, { code: 'code', code_verifier: 'verifier', state: 'state' }, (async () => new Response(JSON.stringify({
       error: 'Sign-in link expired.',
     }), { status: 400 })) as typeof fetch)).rejects.toThrow('Sign-in link expired.');

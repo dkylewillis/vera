@@ -82,12 +82,33 @@ VERA offers **Use VERA Pro** and **Add your own provider**.
 
 A packaged build with empty `pro-cloud.json` shows Account as not connected.
 Release builds fill that file from `VERA_PRO_SITE_URL`,
-`VERA_PRO_SUPABASE_URL`, and `VERA_PRO_SUPABASE_ANON_KEY`. Those values are
-the public site URL and the Supabase anon key, not the service role key.
+`VERA_PRO_SUPABASE_URL`, `VERA_PRO_SUPABASE_ANON_KEY`, and
+`VERA_PRO_RELAY_URL`. Those values are the public site URL, the Supabase anon
+key, and the cloud relay origin, not the service role key.
 
 Pro Ask sends the question and retrieved passages to OpenRouter and the
 selected model provider. Canceling the subscription disables the key. Signing
 out of Account leaves a saved key on disk until you clear it.
+
+## Agent access
+
+**File > Settings → Agent access** shares one or more library folders with
+local AI agents while VERA Desktop is open. The app runs one loopback MCP
+service for every agent, so they share one loaded embedder and one access
+policy. Copy the HTTP snippet or the stdio snippet into the agent's MCP
+config. The stdio snippet runs `mcp-connect`, which fails if Desktop is not
+running. `vera mcp` from a Python install is unchanged and does not use this
+service.
+
+Excerpts a connected agent retrieves are sent to that agent's model provider.
+The `.vera` files stay on this computer. **Rotate token** invalidates snippets
+you already copied.
+
+**Allow cloud agents (VERA Pro)** is available with an active subscription.
+The desktop app opens an outbound connection to the relay in `VERA_PRO_RELAY_URL`.
+Copy the connector URL into a cloud assistant. That assistant signs in with
+the VERA account. Search works only while this app is open. Closing the app
+makes the assistant report that VERA Desktop is not connected.
 
 ## ChatGPT Bridge (developer-mode PoC)
 

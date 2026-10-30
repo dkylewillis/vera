@@ -1,8 +1,9 @@
-"""Fail-closed access policy for the Desktop bridge MCP launch mode.
+"""Fail-closed access policy for restricted VERA MCP launch modes.
 
-Ordinary local ``vera mcp`` runs without a policy. Bridge mode requires an
-explicit policy loaded from ``VERA_BRIDGE_POLICY_PATH`` and checks every archive
-open, corpus root, indexed locator, and viewer navigation path.
+Ordinary local ``vera mcp`` runs without a policy. Bridge mode and the Desktop
+agent service require an explicit policy and check every archive open, corpus
+root, indexed locator, and viewer navigation path. A policy may approve several
+library folders. The legacy single ``library_root`` key is still accepted.
 """
 
 from __future__ import annotations
@@ -34,6 +35,18 @@ BRIDGE_TOOLS = frozenset(
     }
 )
 
+BRIDGE_DISCLOSURE = (
+    "Your library stays on your computer. Requested excerpts and source "
+    "previews are shared with ChatGPT. Absolute archive paths are visible "
+    "to the host in this PoC."
+)
+
+LOCAL_AGENT_DISCLOSURE = (
+    "Your library stays on your computer. Requested excerpts and source "
+    "previews are returned to the local agent that asked for them, and that "
+    "agent's model provider receives them."
+)
+
 
 class AccessDenied(PermissionError):
     """Raised when a bridge path or bound is outside the approved policy."""
@@ -46,20 +59,30 @@ class AccessDenied(PermissionError):
 class AccessPolicy:
     """Approved local library grant for a restricted MCP process."""
 
-    library_root: Path
+    library_roots: tuple[Path, ...]
     max_top_k: int = DEFAULT_MAX_TOP_K
     max_context_chunks: int = DEFAULT_MAX_CONTEXT_CHUNKS
     max_sources: int = DEFAULT_MAX_SOURCES
     allowed_tools: frozenset[str] = BRIDGE_TOOLS
+    disclosure: str = BRIDGE_DISCLOSURE
+
+    def __post_init__(self) -> None:
+        if not self.library_roots:
+            raise ValueError("Bridge policy requires at least one library root.")
+        object.__setattr__(self, "library_roots", _collapse_roots(self.library_roots))
+
+    @property
+    def library_root(self) -> Path:
+        """The only approved root. Raises when the policy approves more than one."""
+        if len(self.library_roots) != 1:
+            raise ValueError("library_root is only available when the policy has one root.")
+        return self.library_roots[0]
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any]) -> AccessPolicy:
         if not isinstance(data, dict) or not data:
             raise ValueError("Bridge policy is empty or invalid (library_root required).")
-        raw_root = data.get("library_root")
-        if not isinstance(raw_root, str) or not raw_root.strip():
-            raise ValueError("Bridge policy requires a non-empty library_root.")
-        root = canonicalize_path(raw_root, require_directory=True)
+        roots = _roots_from_mapping(data)
         max_top_k = _positive_int(data.get("max_top_k", DEFAULT_MAX_TOP_K), "max_top_k")
         max_context_chunks = _non_negative_int(
             data.get("max_context_chunks", DEFAULT_MAX_CONTEXT_CHUNKS),
@@ -76,12 +99,16 @@ class AccessPolicy:
             unknown = allowed - BRIDGE_TOOLS
             if unknown:
                 raise ValueError(f"Bridge policy lists unsupported tools: {sorted(unknown)}")
+        disclosure = data.get("disclosure", BRIDGE_DISCLOSURE)
+        if not isinstance(disclosure, str) or not disclosure.strip():
+            raise ValueError("Bridge policy disclosure must be a non-empty string.")
         return cls(
-            library_root=root,
+            library_roots=roots,
             max_top_k=max_top_k,
             max_context_chunks=max_context_chunks,
             max_sources=max_sources,
             allowed_tools=allowed,
+            disclosure=disclosure.strip(),
         )
 
     @classmethod
@@ -98,19 +125,18 @@ class AccessPolicy:
         return cls.from_mapping(raw)
 
     def discovery(self) -> dict[str, Any]:
-        return {
-            "library_root": str(self.library_root),
+        payload: dict[str, Any] = {
+            "library_roots": [str(root) for root in self.library_roots],
             "supported_modes": ["hybrid", "semantic", "keyword"],
             "max_top_k": self.max_top_k,
             "max_context_chunks": self.max_context_chunks,
             "max_sources": self.max_sources,
             "tools": sorted(self.allowed_tools),
-            "disclosure": (
-                "Your library stays on your computer. Requested excerpts and source "
-                "previews are shared with ChatGPT. Absolute archive paths are visible "
-                "to the host in this PoC."
-            ),
+            "disclosure": self.disclosure,
         }
+        if len(self.library_roots) == 1:
+            payload["library_root"] = str(self.library_roots[0])
+        return payload
 
     def clamp_top_k(self, top_k: int) -> int:
         value = int(top_k)
@@ -128,9 +154,12 @@ class AccessPolicy:
         if name not in self.allowed_tools:
             raise AccessDenied("Tool is not enabled for the VERA bridge.")
 
+    def contains(self, path: Path) -> bool:
+        return any(path == root or _is_relative_to(path, root) for root in self.library_roots)
+
     def check_library_root(self, directory: str | Path) -> Path:
         path = canonicalize_path(directory, require_directory=True)
-        if path != self.library_root and not _is_relative_to(path, self.library_root):
+        if not self.contains(path):
             raise AccessDenied()
         return path
 
@@ -138,11 +167,42 @@ class AccessPolicy:
         path = canonicalize_path(file, require_directory=False)
         if path.suffix.lower() != ".vera":
             raise AccessDenied("Only .vera archives are allowed.")
-        if not _is_relative_to(path, self.library_root):
+        if not self.contains(path):
             raise AccessDenied()
         if not path.is_file():
             raise AccessDenied("Archive was not found in the approved library.")
         return path
+
+
+def _roots_from_mapping(data: dict[str, Any]) -> tuple[Path, ...]:
+    raw_roots = data.get("library_roots")
+    raw_root = data.get("library_root")
+    texts: list[str] = []
+    if raw_roots is not None:
+        if not isinstance(raw_roots, list) or not raw_roots:
+            raise ValueError("Bridge policy library_roots must be a non-empty list.")
+        for item in raw_roots:
+            if not isinstance(item, str) or not item.strip():
+                raise ValueError("Bridge policy library_roots entries must be non-empty strings.")
+            texts.append(item)
+    if raw_root is not None:
+        if not isinstance(raw_root, str) or not raw_root.strip():
+            raise ValueError("Bridge policy requires a non-empty library_root.")
+        texts.append(raw_root)
+    if not texts:
+        raise ValueError("Bridge policy requires a non-empty library_root.")
+    return tuple(canonicalize_path(item, require_directory=True) for item in texts)
+
+
+def _collapse_roots(roots: tuple[Path, ...] | list[Path]) -> tuple[Path, ...]:
+    """Drop duplicates and roots nested inside another approved root."""
+    kept: list[Path] = []
+    for root in roots:
+        if any(root == existing or _is_relative_to(root, existing) for existing in kept):
+            continue
+        kept = [existing for existing in kept if not _is_relative_to(existing, root)]
+        kept.append(root)
+    return tuple(kept)
 
 
 def load_policy_from_env() -> AccessPolicy:

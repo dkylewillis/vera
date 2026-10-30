@@ -71,7 +71,9 @@ def approved_library(tmp_path):
         "sibling": sibling,
         "sentinel": sentinel,
         "prefix_trap": trap,
-        "policy": AccessPolicy(library_root=canonicalize_path(library, require_directory=True)),
+        "policy": AccessPolicy(
+            library_roots=(canonicalize_path(library, require_directory=True),)
+        ),
     }
 
 
@@ -422,6 +424,79 @@ async def test_bridge_search_clamps_and_omits_disallowed_tools(approved_library)
     assert 1 <= len(payload["results"]) <= 1
 
 
+def test_multiple_library_roots_allow_each_and_deny_prefix_sibling(approved_library):
+    policy = AccessPolicy.from_mapping(
+        {
+            "library_roots": [
+                str(approved_library["root"]),
+                str(approved_library["sibling"]),
+            ]
+        }
+    )
+    assert policy.check_archive(approved_library["archive"]) == Path(
+        approved_library["archive"]
+    ).resolve()
+    assert policy.check_archive(approved_library["sentinel"]) == Path(
+        approved_library["sentinel"]
+    ).resolve()
+    with pytest.raises(AccessDenied):
+        policy.check_archive(approved_library["prefix_trap"])
+    info = policy.discovery()
+    assert info["library_roots"] == [str(root) for root in policy.library_roots]
+    assert "library_root" not in info
+    with pytest.raises(ValueError, match="one root"):
+        _ = policy.library_root
+
+
+def test_legacy_library_root_still_loads_and_discovery_includes_it(approved_library, tmp_path):
+    path = tmp_path / "legacy.json"
+    path.write_text(
+        json.dumps({"library_root": str(approved_library["root"])}),
+        encoding="utf-8",
+    )
+    policy = AccessPolicy.load(path)
+    assert policy.library_roots == (approved_library["policy"].library_root,)
+    assert policy.discovery()["library_root"] == str(policy.library_root)
+    assert policy.disclosure.startswith("Your library stays on your computer.")
+
+
+def test_nested_and_duplicate_roots_collapse_to_outermost(approved_library, tmp_path):
+    nested = approved_library["root"] / "nested"
+    nested.mkdir()
+    other = tmp_path / "other"
+    other.mkdir()
+    policy = AccessPolicy.from_mapping(
+        {
+            "library_root": str(nested),
+            "library_roots": [
+                str(approved_library["root"]),
+                str(nested),
+                str(approved_library["root"]),
+                str(other),
+            ],
+        }
+    )
+    assert policy.library_roots == (
+        approved_library["policy"].library_root,
+        other.resolve(),
+    )
+    assert policy.check_library_root(nested) == nested.resolve()
+
+
+def test_library_roots_mapping_rejects_bad_shapes(approved_library):
+    root = str(approved_library["root"])
+    with pytest.raises(ValueError, match="non-empty list"):
+        AccessPolicy.from_mapping({"library_roots": []})
+    with pytest.raises(ValueError, match="non-empty strings"):
+        AccessPolicy.from_mapping({"library_roots": [root, ""]})
+    with pytest.raises(ValueError, match="disclosure"):
+        AccessPolicy.from_mapping({"library_root": root, "disclosure": "  "})
+    custom = AccessPolicy.from_mapping(
+        {"library_roots": [root], "disclosure": "Local agents only."}
+    )
+    assert custom.discovery()["disclosure"] == "Local agents only."
+
+
 @pytest.mark.anyio
 async def test_bridge_corpus_search_denies_outside_and_drops_escaped_archives(
     approved_library, monkeypatch
@@ -476,7 +551,7 @@ async def test_show_sources_honors_max_sources(approved_library):
     from vera_mcp import build_server
 
     policy = AccessPolicy(
-        library_root=approved_library["policy"].library_root,
+        library_roots=(approved_library["policy"].library_root,),
         max_sources=1,
     )
     server = build_server(policy=policy)

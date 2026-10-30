@@ -10,6 +10,16 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Added
 
+- VERA Pro **Allow cloud agents** connects Desktop to one OAuth-protected
+  relay URL. Cloud assistants sign in with the VERA account. The relay checks
+  the subscription and forwards MCP traffic to the open desktop app.
+  `VERA_PRO_RELAY_URL` is the relay origin. `vera mcp` stays unrestricted.
+- Desktop **Settings → Agent access** runs one loopback MCP service
+  (`mcp-service`) for the shared library folders. Local agents connect over
+  HTTP with a bearer token, or through `mcp-connect` when they can only launch
+  a subprocess. `vera mcp` stays unrestricted and is not routed through the
+  service. A restricted policy accepts `library_roots` and still accepts a
+  single `library_root`.
 - Desktop Convert defaults to local MiniLM
   (`sentence-transformers:all-MiniLM-L6-v2`). Hashing stays in the dropdown.
   CLI `vera convert` still defaults to hashing.

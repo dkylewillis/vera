@@ -50,7 +50,11 @@ Download `VERA.Setup.<version>.exe` from the
    and embedders. **File > Open convert log...** (or Convert **Advanced → Open convert log** /
    **Settings → Diagnostics**) opens `userData/logs/sidecar.log` for timed
    convert steps.
-6. Select a citation in an answer to inspect the highlighted source passage.
+6. Optional: **File > Settings → Agent access** shares library folders with
+   local agents through one loopback MCP service (`mcp-service` / `mcp-connect`).
+   **Allow cloud agents (VERA Pro)** publishes a connector URL for cloud
+   assistants. They sign in with the VERA account. The desktop must stay open.
+7. Select a citation in an answer to inspect the highlighted source passage.
    The PDF viewer uses Mozilla-style dark chrome with a page thumbnail rail,
    rotate counterclockwise, download, and print. Citation highlights stay
    aligned after rotate because they turn with the page.

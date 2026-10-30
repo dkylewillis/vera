@@ -273,6 +273,48 @@ export interface AppSettings {
   bridge?: BridgeSettings;
   /** Runtime-only: whether a tunnel runtime API key is stored. */
   has_bridge_credential?: boolean;
+  /** Local agent service. The bearer token stays in safeStorage, not here. */
+  agent_service?: AgentServiceSettings;
+}
+
+export interface AgentServiceSettings {
+  enabled?: boolean;
+  library_roots?: string[];
+  port?: number;
+  /** When true, a signed-in Pro desktop connects to the cloud relay. */
+  cloud_enabled?: boolean;
+}
+
+export type RelayCloudState = 'off' | 'connecting' | 'connected' | 'error' | 'not_pro';
+
+export interface RelayCloudStatus {
+  state: RelayCloudState;
+  message: string;
+  connectorUrl: string;
+}
+
+export type AgentServiceState = 'disabled' | 'starting' | 'running' | 'error';
+
+export interface AgentServiceStatus {
+  state: AgentServiceState;
+  enabled: boolean;
+  libraryRoots: string[];
+  port: number;
+  url: string;
+  connectFile: string;
+  command: string;
+  args: string[];
+  token: string;
+  message: string;
+  lastError?: string;
+  portChanged: boolean;
+  cloudEnabled: boolean;
+  cloud: RelayCloudStatus;
+  snippets: {
+    http: string;
+    stdio: string;
+    note: string;
+  };
 }
 
 export interface BridgeSettings {

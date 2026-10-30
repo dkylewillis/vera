@@ -826,8 +826,10 @@ does not change CLI output flags.
 Both search tools accept `pretty: true`; this adds a top-level `context` string
 with the same readable rendering as CLI `--pretty` while preserving the
 structured `results` array.
-`vera_library_info` reports whether the process is unrestricted local MCP or a
-Desktop bridge grant (`library_root`, bounds, disclosure). Bridge mode
+`vera_library_info` reports whether the process is unrestricted local MCP, a
+Desktop bridge grant, or the Desktop agent service (`library_roots`, and
+`library_root` when only one folder is approved, plus bounds and disclosure).
+Bridge mode
 (`vera-mcp-bridge` / `vera-sidecar mcp-bridge`) requires `VERA_BRIDGE_POLICY_PATH`
 and omits `vera_validate`. When VERA Desktop supervises that bridge, it lets
 `tunnel-client` select a loopback health port and reads the reported URL. Its

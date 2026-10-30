@@ -4520,6 +4520,27 @@ input.viewerPageInput:focus {
   max-width: 520px;
 }
 
+.agentLibraryList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agentLibraryList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settingsCheck {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .bridgeWizard {
   max-width: 620px;
 }

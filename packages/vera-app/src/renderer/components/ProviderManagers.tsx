@@ -8,6 +8,7 @@ import {
   FileText,
   FolderOpen,
   KeyRound,
+  Bot,
   Link2,
   ListChecks,
   MessageSquareText,
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react';
 import type { AppSettings, BridgeStatus, EmbedderDescriptor, ProviderProfile } from '../types';
 import { AccountSection } from './AccountSection';
+import { AgentAccessSection } from './AgentAccessSection';
 import { PRO_PRESET_KEY } from '../../shared/pro';
 import {
   defaultEnabledModels,
@@ -123,7 +125,7 @@ type ProviderRowInfo = {
   profile: ProviderProfile | null;
 };
 
-export type SettingsSectionId = 'account' | 'providers' | 'embeddings' | 'huggingface' | 'bridge' | 'diagnostics';
+export type SettingsSectionId = 'account' | 'providers' | 'embeddings' | 'huggingface' | 'bridge' | 'agents' | 'diagnostics';
 
 const SETTINGS_SECTIONS: {
   id: SettingsSectionId;
@@ -160,6 +162,12 @@ const SETTINGS_SECTIONS: {
     label: 'ChatGPT Bridge',
     description: 'Private developer-mode connection for an approved local library.',
     icon: Link2,
+  },
+  {
+    id: 'agents',
+    label: 'Agent access',
+    description: 'Share local libraries with agents on this computer.',
+    icon: Bot,
   },
   {
     id: 'diagnostics',
@@ -1042,6 +1050,7 @@ export function SettingsModal({
               </div>
             ) : null}
 
+            {section === 'agents' ? <AgentAccessSection /> : null}
             {section === 'bridge' ? (
               <div className="settingsForm bridgeWizard">
                 <div className="bridgeWizardIntro">

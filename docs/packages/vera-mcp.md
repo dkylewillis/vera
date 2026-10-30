@@ -55,6 +55,11 @@ Desktop ChatGPT Bridge is a separate fail-closed entry (`vera-mcp-bridge` /
 `vera_validate`. Ordinary `vera mcp` stays unrestricted. See
 [desktop-bridge-poc.md](../desktop-bridge-poc.md).
 
+Desktop Agent access is another restricted entry (`vera-sidecar mcp-service`
+and `mcp-connect`). It serves Streamable HTTP on `127.0.0.1` for the folders
+in `library_roots`. `vera mcp` does not start that service. See
+[mcp.md](../mcp.md).
+
 Source viewer: `vera_show_sources` adds an **Open VERA sources** button beside
 a normally rendered answer. The user selects `[C#]` references inside the
 viewer; `vera_source_page` loads the highlighted passage. See the

@@ -82,8 +82,11 @@ Desktop writes:
 }
 ```
 
-`library_root` must be an existing directory. Optional `allowed_tools` must be
-a non-empty subset of the bridge tool set; unknown names fail closed.
+`library_root` must be an existing directory. The same file may instead use
+`library_roots` (a non-empty list). Both keys can be set together. Duplicate
+and nested roots collapse to the outermost directory. Optional `allowed_tools`
+must be a non-empty subset of the bridge tool set; unknown names fail closed.
+Optional `disclosure` replaces the default ChatGPT wording.
 
 Registered tools: `vera_library_info`, `vera_search`, `vera_corpus_search`,
 `vera_inspect`, `vera_figures`, `vera_get_figure`, `vera_get_page`,
@@ -92,8 +95,9 @@ Registered tools: `vera_library_info`, `vera_search`, `vera_corpus_search`,
 and export are not registered.
 
 Bounds: `top_k` is clamped to 20, `context_chunks` to 2, and
-`vera_show_sources` to 12 citations. `vera_library_info` returns the approved
-root, those bounds, supported modes, and the product disclosure. Unrestricted
+`vera_show_sources` to 12 citations. `vera_library_info` returns
+`library_roots`, and `library_root` when exactly one folder is approved,
+plus those bounds, supported modes, and the product disclosure. Unrestricted
 local MCP returns `unrestricted: true` and `library_root: null` instead.
 
 Path rules, checked before every archive open, corpus root, indexed locator,

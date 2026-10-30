@@ -6,6 +6,7 @@ export interface ProCloudConfig {
   siteUrl: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
+  relayUrl: string;
 }
 
 export interface StoredPkce {
@@ -18,6 +19,7 @@ export function proCloudConfigFromEnv(env: NodeJS.ProcessEnv): ProCloudConfig {
     siteUrl: env.VERA_PRO_SITE_URL || '',
     supabaseUrl: env.VERA_PRO_SUPABASE_URL || '',
     supabaseAnonKey: env.VERA_PRO_SUPABASE_ANON_KEY || '',
+    relayUrl: env.VERA_PRO_RELAY_URL || '',
   });
 }
 
@@ -27,6 +29,7 @@ export function proCloudConfigFromFile(raw: unknown): ProCloudConfig {
     siteUrl: typeof value.siteUrl === 'string' ? value.siteUrl : '',
     supabaseUrl: typeof value.supabaseUrl === 'string' ? value.supabaseUrl : '',
     supabaseAnonKey: typeof value.supabaseAnonKey === 'string' ? value.supabaseAnonKey : '',
+    relayUrl: typeof value.relayUrl === 'string' ? value.relayUrl : '',
   });
 }
 
@@ -36,6 +39,7 @@ export function mergeProCloudConfig(fileConfig: ProCloudConfig, envConfig: ProCl
     siteUrl: envConfig.siteUrl || fileConfig.siteUrl,
     supabaseUrl: envConfig.supabaseUrl || fileConfig.supabaseUrl,
     supabaseAnonKey: envConfig.supabaseAnonKey || fileConfig.supabaseAnonKey,
+    relayUrl: envConfig.relayUrl || fileConfig.relayUrl,
   });
 }
 
@@ -115,7 +119,12 @@ function normalizeProCloud(config: ProCloudConfig): ProCloudConfig {
     siteUrl: config.siteUrl.trim().replace(/\/+$/, ''),
     supabaseUrl: config.supabaseUrl.trim().replace(/\/+$/, ''),
     supabaseAnonKey: config.supabaseAnonKey.trim(),
+    relayUrl: config.relayUrl.trim().replace(/\/+$/, ''),
   };
+}
+
+export function proSubscriptionActive(status: string): boolean {
+  return status === 'active' || status === 'trialing';
 }
 
 function functionUrl(config: ProCloudConfig, name: string): string {

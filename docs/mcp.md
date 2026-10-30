@@ -243,6 +243,55 @@ Returns block-granular source bounding boxes for visual grounding.
 The portable [VERA Agent Skill](https://github.com/dkylewillis/vera/blob/main/plugins/vera/skills/vera-search/SKILL.md) contains a complete
 retrieval workflow for compatible agents.
 
+## Desktop agent service
+
+**File > Settings → Agent access** runs one loopback MCP service
+(`vera-sidecar mcp-service`) while VERA Desktop is open. Every local agent
+shares that process, its loaded embedder, and one access policy. The policy
+`library_roots` lists the folders you share. A single-folder policy still
+accepts the legacy `library_root` key.
+
+The service listens on `127.0.0.1` only (default port 47821). `/mcp` requires
+`Authorization: Bearer <token>`. Desktop stores the token with Electron
+`safeStorage` and passes it as `VERA_SERVICE_TOKEN`, never on the command line.
+`GET /healthz` is
+unauthenticated and returns `{"ok": true, "version": "..."}`. Requests with a
+browser `Origin` header or a non-loopback `Host` are rejected.
+
+Copy a config from Agent access:
+
+- **HTTP:** the service URL plus the bearer token, for clients that speak
+  remote MCP on localhost.
+- **Stdio:** `vera-sidecar mcp-connect --connect-file <connect.json>`, for
+  clients that only launch a subprocess. The forwarder exits if Desktop is
+  not running. It does not fall back to unrestricted `vera mcp`.
+
+Call `vera_library_info` first. Use `library_roots` (and `library_root` when
+only one folder is approved). Search only inside those folders. Ordinary
+`vera mcp` is unchanged: unrestricted, stdio, and no Desktop required.
+
+Excerpts returned to an agent are sent to that agent's model provider. The
+archives stay on this computer.
+
+## Cloud agents (VERA Pro)
+
+**Allow cloud agents** under **Settings → Agent access** connects that same
+loopback service to VERA's relay while Desktop is open and the VERA Pro
+subscription is active. Add the connector URL (`https://<relay>/mcp`) in
+Grok, Claude, or ChatGPT. The assistant opens VERA's sign-in page. Supabase
+issues a token for that account, and the relay forwards each call to the
+signed-in desktop.
+
+The relay answers `401` with a `WWW-Authenticate` challenge when sign-in is
+missing, `403` when a VERA Pro subscription is required, and `503` with
+"VERA Desktop is not connected. Open VERA and turn on Allow cloud agents."
+when the app is closed. Queries and excerpts pass through the relay and on
+to the assistant's model provider. The relay log records the account, the
+HTTP method, the status, and the duration. `vera_library_info` still returns
+the absolute `library_roots` paths, so the assistant can see those folder
+paths. The `.vera` files stay on the computer. `VERA_PRO_RELAY_URL` is the
+relay origin baked into `pro-cloud.json`.
+
 ## Desktop ChatGPT bridge (developer-mode PoC)
 
 Desktop can supervise OpenAI Secure MCP Tunnel with a restricted MCP child

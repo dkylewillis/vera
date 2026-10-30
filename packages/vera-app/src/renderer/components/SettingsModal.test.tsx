@@ -43,6 +43,7 @@ describe('SettingsModal', () => {
     expect(html).toContain('Embeddings');
     expect(html).toContain('Hugging Face');
     expect(html).toContain('ChatGPT Bridge');
+    expect(html).toContain('Agent access');
     expect(html).toContain('Diagnostics');
     expect(html).not.toContain('Python plugins');
     expect(html).toContain('Hosted');
@@ -83,6 +84,19 @@ describe('SettingsModal', () => {
     expect(html).toContain('Show convert log in folder');
     expect(html).toContain('app:dev');
     expect(html).not.toContain('Paste OpenAI key');
+  });
+
+  it('opens Agent access with copyable snippets', () => {
+    const html = renderSettings('agents');
+    expect(html).toContain('Share libraries with local agents');
+    expect(html).toContain('Shared libraries');
+    expect(html).toContain('Rotate token');
+    expect(html).toContain('HTTP snippet');
+    expect(html).toContain('Stdio snippet');
+    expect(html).toContain('model provider');
+    expect(html).toContain('Allow cloud agents (VERA Pro)');
+    expect(html).toContain('Cloud assistants reach your library through VERA');
+    expect(html).toContain('Get Pro');
   });
 
   it('opens the Bridge setup wizard when requested', () => {

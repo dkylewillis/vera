@@ -63,6 +63,12 @@ const IPC_CHANNELS: typeof IpcChannels = {
   bridgeSaveCredential: 'vera:bridgeSaveCredential',
   bridgeClearCredential: 'vera:bridgeClearCredential',
   bridgeEvent: 'vera:bridgeEvent',
+  serviceGetStatus: 'vera:serviceGetStatus',
+  serviceSave: 'vera:serviceSave',
+  serviceStart: 'vera:serviceStart',
+  serviceStop: 'vera:serviceStop',
+  serviceRotateToken: 'vera:serviceRotateToken',
+  serviceEvent: 'vera:serviceEvent',
 };
 
 contextBridge.exposeInMainWorld('vera', {
@@ -142,5 +148,16 @@ contextBridge.exposeInMainWorld('vera', {
     const listener = (_event: unknown, status: unknown) => callback(status);
     ipcRenderer.on(IPC_CHANNELS.bridgeEvent, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.bridgeEvent, listener);
+  },
+  serviceGetStatus: () => ipcRenderer.invoke(IPC_CHANNELS.serviceGetStatus),
+  serviceSave: (config: { enabled?: boolean; libraryRoots?: string[]; port?: number }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.serviceSave, config),
+  serviceStart: () => ipcRenderer.invoke(IPC_CHANNELS.serviceStart),
+  serviceStop: () => ipcRenderer.invoke(IPC_CHANNELS.serviceStop),
+  serviceRotateToken: () => ipcRenderer.invoke(IPC_CHANNELS.serviceRotateToken),
+  onServiceEvent: (callback: (status: unknown) => void) => {
+    const listener = (_event: unknown, status: unknown) => callback(status);
+    ipcRenderer.on(IPC_CHANNELS.serviceEvent, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.serviceEvent, listener);
   },
 });

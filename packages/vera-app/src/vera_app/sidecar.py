@@ -1,6 +1,6 @@
 """JSON-lines sidecar process: dispatch Electron requests to handler modules.
 
-Also hosts the Desktop bridge MCP entry when launched with ``mcp-bridge``.
+Also hosts Desktop MCP entries: ``mcp-bridge``, ``mcp-service``, and ``mcp-connect``.
 """
 
 from __future__ import annotations
@@ -29,8 +29,52 @@ def _run_mcp_bridge() -> int:
     return main_bridge()
 
 
-if len(sys.argv) > 1 and sys.argv[1] == "mcp-bridge":
-    raise SystemExit(_run_mcp_bridge())
+def _run_mcp_service() -> int:
+    """Loopback agent service. Token comes from ``VERA_SERVICE_TOKEN``."""
+    os.environ.pop("VERA_AUTO_INSTALL_SEMANTIC_DEPS", None)
+    try:
+        from vera_mcp.service import main_service
+    except ImportError as exc:  # pragma: no cover
+        print(
+            "vera-sidecar mcp-service requires the vera-mcp package in this runtime.",
+            file=sys.stderr,
+        )
+        print(str(exc), file=sys.stderr)
+        return 2
+    return main_service(sys.argv[2:])
+
+
+def _run_mcp_connect() -> int:
+    """Stdio forwarder. Reads the service URL and token from ``--connect-file``."""
+    try:
+        from vera_mcp.connect import main
+    except ImportError as exc:  # pragma: no cover
+        print(
+            "vera-sidecar mcp-connect requires the vera-mcp package in this runtime.",
+            file=sys.stderr,
+        )
+        print(str(exc), file=sys.stderr)
+        return 2
+    return main(sys.argv[2:])
+
+
+def _dispatch_early_command(argv: list[str]) -> int | None:
+    """Run a sidecar MCP mode before the JSON-lines imports. ``None`` means continue."""
+    if len(argv) < 2:
+        return None
+    command = argv[1]
+    if command == "mcp-bridge":
+        return _run_mcp_bridge()
+    if command == "mcp-service":
+        return _run_mcp_service()
+    if command == "mcp-connect":
+        return _run_mcp_connect()
+    return None
+
+
+_early_command = _dispatch_early_command(sys.argv)
+if _early_command is not None:
+    raise SystemExit(_early_command)
 
 from vera_embed_openai import (
     ensure_registered as ensure_openai_embedder_registered,

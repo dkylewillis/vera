@@ -62,6 +62,7 @@ jobs:
           VERA_PRO_SITE_URL: ${{ secrets.VERA_PRO_SITE_URL }}
           VERA_PRO_SUPABASE_URL: ${{ secrets.VERA_PRO_SUPABASE_URL }}
           VERA_PRO_SUPABASE_ANON_KEY: ${{ secrets.VERA_PRO_SUPABASE_ANON_KEY }}
+          VERA_PRO_RELAY_URL: ${{ secrets.VERA_PRO_RELAY_URL }}
         run: node packages/vera-app/scripts/write-pro-cloud.cjs
 
       - name: Build Windows NSIS installer

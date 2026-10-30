@@ -244,6 +244,10 @@ making it a library.
 Right-click a library and choose **Convert** to convert its new files with
 local MiniLM semantic search (the desktop default) in one step.
 Connect an LLM provider, or a VERA Pro subscription, for grounded questions and answers.
+**Settings → Agent access** can share those libraries with local agents through
+one loopback MCP service while the app is open. VERA Pro can also turn on
+**Allow cloud agents** so a signed-in cloud assistant uses the same libraries.
+`vera mcp` on its own is unchanged.
 The Windows installer checks GitHub Releases for updates.
 For private developer-mode testing, its ChatGPT Bridge setup wizard selects the
 approved library and tunnel client, stores the runtime key securely, verifies

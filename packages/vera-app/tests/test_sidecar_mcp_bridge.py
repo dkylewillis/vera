@@ -28,6 +28,37 @@ def test_sidecar_mcp_bridge_strips_semantic_auto_install(monkeypatch):
     assert seen == [None]
 
 
+def test_sidecar_mcp_service_requires_token_and_policy(monkeypatch, capsys, tmp_path):
+    import sys
+
+    monkeypatch.delenv("VERA_SERVICE_TOKEN", raising=False)
+    monkeypatch.setenv("VERA_AUTO_INSTALL_SEMANTIC_DEPS", "1")
+    monkeypatch.setattr(sys, "argv", ["vera-sidecar", "mcp-service"])
+    assert module._dispatch_early_command(["vera-sidecar", "mcp-service"]) == 2
+    err = capsys.readouterr().err
+    assert "VERA_SERVICE_TOKEN" in err
+    assert "VERA_AUTO_INSTALL_SEMANTIC_DEPS" not in os.environ
+
+    monkeypatch.setenv("VERA_SERVICE_TOKEN", "token")
+    missing = tmp_path / "missing.json"
+    monkeypatch.setattr(sys, "argv", ["vera-sidecar", "mcp-service", "--policy", str(missing)])
+    assert module._run_mcp_service() == 2
+    assert "missing" in capsys.readouterr().err
+
+
+def test_sidecar_mcp_connect_requires_connect_file(monkeypatch, capsys):
+    import sys
+
+    monkeypatch.setattr(sys, "argv", ["vera-sidecar", "mcp-connect"])
+    assert module._dispatch_early_command(["vera-sidecar", "mcp-connect"]) == 2
+    assert "Agent access" in capsys.readouterr().err
+
+
+def test_sidecar_json_mode_is_not_an_mcp_command():
+    assert module._dispatch_early_command(["vera-sidecar"]) is None
+    assert module._dispatch_early_command(["vera-sidecar", "not-mcp"]) is None
+
+
 def test_sidecar_mcp_bridge_requires_vera_mcp(monkeypatch, capsys):
     import builtins
 

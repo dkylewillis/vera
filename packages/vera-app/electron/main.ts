@@ -4,6 +4,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
+  AgentServiceSettings,
   AppSettings,
   BridgeSettings,
   BridgeStatus,
@@ -13,6 +14,7 @@ import type {
   Session,
 } from '../src/shared/contracts.js';
 import { IPC_CHANNELS, SIDECAR_ACTIONS } from '../src/shared/protocol.js';
+import { DEFAULT_AGENT_SERVICE_PORT } from '../src/shared/agent-snippets.js';
 import { DESKTOP_DEFAULT_EMBEDDING_MODEL } from '../src/shared/desktop-defaults.js';
 import {
   PRO_KEY_SECRET,
@@ -28,6 +30,7 @@ import {
   type ProSession,
 } from '../src/shared/pro.js';
 import { BridgeManager, findTunnelClientOnPath } from './bridge-manager.js';
+import { ServiceManager, type ServiceStatus } from './service-manager.js';
 import { listFolderEntries } from './folder-listing.js';
 import { veraArchivePathFromArgs } from './file-open.js';
 import { type JsonLineEvent } from './json-line-process.js';
@@ -45,10 +48,13 @@ import {
   proCloudConfigured,
   proPageUrl,
   proSignInUrl,
+  proSubscriptionActive,
   refreshProSession,
   sessionNeedsRefresh,
   type ProCloudConfig,
 } from './pro-account.js';
+import { RelayClient } from './relay-client.js';
+import type { RelayCloudStatus } from '../src/shared/contracts.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
 import { checkForUpdatesManually, configureAutoUpdate } from './updates.js';
 import {
@@ -139,6 +145,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   ingest_pipeline_configs: {},
   embedder_configs: {},
   bridge: { library_path: '', tunnel_id: '' },
+  agent_service: { enabled: false, library_roots: [], port: DEFAULT_AGENT_SERVICE_PORT, cloud_enabled: false },
 };
 
 function isJsonPrimitive(value: unknown): value is string | number | boolean | null {
@@ -516,6 +523,18 @@ function saveTunnelCredential(value: string): CredentialResult {
   return { ok: true, has_api_key: true };
 }
 
+function readServiceToken(): string {
+  const value = readApiKeys()[SERVICE_TOKEN_SECRET];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function writeServiceToken(token: string): void {
+  if (!safeStorage.isEncryptionAvailable()) return;
+  const keys = readApiKeys();
+  keys[SERVICE_TOKEN_SECRET] = token.trim();
+  writeApiKeys(keys);
+}
+
 function clearTunnelCredential(): CredentialResult {
   if (!safeStorage.isEncryptionAvailable()) {
     return { ok: false, has_api_key: false, error: 'Secure credential storage is unavailable on this system.' };
@@ -542,6 +561,78 @@ const bridgeManager = new BridgeManager({
   extraChildEnv: bridgeChildEnv,
   logDiagnostic: (stream, chunk) => logSidecarStderr(`tunnel-client ${stream}`, chunk),
 });
+
+function publishServiceStatus(status: ServiceStatus): ServiceStatus {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.serviceEvent, status);
+  }
+  return status;
+}
+
+function resolveServiceCommand(): { executable: string; args: string[] } {
+  if (app.isPackaged) {
+    return { executable: packagedSidecarExecutable(), args: ['mcp-service'] };
+  }
+  return {
+    executable: resolveDevPython(),
+    args: ['-m', 'vera_app.sidecar', 'mcp-service'],
+  };
+}
+
+let serviceManager: ServiceManager;
+const relayClient: RelayClient = new RelayClient({
+  getConfig: () => proCloudConfig(),
+  localMcpUrl: (): string => `http://127.0.0.1:${serviceManager.getStatus().port}/mcp`,
+  readLocalToken: readServiceToken,
+  readSession: readProSession,
+  refreshSession: (session) => refreshProSession(proCloudConfig(), session, fetch).then((next) => {
+    writeProSession(next);
+    return next;
+  }),
+  isPro: async () => proSubscriptionActive((await currentProAccount()).subscriptionStatus),
+  log: (line) => logSidecarStderr('agent-relay', line),
+  onStatus: (): void => {
+    publishServiceStatus(serviceManager.getStatus());
+  },
+});
+
+serviceManager = new ServiceManager({
+  userDataDir: app.getPath('userData'),
+  resolveCommand: resolveServiceCommand,
+  readToken: readServiceToken,
+  writeToken: writeServiceToken,
+  encryptionAvailable: () => safeStorage.isEncryptionAvailable(),
+  extraChildEnv: bridgeChildEnv,
+  logDiagnostic: (chunk) => logSidecarStderr('agent-service', chunk),
+  cloudStatus: (): RelayCloudStatus => relayClient.getStatus(),
+});
+
+function syncAgentService(settings: AgentServiceSettings | undefined): void {
+  const normalized = normalizeAgentServiceSettings(settings);
+  serviceManager.updateConfig({
+    enabled: Boolean(normalized.enabled),
+    libraryRoots: normalized.library_roots || [],
+    port: normalized.port || DEFAULT_AGENT_SERVICE_PORT,
+    cloudEnabled: Boolean(normalized.cloud_enabled),
+  });
+}
+
+async function syncRelay(): Promise<void> {
+  const settings = normalizeAgentServiceSettings(readSettings().agent_service);
+  if (!settings.cloud_enabled || serviceManager.getStatus().state !== 'running') {
+    relayClient.stop();
+    publishServiceStatus(serviceManager.getStatus());
+    return;
+  }
+  const account = await currentProAccount();
+  if (!proSubscriptionActive(account.subscriptionStatus)) {
+    relayClient.markNotPro();
+    publishServiceStatus(serviceManager.getStatus());
+    return;
+  }
+  relayClient.start();
+  publishServiceStatus(serviceManager.getStatus());
+}
 
 function syncBridgeConfig(bridge: BridgeSettings | undefined): void {
   bridgeManager.updateConfig({
@@ -616,6 +707,7 @@ function secretPath(): string {
 /** Reserved key inside the encrypted credential store (not a provider base URL). */
 const HF_TOKEN_SECRET_KEY = '__vera_hf_token__';
 const TUNNEL_API_KEY_SECRET = '__vera_tunnel_api_key__';
+const SERVICE_TOKEN_SECRET = '__vera_service_token__';
 const ENV_SECRET_PREFIX = 'env:';
 
 function readApiKeys(): Record<string, string> {
@@ -738,6 +830,25 @@ function withRuntime(settings: AppSettings): AppSettings {
   };
 }
 
+function normalizeAgentServiceSettings(raw: unknown): AgentServiceSettings {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { enabled: false, library_roots: [], port: DEFAULT_AGENT_SERVICE_PORT, cloud_enabled: false };
+  }
+  const value = raw as Record<string, unknown>;
+  const roots = Array.isArray(value.library_roots)
+    ? value.library_roots.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())
+    : [];
+  const port = typeof value.port === 'number' && Number.isInteger(value.port) && value.port >= 1 && value.port <= 65535
+    ? value.port
+    : DEFAULT_AGENT_SERVICE_PORT;
+  return {
+    enabled: value.enabled === true,
+    library_roots: roots,
+    port,
+    cloud_enabled: value.cloud_enabled === true,
+  };
+}
+
 function normalizeBridgeSettings(raw: unknown): BridgeSettings {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { library_path: '', tunnel_id: '', tunnel_client_path: '' };
@@ -821,6 +932,7 @@ function readSettings(): AppSettings {
       ingest_pipeline_configs: normalizePipelineConfigs(raw.ingest_pipeline_configs),
       embedder_configs: normalizePipelineConfigs(raw.embedder_configs),
       bridge: normalizeBridgeSettings(raw.bridge),
+      agent_service: normalizeAgentServiceSettings(raw.agent_service),
     };
     return withRuntime(merged);
   } catch {
@@ -831,15 +943,20 @@ function readSettings(): AppSettings {
 function writeSettings(settings: AppSettings): AppSettings {
   mkdirSync(app.getPath('userData'), { recursive: true });
   let previousBridge: BridgeSettings = { library_path: '', tunnel_id: '', tunnel_client_path: '' };
+  let previousAgent: AgentServiceSettings = { enabled: false, library_roots: [], port: DEFAULT_AGENT_SERVICE_PORT };
   try {
     const raw = JSON.parse(readFileSync(settingsPath(), 'utf8')) as Partial<AppSettings>;
     previousBridge = normalizeBridgeSettings(raw.bridge);
+    previousAgent = normalizeAgentServiceSettings(raw.agent_service);
   } catch {
     /* first write */
   }
   const incomingBridge = settings.bridge === undefined
     ? previousBridge
     : normalizeBridgeSettings(settings.bridge);
+  const incomingAgent = settings.agent_service === undefined
+    ? previousAgent
+    : normalizeAgentServiceSettings(settings.agent_service);
   const sanitized: AppSettings = {
     providers: (settings.providers || [])
       .map(normalizeProvider)
@@ -852,12 +969,14 @@ function writeSettings(settings: AppSettings): AppSettings {
     ingest_pipeline_configs: normalizePipelineConfigs(settings.ingest_pipeline_configs),
     embedder_configs: normalizePipelineConfigs(settings.embedder_configs),
     bridge: incomingBridge,
+    agent_service: incomingAgent,
   };
   const target = settingsPath();
   const temp = `${target}.tmp`;
   writeFileSync(temp, JSON.stringify(sanitized, null, 2), 'utf8');
   renameSync(temp, target);
   syncBridgeConfig(sanitized.bridge);
+  syncAgentService(sanitized.agent_service);
   return withRuntime(sanitized);
 }
 
@@ -1036,6 +1155,7 @@ async function completeProAuthCallback(rawUrl: string): Promise<void> {
     writeSecretJson(PRO_PKCE_SECRET, null);
     const account = await currentProAccount();
     broadcastProAccount(account);
+    await syncRelay();
     const win = preferredWindow();
     if (win) revealWindow(win);
     await dialog.showMessageBox({
@@ -1056,8 +1176,10 @@ async function completeProAuthCallback(rawUrl: string): Promise<void> {
 async function signOutOfPro(): Promise<ProActionResult> {
   writeProSession(null);
   writeSecretJson(PRO_PKCE_SECRET, null);
+  relayClient.stop();
   const account = await currentProAccount();
   broadcastProAccount(account);
+  publishServiceStatus(serviceManager.getStatus());
   return {
     ok: true,
     account,
@@ -1083,6 +1205,7 @@ async function activatePro(): Promise<ProActionResult> {
     const settings = writeSettings(withProProvider(readSettings()));
     const account = await currentProAccount();
     broadcastProAccount(account);
+    await syncRelay();
     return { ok: true, account, settings };
   } catch (error) {
     return {
@@ -1623,6 +1746,48 @@ if (singleInstanceLock) app.whenReady().then(() => {
     publishBridgeStatus(bridgeManager.getStatus());
     return result;
   });
+  ipcMain.handle(IPC_CHANNELS.serviceGetStatus, async () => serviceManager.getStatus());
+  ipcMain.handle(IPC_CHANNELS.serviceSave, async (_event, config: { enabled?: boolean; libraryRoots?: string[]; port?: number; cloudEnabled?: boolean }) => {
+    const next = normalizeAgentServiceSettings({
+      enabled: config?.enabled === true,
+      library_roots: Array.isArray(config?.libraryRoots) ? config.libraryRoots : [],
+      port: typeof config?.port === 'number' ? config.port : DEFAULT_AGENT_SERVICE_PORT,
+      cloud_enabled: config?.cloudEnabled === true,
+    });
+    const status = await serviceManager.reconfigure({
+      enabled: Boolean(next.enabled),
+      libraryRoots: next.library_roots || [],
+      port: next.port || DEFAULT_AGENT_SERVICE_PORT,
+      cloudEnabled: Boolean(next.cloud_enabled),
+    });
+    const settings = readSettings();
+    writeSettings({ ...settings, agent_service: next });
+    await syncRelay();
+    return publishServiceStatus(status.state === serviceManager.getStatus().state ? serviceManager.getStatus() : status);
+  });
+  ipcMain.handle(IPC_CHANNELS.serviceStart, async () => {
+    const settings = readSettings();
+    writeSettings({
+      ...settings,
+      agent_service: { ...normalizeAgentServiceSettings(settings.agent_service), enabled: true },
+    });
+    const status = publishServiceStatus(await serviceManager.start());
+    await syncRelay();
+    return status;
+  });
+  ipcMain.handle(IPC_CHANNELS.serviceStop, async () => {
+    const settings = readSettings();
+    writeSettings({
+      ...settings,
+      agent_service: { ...normalizeAgentServiceSettings(settings.agent_service), enabled: false },
+    });
+    const status = publishServiceStatus(await serviceManager.stop('Agent access is off.'));
+    relayClient.stop();
+    return publishServiceStatus(serviceManager.getStatus().state === status.state ? serviceManager.getStatus() : status);
+  });
+  ipcMain.handle(IPC_CHANNELS.serviceRotateToken, async () => (
+    publishServiceStatus(await serviceManager.rotateToken())
+  ));
   ipcMain.handle(IPC_CHANNELS.pickArchive, async () => pickArchivePath());
   ipcMain.handle(IPC_CHANNELS.pickFolder, async () => pickFolderPath());
   ipcMain.handle(IPC_CHANNELS.listFolder, async (_event, dir: string) => listFolder(dir));
@@ -1665,7 +1830,15 @@ if (singleInstanceLock) app.whenReady().then(() => {
     flushOpenTargets(win);
   });
   createWindow();
-  syncBridgeConfig(readSettings().bridge);
+  const launchSettings = readSettings();
+  syncBridgeConfig(launchSettings.bridge);
+  syncAgentService(launchSettings.agent_service);
+  if (launchSettings.agent_service?.enabled) {
+    void serviceManager.start().then(async (status) => {
+      publishServiceStatus(status);
+      await syncRelay();
+    });
+  }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -1675,7 +1848,9 @@ if (singleInstanceLock) app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   stopFolderWatchers();
+  relayClient.stop();
   void bridgeManager.stop('App exit.');
+  void serviceManager.stop('App exit.');
   sidecar.stop();
 });
 
