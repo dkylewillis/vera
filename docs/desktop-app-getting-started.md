@@ -39,8 +39,9 @@ the **+** beside **Libraries**. **Folders** are places you only browse —
 for example a project folder that holds a few `.vera` files among other
 documents. **File > Open Folder...** adds one. A plain folder has no index
 badge and never becomes the active library; clicking its header expands or
-collapses it. Check its `.vera` files to search them, convert its PDFs or
-Markdown files, or right-click it and choose **Make this a library**.
+collapses it. Check its `.vera` files to search them, convert its PDFs,
+Markdown, Word, PowerPoint, or Excel files, or right-click it and choose
+**Make this a library**.
 Right-clicking a library offers **Remove from Libraries**, which keeps it
 open as a plain folder. Folders saved before this split reopen as libraries.
 Adding a library inside another library asks first: **Search this folder**
@@ -48,16 +49,27 @@ searches it within the existing library without a second index, and
 **Add as separate library** adds it anyway. Adding a folder that contains libraries
 offers **Use “…”**, which closes the inner libraries and shows them inside the
 new one, or **Keep both**.
+Adding or converting a library creates a managed library: a hidden `.vera/`
+folder holds mirrored archives, the collection index, and trash. VERA syncs
+it when files change, when the library is opened, and about every 10 minutes.
+A large disappearance asks before archives are moved to trash. Right-click a
+library for **Library trash…**, and a converted document for **Share
+archive…**, which copies that one `.vera` file out. Sibling `.vera` files
+that match their sources can be moved into `.vera/archives/` when the library
+is created.
+
 The library list is stored in `localStorage` (`vera.libraryPaths`).
 
 Each folder is a tree. Subfolders start collapsed and remember whether you
 expanded them; a chain of folders that only contain one subfolder is shown as
-one row (for example `reports/2024`). A PDF or Markdown file and the `.vera`
-converted from it — same folder, same file name stem — appear as one document
-row with the VERA icon. Sources that are not converted yet show their file
-name in a muted style. The filter
-above the tree shows **All** documents, **Ready** (converted) documents, or
-files still **To convert**. Right-click a subfolder to convert it or show it
+one row (for example `reports/2024`). A PDF, Markdown, Word, PowerPoint, or Excel file and its archive appear as one document row with the
+VERA icon. In a managed library the archive lives under `.vera/archives/` and
+pairs by the full source name (`Site Plan.pdf` with `Site Plan.pdf.vera`).
+A loose `.vera` beside its source still pairs by file-name stem. Sources that are not converted yet show their file
+name in a muted style with a small dot. A library, folder, or subfolder that
+holds unconverted sources shows a sync-arrow badge with the count of files not
+searchable yet; select it to convert those files with your default settings.
+The arrows spin while that folder is converting. Right-click a subfolder to convert it or show it
 in the system file manager. Inside a library, a subfolder also offers
 **Search this folder**: Search and Ask then use only documents in that folder
 and its subfolders, using the library's index. The folder row is highlighted
@@ -161,17 +173,23 @@ subfolder, or unconverted file and choose **Convert** (the menu shows how many
 files are new, for example **Convert 3 new files**). Conversion starts right away
 with your saved settings: files that already have an up-to-date `.vera` are
 skipped, subfolders are included, and progress shows in the footer status bar,
-which also has a Stop button. When the target is inside a library that already
-has archives, Explorer's Convert uses that library's embedding model so the
-library stays searchable as one corpus. The Convert view opens on its own only
+which also has a Stop button. Inside a managed library (one with a hidden
+`.vera/` folder), Explorer's Convert and the Convert view's Convert button both
+sync the library: new and changed files convert into `.vera/archives` with the
+library's own settings, and the library index updates afterward. When a
+background sync is already running, Convert waits for it and then reports
+anything still pending. In other folders that already have archives,
+Explorer's Convert uses their embedding model so the folder stays searchable
+as one corpus. The Convert view opens on its own only
 when something needs attention, such as a failed file or a missing API key.
 Choose **Convert with options…** instead to review settings first.
 
 The Convert view shows **What to convert** (a folder or a list of files;
 **Add files…** and **Choose folder…** replace the Explorer selection) and the
 Convert button. The result summary reports
-converted, already-up-to-date, and failed files, with **Show details** for
-per-file errors. If the target library already uses a different model,
+converted, already-up-to-date, failed files, and files converted with
+issues, with **Show details** for per-file errors and skipped Word parts.
+Document Info lists the same `ingest_warnings`. If the target library already uses a different model,
 Convert warns that mixing models leaves some documents out of semantic search
 and offers to switch back. Everything else lives under a collapsed
 **Advanced** section: **Replace existing .vera files**, **Include
@@ -234,7 +252,7 @@ In Explorer, click a file to select it, Ctrl/Cmd+click to add or remove it, and
 Shift+click to select a range. The checkbox next to a file adds or removes that
 row from the same list — unchecking it deselects it, and the highlight and the
 Chat/Search “selected document” count stay in sync. Selected converted documents become the Search/Ask
-scope and selected unconverted PDFs or Markdown files become the Convert list. Shift+click ranges
+scope and selected unconverted PDFs, Markdown, or Office files become the Convert list. Shift+click ranges
 follow the rows currently visible in the tree. Click the library name, empty
 Explorer space, or press Escape to search the whole library again.
 Use the **Chat / Search** switch above the center workspace to choose between
@@ -376,7 +394,8 @@ Sentence Transformers are excluded from the freeze.
 Source-run (`npm run app:dev`) and packaged builds use **one interpreter**.
 Search, Ask, indexing, and PyMuPDF conversion all run in
 the sidecar. Extra converters are pip packages in that environment, not a
-second interpreter. The 0.3.0 sidecar does not run Docling conversion.
+second interpreter. The sidecar converts Word, PowerPoint, and Excel with
+`ooxml` and does not run Docling conversion.
 
 The packaged Windows installer freezes PyMuPDF, hashing, ONNX Runtime, and
 `vera-embed-openai` into `vera-sidecar.exe`. MiniLM

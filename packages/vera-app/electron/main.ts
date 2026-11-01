@@ -11,7 +11,8 @@ import type {
   ProviderProfile,
   Session,
 } from '../src/shared/contracts.js';
-import { IPC_CHANNELS, SIDECAR_ACTIONS } from '../src/shared/protocol.js';
+import { IPC_CHANNELS, SIDECAR_ACTIONS, type FolderPickPurpose } from '../src/shared/protocol.js';
+import { LIBRARY_SYNC_INTERVAL_MS, isManagedLibraryEvent, librarySyncDecision } from './folder-watch.js';
 import { DEFAULT_AGENT_SERVICE_PORT } from '../src/shared/agent-snippets.js';
 import { DESKTOP_DEFAULT_EMBEDDING_MODEL } from '../src/shared/desktop-defaults.js';
 import {
@@ -29,6 +30,7 @@ import {
 } from '../src/shared/pro.js';
 import { ServiceManager, type ServiceStatus } from './service-manager.js';
 import { listFolderEntries } from './folder-listing.js';
+import { folderEntryType, sourceOpenDialogExtensions } from '../src/shared/source-types.js';
 import { veraArchivePathFromArgs } from './file-open.js';
 import { type JsonLineEvent } from './json-line-process.js';
 import {
@@ -87,7 +89,7 @@ interface FolderEntry {
   path: string;
   name: string;
   relativePath: string;
-  type: 'vera' | 'pdf' | 'md';
+  type: 'vera' | 'pdf' | 'md' | 'docx' | 'pptx' | 'xlsx';
 }
 
 interface WorkspaceFolderResult {
@@ -204,21 +206,27 @@ function isPathInsideDir(filePath: string, dirPath: string): boolean {
   return rel !== '' && !rel.startsWith(`..${sep}`) && !rel.startsWith('..') && !isAbsolute(rel);
 }
 
-function toSourceViewerResult(result: Record<string, unknown>): Record<string, unknown> {
-  const cachePath = typeof result.cache_path === 'string' ? result.cache_path : '';
-  if (!cachePath) {
-    return result;
-  }
+function sourceCacheUrl(cachePath: string): string {
   const resolved = resolve(cachePath);
   const root = resolve(sourceCacheDir());
   if (!isPathInsideDir(resolved, root)) {
     throw new Error('Source cache path escaped the cache directory');
   }
   const rel = relative(root, resolved).split(/[/\\]/).map(encodeURIComponent).join('/');
-  const { cache_path: _cachePath, ...rest } = result;
+  return `vera-source://cache/${rel}`;
+}
+
+function toSourceViewerResult(result: Record<string, unknown>): Record<string, unknown> {
+  const cachePath = typeof result.cache_path === 'string' ? result.cache_path : '';
+  if (!cachePath) {
+    return result;
+  }
+  const htmlCachePath = typeof result.html_cache_path === 'string' ? result.html_cache_path : '';
+  const { cache_path: _cachePath, html_cache_path: _htmlCachePath, ...rest } = result;
   return {
     ...rest,
-    url: `vera-source://cache/${rel}`,
+    url: sourceCacheUrl(cachePath),
+    ...(htmlCachePath ? { html_url: sourceCacheUrl(htmlCachePath) } : {}),
   };
 }
 
@@ -400,6 +408,7 @@ class PythonSidecar {
         join(process.cwd(), '..', 'vera-doc', 'src'),
         join(process.cwd(), '..', 'vera-ingest', 'src'),
         join(process.cwd(), '..', 'vera-ingest-pymupdf', 'src'),
+        join(process.cwd(), '..', 'vera-ingest-ooxml', 'src'),
         join(process.cwd(), '..', 'vera-embed-openai', 'src'),
       ];
       env.PYTHONPATH = [sourcePaths.join(delimiter), env.PYTHONPATH || ''].filter(Boolean).join(delimiter);
@@ -475,6 +484,7 @@ function serviceChildEnv(): NodeJS.ProcessEnv {
       join(process.cwd(), '..', 'vera-doc', 'src'),
       join(process.cwd(), '..', 'vera-ingest', 'src'),
       join(process.cwd(), '..', 'vera-ingest-pymupdf', 'src'),
+      join(process.cwd(), '..', 'vera-ingest-ooxml', 'src'),
       join(process.cwd(), '..', 'vera-embed-openai', 'src'),
       join(process.cwd(), '..', 'vera-mcp', 'src'),
     ];
@@ -995,14 +1005,47 @@ async function ensureFreshProSession(config: ProCloudConfig, session: ProSession
   return refreshed;
 }
 
+/** Subscription and usage from the last successful VERA Pro response in this run. */
+let lastProAccount: ProAccount | null = null;
+let proAccountRefresh: Promise<ProAccount> | null = null;
+
+function localProAccount(): ProAccount {
+  const keys = readApiKeys();
+  const stored = (slot: string) => (typeof keys[slot] === 'string' ? keys[slot] : '');
+  const session = parseStoredSession(stored(PRO_SESSION_SECRET));
+  return emptyProAccount(proCloudConfig(), {
+    signedIn: Boolean(session),
+    email: session?.email || '',
+    hasProKey: Boolean(stored(PRO_KEY_SECRET).trim()),
+  });
+}
+
+/** Answers from the stored session without waiting on the network. */
+function cachedProAccount(): ProAccount {
+  const base = localProAccount();
+  if (!base.signedIn || !lastProAccount || lastProAccount.email !== base.email) return base;
+  return { ...lastProAccount, configured: base.configured, siteUrl: base.siteUrl, hasProKey: base.hasProKey };
+}
+
+/** One server refresh at a time; every window hears the result. */
+function refreshProAccount(): Promise<ProAccount> {
+  proAccountRefresh ??= currentProAccount()
+    .then((account) => {
+      const offline = Boolean(account.error) && !account.subscriptionStatus;
+      broadcastProAccount(offline ? { ...cachedProAccount(), error: account.error } : account);
+      return account;
+    })
+    .finally(() => {
+      proAccountRefresh = null;
+    });
+  return proAccountRefresh;
+}
+
 async function currentProAccount(): Promise<ProAccount> {
   const config = proCloudConfig();
   const session = readProSession();
-  const base = emptyProAccount(config, {
-    signedIn: Boolean(session),
-    email: session?.email || '',
-    hasProKey: hasProKey(),
-  });
+  const base = localProAccount();
+  if (!session) lastProAccount = null;
   if (!session || !proCloudConfigured(config)) return base;
   try {
     const fresh = await ensureFreshProSession(config, session);
@@ -1017,7 +1060,7 @@ async function currentProAccount(): Promise<ProAccount> {
         keyError = error instanceof Error ? error.message : 'Unable to save the VERA Pro key.';
       }
     }
-    return {
+    const account: ProAccount = {
       ...base,
       signedIn: true,
       email: fresh.email || base.email,
@@ -1028,6 +1071,8 @@ async function currentProAccount(): Promise<ProAccount> {
       remainingUsd: usage.remainingUsd,
       error: keyError || undefined,
     };
+    lastProAccount = { ...account, error: undefined };
+    return account;
   } catch (error) {
     return {
       ...base,
@@ -1194,9 +1239,17 @@ async function pickArchivePath(): Promise<string | null> {
   return result.canceled ? null : result.filePaths[0];
 }
 
-async function pickFolderPath(): Promise<string | null> {
+const FOLDER_PICKER_LABELS: Record<FolderPickPurpose, { title: string; buttonLabel: string }> = {
+  library: { title: 'Add library', buttonLabel: 'Add Library' },
+  folder: { title: 'Open folder', buttonLabel: 'Open Folder' },
+  convert: { title: 'Choose a folder to convert', buttonLabel: 'Choose Folder' },
+  'agent-library': { title: 'Choose a library agents can use', buttonLabel: 'Allow Access' },
+};
+
+async function pickFolderPath(purpose: unknown = 'folder'): Promise<string | null> {
+  const labels = FOLDER_PICKER_LABELS[purpose as FolderPickPurpose] ?? FOLDER_PICKER_LABELS.folder;
   const result = await dialog.showOpenDialog({
-    title: 'Open VERA library folder',
+    ...labels,
     properties: ['openDirectory'],
   });
   return result.canceled ? null : result.filePaths[0];
@@ -1211,11 +1264,10 @@ function isWorkspaceFile(filePath: string, folderPath: string): boolean {
   const file = resolve(filePath);
   const folder = resolve(folderPath);
   const relativePath = relative(folder, file);
-  const lower = file.toLowerCase();
   return Boolean(relativePath)
     && !relativePath.startsWith('..')
     && !isAbsolute(relativePath)
-    && (lower.endsWith('.vera') || lower.endsWith('.pdf') || lower.endsWith('.md') || lower.endsWith('.markdown'));
+    && folderEntryType(file) !== null;
 }
 
 async function showInFolder(targetPath: string): Promise<void> {
@@ -1280,6 +1332,106 @@ async function trashWorkspaceFile(filePath: string, folderPath: string): Promise
 
 const folderWatchers = new Map<string, FolderWatcher>();
 const folderChangeTimers = new Map<string, NodeJS.Timeout>();
+const librarySyncTimers = new Map<string, NodeJS.Timeout>();
+const librarySyncing = new Map<string, Promise<LibrarySyncReport | null>>();
+let librarySyncTimer: NodeJS.Timeout | null = null;
+/** Another process holds the library's sync lock; try again once it has likely finished. */
+const LIBRARY_BUSY_RETRY_MS = 30_000;
+
+interface LibrarySyncReport {
+  managed?: boolean;
+  needs_confirmation?: boolean;
+  ok?: boolean;
+  error?: string;
+  converted?: number;
+  moved?: number;
+  trashed?: number;
+  pending_trash?: number;
+  failed?: number;
+  busy?: boolean;
+}
+
+function publishLibrarySync(folderPath: string, report: LibrarySyncReport | null): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.librarySync, folderPath, report);
+  }
+}
+
+type LibrarySyncOptions = { onEvent?: (event: JsonLineEvent) => void; requestId?: string };
+
+/**
+ * Background syncs skip a library that is already syncing. A sync the user
+ * asked for (it has a `requestId`) waits for running syncs, then runs its own
+ * pass so it reports what is still pending.
+ */
+async function runLibrarySync(folderPath: string, options: LibrarySyncOptions = {}): Promise<LibrarySyncReport | null> {
+  const key = folderWatcherKey(folderPath);
+  if (options.requestId) {
+    await Promise.allSettled([...librarySyncing.values()]);
+  } else if (librarySyncing.has(key)) {
+    return null;
+  }
+  const run = syncLibraryOnce(folderPath, options);
+  librarySyncing.set(key, run);
+  try {
+    return await run;
+  } finally {
+    if (librarySyncing.get(key) === run) librarySyncing.delete(key);
+  }
+}
+
+async function syncLibraryOnce(folderPath: string, options: LibrarySyncOptions): Promise<LibrarySyncReport | null> {
+  try {
+    let confirmed = false;
+    let report: LibrarySyncReport | null = null;
+    for (;;) {
+      const response = await sidecar.request({
+        action: SIDECAR_ACTIONS.librarySync,
+        path: folderPath,
+        confirm_deletes: confirmed,
+        require: false,
+      }, options.onEvent, options.requestId);
+      report = response.ok && response.result && typeof response.result === 'object'
+        ? response.result as LibrarySyncReport
+        : { ok: false, error: response.error || 'Library sync failed' };
+      if (librarySyncDecision(report, confirmed) !== 'confirm') break;
+      const choice = await dialog.showMessageBox({
+        type: 'warning',
+        buttons: ['Keep archives', 'Move missing documents to library trash'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+        message: 'A lot of documents disappeared from this folder.',
+        detail: 'VERA did not move their archives to trash. Confirm only if you deleted those files.',
+      });
+      if (choice.response !== 1) break;
+      confirmed = true;
+    }
+    publishLibrarySync(folderPath, report);
+    if (report?.busy) scheduleLibrarySync(folderPath, LIBRARY_BUSY_RETRY_MS);
+    else if (report && report.managed !== false) scheduleFolderChanged(folderPath);
+    return report;
+  } catch {
+    return null;
+  }
+}
+
+function scheduleLibrarySync(folderPath: string, delayMs = 1000): void {
+  const key = folderWatcherKey(folderPath);
+  const existing = librarySyncTimers.get(key);
+  if (existing) clearTimeout(existing);
+  librarySyncTimers.set(key, setTimeout(() => {
+    librarySyncTimers.delete(key);
+    void runLibrarySync(folderPath);
+  }, delayMs));
+}
+
+function ensureLibrarySyncTimer(): void {
+  if (librarySyncTimer) return;
+  librarySyncTimer = setInterval(() => {
+    for (const entry of folderWatchers.values()) void runLibrarySync(entry.path);
+  }, LIBRARY_SYNC_INTERVAL_MS);
+}
 
 function folderWatcherKey(path: string): string {
   const absolute = resolve(path);
@@ -1312,21 +1464,30 @@ function setWatchedFolders(paths: string[]): void {
     const timer = folderChangeTimers.get(key);
     if (timer) clearTimeout(timer);
     folderChangeTimers.delete(key);
+    const syncTimer = librarySyncTimers.get(key);
+    if (syncTimer) clearTimeout(syncTimer);
+    librarySyncTimers.delete(key);
   }
 
   for (const [key, folderPath] of requested) {
     if (folderWatchers.has(key)) continue;
     try {
-      const watcher = watch(folderPath, { recursive: true }, () => scheduleFolderChanged(folderPath));
+      const watcher = watch(folderPath, { recursive: true }, (_event, filename) => {
+        if (isManagedLibraryEvent(filename)) return;
+        scheduleFolderChanged(folderPath);
+        scheduleLibrarySync(folderPath);
+      });
       watcher.on('error', () => {
         watcher.close();
         folderWatchers.delete(key);
       });
       folderWatchers.set(key, { path: folderPath, watcher });
+      void runLibrarySync(folderPath);
     } catch {
       // The folder may have been removed or become inaccessible between listing and watching.
     }
   }
+  if (folderWatchers.size) ensureLibrarySyncTimer();
 }
 
 function stopFolderWatchers(): void {
@@ -1334,6 +1495,10 @@ function stopFolderWatchers(): void {
   folderWatchers.clear();
   for (const timer of folderChangeTimers.values()) clearTimeout(timer);
   folderChangeTimers.clear();
+  for (const timer of librarySyncTimers.values()) clearTimeout(timer);
+  librarySyncTimers.clear();
+  if (librarySyncTimer) clearInterval(librarySyncTimer);
+  librarySyncTimer = null;
 }
 
 type OpenTargetKind = 'library' | 'folder';
@@ -1388,11 +1553,11 @@ function configureMenu(): void {
         {
           label: 'Add Library...',
           accelerator: 'CmdOrCtrl+Shift+O',
-          click: async () => sendOpenTarget(await pickFolderPath(), 'library'),
+          click: async () => sendOpenTarget(await pickFolderPath('library'), 'library'),
         },
         {
           label: 'Open Folder...',
-          click: async () => sendOpenTarget(await pickFolderPath(), 'folder'),
+          click: async () => sendOpenTarget(await pickFolderPath('folder'), 'folder'),
         },
         { type: 'separator' },
         {
@@ -1613,7 +1778,13 @@ if (singleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.openModesFolder, async () => shell.openPath(modesDir()));
   ipcMain.handle(IPC_CHANNELS.getSettings, async () => readSettings());
   ipcMain.handle(IPC_CHANNELS.saveSettings, async (_event, settings: AppSettings) => writeSettings(settings));
-  ipcMain.handle(IPC_CHANNELS.proGetAccount, async () => currentProAccount());
+  ipcMain.handle(IPC_CHANNELS.proGetAccount, () => {
+    const account = cachedProAccount();
+    setImmediate(() => {
+      void refreshProAccount().catch(() => undefined);
+    });
+    return account;
+  });
   ipcMain.handle(IPC_CHANNELS.proSignIn, async () => signInToPro());
   ipcMain.handle(IPC_CHANNELS.proSignOut, async () => signOutOfPro());
   ipcMain.handle(IPC_CHANNELS.proActivate, async () => activatePro());
@@ -1673,7 +1844,7 @@ if (singleInstanceLock) app.whenReady().then(() => {
     publishServiceStatus(await serviceManager.rotateToken())
   ));
   ipcMain.handle(IPC_CHANNELS.pickArchive, async () => pickArchivePath());
-  ipcMain.handle(IPC_CHANNELS.pickFolder, async () => pickFolderPath());
+  ipcMain.handle(IPC_CHANNELS.pickFolder, async (_event, purpose: unknown) => pickFolderPath(purpose));
   ipcMain.handle(IPC_CHANNELS.listFolder, async (_event, dir: string) => listFolder(dir));
   ipcMain.handle(IPC_CHANNELS.pathExists, async (_event, targetPath: string) => (
     typeof targetPath === 'string' && Boolean(targetPath.trim()) && existsSync(resolve(targetPath))
@@ -1686,6 +1857,29 @@ if (singleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.setWatchedFolders, async (_event, paths: string[]) => {
     setWatchedFolders(Array.isArray(paths) ? paths : []);
   });
+  ipcMain.handle(IPC_CHANNELS.syncLibrary, async (event, folderPath: string, requestId?: string) => {
+    if (typeof folderPath !== 'string' || !folderPath.trim()) return null;
+    const sender = event.sender;
+    return runLibrarySync(folderPath, {
+      requestId: typeof requestId === 'string' && requestId ? requestId : undefined,
+      onEvent: (e) => {
+        if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.answerEvent, e);
+      },
+    });
+  });
+  ipcMain.handle(IPC_CHANNELS.shareArchive, async (_event, archivePath: string) => {
+    if (typeof archivePath !== 'string' || !archivePath.toLowerCase().endsWith('.vera') || !existsSync(archivePath)) {
+      throw new Error('Archive was not found.');
+    }
+    const result = await dialog.showSaveDialog({
+      title: 'Share VERA archive',
+      defaultPath: basename(archivePath),
+      filters: [{ name: 'VERA archives', extensions: ['vera'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    copyFileSync(archivePath, result.filePath);
+    return result.filePath;
+  });
   ipcMain.handle(IPC_CHANNELS.pickPdf, async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const options: Electron.OpenDialogOptions = {
@@ -1693,9 +1887,12 @@ if (singleInstanceLock) app.whenReady().then(() => {
       buttonLabel: 'Select',
       properties: ['openFile', 'multiSelections'],
       filters: [
-        { name: 'Documents', extensions: ['pdf', 'md', 'markdown'] },
+        { name: 'Documents', extensions: sourceOpenDialogExtensions() },
         { name: 'PDF Documents', extensions: ['pdf'] },
         { name: 'Markdown', extensions: ['md', 'markdown'] },
+        { name: 'Word', extensions: ['docx'] },
+        { name: 'PowerPoint', extensions: ['pptx'] },
+        { name: 'Excel', extensions: ['xlsx'] },
       ],
     };
     const result = owner

@@ -327,7 +327,16 @@ update_library_index("./library")
 
 The `.vera-index/` directory is derived and rebuildable. The `.vera` files
 remain the source of truth. A successful `build_library_index` deletes every
-other generation directory after swapping `current.json`.
+other generation directory after swapping `current.json`. A managed library
+stores that index at `.vera/index` and records each archive's `source_path`.
+
+```python
+from vera_ingest import init_library, library_status, sync_library
+
+init_library("./library", model="hashing")
+library_status("./library")
+sync_library("./library")
+```
 
 ## Evaluation and MCP
 

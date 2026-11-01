@@ -10,7 +10,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from ._index_layout import _included
+from ._index_layout import _included, discover_index_entries
+from .library import find_library_root, is_managed_library, source_path_for
 from ._util import _MAX_TOP_K
 from ._where import CHUNK_METADATA_FILTER_REASON, metadata_matches
 from .collection import (
@@ -28,9 +29,13 @@ class CorpusSearchResult(QueryResult):
     """A search result attributed to the .vera file it came from."""
 
     file: str = ""
+    source_path: str = ""
 
     def as_dict(self) -> dict[str, Any]:
-        return {"file": self.file, **super().as_dict()}
+        data = {"file": self.file, **super().as_dict()}
+        if self.source_path:
+            data["source_path"] = self.source_path
+        return data
 
 
 def _archive_where_skips(doc: VeraDocument, where: Mapping[str, Any] | None) -> bool:
@@ -177,6 +182,7 @@ class VeraCorpus:
         }
         self.invalid_files = invalid_files or []
         self.skipped_semantic_model_groups: list[dict[str, Any]] = []
+        self._source_paths: dict[str, str] = {}
 
     @classmethod
     def open(
@@ -214,12 +220,25 @@ class VeraCorpus:
             FileNotFoundError: When no valid archives are found and
                 ``allow_empty`` is false.
         """
-        root = Path(directory).resolve()
-        if not root.is_dir():
+        requested = Path(directory).resolve()
+        if not requested.is_dir():
             raise NotADirectoryError(directory)
+        library_root = find_library_root(requested)
+        scope_prefix: str | None = None
+        if library_root is not None:
+            root = library_root
+            if library_root != requested:
+                scope_prefix = requested.relative_to(library_root).as_posix()
+        else:
+            root = requested
+        managed = is_managed_library(root)
         status = library_index_status(str(root), verify_hashes=False)
         effective_recursive = (
-            bool(status.get("recursive", default_recursive)) if recursive is None else recursive
+            True
+            if managed
+            else bool(status.get("recursive", default_recursive))
+            if recursive is None
+            else recursive
         )
         effective_excludes = (
             tuple(status.get("excludes", ()))
@@ -240,19 +259,50 @@ class VeraCorpus:
             and effective_excludes == tuple(status.get("excludes", ()))
             and (effective_includes == index_includes or narrows_index)
         )
+        def scope_key(relative_path: str, source_path: str | None = None) -> str:
+            if source_path:
+                return source_path
+            if managed:
+                derived = source_path_for(relative_path)
+                if derived:
+                    return derived
+            return relative_path
+
+        def in_scope(relative_path: str, source_path: str | None = None) -> bool:
+            key = scope_key(relative_path, source_path)
+            if scope_prefix and not (key == scope_prefix or key.startswith(f"{scope_prefix}/")):
+                return False
+            if managed:
+                return _included(key, effective_includes)
+            return _included(relative_path, effective_includes)
+
         collection_index = None
         index_scope: frozenset[str] | None = None
         if use_index and status.get("fresh") and config_matches:
             collection_index = VeraCollectionIndex.open(str(root), check_status=False)
-            relative_paths = collection_index.document_paths()
-            if narrows_index:
-                relative_paths = [
-                    relative_path
-                    for relative_path in relative_paths
-                    if _included(relative_path, effective_includes)
+            rows = sorted(collection_index.file_scope_rows(), key=lambda row: row[0].lower())
+            if scope_prefix or narrows_index:
+                rows = [
+                    (relative_path, source_path)
+                    for relative_path, source_path in rows
+                    if in_scope(relative_path, source_path)
                 ]
-                index_scope = frozenset(relative_paths)
-            paths = [str((root / relative_path).resolve()) for relative_path in relative_paths]
+                index_scope = frozenset(relative_path for relative_path, _source in rows)
+            paths = [str((root / relative_path).resolve()) for relative_path, _source in rows]
+        elif managed:
+            paths = [
+                str(entry.path.resolve())
+                for entry in discover_index_entries(
+                    root,
+                    recursive=True,
+                    excludes=effective_excludes,
+                    includes=effective_includes,
+                )
+                if in_scope(
+                    entry.path.resolve().relative_to(root).as_posix(),
+                    entry.source_path,
+                )
+            ]
         else:
             paths = [
                 str(path)
@@ -276,9 +326,9 @@ class VeraCorpus:
                     "reason": str(entry["reason"]),
                 }
                 for entry in status.get("skipped_files", [])
-                if not effective_includes or _included(str(entry["file"]), effective_includes)
+                if in_scope(str(entry["file"]))
             ]
-        return cls(
+        corpus = cls(
             str(root),
             paths,
             recursive=effective_recursive,
@@ -290,6 +340,19 @@ class VeraCorpus:
             invalid_files=invalid_files,
             index_scope=index_scope,
         )
+        if managed:
+            source_paths: dict[str, str] = {}
+            for archive_path in corpus.paths:
+                resolved = Path(archive_path).resolve()
+                try:
+                    relative = resolved.relative_to(root).as_posix()
+                except ValueError:
+                    continue
+                source = source_path_for(relative)
+                if source:
+                    source_paths[os.path.normcase(str(resolved))] = source
+            corpus._source_paths = source_paths
+        return corpus
 
     @classmethod
     def from_paths(cls, paths: list[str]) -> VeraCorpus:
@@ -560,7 +623,15 @@ class VeraCorpus:
                 )
                 for result_index, replacement in zip(indexes, replacements, strict=True):
                     final[result_index] = replacement
-        return final
+        return [self._attach_source_path(item) for item in final]
+
+    def _attach_source_path(self, result: CorpusSearchResult) -> CorpusSearchResult:
+        if result.source_path or not result.file:
+            return result
+        source = self._source_paths.get(os.path.normcase(str(Path(result.file).resolve())))
+        if not source:
+            return result
+        return replace(result, source_path=source)
 
     def _search_files(
         self,

@@ -25,9 +25,12 @@ import { ConvertPanel } from './components/ConvertPanel';
 import { DocumentInfoPanel } from './components/DocumentInfoPanel';
 import { ExplorerPanel } from './components/ExplorerPanel';
 import { LibraryIndexModal, type IndexPrompt } from './components/LibraryIndexModal';
+import { AdoptLibraryModal, LibraryTrashModal } from './components/ManagedLibraryModal';
 import { NestedLibraryModal } from './components/NestedLibraryModal';
 import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { MarkdownSourceViewer } from './components/MarkdownSourceViewer';
+import { SheetSourceViewer } from './components/SheetSourceViewer';
+import { SlideSourceViewer } from './components/SlideSourceViewer';
 import { ModelManager, SettingsModal, type SettingsSectionId } from './components/ProviderManagers';
 import { AskSetupDialog } from './components/AskSetupDialog';
 import { PRO_PRESET_KEY } from '../shared/pro';
@@ -50,6 +53,8 @@ import {
   isPathInsideFolder,
   isPdfSource,
   isMarkdownSource,
+  isSheetsSource,
+  isSlidesSource,
   sameFsPath,
   showInFolderLabel,
   type ExplorerSelection,
@@ -66,10 +71,10 @@ import {
   isExplorerBlankPointerTarget,
   routeOpenTarget,
   syncCollapsedFolders,
-  type ExplorerFileFilter,
   type OpenTargetKind,
 } from './lib/explorer';
 import { DEFAULT_EMBEDDING_MODEL, embeddingProviderFromSpec } from './lib/convertPresets';
+import { librarySyncSummary, prepareManagedLibrary } from './lib/managedLibrary';
 import { folderScopeInclude, libraryQueryScope } from './lib/search';
 import { hydrateSessionTurns, stripTrace, traceKey } from './lib/sessions';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS } from './lib/providers';
@@ -190,10 +195,12 @@ function App() {
   const [selectionAnchorPath, setSelectionAnchorPath] = useState<string | null>(null);
   const [folderScopeRequest, setFolderScopeRequest] = useState('');
   const [nestedLibraryPrompt, setNestedLibraryPrompt] = useState<NestedLibraryConflict | null>(null);
+  const [adoptPrompt, setAdoptPrompt] = useState<{ path: string; count: number; resolve: (adopt: boolean) => void } | null>(null);
+  const [trashFolderPath, setTrashFolderPath] = useState<string | null>(null);
+  const [librarySyncNotices, setLibrarySyncNotices] = useState<Record<string, string>>({});
   const [collapsedFolders, setCollapsedFolders] = useState(() => (
     syncCollapsedFolders(readSavedFolderPaths(), readSavedActiveLibraryPath(), [], readSavedLibraryPaths())
   ));
-  const [explorerFileFilter, setExplorerFileFilter] = useState<ExplorerFileFilter>('all');
   const [chatAnswer, setChatAnswer] = useState<ChatAnswerResult | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -306,6 +313,15 @@ function App() {
       }
     },
     onNestedLibrary: setNestedLibraryPrompt,
+    onPrepareLibrary: async (folderPath) => {
+      await prepareManagedLibrary(folderPath, (payload) => window.vera.request(payload), {
+        model: embeddingModel,
+        askAdopt: (count) => new Promise((resolve) => {
+          setAdoptPrompt({ path: folderPath, count, resolve });
+        }),
+      });
+      await window.vera.syncLibrary(folderPath);
+    },
   });
   const indexingFolders = useMemo(
     () => Object.fromEntries(
@@ -578,6 +594,10 @@ function App() {
     .filter((folder) => libraryPaths.includes(folder.path) && isPathInsideFolder(convertTarget, folder.path))
     .map((folder) => `${folder.path}:${folder.entries.filter((entry) => entry.type === 'vera').length}`)
     .join('|');
+  useEffect(() => window.vera.onLibrarySync((folderPath, report) => {
+    const summary = librarySyncSummary(report);
+    setLibrarySyncNotices((prev) => ({ ...prev, [folderPath]: summary }));
+  }), []);
   useEffect(() => {
     if (sideView !== 'convert' || !convertTarget || !libraryArchiveKey) {
       setConvertLibraryModel(null);
@@ -802,6 +822,12 @@ function App() {
     }
     setFolderKind(folderPath, 'library');
     selectExplorerFolder(folderPath);
+    void prepareManagedLibrary(folderPath, (payload) => window.vera.request(payload), {
+      model: embeddingModel,
+      askAdopt: (count) => new Promise((resolve) => {
+        setAdoptPrompt({ path: folderPath, count, resolve });
+      }),
+    }).then(() => window.vera.syncLibrary(folderPath)).then(() => refreshFolder(folderPath));
   }
 
   function addNestedLibraryAnyway(folderPath: string) {
@@ -1944,7 +1970,6 @@ function App() {
                   selectedPdfs={selectedPdfs}
                   selectionAnchorPath={selectionAnchorPath}
                   explorerSelection={explorerSelection}
-                  explorerFileFilter={explorerFileFilter}
                   collapsedFolders={collapsedFolders}
                   pendingSourcePath={pendingSourcePath}
                   sourceDocumentPath={sourceDocumentPath}
@@ -1956,11 +1981,14 @@ function App() {
                   busyFolderPath={busyFolderPath}
                   busyAction={busyAction}
                   convertLocked={convertLocked}
-                  escapeBlocked={Boolean(settingsOpen || indexPrompt || indexReport || nestedLibraryPrompt)}
+                  convertingTargets={conversionInProgress
+                    ? (convertMode === 'batch' ? [batchDirectory] : selectedPdfs).filter(Boolean)
+                    : []}
+                  escapeBlocked={Boolean(settingsOpen || indexPrompt || indexReport || nestedLibraryPrompt || adoptPrompt || trashFolderPath)}
+                  librarySyncNotices={librarySyncNotices}
                   onClearFileSelection={clearExplorerFileSelection}
                   onAddLibrary={() => { void addFolder('library'); }}
                   onAddFolder={() => { void addFolder('folder'); }}
-                  onFileFilterChange={setExplorerFileFilter}
                   onCollapsedFoldersChange={setCollapsedFolders}
                   onFileSelectionChange={(next) => {
                     setSelectedFiles(next.selectedFiles);
@@ -1989,6 +2017,8 @@ function App() {
                   onMakeFolder={makePlainFolder}
                   onRemoveFolder={removeFolder}
                   onTrashEntry={(entry, folderPath) => { void trashEntry(entry, folderPath); }}
+                  onOpenLibraryTrash={setTrashFolderPath}
+                  onShareArchive={(archivePath) => { void window.vera.shareArchive(archivePath); }}
                 />
             ) : null}
             {sideView === 'chats' ? (
@@ -2449,6 +2479,20 @@ function App() {
                   jumpVersion={citationJumpVersion}
                 />
               </div>
+            ) : sourceDocument && isSlidesSource(sourceDocument) ? (
+              <div className="sourceViewer">
+                <SlideSourceViewer
+                  source={sourceDocument}
+                  highlightRegions={viewerHighlights.regions}
+                />
+              </div>
+            ) : sourceDocument && isSheetsSource(sourceDocument) ? (
+              <div className="sourceViewer">
+                <SheetSourceViewer
+                  source={sourceDocument}
+                  highlightRegions={viewerHighlights.regions}
+                />
+              </div>
             ) : sourceDocument && isMarkdownSource(sourceDocument) ? (
               <div className="sourceViewer">
                 <MarkdownSourceViewer
@@ -2530,6 +2574,22 @@ function App() {
         onSuppressPromptChange={setSuppressIndexPrompt}
         onConfirm={() => void confirmIndexAction()}
         onDismiss={dismissIndexPrompt}
+      />
+      <AdoptLibraryModal
+        prompt={adoptPrompt}
+        onAdopt={() => {
+          adoptPrompt?.resolve(true);
+          setAdoptPrompt(null);
+        }}
+        onSkip={() => {
+          adoptPrompt?.resolve(false);
+          setAdoptPrompt(null);
+        }}
+      />
+      <LibraryTrashModal
+        folderPath={trashFolderPath}
+        onClose={() => setTrashFolderPath(null)}
+        onRestored={() => { if (trashFolderPath) void refreshFolder(trashFolderPath); }}
       />
       <NestedLibraryModal
         conflict={nestedLibraryPrompt}

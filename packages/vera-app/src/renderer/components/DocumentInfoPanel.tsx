@@ -169,6 +169,12 @@ export function DocumentInfoPanel({
               <div><dt>Parser</dt><dd>{viewerInspect?.parser_name ? `${viewerInspect.parser_name}${viewerInspect.parser_version ? ` ${viewerInspect.parser_version}` : ''}` : '-'}</dd></div>
               <div><dt>Chunking</dt><dd>{formatChunkingStrategy(viewerInspect?.chunking_strategy)}</dd></div>
               <div><dt>OCR</dt><dd>{formatOcrSummary(viewerInspect?.ocr)}</dd></div>
+              {viewerInspect?.ingest_warnings?.length ? (
+                <div>
+                  <dt>Ingest</dt>
+                  <dd className="infoStatus infoStatus--warn">{viewerInspect.ingest_warnings.join(' ')}</dd>
+                </div>
+              ) : null}
               <div><dt>Attachments</dt><dd>{viewerInspect?.attachments ?? '-'}</dd></div>
               <div><dt>Validation</dt><dd>{validation ? (validation.ok ? 'PASS' : 'FAIL') : '-'}</dd></div>
               <div><dt>Issues</dt><dd>{validation?.issues?.length ? validation.issues.join('; ') : '0'}</dd></div>

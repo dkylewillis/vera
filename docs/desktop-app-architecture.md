@@ -215,6 +215,12 @@ archive:
 - **Stale** means files changed after the last build.
 - **No index** means no collection index has been built yet.
 
+A library is a managed folder. Adding one creates `.vera/` and syncs sources
+into `.vera/archives/`. The watcher ignores events under `.vera/` so VERA's
+own writes do not loop. Source changes debounce into `library_sync`, and the
+same sync runs when a watch starts and every 10 minutes. A mass-delete report
+asks in the main process before archives move to `.vera/trash/`.
+
 A fresh persistent index is used automatically for Search and Ask. The document
 viewer's **Info** tab keeps **Inspect** available for an explicit validation
 scan of a library and shows document inspection, validation, export, and page
@@ -245,10 +251,12 @@ and their expansion persists in `vera.expandedSubfolders`.
 as one document row whose selection path is the archive; when a PDF and a
 Markdown file share a stem, the PDF is paired. Rows without an archive select
 the source. Each tree folder counts unconverted sources across its subtree
-(`pendingCount`), which labels the **Convert N new files** menu item. The
-filter (`ExplorerFileFilter`: `all`, `ready`, `pending`) hides non-matching
-rows and empty subfolders, and Shift+click ranges use the visible rows in tree
-order (`visibleExplorerDocuments`). Subfolder context menus offer the same
+(`pendingCount`), which labels the **Convert N new files** menu item and the
+count badge on library, folder, and subfolder rows. The badge runs the same
+quick convert, and its icon spins when the running conversion's
+`convertingTargets` (the batch directory or selected files) overlap that
+folder. Shift+click ranges use the visible rows in tree order
+(`visibleExplorerDocuments`). Subfolder context menus offer the same
 two convert actions and show-in-system-folder; inside a library they also
 offer **Search this folder** (or **Search whole library** when it is already
 scoped).
@@ -376,7 +384,10 @@ events update the streamed answer but are omitted from the diagnostic trace.
 Completed traces retain the real search events shown during generation.
 
 Builds and updates run on a sidecar worker thread without using the app's global
-busy state, so document browsing, Search, and Ask remain available. The folder
+busy state, so document browsing, Search, and Ask remain available. Index status
+checks, managed-library sync and init, library status, and validation also run
+on worker threads, so a long sync on a slow USB or network drive never queues
+other requests, and Stop reaches a running sync. The folder
 badge carries completion state instead of leaving a modal open. Request-scoped
 `index_progress` events report discovery, completed/total archives, the current
 archive, cumulative chunk and skipped counts, and final publication through the
@@ -462,7 +473,7 @@ directory. PyInstaller `--exclude-module` drops `torch` and
 `sentence_transformers` so a freeze venv that also has the `ml` extra still
 ships ONNX MiniLM only. The build copies `vera-ingest-pymupdf` and
 `vera-embed-openai` package metadata. The sidecar registers the default
-`pymupdf` pipeline and the `openai` embedder on import so Convert works in
+`pymupdf` pipeline, the `ooxml` Office pipeline, and the `openai` embedder on import so Convert works in
 frozen builds where `importlib.metadata` entry points are otherwise empty.
 After a freeze, `node packages/vera-app/scripts/verify-packaged-sidecar.cjs`
 asserts `describe_ingest_pipelines` reports `pymupdf` (and not Docling), that
@@ -479,7 +490,9 @@ uv run --extra dev python -m pytest -q
 
 The `source` sidecar action accepts a `.vera` archive or a filesystem `.pdf`,
 `.md`, or `.markdown` file. Archives materialize the embedded source
-attachment; PDF and Markdown paths are copied into the same hash-keyed cache
+attachment, or the `viewer_preview` attachment when Office ingest stored one
+(Word as `text/markdown`, slides and sheets as JSON). PDF and Markdown paths
+are copied into the same hash-keyed cache
 under Electron's userData `source-cache/` directory. Both return metadata plus
 `cache_path`. Electron
 rewrites that path to a privileged `vera-source://cache/...` URL and serves
@@ -552,9 +565,16 @@ and `recovered_pages` instead; Markdown writes `ocr: {}`, which the
 formatter treats as present and shows as `Unknown mode · 0 pages OCR’d`.
 Use sidecar inspect JSON when that summary is incomplete.
 
-The Markdown source viewer numbers lines with `markdownDisplayLines()`, which
-strips a leading UTF-8 BOM (`U+FEFF`) before splitting on newlines so
-`text_span` highlights stay aligned with ingest locators.
+The Markdown source viewer renders the whole preview: headings, lists, emphasis,
+code, and tables. The sidecar `source` action renders Markdown to HTML once
+with markdown-it-py (raw HTML escaped) and caches it beside the Markdown in the
+source cache; Electron returns it as `html_url`. Each block carries
+`data-ls`/`data-le` source lines, so a citation adds a highlight class without
+re-rendering. When that HTML is missing, the viewer parses the Markdown itself.
+Both paths number lines with `markdownDisplayLines()`, which strips a leading UTF-8 BOM
+(`U+FEFF`) before splitting on newlines so `text_span` highlights stay aligned
+with ingest locators. The highlight covers the rendered block that contains
+those lines.
 
 ## Near-Term App Work
 

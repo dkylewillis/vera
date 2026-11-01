@@ -1,5 +1,6 @@
 import { siblingPdfPath, siblingSourcePath, sameFsPath } from './formatting';
-import { explorerEntryType } from './explorer';
+import { explorerEntryType, isConvertibleSource } from './explorer';
+import { CONVERTIBLE_SOURCE_TYPES } from '../../shared/source-types';
 import type { InspectResult, PipelineOptions } from '../types';
 
 export type ReconvertSourceResolution =
@@ -45,17 +46,17 @@ export function reconvertConvertOutput(
   return target.archivePath;
 }
 
-const CONVERTIBLE_TYPES = ['pdf', 'md'] as const;
+const CONVERTIBLE_TYPES = CONVERTIBLE_SOURCE_TYPES;
 
 function sourceStem(path: string): string {
-  return path.replace(/\.(vera|pdf|md|markdown)$/i, '');
+  return path.replace(/\.(vera|pdf|md|markdown|docx|pptx|xlsx)$/i, '');
 }
 
-function expectedEntryType(sourceFileName?: string | null): 'pdf' | 'md' | null {
+function expectedEntryType(sourceFileName?: string | null) {
   const name = sourceFileName?.trim();
   if (!name) return null;
   const type = explorerEntryType(name);
-  return type === 'pdf' || type === 'md' ? type : null;
+  return type && isConvertibleSource(type) ? type : null;
 }
 
 /** Locate the sibling source already listed next to a `.vera` archive. */
@@ -69,8 +70,8 @@ export function findSiblingSourcePath(
   if (sibling) {
     const listed = entries.find((entry) => {
       if (!sameFsPath(entry.path, sibling)) return false;
-      if (expectedType === 'pdf' || expectedType === 'md') return entry.type === expectedType;
-      return entry.type === 'pdf' || entry.type === 'md';
+      if (expectedType) return entry.type === expectedType;
+      return isConvertibleSource(entry.type);
     });
     if (listed) return listed.path;
   }

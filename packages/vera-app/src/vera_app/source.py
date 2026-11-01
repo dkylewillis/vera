@@ -9,11 +9,12 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from vera_app.cancellation import CancellationToken
+from vera_app.cancellation import CancellationToken, CancelledError
 from vera_app.documents import open_document
+from vera_app.markdown_html import ensure_markdown_html
 from vera_app.types import Request
 from vera_doc import VeraDocument
-from vera_ingest.viewer import export_source_document, get_source_document
+from vera_ingest.viewer import export_source_document, get_source_document, get_viewer_preview
 
 _SOURCE_COPY_CHUNK = 8 * 1024 * 1024
 
@@ -192,11 +193,68 @@ def extract_attachment_to_cache(
     return cache_path
 
 
+def _materialize_preview(doc: VeraDocument, cache_dir: Path, cancel: CancellationToken | None) -> dict[str, Any] | None:
+    """Return the ingest preview when this archive has one.
+
+    Word previews are Markdown so the existing line highlighter can mark them.
+    Slides and sheets keep their JSON media types. The displayed filename stays
+    the original Office name. Metadata and the on-disk cache are checked before
+    the preview bytes are read.
+    """
+    attachment_id = doc.metadata.get("viewer_preview_attachment_id")
+    if not isinstance(attachment_id, str) or not attachment_id:
+        return None
+    infos = doc.attachment_metadata([attachment_id])
+    if not infos:
+        return None
+    info = infos[0]
+    filename = str(doc.metadata.get("source_file_name") or info.get("filename") or "preview")
+    mime_type = str(info.get("media_type") or "application/octet-stream")
+    digest = str(info.get("checksum") or "")
+    size = int(info["size"])
+    if not digest:
+        preview = get_viewer_preview(doc)
+        if preview is None:
+            return None
+        digest = str(preview.checksum or hashlib.sha256(preview.data).hexdigest())
+        size = len(preview.data)
+    cache_filename = filename
+    if mime_type == "text/markdown" and not filename.lower().endswith((".md", ".markdown")):
+        cache_filename = f"{Path(filename).stem}.md"
+    cache_path = source_cache_path(cache_dir, digest, cache_filename)
+    if source_cache_hit(cache_path, size):
+        return source_result(filename, mime_type, digest, size, cache_path)
+    extracted = extract_attachment_to_cache(doc, attachment_id, cache_path, size, cancel)
+    return source_result(filename, mime_type, digest, size, extracted)
+
+
 def source(
     request: Request,
     cancel: CancellationToken | None = None,
 ) -> dict[str, Any]:
     """Materialize a source document for the document viewer.
+
+    Markdown sources (including Word previews) also get a cached HTML rendering
+    so the renderer inserts finished markup instead of parsing a large document
+    on its UI thread. When that rendering fails, the viewer parses the Markdown.
+    """
+    result = _materialize_source(request, cancel)
+    if result.get("mime_type") == "text/markdown":
+        try:
+            html_path = ensure_markdown_html(Path(str(result["cache_path"])), cancel)
+        except CancelledError:
+            raise
+        except Exception:
+            return result
+        result["html_cache_path"] = str(html_path)
+    return result
+
+
+def _materialize_source(
+    request: Request,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]:
+    """Copy or extract the viewer file into the source cache.
 
     Large manuals used to exceed the renderer watchdog because this path loaded
     the embedded original into Python, re-hashed it, and only then checked the
@@ -210,9 +268,15 @@ def source(
         return source_from_pdf(path, cache_dir, cancel)
     if path.suffix.lower() in {".md", ".markdown"}:
         return source_from_path(path, cache_dir, "text/markdown", cancel)
+    if path.suffix.lower() in {".docx", ".pptx", ".xlsx"}:
+        raise ValueError("Convert this Office file to preview it")
     sibling = sibling_source_file(path)
     doc = open_document(str(path))
     try:
+        if path.suffix.lower() == ".vera":
+            preview = _materialize_preview(doc, cache_dir, cancel)
+            if preview is not None:
+                return preview
         attachment_id = doc.metadata.get("source_attachment_id")
         if attachment_id:
             infos = doc.attachment_metadata([str(attachment_id)])

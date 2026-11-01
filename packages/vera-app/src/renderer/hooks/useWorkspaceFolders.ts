@@ -27,6 +27,8 @@ export type UseWorkspaceFoldersOptions = {
   onFolderRefreshed?: (folderPath: string) => void;
   /** Called instead of adding a library that overlaps an existing one. */
   onNestedLibrary?: (conflict: NestedLibraryConflict) => void;
+  /** Create or sync the hidden managed library after a folder becomes a library. */
+  onPrepareLibrary?: (folderPath: string) => Promise<void>;
 };
 
 export type AddFolderOptions = { allowNested?: boolean };
@@ -84,11 +86,15 @@ export function useWorkspaceFolders(options: UseWorkspaceFoldersOptions): {
     ));
     if (libraryPathsRef.current.includes(folder.path)) {
       await optionsRef.current.onOpenLibrary(folder.path);
+      if (optionsRef.current.onPrepareLibrary) {
+        await optionsRef.current.onPrepareLibrary(folder.path);
+        await refreshFolder(folder.path, { showBusy: false });
+      }
     }
   }
 
   async function addFolder(kind: WorkspaceFolderKind = 'library') {
-    const dir = await window.vera.pickFolder();
+    const dir = await window.vera.pickFolder(kind);
     if (!dir) return;
     await addFolderFromPath(dir, kind);
   }

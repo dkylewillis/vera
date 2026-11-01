@@ -21,6 +21,9 @@ cloud tools for a local-library request. Local discovery has no configured
 library root: use the path supplied by the user rather than guessing a
 Downloads folder.
 
+Call `vera_library_status` for a read-only look at a managed library. It does
+not sync or delete. Managed corpus hits may include `source_path`.
+
 Call `vera_library_info` when the server may be the Desktop agent service or
 the VERA Pro cloud connector. Unrestricted local MCP
 returns `unrestricted: true` and no `library_root`. A restricted server returns

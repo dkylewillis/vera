@@ -8,8 +8,10 @@ dependencies = [
   "vera-doc[onnx]>=0.3.2",
   "vera-ingest>=0.3.2",
   "vera-ingest-pymupdf>=0.3.2",
+  "vera-ingest-ooxml>=0.3.2",
   "vera-embed-openai>=0.3.2",
   "vera-mcp[viewer]>=0.3.2",
+  "markdown-it-py>=3",
 ]
 authors = [{name = "Kyle Willis"}]
 license = {text = "Apache-2.0"}

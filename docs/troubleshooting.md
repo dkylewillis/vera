@@ -156,8 +156,7 @@ to 32 directory levels below a library root. Files deeper than that are
 omitted from the tree; the listing payload sets `truncated: true`, but
 Explorer does not show a banner for that cap. Flatten the folder layout or
 open the nested directory as its own library. Subfolders start collapsed;
-expand a subfolder row to see its documents, and use **All** if the
-**Ready** or **To convert** filter is hiding them. Office and HTML sources
+expand a subfolder row to see its documents. Office and HTML sources
 (`.docx`, `.pptx`, `.xlsx`, `.html`, `.htm`) are not listed — convert those
 with the CLI Docling extra, then search the resulting `.vera`.
 

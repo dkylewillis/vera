@@ -162,6 +162,7 @@ def test_documented_cli_examples_parse():
         ["convert", "input.pdf", "output.vera", "--model", "hashing", "--json"],
         ["convert", "notes.md", "notes.vera", "--model", "hashing", "--json"],
         ["convert", "memo.docx", "memo.vera", "--parser", "docling", "--json"],
+        ["convert", "budget.xlsx", "budget.vera", "--json"],
         ["convert", "notes.html", "notes.vera", "--json"],
         [
             "convert",
@@ -659,6 +660,9 @@ def test_multi_format_ingest_plan_is_documented():
     assert "page_bbox" in plan
     assert "text_span" in plan
     assert "sheet_range" in plan
+    assert '"kind": "slide"' in plan
+    assert "provider `ooxml`" in plan
+    assert "--parser docling" in plan
     assert "Nothing here changes the `.vera` **0.2** schema" in plan
     assert "Do not convert PDFs to Markdown" in plan
 
@@ -1046,7 +1050,8 @@ def test_desktop_explorer_libraries_folders_and_tree():
         assert "vera.libraryPaths" in text
         assert "Make this a library" in text
     assert "## Libraries and folders" in desktop
-    assert "**Ready**" in desktop and "**To convert**" in desktop
+    assert "sync-arrow badge" in desktop
+    assert "**To convert**" not in desktop
     assert "Remove from Libraries" in desktop
     assert "buildExplorerTree" in architecture
     assert "pairExplorerDocuments" in architecture

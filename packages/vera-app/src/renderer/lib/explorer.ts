@@ -1,4 +1,10 @@
 import type { ExplorerSelection } from './formatting';
+import {
+  folderEntryType as sharedFolderEntryType,
+  isConvertibleSourceType,
+  type ConvertibleSourceType,
+  type FolderEntryType,
+} from '../../shared/source-types';
 
 /**
  * Keep Explorer scannable around the active library without fighting file
@@ -28,12 +34,9 @@ export function syncCollapsedFolders(
   ));
 }
 
-/** All documents, converted ("ready") documents, or sources not yet converted. */
-export type ExplorerFileFilter = 'all' | 'ready' | 'pending';
-
 export type ExplorerListEntry = {
   path: string;
-  type: 'vera' | 'pdf' | 'md';
+  type: FolderEntryType;
 };
 
 export type FileListModifiers = {
@@ -47,16 +50,13 @@ export type FileListSelection = {
   anchor: string | null;
 };
 
-export function explorerEntryType(path: string): 'vera' | 'pdf' | 'md' | null {
-  const lower = path.toLowerCase();
-  if (lower.endsWith('.vera')) return 'vera';
-  if (lower.endsWith('.pdf')) return 'pdf';
-  if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'md';
-  return null;
+export function explorerEntryType(path: string): FolderEntryType | null {
+  const name = path.split(/[/\\]/).pop() || path;
+  return sharedFolderEntryType(name);
 }
 
-export function isConvertibleSource(type: string | null): type is 'pdf' | 'md' {
-  return type === 'pdf' || type === 'md';
+export function isConvertibleSource(type: string | null): type is ConvertibleSourceType {
+  return isConvertibleSourceType(type);
 }
 
 /** File → Open Folder sends a directory; File → Open sends a `.vera` archive. */
@@ -77,49 +77,43 @@ export function routeOpenTarget(
   else handlers.openFile(targetPath);
 }
 
-/**
- * A document row selects its archive once converted, so `vera` paths are
- * "ready" and source paths are "pending".
- */
-export function explorerFileMatchesFilter(
-  type: 'vera' | 'pdf' | 'md',
-  filter: ExplorerFileFilter,
-): boolean {
-  if (filter === 'all') return true;
-  return filter === 'ready' ? type === 'vera' : type !== 'vera';
-}
-
-/** Drop hidden files from the Explorer selection when the filter changes. */
-export function pruneExplorerSelectionForFilter(
-  selected: string[],
-  filter: ExplorerFileFilter,
-  anchor: string | null = null,
-): FileListSelection {
-  const next = filter === 'all'
-    ? selected
-    : selected.filter((path) => {
-      const type = explorerEntryType(path);
-      return type !== null && explorerFileMatchesFilter(type, filter);
-    });
-  const nextAnchor = anchor && next.includes(anchor) ? anchor : null;
-  return { selected: next, anchor: nextAnchor };
-}
-
-export function partitionExplorerSelection(paths: string[]): { vera: string[]; pdf: string[]; md: string[] } {
-  const vera: string[] = [];
-  const pdf: string[] = [];
-  const md: string[] = [];
+export function partitionExplorerSelection(paths: string[]): {
+  vera: string[];
+  pdf: string[];
+  md: string[];
+  docx: string[];
+  pptx: string[];
+  xlsx: string[];
+} {
+  const groups = { vera: [], pdf: [], md: [], docx: [], pptx: [], xlsx: [] } as {
+    vera: string[];
+    pdf: string[];
+    md: string[];
+    docx: string[];
+    pptx: string[];
+    xlsx: string[];
+  };
   for (const path of paths) {
     const type = explorerEntryType(path);
-    if (type === 'vera') vera.push(path);
-    else if (type === 'pdf') pdf.push(path);
-    else if (type === 'md') md.push(path);
+    if (type) groups[type].push(path);
   }
-  return { vera, pdf, md };
+  return groups;
 }
 
-export function convertibleSelection(partitioned: { pdf: string[]; md: string[] }): string[] {
-  return [...partitioned.pdf, ...partitioned.md];
+export function convertibleSelection(partitioned: {
+  pdf: string[];
+  md: string[];
+  docx?: string[];
+  pptx?: string[];
+  xlsx?: string[];
+}): string[] {
+  return [
+    ...partitioned.pdf,
+    ...partitioned.md,
+    ...(partitioned.docx ?? []),
+    ...(partitioned.pptx ?? []),
+    ...(partitioned.xlsx ?? []),
+  ];
 }
 
 export type ExplorerTreeEntry = ExplorerListEntry & {
@@ -134,7 +128,7 @@ export type ExplorerTreeEntry = ExplorerListEntry & {
  */
 export type ExplorerDocument<E extends ExplorerTreeEntry = ExplorerTreeEntry> = {
   path: string;
-  type: 'vera' | 'pdf' | 'md';
+  type: FolderEntryType;
   label: string;
   archive: E | null;
   source: E | null;
@@ -148,7 +142,7 @@ export type ExplorerTreeFolder<E extends ExplorerTreeEntry = ExplorerTreeEntry> 
   relativePath: string;
   folders: ExplorerTreeFolder<E>[];
   documents: ExplorerDocument<E>[];
-  /** Whole-subtree counts, unaffected by the Explorer filter. */
+  /** Whole-subtree counts of converted documents and sources not converted yet. */
   readyCount: number;
   pendingCount: number;
 };
@@ -160,29 +154,50 @@ function fileStem(name: string): string {
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
+function managedSourceName(archiveName: string): string | null {
+  if (!archiveName.toLowerCase().endsWith('.vera')) return null;
+  const inner = archiveName.slice(0, -'.vera'.length);
+  return inner.includes('.') ? inner : null;
+}
+
 export function pairExplorerDocuments<E extends ExplorerTreeEntry>(entries: E[]): ExplorerDocument<E>[] {
-  const archives = new Map<string, E>();
+  const bySourceName = new Map<string, E>();
+  const byStem = new Map<string, E>();
   for (const entry of entries) {
-    if (entry.type === 'vera') archives.set(fileStem(entry.name).toLowerCase(), entry);
+    if (entry.type !== 'vera') continue;
+    const managed = managedSourceName(entry.name);
+    if (managed) bySourceName.set(managed.toLowerCase(), entry);
+    else byStem.set(fileStem(entry.name).toLowerCase(), entry);
   }
   // A PDF and a Markdown file with the same stem convert to the same archive;
   // pair the PDF, matching batch conversion's discovery order.
   const sources = entries
     .filter((entry) => entry.type !== 'vera')
-    .sort((a, b) => (a.type === b.type ? collator.compare(a.name, b.name) : a.type === 'pdf' ? -1 : 1));
+    .sort((a, b) => {
+      if (a.type === b.type) return collator.compare(a.name, b.name);
+      if (a.type === 'pdf') return -1;
+      if (b.type === 'pdf') return 1;
+      return collator.compare(a.type, b.type);
+    });
   const paired = new Set<string>();
   const documents: ExplorerDocument<E>[] = [];
   for (const source of sources) {
-    const key = fileStem(source.name).toLowerCase();
-    const archive = archives.get(key);
+    const managedKey = source.name.toLowerCase();
+    const stemKey = fileStem(source.name).toLowerCase();
+    const archive = bySourceName.get(managedKey) ?? byStem.get(stemKey);
+    const key = archive && bySourceName.has(managedKey) ? managedKey : stemKey;
     if (archive && !paired.has(key)) {
       paired.add(key);
-      documents.push({ path: archive.path, type: 'vera', label: fileStem(archive.name), archive, source });
+      documents.push({ path: archive.path, type: 'vera', label: fileStem(source.name), archive, source });
     } else {
       documents.push({ path: source.path, type: source.type, label: source.name, archive: null, source });
     }
   }
-  for (const [key, archive] of archives) {
+  for (const [key, archive] of bySourceName) {
+    if (paired.has(key)) continue;
+    documents.push({ path: archive.path, type: 'vera', label: managedSourceName(archive.name) || fileStem(archive.name), archive, source: null });
+  }
+  for (const [key, archive] of byStem) {
     if (paired.has(key)) continue;
     documents.push({ path: archive.path, type: 'vera', label: fileStem(archive.name), archive, source: null });
   }
@@ -251,21 +266,6 @@ export function buildExplorerTree<E extends ExplorerTreeEntry>(root: {
   }
 
   return finish(top, false);
-}
-
-/** Keep documents that match the filter and drop subfolders left empty. */
-export function filterExplorerTree<E extends ExplorerTreeEntry>(
-  folder: ExplorerTreeFolder<E>,
-  filter: ExplorerFileFilter,
-): ExplorerTreeFolder<E> {
-  if (filter === 'all') return folder;
-  return {
-    ...folder,
-    documents: folder.documents.filter((doc) => explorerFileMatchesFilter(doc.type, filter)),
-    folders: folder.folders
-      .map((child) => filterExplorerTree(child, filter))
-      .filter((child) => child.documents.length > 0 || child.folders.length > 0),
-  };
 }
 
 /** Rows in on-screen order: each folder's expanded subfolders, then its documents. */
@@ -419,7 +419,7 @@ export function explorerSelectionAfterFileList(options: {
   selectedVera: string[];
   selectedPdf: string[];
   clickedPath: string;
-  clickedType: 'vera' | 'pdf' | 'md';
+  clickedType: FolderEntryType;
   activeLibraryPath: string;
 }): ExplorerSelection | null {
   const { selectedVera, selectedPdf, clickedPath, clickedType, activeLibraryPath } = options;
@@ -431,7 +431,7 @@ export function explorerSelectionAfterFileList(options: {
   const remainingSource = selectedPdf[selectedPdf.length - 1];
   if (remainingSource) {
     const type = explorerEntryType(remainingSource);
-    if (type === 'pdf' || type === 'md') return { kind: 'file', path: remainingSource, type };
+    if (type && isConvertibleSource(type)) return { kind: 'file', path: remainingSource, type };
   }
   const folder = activeLibraryPath.trim();
   return folder ? { kind: 'folder', path: folder } : null;
@@ -451,7 +451,7 @@ export function explorerRowTone(options: {
   return 'idle';
 }
 
-const EXPLORER_INTERACTIVE_CLOSEST = '.fileRowWrap, .folderGroupHead, .subfolderRow, .folderEmpty, .explorerFileFilter, .explorerSectionHead, .explorerSectionHint';
+const EXPLORER_INTERACTIVE_CLOSEST = '.fileRowWrap, .folderGroupHead, .subfolderRow, .folderEmpty, .explorerSectionHead, .explorerSectionHint';
 
 type PointerNode = {
   classList: { contains(token: string): boolean };

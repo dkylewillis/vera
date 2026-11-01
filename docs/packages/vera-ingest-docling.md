@@ -2,7 +2,8 @@
 
 Optional Docling ingest pipeline plugin for VERA. Install it beside `vera-ingest`
 to register the `docling` provider under the `vera.ingest_pipelines` entry-point
-group.
+group. Word, PowerPoint, and Excel default to `ooxml`; pass `--parser docling`
+when you want this higher-fidelity layout path. HTML still resolves here.
 
 ## Install
 

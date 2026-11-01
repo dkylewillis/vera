@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
 import { Settings, User } from 'lucide-react';
 import type { ProAccount } from '../../shared/pro';
+import { useProAccount } from '../lib/proAccount';
 
 const EMPTY_ACCOUNT: ProAccount = {
   configured: false,
@@ -32,21 +32,7 @@ export function SidebarAccount({
   onOpenAccount: () => void;
   onOpenSettings: () => void;
 }) {
-  const [account, setAccount] = useState<ProAccount>(EMPTY_ACCOUNT);
-
-  useEffect(() => {
-    const api = typeof window !== 'undefined' ? window.vera : undefined;
-    if (!api?.proGetAccount) return undefined;
-    let cancelled = false;
-    void api.proGetAccount().then((next) => {
-      if (!cancelled) setAccount(next);
-    });
-    const unsubscribe = api.onProAccountChanged?.((next) => setAccount(next));
-    return () => {
-      cancelled = true;
-      unsubscribe?.();
-    };
-  }, []);
+  const account = useProAccount() ?? EMPTY_ACCOUNT;
 
   const label = sidebarAccountLabel(account);
   const pro = account.subscriptionStatus === 'active' || account.subscriptionStatus === 'trialing';

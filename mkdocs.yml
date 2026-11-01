@@ -140,6 +140,8 @@ nav:
           - Public package: reference/vera-ingest.md
   - vera-ingest-pymupdf:
       - Overview: packages/vera-ingest-pymupdf.md
+  - vera-ingest-ooxml:
+      - Overview: packages/vera-ingest-ooxml.md
   - vera-ingest-docling:
       - Overview: packages/vera-ingest-docling.md
   - vera-embed-openai:

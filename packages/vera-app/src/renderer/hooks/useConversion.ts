@@ -16,6 +16,7 @@ import {
 } from '../lib/conversion';
 import { convertDefaultsFromSelection, fileName, isPathInsideFolder, siblingSourcePath, type ExplorerSelection } from '../lib/formatting';
 import { explorerEntryType } from '../lib/explorer';
+import { librarySyncProblem, librarySyncTaskUpdate } from '../lib/managedLibrary';
 import { pipelineAcceptsPdf } from '../lib/convertPresets';
 import {
   findSiblingSourcePath,
@@ -313,7 +314,7 @@ export function createConversionController(getHost: () => ConversionHost) {
 
   async function chooseBatchDirectory() {
     const host = getHost();
-    const chosen = await window.vera.pickFolder();
+    const chosen = await window.vera.pickFolder('convert');
     if (chosen) {
       host.setBatchDirectory(chosen);
       host.setConvertMode('batch');
@@ -348,9 +349,58 @@ export function createConversionController(getHost: () => ConversionHost) {
   }
 
   /**
+   * Bring a managed library up to date: its `.vera/archives` mirror, the
+   * library's own convert settings, and its index. `unmanaged` means the
+   * folder has no `.vera/` and the caller should batch convert instead.
+   */
+  async function syncManagedLibrary(target: string): Promise<'ok' | 'attention' | 'unmanaged'> {
+    const host = getHost();
+    const requestId = crypto.randomUUID();
+    conversionCanceledRef.current = false;
+    conversionInterruptRef.current = null;
+    conversionRequestIdRef.current = requestId;
+    host.setConversionError(null);
+    host.setBatchConvertResult(null);
+    host.dispatchBackgroundTask({
+      type: 'start',
+      task: {
+        id: requestId,
+        kind: 'conversion',
+        label: 'Converting new files',
+        message: 'Checking library…',
+        path: target,
+      },
+    });
+    const off = window.vera.onAnswerEvent((event) => {
+      if (event.id !== requestId || event.event !== 'library_progress') return;
+      if (conversionInterruptRef.current === 'stop') return;
+      updateConversionTask(librarySyncTaskUpdate(event), requestId);
+    });
+    conversionProgressCleanupRef.current = { requestId, off };
+    try {
+      const report = await window.vera.syncLibrary(target, requestId);
+      if (conversionCanceledRef.current) return 'ok';
+      if (report?.managed === false) return 'unmanaged';
+      const problem = librarySyncProblem(report);
+      if (!problem) return 'ok';
+      host.setConversionError(problem);
+      return 'attention';
+    } catch (error) {
+      if (conversionCanceledRef.current) return 'ok';
+      host.setConversionError(error instanceof Error ? error.message : librarySyncProblem(null));
+      return 'attention';
+    } finally {
+      clearConversionUi(requestId);
+      conversionCanceledRef.current = false;
+      conversionInterruptRef.current = null;
+    }
+  }
+
+  /**
    * Explorer's Convert: start immediately with saved defaults, skipping
-   * archives that are already up to date. Opens the Convert view only when
-   * something needs attention.
+   * archives that are already up to date. Inside a managed library this syncs
+   * the library, so archives land in `.vera/archives` with the library's
+   * settings. Opens the Convert view only when something needs attention.
    */
   async function quickConvert(target: { paths?: string[]; directory?: string }) {
     const host = getHost();
@@ -359,12 +409,6 @@ export function createConversionController(getHost: () => ConversionHost) {
     const paths = (target.paths ?? []).filter(Boolean);
     const directory = target.directory?.trim() || '';
     if (!paths.length && !directory) return;
-    let libraryModel: Awaited<ReturnType<typeof libraryEmbeddingModel>> = null;
-    try {
-      libraryModel = await libraryEmbeddingModel(paths[0] || directory);
-    } catch {
-      libraryModel = null;
-    }
     if (paths.length) {
       host.setSelectedPdfs(paths);
       host.setConvertMode('selected');
@@ -372,12 +416,33 @@ export function createConversionController(getHost: () => ConversionHost) {
       host.setBatchDirectory(directory);
       host.setConvertMode('batch');
     }
+    const anchor = paths[0] || directory;
+    const synced = await syncManagedLibrary(paths.length ? parentFolder(anchor) : anchor);
+    if (synced === 'attention') {
+      host.setSideView('convert');
+      host.setSidebarCollapsed(false);
+    }
+    if (synced !== 'unmanaged') return;
+    const preparingId = crypto.randomUUID();
+    host.dispatchBackgroundTask({
+      type: 'start',
+      task: { id: preparingId, kind: 'operation', label: 'Preparing conversion' },
+    });
+    let libraryModel: Awaited<ReturnType<typeof libraryEmbeddingModel>> = null;
+    try {
+      libraryModel = await libraryEmbeddingModel(anchor);
+    } catch {
+      libraryModel = null;
+    } finally {
+      host.dispatchBackgroundTask({ type: 'finish', id: preparingId });
+    }
     const outcome = await batchConvertPdfs({
       paths,
       directory,
       overwrite: false,
       recursive: true,
       embeddingModel: libraryModel?.model ?? host.embeddingModel,
+      librarySyncChecked: true,
     });
     if (outcome !== 'ok') {
       host.setSideView('convert');
@@ -486,7 +551,8 @@ export function createConversionController(getHost: () => ConversionHost) {
    * Run a conversion. Options override the Convert view's directory, overwrite,
    * nested-folder, and embedding settings for this run only. Resolves `ok`
    * when every file converted or was already up to date (or the user stopped
-   * it), and `attention` when the Convert view has an error or failures to show.
+   * it), and `attention` when the Convert view has an error, a failure, or a
+   * file that converted with skipped parts.
    */
   async function batchConvertPdfs(options: {
     paths?: string[];
@@ -494,6 +560,8 @@ export function createConversionController(getHost: () => ConversionHost) {
     overwrite?: boolean;
     recursive?: boolean;
     embeddingModel?: string;
+    /** The caller already learned the target is outside a managed library. */
+    librarySyncChecked?: boolean;
   } = {}): Promise<'ok' | 'attention'> {
     const host = getHost();
     const selectedPaths = (options.paths ?? []).map((entry) => entry.trim()).filter(Boolean);
@@ -510,6 +578,14 @@ export function createConversionController(getHost: () => ConversionHost) {
     host.setBatchConvertResult(null);
     host.setReconvertNotice(null);
     const reconvertOutput = reconvertConvertOutput(reconvertTargetRef.current, selectedPaths);
+    if (!reconvertOutput && !options.librarySyncChecked) {
+      const synced = await syncManagedLibrary(selectedPaths.length ? parentFolder(selectedPaths[0]) : directory);
+      if (synced !== 'unmanaged') {
+        if (selectedPaths.length) host.setSelectedPdfs([]);
+        restoreConvertDefaultsAfterReconvert();
+        return synced;
+      }
+    }
     const preflight = await host.call<{
       ok: boolean;
       detail?: string;
@@ -595,8 +671,14 @@ export function createConversionController(getHost: () => ConversionHost) {
       const convertedOutput = reconvertOutput
         ? (response.result as { output?: string }).output || reconvertOutput
         : null;
+      const singleResult = response.result as { output?: string; warnings?: string[] };
       const result = convertedOutput
-        ? singleConvertAsBatchResult({ outputPath: convertedOutput, overwrite: true })
+        ? singleConvertAsBatchResult({
+          outputPath: convertedOutput,
+          inputPath: selectedPaths[0],
+          overwrite: true,
+          warnings: singleResult.warnings,
+        })
         : response.result as BatchConvertResult;
       host.setBatchConvertResult(result);
       refreshFoldersAfterConversion(result.directory || refreshRoot);
@@ -604,7 +686,8 @@ export function createConversionController(getHost: () => ConversionHost) {
       if (selectedPaths.length) {
         host.setSelectedPdfs([]);
       }
-      return result.failed > 0 || result.malformed > 0 ? 'attention' : 'ok';
+      const issueCount = result.warnings?.length ?? 0;
+      return result.failed > 0 || result.malformed > 0 || issueCount > 0 ? 'attention' : 'ok';
     } catch (error) {
       if (conversionRequestWasSuperseded(conversionRequestId)) return 'ok';
       const message = error instanceof Error
@@ -642,6 +725,10 @@ export function createConversionController(getHost: () => ConversionHost) {
     skipCurrentConversion,
     batchConvertPdfs,
   };
+}
+
+function parentFolder(filePath: string): string {
+  return filePath.replace(/[/\\][^/\\]+$/, '');
 }
 
 function sourceSelectionType(path: string): 'pdf' | 'md' {

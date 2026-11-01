@@ -10,6 +10,7 @@ generated from source docstrings using [mkdocstrings](https://mkdocstrings.githu
 | [vera-doc](vera.md) | `import vera_doc` | Storage, CRUD, search, corpus, library indexes |
 | [vera-ingest](vera-ingest.md) | `import vera_ingest` | Conversion registry, shared types, archive writing |
 | [vera-ingest-pymupdf](../packages/vera-ingest-pymupdf.md) | `import vera_ingest_pymupdf` | Default PyMuPDF PDF parsing and OCR |
+| [vera-ingest-ooxml](../packages/vera-ingest-ooxml.md) | `import vera_ingest_ooxml` | Default Word, PowerPoint, and Excel ingest |
 | [vera-embed-openai](../packages/vera-embed-openai.md) | `import vera_embed_openai` | Official OpenAI embeddings plugin |
 | [vera](vera-cli.md) | `import vera_cli` | Command-line interface |
 | [vera-mcp](vera-mcp.md) | `import vera_mcp` | MCP server for AI agents |

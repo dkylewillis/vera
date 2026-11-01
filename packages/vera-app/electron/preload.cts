@@ -1,6 +1,6 @@
 import type { AppSettings, Session, StreamEvent } from '../src/shared/contracts.js';
 import type { ProAccount } from '../src/shared/pro.js';
-import type { IPC_CHANNELS as IpcChannels } from '../src/shared/protocol.js';
+import type { FolderPickPurpose, IPC_CHANNELS as IpcChannels } from '../src/shared/protocol.js';
 
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -61,6 +61,9 @@ const IPC_CHANNELS: typeof IpcChannels = {
   serviceStop: 'vera:serviceStop',
   serviceRotateToken: 'vera:serviceRotateToken',
   serviceEvent: 'vera:serviceEvent',
+  shareArchive: 'vera:shareArchive',
+  syncLibrary: 'vera:syncLibrary',
+  librarySync: 'vera:librarySync',
 };
 
 contextBridge.exposeInMainWorld('vera', {
@@ -96,7 +99,7 @@ contextBridge.exposeInMainWorld('vera', {
   listModes: () => ipcRenderer.invoke(IPC_CHANNELS.listModes),
   openModesFolder: () => ipcRenderer.invoke(IPC_CHANNELS.openModesFolder),
   pickArchive: () => ipcRenderer.invoke(IPC_CHANNELS.pickArchive),
-  pickFolder: () => ipcRenderer.invoke(IPC_CHANNELS.pickFolder),
+  pickFolder: (purpose?: FolderPickPurpose) => ipcRenderer.invoke(IPC_CHANNELS.pickFolder, purpose),
   listFolder: (dir: string) => ipcRenderer.invoke(IPC_CHANNELS.listFolder, dir),
   pathExists: (targetPath: string) => ipcRenderer.invoke(IPC_CHANNELS.pathExists, targetPath),
   showInFolder: (targetPath: string) => ipcRenderer.invoke(IPC_CHANNELS.showInFolder, targetPath),
@@ -105,6 +108,8 @@ contextBridge.exposeInMainWorld('vera', {
   getConvertLogPath: () => ipcRenderer.invoke(IPC_CHANNELS.getConvertLogPath),
   trashWorkspaceFile: (filePath: string, folderPath: string) => ipcRenderer.invoke(IPC_CHANNELS.trashWorkspaceFile, filePath, folderPath),
   setWatchedFolders: (paths: string[]) => ipcRenderer.invoke(IPC_CHANNELS.setWatchedFolders, paths),
+  syncLibrary: (folderPath: string, requestId?: string) => ipcRenderer.invoke(IPC_CHANNELS.syncLibrary, folderPath, requestId),
+  shareArchive: (archivePath: string) => ipcRenderer.invoke(IPC_CHANNELS.shareArchive, archivePath),
   pickPdf: () => ipcRenderer.invoke(IPC_CHANNELS.pickPdf),
   saveAny: () => ipcRenderer.invoke(IPC_CHANNELS.saveAny),
   openTargetReady: () => ipcRenderer.invoke(IPC_CHANNELS.openTargetReady),
@@ -122,6 +127,11 @@ contextBridge.exposeInMainWorld('vera', {
     const listener = (_event: unknown, path: string) => callback(path);
     ipcRenderer.on(IPC_CHANNELS.folderChanged, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.folderChanged, listener);
+  },
+  onLibrarySync: (callback: (folderPath: string, report: unknown) => void) => {
+    const listener = (_event: unknown, folderPath: string, report: unknown) => callback(folderPath, report);
+    ipcRenderer.on(IPC_CHANNELS.librarySync, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.librarySync, listener);
   },
   onAnswerEvent: (callback: (data: StreamEvent) => void) => {
     const listener = (_event: unknown, data: StreamEvent) => callback(data);

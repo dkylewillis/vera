@@ -8,6 +8,7 @@ dependencies = [
   "vera-doc>=0.3.2",
   "vera-ingest>=0.3.2",
   "vera-ingest-pymupdf>=0.3.2",
+  "vera-ingest-ooxml>=0.3.2",
   "vera-embed-openai>=0.3.2",
 ]
 authors = [{name = "Kyle Willis"}]

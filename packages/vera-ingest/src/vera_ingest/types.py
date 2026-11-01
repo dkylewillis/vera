@@ -157,6 +157,19 @@ def ensure_ingest_request(options: IngestRequest | IngestOptions) -> IngestReque
 
 
 @dataclass
+class IngestPreview:
+    """Viewer payload generated at ingest and stored beside the original file.
+
+    Word stores a Markdown preview. Slides and sheets store JSON the desktop
+    viewer renders directly. ``None`` leaves existing pipelines unchanged.
+    """
+
+    media_type: str
+    filename: str
+    data: bytes
+
+
+@dataclass
 class IngestResult:
     """Normalized bundle consumed by VERA's shared archive writer."""
 
@@ -167,3 +180,5 @@ class IngestResult:
     parser_version: str
     chunking_strategy: str
     diagnostics: dict[str, Any] = field(default_factory=dict)
+    viewer_preview: IngestPreview | None = None
+    warnings: list[str] = field(default_factory=list)

@@ -31,6 +31,7 @@ members = [
     "vera-embed-openai",
     "vera-ingest",
     "vera-ingest-docling",
+    "vera-ingest-ooxml",
     "vera-ingest-pymupdf",
     "vera-lab",
     "vera-mcp",
@@ -4788,6 +4789,7 @@ dependencies = [
     { name = "vera-doc" },
     { name = "vera-embed-openai" },
     { name = "vera-ingest" },
+    { name = "vera-ingest-ooxml" },
     { name = "vera-ingest-pymupdf" },
 ]
 
@@ -4805,6 +4807,7 @@ requires-dist = [
     { name = "vera-embed-openai", editable = "packages/vera-embed-openai" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
     { name = "vera-ingest-docling", marker = "extra == 'docling'", editable = "packages/vera-ingest-docling" },
+    { name = "vera-ingest-ooxml", editable = "packages/vera-ingest-ooxml" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
     { name = "vera-mcp", marker = "extra == 'mcp'", editable = "packages/vera-mcp" },
 ]
@@ -4815,18 +4818,22 @@ name = "vera-app"
 version = "0.3.2"
 source = { editable = "packages/vera-app" }
 dependencies = [
+    { name = "markdown-it-py" },
     { name = "vera-doc", extra = ["onnx"] },
     { name = "vera-embed-openai" },
     { name = "vera-ingest" },
+    { name = "vera-ingest-ooxml" },
     { name = "vera-ingest-pymupdf" },
     { name = "vera-mcp", extra = ["viewer"] },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "markdown-it-py", specifier = ">=3" },
     { name = "vera-doc", extras = ["onnx"], editable = "packages/vera-doc" },
     { name = "vera-embed-openai", editable = "packages/vera-embed-openai" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
+    { name = "vera-ingest-ooxml", editable = "packages/vera-ingest-ooxml" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
     { name = "vera-mcp", extras = ["viewer"], editable = "packages/vera-mcp" },
 ]
@@ -4928,6 +4935,25 @@ requires-dist = [
 ]
 
 [[package]]
+name = "vera-ingest-ooxml"
+version = "0.3.2"
+source = { editable = "packages/vera-ingest-ooxml" }
+dependencies = [
+    { name = "openpyxl" },
+    { name = "python-docx" },
+    { name = "python-pptx" },
+    { name = "vera-ingest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "openpyxl", specifier = ">=3.1" },
+    { name = "python-docx", specifier = ">=1.1" },
+    { name = "python-pptx", specifier = ">=1.0" },
+    { name = "vera-ingest", editable = "packages/vera-ingest" },
+]
+
+[[package]]
 name = "vera-ingest-pymupdf"
 version = "0.3.2"
 source = { editable = "packages/vera-ingest-pymupdf" }
@@ -4992,6 +5018,7 @@ dependencies = [
     { name = "vera-doc" },
     { name = "vera-embed-openai" },
     { name = "vera-ingest" },
+    { name = "vera-ingest-ooxml" },
     { name = "vera-ingest-pymupdf" },
 ]
 
@@ -5052,6 +5079,7 @@ requires-dist = [
     { name = "vera-embed-openai", editable = "packages/vera-embed-openai" },
     { name = "vera-ingest", editable = "packages/vera-ingest" },
     { name = "vera-ingest-docling", marker = "extra == 'docling'", editable = "packages/vera-ingest-docling" },
+    { name = "vera-ingest-ooxml", editable = "packages/vera-ingest-ooxml" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
     { name = "vera-lab", marker = "extra == 'dev'", editable = "packages/vera-lab" },
     { name = "vera-mcp", marker = "extra == 'dev'", editable = "packages/vera-mcp" },

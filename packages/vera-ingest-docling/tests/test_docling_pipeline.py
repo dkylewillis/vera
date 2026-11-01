@@ -576,15 +576,18 @@ def test_build_converter_office_html_skips_pdf_layout_models(monkeypatch):
 
 
 def test_office_html_suffixes_resolve_to_docling():
+    from vera_ingest_ooxml import ensure_registered as ensure_ooxml
     from vera_ingest_pymupdf import ensure_registered as ensure_pymupdf
 
     ensure_pymupdf()
+    ensure_ooxml()
     from vera_ingest_docling import ensure_registered
 
     ensure_registered()
-    assert resolve_ingest_parser("memo.docx") == "docling"
-    assert resolve_ingest_parser("slides.pptx") == "docling"
-    assert resolve_ingest_parser("budget.xlsx") == "docling"
+    assert resolve_ingest_parser("memo.docx") == "ooxml"
+    assert resolve_ingest_parser("slides.pptx") == "ooxml"
+    assert resolve_ingest_parser("budget.xlsx") == "ooxml"
+    assert resolve_ingest_parser("memo.docx", parser="docling") == "docling"
     assert resolve_ingest_parser("notes.html") == "docling"
     assert resolve_ingest_parser("notes.htm") == "docling"
     assert resolve_ingest_parser("manual.pdf") == "pymupdf"

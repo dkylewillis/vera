@@ -13,7 +13,7 @@ from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import BaseModel, Field
 
 from vera_doc import VeraDocument
-from vera_ingest.viewer import get_chunk_json, get_source_document
+from vera_ingest.viewer import get_chunk_json, get_source_document, get_viewer_preview
 
 from .access_policy import AccessDenied, AccessPolicy
 
@@ -130,10 +130,16 @@ def source_view(
     chunk = read_chunk(ref, policy=policy)
     base = {"file": str(path), "chunk_id": ref.chunk_id, "text": chunk["text"]}
     with VeraDocument.open(path) as doc:
+        preview = get_viewer_preview(doc)
         try:
             source = get_source_document(doc)
         except ValueError as exc:
-            return {**base, "kind": "text", "notice": str(exc)}
+            if preview is None or preview.media_type != "text/markdown":
+                return {**base, "kind": "text", "notice": str(exc)}
+            source = preview
+        else:
+            if preview is not None and preview.media_type == "text/markdown":
+                source = preview
     if len(source.data) > MAX_SOURCE_BYTES:
         return {**base, "kind": "text", "notice": "Original exceeds the 100 MiB preview limit."}
     regions = chunk.get("regions", [])
@@ -176,10 +182,14 @@ def source_view(
             "page_count": count,
             "notice": "" if spans else "No stored line highlights.",
         }
+    label = chunk.get("citation_label")
+    notice = "This source type has no preview; showing stored passage."
+    if isinstance(label, str) and label.strip():
+        notice = f"{label.strip()}. {notice}"
     return {
         **base,
         "kind": "text",
-        "notice": "This source type has no preview; showing stored passage.",
+        "notice": notice,
     }
 
 

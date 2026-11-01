@@ -20,6 +20,18 @@ from vera_ingest import (
     batch_convert,
     convert,
 )
+from vera_ingest.convert import read_ingest_warnings
+from vera_ingest.library import (
+    LibraryBusyError,
+    LibraryExistsError,
+    LibraryNotFoundError,
+    NestedLibraryError,
+    init_library,
+    library_status,
+    list_trash,
+    restore_from_trash,
+    sync_library,
+)
 from vera_ingest.viewer import (
     ensure_requested_figures,
     export_figures,
@@ -170,6 +182,9 @@ def cmd_convert(args) -> int:
                     print(f"Malformed {entry['output']}: {issues}", file=sys.stderr)
                 for entry in report["errors"]:
                     print(f"Failed {entry['input']}: {entry['error']}", file=sys.stderr)
+                for entry in report.get("warnings") or []:
+                    for message in entry.get("warnings") or []:
+                        print(f"Warning {entry['input']}: {message}", file=sys.stderr)
             return 1 if unsuccessful else 0
 
         output = args.output or str(input_path.with_suffix(".vera"))
@@ -205,10 +220,16 @@ def cmd_convert(args) -> int:
         else:
             print(str(exc), file=sys.stderr)
         return 1
+    warnings = read_ingest_warnings(path)
     if args.json:
-        print(json.dumps({"ok": True, "output": str(path)}))
+        payload: dict[str, object] = {"ok": True, "output": str(path)}
+        if warnings:
+            payload["warnings"] = warnings
+        print(json.dumps(payload))
     else:
         print(f"Created {path}")
+        for message in warnings:
+            print(f"Warning: {message}", file=sys.stderr)
     return 0
 
 
@@ -246,6 +267,18 @@ def _emit_get_error(args, message: str) -> int:
     return 1
 
 
+def _print_location(metadata, page_start, page_end) -> None:
+    raw = metadata
+    if isinstance(raw, str):
+        raw = json.loads(raw)
+    label = raw.get("citation_label") if isinstance(raw, dict) else None
+    if isinstance(label, str) and label.strip():
+        print(f"Location: {label.strip()}")
+        return
+    page = page_start if page_start == page_end else f"{page_start}-{page_end}"
+    print(f"Page: {page}")
+
+
 def cmd_get(args) -> int:
     chunk_id = args.chunk_id
     if not str(chunk_id).strip():
@@ -271,12 +304,7 @@ def cmd_get(args) -> int:
             return 0
         citation = Citation.from_metadata(records[0].metadata)
         print(f"Source: {citation.source_filename}")
-        page = (
-            citation.page_start
-            if citation.page_start == citation.page_end
-            else f"{citation.page_start}-{citation.page_end}"
-        )
-        print(f"Page: {page}")
+        _print_location(records[0].metadata, citation.page_start, citation.page_end)
         print(f"Heading: {citation.heading_path or ''}")
         print()
         print(records[0].text)
@@ -362,14 +390,12 @@ def cmd_search(args) -> int:
             file = getattr(result, "file", None)
             if file:
                 print(f"File: {file}")
+            source_path = getattr(result, "source_path", None)
+            if source_path:
+                print(f"Source path: {source_path}")
             citation = result.citation
             print(f"Source: {citation.source_filename}")
-            page = (
-                citation.page_start
-                if citation.page_start == citation.page_end
-                else f"{citation.page_start}-{citation.page_end}"
-            )
-            print(f"Page: {page}")
+            _print_location(result.record.metadata, citation.page_start, citation.page_end)
             print(f"Heading: {citation.heading_path or ''}")
             print()
             print(result.record.text)
@@ -629,3 +655,127 @@ def cmd_eval(args) -> int:
             f"  Hits: {report['hits']}/{report['total']} ({report['hit_rate']:.0%})  MRR: {report['mrr']:.3f}"
         )
     return 0 if all_ok else 1
+
+
+def _print_library_report(report: dict) -> None:
+    print(f"Library: {report.get('directory', '')}")
+    if report.get("managed") is False:
+        print("Managed: no")
+        adoptable = report.get("adoptable") or []
+        if adoptable:
+            print(f"Adoptable archives: {len(adoptable)}")
+        return
+    print(
+        "Sync: "
+        f"{report.get('converted', 0)} converted, "
+        f"{report.get('moved', 0)} moved, "
+        f"{report.get('trashed', 0)} trashed, "
+        f"{report.get('pending_trash', 0)} pending delete, "
+        f"{report.get('skipped', 0)} unchanged, "
+        f"{report.get('failed', 0)} failed"
+    )
+    if report.get("needs_confirmation"):
+        print(
+            "Confirmation required before deleting that many archives. "
+            "Re-run with --confirm-deletes."
+        )
+    for entry in report.get("errors") or []:
+        print(f"Failed {entry.get('input')}: {entry.get('error')}", file=sys.stderr)
+    for entry in report.get("warnings") or []:
+        for message in entry.get("warnings") or []:
+            print(f"Warning {entry.get('input')}: {message}", file=sys.stderr)
+    if report.get("error"):
+        print(str(report["error"]), file=sys.stderr)
+
+
+def _library_exit(args, report: dict) -> int:
+    if getattr(args, "json", False):
+        print(json.dumps(report))
+    else:
+        _print_library_report(report)
+    if report.get("error") or report.get("failed"):
+        return 1
+    return 0
+
+
+def _library_error(args, exc: BaseException) -> int:
+    return _emit_cli_error(args, str(exc), code=1)
+
+
+def cmd_library_init(args) -> int:
+    try:
+        report = init_library(
+            args.directory,
+            adopt=args.adopt,
+            model=args.model,
+            parser=args.parser,
+            pipeline_options=_pipeline_options_from_args(args) or None,
+            embedder_options=_embedder_options_from_args(args) or None,
+            metadata=_metadata_from_args(args),
+        )
+    except (LibraryExistsError, NestedLibraryError, NotADirectoryError, ValueError, OSError) as exc:
+        return _library_error(args, exc)
+    if args.json:
+        print(json.dumps(report))
+    else:
+        print(f"Library: {report['directory']}")
+        print(f"Id: {report['library_id']}")
+        print(f"Adopted: {len(report['adopted'])}")
+        for entry in report["errors"]:
+            print(f"Failed {entry['input']}: {entry['error']}", file=sys.stderr)
+    return 1 if report["failed"] else 0
+
+
+def cmd_library_sync(args) -> int:
+    try:
+        report = sync_library(
+            args.directory,
+            dry_run=args.dry_run,
+            confirm_deletes=args.confirm_deletes,
+            reconvert=args.reconvert,
+        )
+    except (LibraryNotFoundError, LibraryBusyError, NotADirectoryError, ValueError, OSError) as exc:
+        return _library_error(args, exc)
+    return _library_exit(args, report)
+
+
+def cmd_library_status(args) -> int:
+    try:
+        report = library_status(args.directory)
+    except (LibraryNotFoundError, NotADirectoryError, ValueError, OSError) as exc:
+        return _library_error(args, exc)
+    return _library_exit(args, report)
+
+
+def cmd_library_trash_list(args) -> int:
+    try:
+        report = list_trash(args.directory)
+    except (LibraryNotFoundError, NotADirectoryError, ValueError, OSError) as exc:
+        return _library_error(args, exc)
+    if args.json:
+        print(json.dumps(report))
+    else:
+        entries = report["entries"]
+        print(f"Trash: {len(entries)}")
+        for entry in entries:
+            print(f"{entry['trashed_at']}  {entry['source_path']}")
+    return 0
+
+
+def cmd_library_restore(args) -> int:
+    try:
+        report = restore_from_trash(args.directory, args.entry)
+    except (
+        LibraryNotFoundError,
+        NotADirectoryError,
+        FileNotFoundError,
+        FileExistsError,
+        ValueError,
+        OSError,
+    ) as exc:
+        return _library_error(args, exc)
+    if args.json:
+        print(json.dumps(report))
+    else:
+        print(f"Restored {report['restored']}")
+    return 0

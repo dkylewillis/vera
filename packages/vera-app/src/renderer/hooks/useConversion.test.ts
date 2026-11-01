@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createConversionController, pipelineForRun, type ConversionHost } from './useConversion';
-import type { BatchConvertResult } from '../types';
+import type { BatchConvertResult, LibrarySyncReport, StreamEvent } from '../types';
 
 function host(overrides: Partial<ConversionHost> = {}): ConversionHost {
   return {
@@ -88,7 +88,25 @@ describe('createConversionController', () => {
     expect(setSideView).toHaveBeenCalledWith('convert');
   });
 
+  it('syncs a managed library from the Convert view instead of batch converting', async () => {
+    const request = vi.fn();
+    const syncLibrary = vi.fn(async () => ({ managed: true, ok: true, converted: 1, errors: [] }));
+    vi.stubGlobal('window', { vera: { request, syncLibrary, onAnswerEvent: () => () => undefined } });
+    const call = vi.fn() as unknown as ConversionHost['call'];
+    const controller = createConversionController(() => host({ convertMode: 'batch', call }));
+
+    const outcome = await controller.batchConvertPdfs({ directory: 'C:\\Users\\me\\Desktop\\Manuals' });
+
+    expect(outcome).toBe('ok');
+    expect(syncLibrary).toHaveBeenCalledWith('C:\\Users\\me\\Desktop\\Manuals', expect.any(String));
+    expect(call).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it('blocks convert when embedder preflight fails', async () => {
+    vi.stubGlobal('window', {
+      vera: { syncLibrary: async () => ({ managed: false }), onAnswerEvent: () => () => undefined },
+    });
     const setConversionError = vi.fn();
     const dispatchBackgroundTask = vi.fn();
     const call = vi.fn(async () => ({
@@ -113,7 +131,10 @@ describe('createConversionController', () => {
     expect(setConversionError).toHaveBeenCalledWith(
       'Embedding provider is not ready. Set OPENAI_API_KEY under File > Settings → Embeddings, then convert again.',
     );
-    expect(dispatchBackgroundTask).not.toHaveBeenCalled();
+    expect(dispatchBackgroundTask).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: 'start',
+      task: expect.objectContaining({ label: 'Conversion' }),
+    }));
   });
 
   it('does not prefill a Docling pipeline the desktop Convert view cannot run', async () => {
@@ -371,16 +392,32 @@ describe('createConversionController', () => {
       };
     }
 
-    function setup(result: BatchConvertResult) {
+    function setup(result: BatchConvertResult, syncReport: LibrarySyncReport | null = { managed: false }) {
       const request = vi.fn(async (payload: Record<string, unknown>) => {
         if (payload.action === 'inspect') {
           return { ok: true, result: { default_embedding_model: 'vera-hashing-384' } };
         }
         return { ok: true, result };
       });
+      let progressListener: ((event: StreamEvent) => void) | null = null;
+      const syncLibrary = vi.fn(async () => {
+        progressListener?.({ id: 'req-quick', event: 'library_progress', phase: 'convert', completed: 0, total: 1, input: 'new/report.pdf' });
+        return syncReport;
+      });
       vi.stubGlobal('crypto', { randomUUID: () => 'req-quick' });
-      vi.stubGlobal('window', { vera: { request, onAnswerEvent: () => () => undefined } });
+      vi.stubGlobal('window', {
+        vera: {
+          request,
+          syncLibrary,
+          onAnswerEvent: (listener: (event: StreamEvent) => void) => {
+            progressListener = listener;
+            return () => { progressListener = null; };
+          },
+        },
+      });
       const setSideView = vi.fn();
+      const setConversionError = vi.fn();
+      const dispatchBackgroundTask = vi.fn();
       const controller = createConversionController(() => host({
         folders: [library],
         libraryPaths: ['C:\\library'],
@@ -388,9 +425,68 @@ describe('createConversionController', () => {
         batchOverwrite: true,
         call: (async () => ({ ok: true })) as ConversionHost['call'],
         setSideView,
+        setConversionError,
+        dispatchBackgroundTask,
       }));
-      return { request, setSideView, controller };
+      return { request, syncLibrary, setSideView, setConversionError, dispatchBackgroundTask, controller };
     }
+
+    it('syncs a managed library instead of writing archives beside its sources', async () => {
+      const { request, syncLibrary, setSideView, controller } = setup(
+        batchResult(),
+        { managed: true, ok: true, converted: 1, errors: [] },
+      );
+
+      await controller.quickConvert({ directory: 'C:\\library\\new' });
+
+      expect(syncLibrary).toHaveBeenCalledWith('C:\\library\\new', 'req-quick');
+      expect(request).not.toHaveBeenCalled();
+      expect(setSideView).not.toHaveBeenCalled();
+    });
+
+    it('syncs the folder holding selected files, whatever kind of root Explorer shows', async () => {
+      const { syncLibrary, request, controller } = setup(
+        batchResult(),
+        { managed: true, ok: true, converted: 1, errors: [] },
+      );
+
+      await controller.quickConvert({ paths: ['F:\\Manuals\\Chapter_66___SIGNS.docx'] });
+
+      expect(syncLibrary).toHaveBeenCalledWith('F:\\Manuals', 'req-quick');
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    it('reports progress while the library syncs', async () => {
+      const { dispatchBackgroundTask, controller } = setup(
+        batchResult(),
+        { managed: true, ok: true, converted: 1, errors: [] },
+      );
+
+      await controller.quickConvert({ directory: 'C:\\library\\new' });
+
+      expect(dispatchBackgroundTask).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'start',
+        task: expect.objectContaining({ kind: 'conversion', label: 'Converting new files' }),
+      }));
+      expect(dispatchBackgroundTask).toHaveBeenCalledWith({
+        type: 'update',
+        id: 'req-quick',
+        update: expect.objectContaining({ message: 'Converting 1 of 1', currentItem: 'new/report.pdf' }),
+      });
+      expect(dispatchBackgroundTask).toHaveBeenLastCalledWith({ type: 'finish', id: 'req-quick' });
+    });
+
+    it('opens the Convert view when a library sync cannot convert a file', async () => {
+      const { setSideView, setConversionError, controller } = setup(
+        batchResult(),
+        { managed: true, ok: false, failed: 1, errors: [{ input: 'new/report.pdf', error: 'broken' }] },
+      );
+
+      await controller.quickConvert({ directory: 'C:\\library\\new' });
+
+      expect(setConversionError).toHaveBeenLastCalledWith('Some files did not convert:\nnew/report.pdf: broken');
+      expect(setSideView).toHaveBeenCalledWith('convert');
+    });
 
     it('converts a folder now with the library model, skipping existing archives', async () => {
       const { request, setSideView, controller } = setup(batchResult());
@@ -409,6 +505,21 @@ describe('createConversionController', () => {
         'req-quick',
       );
       expect(setSideView).not.toHaveBeenCalled();
+    });
+
+    it('opens the Convert view when a file converts with issues', async () => {
+      const { setSideView, controller } = setup(batchResult({
+        converted: 1,
+        warnings: [{
+          input: 'C:\\library\\new\\zones.docx',
+          output: 'C:\\library\\new\\zones.docx.vera',
+          warnings: ['Header and footer text was left out of search.'],
+        }],
+      }));
+
+      await controller.quickConvert({ paths: ['C:\\library\\new\\zones.docx'] });
+
+      expect(setSideView).toHaveBeenCalledWith('convert');
     });
 
     it('opens the Convert view when a file fails', async () => {

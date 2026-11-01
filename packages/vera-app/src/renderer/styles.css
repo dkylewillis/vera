@@ -591,42 +591,6 @@ button {
   align-content: start;
 }
 
-.explorerFileFilter {
-  display: flex;
-  gap: 2px;
-  align-self: start;
-  margin: 3px 7px 7px;
-}
-
-.explorerFileFilter button {
-  min-width: 0;
-  padding: 3px 5px 4px;
-  color: var(--text-faint);
-  background: transparent;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 2px 2px 0 0;
-  font-size: 10.5px;
-  font-weight: 650;
-}
-
-.explorerFileFilter button:hover {
-  color: var(--text-muted);
-  background: color-mix(in srgb, var(--text-faint) 8%, transparent);
-}
-
-.explorerFileFilter button.active {
-  color: var(--accent-text);
-  background: transparent;
-  border-bottom-color: var(--accent);
-  box-shadow: none;
-}
-
-.explorerFileFilter button:focus-visible {
-  outline: none;
-  box-shadow: var(--ring);
-}
-
 .explorerSection {
   display: grid;
   gap: 0;
@@ -695,6 +659,18 @@ button {
 .subfolderGroup {
   display: grid;
   min-width: 0;
+}
+
+.subfolderRowWrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding-right: 4px;
+}
+
+.subfolderRowWrap .subfolderRow {
+  flex: 1;
 }
 
 .subfolderRow {
@@ -840,6 +816,51 @@ button {
   white-space: nowrap;
   font-size: 12px;
   color: var(--text);
+}
+
+.pendingBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  padding: 0 5px;
+  height: 16px;
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft-border);
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pendingBadge:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-surface));
+}
+
+.pendingBadge:disabled {
+  color: var(--text-faint);
+  background: transparent;
+  border-color: var(--border);
+  cursor: default;
+}
+
+.pendingBadge.converting:disabled {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-border);
+  opacity: 1;
+}
+
+.pendingBadge svg {
+  stroke-width: 2.5;
+}
+
+.pendingBadge:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
 }
 
 .indexBadge {
@@ -1015,6 +1036,16 @@ button {
   color: var(--text-muted);
 }
 
+.fileRowPendingDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.7;
+}
+
 .fileRowWrap .fileRow {
   flex: 1;
   min-width: 0;
@@ -1048,6 +1079,9 @@ button {
   color: #d9534f;
 }
 
+.fileRowIcon.docx,
+.fileRowIcon.pptx,
+.fileRowIcon.xlsx,
 .fileRowIcon.md {
   color: var(--text-faint);
 }
@@ -1561,6 +1595,11 @@ div.convertTargetItem {
 
 .batchConvertError {
   color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.batchConvertWarning {
+  color: var(--warn);
   overflow-wrap: anywhere;
 }
 
@@ -3640,7 +3679,8 @@ details.traceEntry[open] > summary {
   background: var(--bg-chat);
 }
 
-.sourceViewer:has(.pdfViewer) {
+.sourceViewer:has(.pdfViewer),
+.sourceViewer:has(.markdownSourceViewer) {
   padding: 0;
   overflow: hidden;
   height: 100%;
@@ -4293,10 +4333,42 @@ input.viewerPageInput:focus {
   color: var(--text-strong);
 }
 
-.markdownSourceViewer {
+.slideSourceViewer,
+.sheetSourceViewer {
   min-height: 100%;
   overflow: auto;
   padding: 12px 16px 24px;
+}
+
+.markdownSourceViewer {
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  padding: 12px 16px 24px;
+}
+
+.markdownSourceDocument {
+  display: grid;
+  gap: 12px;
+}
+
+/* Long previews: lay out and paint only blocks near the viewport. */
+.markdownSourceDocument > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 3em;
+}
+
+.markdownSourceDocument .is-highlighted {
+  margin: 0 -8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent, #c9a227) 22%, transparent);
+}
+
+.markdownSourceDocument .is-highlighted .is-highlighted {
+  margin: 0;
+  padding: 0;
+  background: transparent;
 }
 
 .markdownSourcePre {
@@ -4321,6 +4393,78 @@ input.viewerPageInput:focus {
   text-align: right;
   color: var(--text-muted);
   user-select: none;
+}
+
+.slideCard,
+.sheetGrid td {
+  border: 1px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
+}
+
+.slideCard {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 6px;
+}
+
+.slideCard header {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.slideCard p,
+.slideNotes {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+.slideCard .is-highlighted,
+.sheetGrid td.is-highlighted,
+.slideCard.is-highlighted {
+  background: color-mix(in srgb, var(--accent, #c9a227) 22%, transparent);
+}
+
+.slideNotes {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.sheetTabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sheetTab {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.sheetTab.is-active {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.sheetPreviewNote {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+}
+
+.sheetGridWrap {
+  overflow: auto;
+}
+
+.sheetGrid {
+  border-collapse: collapse;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.sheetGrid td {
+  min-width: 4rem;
+  padding: 4px 8px;
+  vertical-align: top;
 }
 
 .markdownSourceText {

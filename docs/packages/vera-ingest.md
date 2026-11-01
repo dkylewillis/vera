@@ -9,7 +9,9 @@ figure and region readers).
 PDF parsing and OCR live in provider plugins that register through the
 `vera.ingest_pipelines` entry-point group. The default
 [`vera-ingest-pymupdf`](vera-ingest-pymupdf.md) package provides the `pymupdf`
-pipeline; Markdown ingest ships inside `vera-ingest` as provider `markdown`;
+PDF pipeline, and [`vera-ingest-ooxml`](vera-ingest-ooxml.md) provides the
+default `ooxml` pipeline for Word, PowerPoint, and Excel. Markdown ingest
+ships inside `vera-ingest` as provider `markdown`;
 [`vera-ingest-docling`](vera-ingest-docling.md) provides Docling's
 hybrid chunker (PDF plus search-only DOCX/PPTX/XLSX/HTML). Extra plugins are pip packages in the same environment as
 the CLI or desktop sidecar.

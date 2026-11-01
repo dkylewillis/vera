@@ -28,7 +28,7 @@ effects without duplicating that contract here.
 
 ## `vera convert INPUT [OUTPUT]`
 
-Convert one PDF, Markdown, Office/HTML (Docling extra), or a directory of supported sources.
+Convert one PDF, Markdown, Word, PowerPoint, Excel (`ooxml`), HTML (`--parser docling`), or a directory of supported sources. `.docx`, `.pptx`, and `.xlsx` use `ooxml` unless `--parser docling` is set.
 
 Options:
 
@@ -257,6 +257,50 @@ Options:
 - `--json`
 
 Exits 1 if any expected answer is missed while still emitting a report.
+
+A managed library stores its index at `.vera/index`. `vera index build`,
+`vera index update`, and `vera index status` use that directory when
+`.vera/library.json` exists. An empty managed library can publish an empty
+index. Search of a subfolder is scoped to that subfolder and results include
+`source_path`.
+
+## `vera library init DIRECTORY`
+
+Options: `--adopt`, `--model`, `--parser`, `--pipeline-option`,
+`--embedder-option`, `--metadata`, `--json`.
+
+Creates `.vera/` (`library.json`, `README.txt`, `archives/`, `index/`) and
+hides it on Windows. `--adopt` moves matching sibling archives into
+`.vera/archives/`. Refuses a second library inside an existing one.
+
+## `vera library sync DIRECTORY`
+
+Options: `--dry-run`, `--confirm-deletes`, `--reconvert`, `--json`.
+
+Keeps `.vera/archives/` aligned with the source tree: convert new or changed
+files, move renamed archives, and trash archives whose sources are gone.
+`--dry-run` plans without writing. A missing folder, or a disappearance of
+more than 20% of archives and more than 5 files, sets `needs_confirmation`
+until `--confirm-deletes`. `--reconvert` rebuilds unchanged sources too.
+
+## `vera library status DIRECTORY`
+
+Options: `--json`.
+
+Pending-change report. Does not convert and does not take the sync lock.
+
+## `vera library trash list DIRECTORY`
+
+Options: `--json`.
+
+Lists trashed archives (`entry`, `source_path`, `trashed_at`).
+
+## `vera library restore DIRECTORY ENTRY`
+
+Options: `--json`.
+
+Restores one trash `ENTRY` by exporting its stored original and moving the
+archive back.
 
 ## `vera mcp`
 

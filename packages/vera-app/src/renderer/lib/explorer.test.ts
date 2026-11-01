@@ -3,15 +3,12 @@ import {
   applyFileListCheckbox,
   applyFileListSelection,
   explorerEntryType,
-  explorerFileMatchesFilter,
   explorerRowTone,
   explorerSelectionAfterFileList,
   isDirectoryOpenTarget,
   isExplorerBlankPointerTarget,
   partitionExplorerSelection,
-  pruneExplorerSelectionForFilter,
   buildExplorerTree,
-  filterExplorerTree,
   pairExplorerDocuments,
   pendingSourcesInTree,
   routeOpenTarget,
@@ -52,10 +49,13 @@ describe('syncCollapsedFolders', () => {
 
 describe('partitionExplorerSelection', () => {
   it('splits mixed paths by extension', () => {
-    expect(partitionExplorerSelection(['a.vera', 'b.pdf', 'c.VERA', 'notes.txt', 'guide.md'])).toEqual({
+    expect(partitionExplorerSelection(['a.vera', 'b.pdf', 'c.VERA', 'notes.txt', 'guide.md', 'memo.docx'])).toEqual({
       vera: ['a.vera', 'c.VERA'],
       pdf: ['b.pdf'],
       md: ['guide.md'],
+      docx: ['memo.docx'],
+      pptx: [],
+      xlsx: [],
     });
   });
 });
@@ -67,6 +67,9 @@ describe('explorerEntryType', () => {
     expect(explorerEntryType('readme.md')).toBe('md');
     expect(explorerEntryType('notes.markdown')).toBe('md');
     expect(explorerEntryType('notes.txt')).toBeNull();
+    expect(explorerEntryType('memo.docx')).toBe('docx');
+    expect(explorerEntryType('deck.pptx')).toBe('pptx');
+    expect(explorerEntryType('budget.xlsx')).toBe('xlsx');
   });
 });
 
@@ -76,7 +79,7 @@ function entry(root: string, relativePath: string) {
     path: `${root}/${relativePath}`,
     name,
     relativePath,
-    type: explorerEntryType(name) as 'vera' | 'pdf' | 'md',
+    type: explorerEntryType(name) as 'vera' | 'pdf' | 'md' | 'docx' | 'pptx' | 'xlsx',
   };
 }
 
@@ -92,6 +95,18 @@ describe('pairExplorerDocuments', () => {
       ['budget', '/lib/budget.vera', 'vera', true],
       ['notes.md', '/lib/notes.md', 'md', true],
       ['orphan', '/lib/orphan.vera', 'vera', false],
+    ]);
+  });
+
+  it('pairs a managed archive that keeps the source extension', () => {
+    const docs = pairExplorerDocuments([
+      entry('/lib', 'Plans/Site Plan.pdf'),
+      entry('/lib', 'Plans/Site Plan.pdf.vera'),
+      entry('/lib', 'Plans/notes.md'),
+    ]);
+    expect(docs.map((doc) => [doc.label, doc.archive?.name, doc.source?.name])).toEqual([
+      ['notes.md', undefined, 'notes.md'],
+      ['Site Plan', 'Site Plan.pdf.vera', 'Site Plan.pdf'],
     ]);
   });
 
@@ -139,15 +154,6 @@ describe('buildExplorerTree', () => {
     ]);
   });
 
-  it('filters documents and drops subfolders left empty', () => {
-    const pending = filterExplorerTree(buildExplorerTree(root), 'pending');
-    expect(pending.documents).toEqual([]);
-    expect(pending.folders.map((folder) => folder.name)).toEqual(['reports/2024', 'specs']);
-    expect(pending.folders[1].documents).toEqual([]);
-    const ready = filterExplorerTree(buildExplorerTree(root), 'ready');
-    expect(ready.folders[1].folders).toEqual([]);
-  });
-
   it('lists visible rows in tree order, skipping collapsed roots and subfolders', () => {
     const tree = buildExplorerTree(root);
     expect(visibleExplorerDocuments([tree], [], []).map((doc) => doc.label)).toEqual(['top']);
@@ -177,38 +183,6 @@ describe('routeOpenTarget', () => {
     const addFolder = vi.fn();
     routeOpenTarget('C:\\proposals', { addFolder, openFile: vi.fn() });
     expect(addFolder).toHaveBeenCalledWith('C:\\proposals', 'library');
-  });
-});
-
-describe('pruneExplorerSelectionForFilter', () => {
-  const mixed = ['/lib/a.vera', '/lib/b.pdf', '/lib/c.vera'];
-
-  it('keeps the full selection for All', () => {
-    expect(pruneExplorerSelectionForFilter(mixed, 'all', '/lib/b.pdf')).toEqual({
-      selected: mixed,
-      anchor: '/lib/b.pdf',
-    });
-  });
-
-  it('drops unconverted sources when filtering to Ready', () => {
-    expect(pruneExplorerSelectionForFilter(mixed, 'ready', '/lib/b.pdf')).toEqual({
-      selected: ['/lib/a.vera', '/lib/c.vera'],
-      anchor: null,
-    });
-  });
-
-  it('drops archives when filtering to To convert and keeps a still-visible anchor', () => {
-    expect(pruneExplorerSelectionForFilter(mixed, 'pending', '/lib/b.pdf')).toEqual({
-      selected: ['/lib/b.pdf'],
-      anchor: '/lib/b.pdf',
-    });
-  });
-
-  it('reports whether a row type remains visible under the filter', () => {
-    expect(explorerFileMatchesFilter('pdf', 'ready')).toBe(false);
-    expect(explorerFileMatchesFilter('md', 'pending')).toBe(true);
-    expect(explorerFileMatchesFilter('pdf', 'all')).toBe(true);
-    expect(explorerFileMatchesFilter('vera', 'ready')).toBe(true);
   });
 });
 

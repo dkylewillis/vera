@@ -1,5 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
+import { folderEntryType, type FolderEntryType } from '../src/shared/source-types.js';
 
 /** Walk this many directory levels below the folder root (root itself is depth 0). */
 export const LIST_FOLDER_MAX_DEPTH = 32;
@@ -8,7 +9,7 @@ export interface FolderListingEntry {
   path: string;
   name: string;
   relativePath: string;
-  type: 'vera' | 'pdf' | 'md';
+  type: FolderEntryType;
 }
 
 export interface FolderListing {
@@ -49,14 +50,7 @@ export function listFolderEntries(
         if (dirent.name === 'node_modules' || dirent.name === '__pycache__') continue;
         walk(full, depth + 1);
       } else {
-        const lower = dirent.name.toLowerCase();
-        const type = lower.endsWith('.vera')
-          ? 'vera'
-          : lower.endsWith('.pdf')
-            ? 'pdf'
-            : (lower.endsWith('.md') || lower.endsWith('.markdown'))
-              ? 'md'
-              : null;
+        const type = folderEntryType(dirent.name);
         if (!type) continue;
         entries.push({
           path: full,
@@ -68,6 +62,36 @@ export function listFolderEntries(
     }
   };
   walk(dir, 0);
+  const archivesRoot = join(dir, '.vera', 'archives');
+  if (existsSync(archivesRoot)) {
+    const walkArchives = (current: string, depth: number): void => {
+      if (depth > maxDepth) {
+        truncated = true;
+        return;
+      }
+      let dirents;
+      try {
+        dirents = readdirSync(current, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const dirent of dirents) {
+        if (dirent.name.startsWith('.')) continue;
+        const full = join(current, dirent.name);
+        if (dirent.isDirectory()) {
+          walkArchives(full, depth + 1);
+        } else if (dirent.name.toLowerCase().endsWith('.vera')) {
+          entries.push({
+            path: full,
+            name: dirent.name,
+            relativePath: folderRelativePath(archivesRoot, full),
+            type: 'vera',
+          });
+        }
+      }
+    };
+    walkArchives(archivesRoot, 0);
+  }
   entries.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
   return { path: dir, name: basename(dir) || dir, entries, truncated };
 }

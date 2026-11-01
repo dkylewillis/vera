@@ -167,14 +167,29 @@ a 0.3.0 feature.
 The long-term goal is an app-managed experience for optional extras beyond
 the curated sidecar snapshot.
 
+## Managed libraries
+
+A folder of source documents is the library. Archives live in a hidden
+`.vera/` folder and stay aligned with the files.
+
+- [x] Mirror archives under `.vera/archives/` and keep the source extension.
+- [x] Persist convert settings in `.vera/library.json` and take a sync lock.
+- [x] Sync adds, edits, renames, moves, and deletes, with trash for 30 days.
+- [x] Pause trash when the folder is unreachable or a mass delete is detected.
+- [x] Scope search by source path, including a subfolder of a managed library.
+- [x] `vera library` commands and read-only MCP `vera_library_status`.
+- [x] Desktop library create, debounced and periodic sync, trash restore, and share.
+- [ ] Shared network libraries (heartbeat locks, per-machine index).
+
 ## Additional source formats and visual grounding
 
 Markdown ingest ships: `vera convert notes.md` uses the bundled `markdown`
 pipeline in `vera-ingest`, directory discovery includes `.md` / `.markdown`,
-and the desktop source viewer highlights `text_span` lines. Docling
-search-only ingest of DOCX, PPTX, XLSX, and HTML ships when
-`vera-ingest-docling` is installed (`vera convert memo.docx`). Visual
-grounding for those formats remains after 0.3.x. Design notes:
+and the desktop source viewer highlights `text_span` lines. Office ingest
+ships in `vera-ingest-ooxml` (`vera convert memo.docx`, `deck.pptx`,
+`budget.xlsx`) with Word, slide, and sheet highlights. Docling remains the
+optional higher-fidelity path (`--parser docling`), including HTML. Design
+notes:
 [Additional source formats and visual grounding](docs/multi-format-ingest.md).
 
 Package and application versions still do not change the `.vera` format.
@@ -201,24 +216,27 @@ bump.
 
 - [x] Keep PDF visual grounding as page + bbox overlays on the stored
   original PDF. Do not convert PDFs to Markdown in order to highlight them.
-- [ ] For flow documents (DOCX, HTML, TXT), generate Markdown at
-  ingest, store that exact preview as a viewer attachment, and highlight it.
-  Keep `source_original` as the real source bytes. Native `.md` already
-  stores the original Markdown and highlights `text_span` lines.
+- [x] For Word, generate Markdown at ingest, store that exact preview as a
+  viewer attachment, and highlight it. Keep `source_original` as the real
+  source bytes. Native `.md` already stores the original Markdown and
+  highlights `text_span` lines. HTML and TXT still use this rule when they land.
 - [ ] Prefer block/heading anchors in the stored Markdown over line numbers
   of generated text (line spans drift on reconvert).
-- [ ] Do not treat generated Markdown as the visual source of truth for
-  Excel or PowerPoint. Markdown excerpts may still be searchable.
-- [x] Add a `kind` on region locators (`page_bbox`, `text_span`, later
-  `sheet_range`) in chunk metadata. Missing `kind` plus a bbox stays
+- [x] Do not treat generated Markdown as the visual source of truth for
+  Excel or PowerPoint. Those previews are native JSON.
+- [x] Add a `kind` on region locators (`page_bbox`, `text_span`,
+  `sheet_range`, `slide`) in chunk metadata. Missing `kind` plus a bbox stays
   `page_bbox` so existing archives keep working.
 - [x] Dispatch the desktop viewer by source MIME: PDF overlay, stored
-  Markdown preview, or citation text when no overlay applies.
+  Markdown preview (including Word), slide list, sheet grid, or citation
+  text when no overlay applies.
 
 ### Later native locators
 
-- [ ] Sheet + A1 range (or row/column spans) for Excel and CSV.
-- [ ] Slide index + bbox for PowerPoint.
+- [x] Sheet + A1 range for Excel (`sheet_range`, cited as `Budget!A1:F40`).
+  CSV is still open.
+- [x] Slide index for PowerPoint (`slide` plus `shape_index`). Pixel-accurate
+  slide boxes remain with Docling.
 
 ## Non-goals
 

@@ -10,19 +10,52 @@ import shutil
 import sys
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from .library import (
+    LIBRARY_ARCHIVES,
+    LIBRARY_DIRECTORY,
+    LIBRARY_INDEX,
+    is_managed_library,
+)
 
 INDEX_DIRECTORY = ".vera-index"
 INDEX_DATABASE = "index.sqlite3"
 INDEX_POINTER = "current.json"
 INDEX_GENERATIONS = "generations"
-INDEX_VERSION = 1
+INDEX_VERSION = 2
 INDEX_LOCK = "build.lock"
 
 
+@dataclass(frozen=True)
+class IndexArchive:
+    """A discovered archive and, for managed libraries, its source-relative path."""
+
+    path: Path
+    source_path: str | None = None
+
+
 def _index_path(root: Path) -> Path:
+    if is_managed_library(root):
+        return root / LIBRARY_DIRECTORY / LIBRARY_INDEX
     return root / INDEX_DIRECTORY
+
+
+def _index_build_workspace(root: Path) -> Path:
+    """Return a unique temporary directory on the same volume as the index."""
+    if is_managed_library(root):
+        parent = root / LIBRARY_DIRECTORY
+        parent.mkdir(parents=True, exist_ok=True)
+        return parent / f".index-build-{uuid_hex()}"
+    return root / f"{INDEX_DIRECTORY}.build-{uuid_hex()}"
+
+
+def uuid_hex() -> str:
+    import uuid
+
+    return uuid.uuid4().hex
 
 
 def _generation_path(root: Path) -> Path:
@@ -172,6 +205,11 @@ def discover_vera_files(
                 relative_child = _relative(child, root)
                 if child.is_symlink() or _excluded(relative_child, exclude_patterns):
                     continue
+                # Recoverable deletions live under ``.vera/trash`` and are not
+                # part of the searchable library. Archives under ``.vera/archives``
+                # stay visible so an older recursive search still finds them.
+                if name == "trash" and current_path.name == LIBRARY_DIRECTORY:
+                    continue
                 kept_directories.append(name)
             directories[:] = kept_directories
             candidates.extend(
@@ -199,6 +237,50 @@ def discover_vera_files(
         except (OSError, ValueError):
             continue
     return sorted(discovered, key=lambda path: _relative(path, root).lower())
+
+
+def discover_index_entries(
+    directory: str | Path,
+    *,
+    recursive: bool = False,
+    excludes: Iterable[str] = (),
+    includes: Iterable[str] = (),
+) -> list[IndexArchive]:
+    """Discover archives for an index build or freshness check.
+
+    Managed libraries walk ``.vera/archives`` only. Include and exclude
+    patterns match the source path (``Plans/Site Plan.pdf``), not the
+    archive path under ``.vera/``. Unmanaged folders keep archive-relative
+    matching and ``source_path`` is None.
+    """
+    root = Path(directory).resolve()
+    exclude_patterns = tuple(excludes)
+    include_patterns = tuple(includes)
+    if is_managed_library(root):
+        archives = root / LIBRARY_DIRECTORY / LIBRARY_ARCHIVES
+        if not archives.is_dir():
+            return []
+        selected: list[IndexArchive] = []
+        for path in discover_vera_files(archives, recursive=True):
+            relative = _relative(path, archives)
+            if not relative.lower().endswith(".vera"):
+                continue
+            source_path = relative[: -len(".vera")]
+            if _excluded(source_path, exclude_patterns):
+                continue
+            if not _included(source_path, include_patterns):
+                continue
+            selected.append(IndexArchive(path=path, source_path=source_path))
+        return selected
+    return [
+        IndexArchive(path=path)
+        for path in discover_vera_files(
+            root,
+            recursive=recursive,
+            excludes=exclude_patterns,
+            includes=include_patterns,
+        )
+    ]
 
 
 def _sha256_file(path: Path) -> str:

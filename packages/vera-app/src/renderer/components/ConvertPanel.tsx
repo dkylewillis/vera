@@ -436,16 +436,24 @@ export function ConvertPanel({
 function ConvertResult({ result }: { result: BatchConvertResult }) {
   const upToDate = result.skipped;
   const problems = result.failed + result.malformed;
+  const issueCount = result.warnings?.length ?? 0;
   const parts = [
     upToDate ? `${upToDate} already up to date` : '',
     result.user_skipped ? `${result.user_skipped} skipped by you` : '',
+    issueCount ? `${issueCount} with issues` : '',
     result.failed ? `${result.failed} failed` : '',
     result.malformed ? `${result.malformed} damaged .vera file${result.malformed === 1 ? '' : 's'}` : '',
   ].filter(Boolean);
   const details = [
-    ...result.errors.map((entry) => ({ key: entry.input, text: `${fileName(entry.input)}: ${entry.error}`, title: entry.error, error: true })),
-    ...result.malformed_existing.map((entry) => ({ key: entry.output, text: `${fileName(entry.output)}: ${entry.issues.join('; ')}`, title: entry.issues.join('; '), error: true })),
-    ...(result.skipped_by_user || []).map((filePath) => ({ key: filePath, text: `${fileName(filePath)}: skipped`, title: filePath, error: false })),
+    ...result.errors.map((entry) => ({ key: entry.input, text: `${fileName(entry.input)}: ${entry.error}`, title: entry.error, tone: 'error' as const })),
+    ...result.malformed_existing.map((entry) => ({ key: entry.output, text: `${fileName(entry.output)}: ${entry.issues.join('; ')}`, title: entry.issues.join('; '), tone: 'error' as const })),
+    ...(result.warnings ?? []).flatMap((entry) => entry.warnings.map((message, index) => ({
+      key: `${entry.input}:${index}`,
+      text: `${fileName(entry.input)}: ${message}`,
+      title: message,
+      tone: 'warning' as const,
+    }))),
+    ...(result.skipped_by_user || []).map((filePath) => ({ key: filePath, text: `${fileName(filePath)}: skipped`, title: filePath, tone: 'muted' as const })),
   ];
   return (
     <div className={problems ? 'batchConvertReport hasProblems' : 'batchConvertReport'} role="status">
@@ -459,7 +467,11 @@ function ConvertResult({ result }: { result: BatchConvertResult }) {
         <details>
           <summary>Show details</summary>
           {details.map((entry) => (
-            <span className={entry.error ? 'batchConvertError' : 'batchConvertSkipped'} key={entry.key} title={entry.title}>
+            <span
+              className={entry.tone === 'error' ? 'batchConvertError' : entry.tone === 'warning' ? 'batchConvertWarning' : 'batchConvertSkipped'}
+              key={entry.key}
+              title={entry.title}
+            >
               {entry.text}
             </span>
           ))}

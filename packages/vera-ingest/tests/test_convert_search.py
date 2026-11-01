@@ -180,6 +180,39 @@ def test_convert_validation_failure_is_not_published(tmp_path, monkeypatch):
     assert list(tmp_path.glob(f".{out.name}.*.tmp")) == []
 
 
+def test_convert_builds_in_scratch_and_copies_across_drives(tmp_path, monkeypatch):
+    import os
+    import tempfile
+
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    library = tmp_path / "usb"
+    library.mkdir()
+    pdf = library / "manual.pdf"
+    out = library / "manual.vera"
+    make_pdf(pdf)
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+    real_replace = os.replace
+    published: list[str] = []
+
+    def replace_across_drives(src, dst):
+        if os.path.dirname(os.fspath(src)) == str(scratch) and os.fspath(dst) == str(out):
+            raise OSError(17, "The system cannot move the file to a different disk drive")
+        published.append(os.fspath(src))
+        return real_replace(src, dst)
+
+    convert_module = importlib.import_module("vera_ingest.convert")
+    monkeypatch.setattr(convert_module.os, "replace", replace_across_drives)
+
+    convert(str(pdf), str(out), model="hashing")
+
+    assert any(os.path.dirname(path) == str(library) for path in published)
+    with VeraDocument.open(str(out)) as doc:
+        assert doc.search("parking", mode="keyword", top_k=1)
+    assert list(scratch.iterdir()) == []
+    assert list(library.glob(f".{out.name}.*.tmp")) == []
+
+
 def test_batch_convert_reports_malformed_existing_output(tmp_path):
     pdf = tmp_path / "manual.pdf"
     out = tmp_path / "manual.vera"

@@ -22,10 +22,14 @@ search index. `--pretty` prints human-readable results instead of raw JSON:
 python -m pip install "vera>=0.3.2"
 
 vera convert manual.pdf
+vera convert memo.docx
+vera convert deck.pptx
+vera convert budget.xlsx
 vera search manual.vera "stormwater detention" --pretty
 ```
 
-A folder of PDFs or Markdown files becomes a library. Convert each file, build
+Word, PowerPoint, and Excel use the bundled `ooxml` pipeline. A folder of
+those files, PDFs, or Markdown becomes a library. Convert each file, build
 one index, then search them together:
 
 ```bash
@@ -46,6 +50,16 @@ when needed; English OCR data is bundled.
 A library index is optional and speeds up repeated searches. VERA uses it
 automatically when fresh. After adding or replacing archives, run
 `vera index update ./library`. See [document libraries](docs/document-libraries.md).
+
+To keep a folder of PDFs and notes searchable without a `.vera` file beside
+each document, make it a managed library. VERA stores archives in a hidden
+`.vera/` folder and updates them when files change:
+
+```bash
+vera library init ./library
+vera library sync ./library
+vera search ./library "stormwater detention" --pretty
+```
 
 ## Keyword or semantic?
 

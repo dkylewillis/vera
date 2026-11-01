@@ -29,7 +29,7 @@ Check `vera --help` first. If it is not on `PATH`, try
 
 ### `vera convert INPUT [OUTPUT]`
 
-Convert one PDF, Markdown, Office/HTML (Docling extra), or a directory of supported sources. CLI convert resolves the embedder with
+Convert one PDF, Markdown, Word, PowerPoint, Excel (`ooxml`), HTML (`--parser docling`), or a directory of supported sources. `.docx`, `.pptx`, and `.xlsx` use `ooxml` unless `--parser docling` is set. CLI convert resolves the embedder with
 `get_embedder` and does not call `preflight_embedder`; missing credential env
 vars surface when the factory runs. Desktop Convert still gates on
 `preflight_embedder`.
@@ -200,7 +200,8 @@ Directory JSON:
       "issues": ["Missing required table: vera_metadata"]
     }
   ],
-  "errors": []
+  "errors": [],
+  "warnings": []
 }
 ```
 
@@ -212,7 +213,10 @@ Same-stem sources that would write the same `.vera` path are reported in
 `malformed_existing`.
 `skipped_by_user` / `user_skipped` are reserved for interactive skip
 requests (desktop app); CLI runs leave them empty. Each error entry has
-`input` and `error`. A conversion failure or malformed existing output
+`input` and `error`. `warnings` lists files that converted with skipped
+parts. Each entry has `input`, `output`, and `warnings`. Those lines are
+also stored on the archive as `ingest_warnings`. A warning does not set
+`ok` false. A conversion failure or malformed existing output
 sets `ok` false, prints the report, and exits 1. Supplying a directory
 and an output path prints an error to stderr and exits 2.
 
@@ -614,6 +618,56 @@ Current builds keep these equal. Existing indexes built before these metrics
 were introduced report indexed chunks as their source-chunk count until the
 next rebuild.
 
+A managed library (a folder containing `.vera/library.json`) stores its index
+at `.vera/index` instead of `.vera-index`. Status, build, and update target
+that directory automatically. Search results from a managed library include
+`source_path`, the document path relative to the library root.
+
+### `vera library init DIRECTORY`
+
+Options: `--adopt`, `--model`, `--parser`, `--pipeline-option`,
+`--embedder-option`, `--metadata`, `--json`.
+
+Creates a hidden `.vera/` folder with `library.json`, `README.txt`,
+`archives/`, and `index/`. Refuses to run inside an existing library.
+`--adopt` moves sibling `.vera` files whose stored `source_file_hash` matches
+the source into `.vera/archives/`. Convert settings in `library.json` are what
+later syncs use. Exit 0 on success. Exit 1 for an existing or nested library.
+
+### `vera library sync DIRECTORY`
+
+Options: `--dry-run`, `--confirm-deletes`, `--reconvert`, `--json`.
+
+Converts new or changed sources, moves archives when a rename keeps the same
+hash, and moves archives for missing sources into `.vera/trash/` for the
+retention in `library.json` (default 30 days). `--dry-run` reports the plan.
+If the folder is unreachable, or more than 20% of archives and more than 5
+files are missing, the report sets `needs_confirmation` and nothing is
+trashed until `--confirm-deletes`. `--reconvert` rebuilds archives whose
+sources are unchanged. Exit 1 when `failed` is non-zero.
+
+### `vera library status DIRECTORY`
+
+Options: `--json`.
+
+Dry-run report for a managed library: pending conversions, moves, and trash.
+Does not take the sync lock and does not convert. An unmanaged folder reports
+`managed: false` and any adoptable sibling archives.
+
+### `vera library trash list DIRECTORY`
+
+Options: `--json`.
+
+Lists `.vera/trash/` entries with `entry`, `source_path`, and `trashed_at`.
+
+### `vera library restore DIRECTORY ENTRY`
+
+Options: `--json`.
+
+`ENTRY` is the path under `.vera/trash/` from `trash list`. Writes the stored
+original back beside the library and moves the archive back into
+`.vera/archives/`.
+
 ### `vera validate FILE`
 
 Options: `--json`.
@@ -812,7 +866,7 @@ still prints the report and exits 1.
 Runs the long-lived stdio MCP server. It does not accept `--json`; protocol
 messages use stdout, so do not mix ordinary output into that stream.
 
-MCP provides `vera_library_info`, `vera_search`, `vera_corpus_search`,
+MCP provides `vera_library_info`, `vera_library_status`, `vera_search`, `vera_corpus_search`,
 `vera_inspect`, `vera_validate`, `vera_figures`, `vera_get_figure`,
 `vera_get_page`, `vera_get_chunk`, and
 `vera_get_chunk_regions`. `vera_search` and `vera_corpus_search` default

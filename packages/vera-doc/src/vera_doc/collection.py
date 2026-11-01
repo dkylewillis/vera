@@ -53,6 +53,18 @@ __all__ = [
 ]
 
 
+def _row_source_path(row: sqlite3.Row) -> str | None:
+    value = row["source_path"]
+    return str(value) if value else None
+
+
+def _source_path(references: Mapping[int, sqlite3.Row], relative_path: str) -> str | None:
+    for row in references.values():
+        if str(row["relative_path"]) == relative_path:
+            return _row_source_path(row)
+    return None
+
+
 @dataclass(frozen=True)
 class IndexHit:
     """A ranked index hit that can be resolved against its source .vera file."""
@@ -60,6 +72,7 @@ class IndexHit:
     relative_path: str
     chunk_id: str
     score: float
+    source_path: str | None = None
 
 
 class VeraCollectionIndex:
@@ -99,6 +112,21 @@ class VeraCollectionIndex:
                 for row in self.conn.execute("SELECT relative_path FROM skipped_files")
             )
         return sorted(paths, key=str.lower)
+
+    def file_scope_rows(self) -> list[tuple[str, str | None]]:
+        """Return ``(archive relative path, source path or None)`` for files and skips."""
+        rows = [
+            (
+                str(row["relative_path"]),
+                str(row["source_path"]) if row["source_path"] else None,
+            )
+            for row in self.conn.execute("SELECT relative_path, source_path FROM files")
+        ]
+        rows.extend(
+            (str(row["relative_path"]), None)
+            for row in self.conn.execute("SELECT relative_path FROM skipped_files")
+        )
+        return rows
 
     def inspect_summary(self) -> dict[str, Any]:
         """Return corpus metrics from the persistent index without reopening archives."""
@@ -405,7 +433,7 @@ class VeraCollectionIndex:
         placeholders = ",".join("?" for _ in unique)
         rows = self.conn.execute(
             f"""
-            SELECT c.row_id, c.chunk_id, f.relative_path
+            SELECT c.row_id, c.chunk_id, f.relative_path, f.source_path
             FROM chunks c JOIN files f ON f.file_id = c.file_id
             WHERE c.row_id IN ({placeholders})
             """,
@@ -478,11 +506,15 @@ class VeraCollectionIndex:
                     if row_id in references
                 ]
 
+            fused = reciprocal_rank_fusion([hit_keys(semantic), hit_keys(keyword)])[:top_k]
             return [
-                IndexHit(relative_path=key[0], chunk_id=key[1], score=score)
-                for key, score in reciprocal_rank_fusion([hit_keys(semantic), hit_keys(keyword)])[
-                    :top_k
-                ]
+                IndexHit(
+                    relative_path=key[0],
+                    chunk_id=key[1],
+                    score=score,
+                    source_path=_source_path(references, key[0]),
+                )
+                for key, score in fused
             ]
         if mode == "semantic":
             ranked = self._semantic_hits(query, top_k, file_ids=file_ids, chunk_where=chunk_where)
@@ -496,6 +528,7 @@ class VeraCollectionIndex:
                 relative_path=references[row_id]["relative_path"],
                 chunk_id=references[row_id]["chunk_id"],
                 score=score,
+                source_path=_row_source_path(references[row_id]),
             )
             for row_id, score in ranked
             if row_id in references

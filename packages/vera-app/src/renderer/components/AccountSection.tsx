@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { usagePercent, type ProAccount } from '../../shared/pro';
+import { canLoadProAccount, publishProAccount, useProAccount } from '../lib/proAccount';
 
 const EMPTY_ACCOUNT: ProAccount = {
   configured: false,
@@ -14,30 +15,18 @@ const EMPTY_ACCOUNT: ProAccount = {
 };
 
 export function AccountSection({ onChanged }: { onChanged: () => Promise<void> }) {
-  const [account, setAccount] = useState<ProAccount>(EMPTY_ACCOUNT);
+  const knownAccount = useProAccount();
+  const loaded = knownAccount !== null || !canLoadProAccount();
+  const account = knownAccount ?? EMPTY_ACCOUNT;
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    const api = typeof window !== 'undefined' ? window.vera : undefined;
-    if (!api?.proGetAccount) return undefined;
-    let cancelled = false;
-    void api.proGetAccount().then((next) => {
-      if (!cancelled) setAccount(next);
-    });
-    const unsubscribe = api.onProAccountChanged?.((next) => setAccount(next));
-    return () => {
-      cancelled = true;
-      unsubscribe?.();
-    };
-  }, []);
 
   async function run(action: () => Promise<{ ok: boolean; error?: string; account?: ProAccount }>) {
     setBusy(true);
     setMessage('');
     try {
       const result = await action();
-      if (result.account) setAccount(result.account);
+      if (result.account) publishProAccount(result.account);
       if (!result.ok) setMessage(result.error || 'VERA Pro request failed.');
       else if (result.account?.error) setMessage(result.account.error);
       await onChanged();
@@ -58,38 +47,42 @@ export function AccountSection({ onChanged }: { onChanged: () => Promise<void> }
         VERA Pro sends Ask questions and retrieved passages to OpenRouter and the model provider you pick.
         Search stays on this computer. Signing out leaves a saved Pro key in place until you clear it.
       </p>
-      {!account.configured ? (
-        <p className="mutedText">
-          This build is not connected to VERA Pro. Set VERA_PRO_SITE_URL, VERA_PRO_SUPABASE_URL, and VERA_PRO_SUPABASE_ANON_KEY, or package pro-cloud.json.
-        </p>
-      ) : (
-        <p className="mutedText">
-          {account.email ? `${account.email} · ` : ''}
-          {status}
-          {account.hasProKey ? ' · key saved' : ''}
-          {used !== null ? ` · ${used}% of this month's allowance used` : ''}
-        </p>
-      )}
-      <div className="editorActions">
-        {account.signedIn ? (
-          <button type="button" className="secondaryAction" disabled={busy} onClick={() => void run(() => window.vera.proSignOut())}>
-            Sign out
-          </button>
-        ) : (
-          <button type="button" className="secondaryAction" disabled={busy} onClick={() => void run(() => window.vera.proSignIn())}>
-            Sign in
-          </button>
-        )}
-        {subscribed ? (
-          <button type="button" className="secondaryAction" disabled={busy} onClick={() => void run(() => window.vera.proOpenPage('account'))}>
-            Manage subscription
-          </button>
-        ) : (
-          <button type="button" className="secondaryAction" disabled={busy} onClick={() => void run(() => window.vera.proOpenPage('pricing'))}>
-            Get Pro
-          </button>
-        )}
-      </div>
+      {loaded ? (
+        <>
+          {!account.configured ? (
+            <p className="mutedText">
+              This build is not connected to VERA Pro. Set VERA_PRO_SITE_URL, VERA_PRO_SUPABASE_URL, and VERA_PRO_SUPABASE_ANON_KEY, or package pro-cloud.json.
+            </p>
+          ) : (
+            <p className="mutedText">
+              {account.email ? `${account.email} · ` : ''}
+              {status}
+              {account.hasProKey ? ' · key saved' : ''}
+              {used !== null ? ` · ${used}% of this month's allowance used` : ''}
+            </p>
+          )}
+          <div className="editorActions">
+            {account.signedIn ? (
+              <button type="button" className="secondaryAction" disabled={busy} onClick={() => void run(() => window.vera.proSignOut())}>
+                Sign out
+              </button>
+            ) : (
+              <button type="button" className="secondaryAction" disabled={busy} onClick={() => void run(() => window.vera.proSignIn())}>
+                Sign in
+              </button>
+            )}
+            {subscribed ? (
+              <button type="button" className="secondaryAction" disabled={busy} onClick={() => void run(() => window.vera.proOpenPage('account'))}>
+                Manage subscription
+              </button>
+            ) : (
+              <button type="button" className="secondaryAction" disabled={busy} onClick={() => void run(() => window.vera.proOpenPage('pricing'))}>
+                Get Pro
+              </button>
+            )}
+          </div>
+        </>
+      ) : null}
       {message ? <p className="modalMessage">{message}</p> : null}
     </div>
   );

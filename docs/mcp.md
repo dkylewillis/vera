@@ -65,6 +65,16 @@ Returns the approved library folders and search bounds when running as the
 Desktop agent service. Unrestricted local MCP returns `unrestricted: true` and
 no grant.
 
+### `vera_library_status`
+
+Parameter: `directory: str`.
+
+Read-only pending-change report for a managed library (`converted`, `moved`,
+`trashed` counts are what a sync would do; nothing is written). Does not sync
+and does not delete. When a library policy is set, both `directory` and the
+report's `library_root` must stay inside `library_roots`. Corpus search of a
+managed library adds `source_path` on each hit when that path is known.
+
 ### Compact search output
 
 Both search tools accept `output: "compact" | "full"` (default `"full"` for
@@ -225,7 +235,9 @@ Parameters:
 - `file: str`
 - `chunk_id: str`
 
-Returns block-granular source bounding boxes for visual grounding.
+Returns block-granular source locators for visual grounding. PDF hits use
+`page_bbox`. Markdown and Word use `text_span`. PowerPoint uses `slide`.
+Excel uses `sheet_range` (`sheet` plus an A1 `range`).
 
 ## Recommended agent behavior
 

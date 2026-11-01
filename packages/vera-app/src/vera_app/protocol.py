@@ -27,6 +27,11 @@ SIDECAR_ACTIONS = (
     "ocr_languages_list",
     "ocr_languages_download",
     "list_modes",
+    "library_init",
+    "library_sync",
+    "library_status",
+    "library_trash_list",
+    "library_restore",
     "cancel",
     "skip",
 )
@@ -43,4 +48,5 @@ STREAM_EVENTS = (
     "index_progress",
     "inspection_progress",
     "ocr_download_progress",
+    "library_progress",
 )

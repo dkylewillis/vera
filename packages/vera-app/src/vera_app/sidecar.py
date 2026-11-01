@@ -64,6 +64,9 @@ from vera_embed_openai import (
 from vera_ingest.markdown import (
     ensure_registered as ensure_markdown_pipeline_registered,
 )
+from vera_ingest_ooxml import (
+    ensure_registered as ensure_ooxml_pipeline_registered,
+)
 from vera_ingest_pymupdf import (
     ensure_registered as ensure_pymupdf_pipeline_registered,
 )
@@ -73,6 +76,7 @@ from vera_ingest_pymupdf import (
 # and the bundled OpenAI embedder.
 ensure_pymupdf_pipeline_registered()
 ensure_markdown_pipeline_registered()
+ensure_ooxml_pipeline_registered()
 ensure_openai_embedder_registered()
 
 from vera_app import convert as convert_handlers
@@ -118,6 +122,11 @@ HANDLERS: dict[str, Handler] = {
     "ocr_languages_list": convert_handlers.handle_ocr_languages_list,
     "ocr_languages_download": convert_handlers.handle_ocr_languages_download,
     "list_modes": _list_modes,
+    "library_init": library_handlers.library_init,
+    "library_sync": library_handlers.library_sync,
+    "library_status": library_handlers.library_info,
+    "library_trash_list": library_handlers.library_trash_list,
+    "library_restore": library_handlers.library_restore,
 }
 
 _CONTROL_ACTIONS = {"cancel", "skip"}
@@ -147,6 +156,8 @@ def _cancelled_error_message(action: str, exc: BaseException | None = None) -> s
         return str(exc)
     if action in {"convert", "batch_convert"}:
         return "Conversion cancelled"
+    if action in {"library_init", "library_sync"}:
+        return "Library sync cancelled"
     if action == "ocr_languages_download":
         return "OCR language download cancelled"
     if action == "inspect":
@@ -179,7 +190,7 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
                 _write_response({**data, "id": request_id})
 
             result = _answer(request, write_event=_emit, cancel=cancel)
-        elif action in {"convert", "batch_convert", "ocr_languages_download"}:
+        elif action in {"convert", "batch_convert", "ocr_languages_download", "library_init", "library_sync"}:
 
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})
@@ -257,6 +268,35 @@ def _run_background_request(request: Request) -> None:
     _write_response(handle(request))
 
 
+# Each runs on its own thread so the stdin loop keeps answering (and can cancel)
+# while it works; library folders on USB or network drives make even status
+# checks slow.
+_CANCELLABLE_ACTIONS = frozenset(
+    {
+        "answer",
+        "convert",
+        "batch_convert",
+        "inspect",
+        "source",
+        "ocr_languages_download",
+        "search",
+        "library_init",
+        "library_sync",
+    }
+)
+_THREADED_ACTIONS = _CANCELLABLE_ACTIONS | {
+    "index_build",
+    "index_update",
+    "index_status",
+    "list_models",
+    "figure_data",
+    "export",
+    "validate",
+    "library_status",
+    "library_trash_list",
+}
+
+
 def main() -> int:
     """Read JSON-RPC requests from stdin and write responses to stdout."""
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
@@ -293,20 +333,7 @@ def main() -> int:
                     "ok": True,
                     "result": {"target_id": target_id, "skipped": bool(cancel)},
                 }
-            elif action in {
-                "answer",
-                "convert",
-                "batch_convert",
-                "inspect",
-                "index_build",
-                "index_update",
-                "source",
-                "ocr_languages_download",
-                "search",
-                "list_models",
-                "figure_data",
-                "export",
-            }:
+            elif action in _THREADED_ACTIONS:
                 request_id = str(request.get("id") or "")
                 if not request_id:
                     response = {
@@ -315,15 +342,7 @@ def main() -> int:
                         "error": f"{action} requests require an id",
                     }
                 else:
-                    if action in {
-                        "answer",
-                        "convert",
-                        "batch_convert",
-                        "inspect",
-                        "source",
-                        "ocr_languages_download",
-                        "search",
-                    }:
+                    if action in _CANCELLABLE_ACTIONS:
                         cancel = CancellationToken()
                         with _inflight_lock:
                             _inflight_requests[request_id] = cancel

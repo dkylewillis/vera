@@ -65,6 +65,14 @@ export function isPdfSource(source: SourceDocumentResult | null): boolean {
   return source.mime_type === 'application/pdf' || source.filename.toLowerCase().endsWith('.pdf');
 }
 
+export function isSlidesSource(source: SourceDocumentResult | null): boolean {
+  return source?.mime_type === 'application/vnd.vera.slides+json';
+}
+
+export function isSheetsSource(source: SourceDocumentResult | null): boolean {
+  return source?.mime_type === 'application/vnd.vera.sheets+json';
+}
+
 export function isMarkdownSource(source: SourceDocumentResult | null): boolean {
   if (!source) return false;
   const mime = source.mime_type.toLowerCase();
@@ -82,7 +90,7 @@ export function showInFolderLabel(platform: string): string {
 }
 
 export type ExplorerSelection =
-  | { kind: 'file'; path: string; type: 'vera' | 'pdf' | 'md' }
+  | { kind: 'file'; path: string; type: 'vera' | 'pdf' | 'md' | 'docx' | 'pptx' | 'xlsx' }
   | { kind: 'folder'; path: string };
 
 export interface ConvertPathDefaults {

@@ -88,7 +88,7 @@ export function createSourceDocumentController(getHost: () => SourceDocumentHost
     entry: FolderEntry,
     options: { preserveLibrary?: boolean; replacePending?: boolean } = {},
   ) {
-    if (entry.type !== 'vera' && entry.type !== 'pdf' && entry.type !== 'md') return;
+    if (entry.type !== 'vera' && entry.type !== 'pdf' && entry.type !== 'md' && entry.type !== 'docx' && entry.type !== 'pptx' && entry.type !== 'xlsx') return;
     const host = getHost();
     if (host.pendingSourcePath && !options.replacePending) return;
     if (options.replacePending) host.cancelActionScope('source');
@@ -102,13 +102,17 @@ export function createSourceDocumentController(getHost: () => SourceDocumentHost
     host.setSelected(null);
     host.setViewerMode('document');
     host.setViewerCollapsed(false);
-    if (entry.type === 'vera') {
-      await host.openTargetPath(entry.path, { preserveLibrary: options.preserveLibrary ?? true });
-    } else {
+    if (entry.type !== 'vera') {
       host.applyConvertDefaultsFromSelection(selection);
     }
     if (requestId !== sourceDocumentLoadRef.current) return;
-    await loadSourceDocument(entry.path, true, requestId);
+    // Issue the preview before archive inspect. The sidecar handles one request
+    // at a time, and inspect was delaying the first paint of the document.
+    const loading = loadSourceDocument(entry.path, true, requestId);
+    if (entry.type === 'vera') {
+      void host.openTargetPath(entry.path, { preserveLibrary: options.preserveLibrary ?? true });
+    }
+    await loading;
   }
 
   return {

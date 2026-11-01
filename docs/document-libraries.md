@@ -20,6 +20,29 @@ JSON results add:
 
 Keep citations separated by archive when comparing sources.
 
+## Managed libraries
+
+`vera library init DIRECTORY` makes a folder of source documents a managed
+library. Archives are mirrored under `.vera/archives/` and keep the source
+extension (`Plans/Site Plan.pdf` becomes
+`.vera/archives/Plans/Site Plan.pdf.vera`). The index lives at `.vera/index`.
+Deleted archives move to `.vera/trash/` for 30 days (`trash_retention_days`
+in `library.json`). `vera library sync` converts new or changed files, moves
+archives when a rename keeps the same content, and trashes archives whose
+sources are gone. If the folder cannot be read, or more than 20% of archives
+and more than five files disappear, sync reports `needs_confirmation` and
+does not trash anything until `--confirm-deletes`.
+
+Searching the library, or any subfolder of it, uses that index. Results
+include `source_path` (for example `Plans/Site Plan.pdf`). `--include` and
+`--exclude` match those source paths. The nearest parent `.vera/` owns the
+folder; creating a second library inside it is refused.
+
+`vera convert file.pdf` still writes a sibling `.vera`. `vera library init
+--adopt` moves sibling archives whose stored hash matches the source into
+`.vera/archives/`. A folder of loose `.vera` files, with no `library.json`,
+keeps using `.vera-index/` and the commands above.
+
 Malformed archives do not abort folder search or inspection. Direct fallback
 search validates each discovered archive and searches the valid subset.
 `VeraCorpus.inspect()` similarly reports `discovered_file_count`, the valid

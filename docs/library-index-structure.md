@@ -30,6 +30,13 @@ flowchart TD
     activeGeneration --> vectorFiles
 ```
 
+A managed library (one that contains `.vera/library.json`) stores this same
+layout under `.vera/index` and discovers archives only under
+`.vera/archives/`. `files.source_path` is the source document relative to the
+library root, which is what `--include`, `--exclude`, and subfolder scope
+match. Adding that column set the index version to 2, so an older index is
+rebuilt. A folder without `library.json` still uses `.vera-index/`.
+
 `current.json` identifies the active generation. A build writes and validates a
 new generation before atomically replacing that pointer under `build.lock`.
 After the swap, VERA deletes every other generation directory. Concurrent
@@ -53,6 +60,7 @@ erDiagram
         TEXT content_hash
         TEXT source_hash
         TEXT source_filename
+        TEXT source_path
         TEXT title
         TEXT created_at
         TEXT metadata_json

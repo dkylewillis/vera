@@ -1,13 +1,13 @@
 # Convert documents
 
-`vera convert` turns PDFs, Markdown files, and (with `vera-ingest-docling`)
-DOCX, PPTX, XLSX, and HTML into portable `.vera` archives.
+`vera convert` turns PDFs, Markdown, Word, PowerPoint, Excel, and (with
+`vera-ingest-docling`) HTML into portable `.vera` archives.
 Conversion parses layout or Markdown structure, detects headings, creates
 citation-ready chunks, computes embeddings, builds the FTS5 keyword index, and
 normally stores the original file. Directory discovery uses each installed
 pipeline's `source_formats` (PDF via PyMuPDF, Markdown via the bundled
-`markdown` pipeline, and DOCX/PPTX/XLSX/HTML via optional Docling). Visual
-grounding for Office/HTML remains planned; see
+`markdown` pipeline, DOCX/PPTX/XLSX via `ooxml`, and HTML via optional
+Docling). Office files use `ooxml` unless you pass `--parser docling`. See
 [Additional source formats and visual grounding](multi-format-ingest.md).
 
 ## Convert one PDF, Markdown, or Office/HTML file
@@ -15,8 +15,10 @@ grounding for Office/HTML remains planned; see
 ```bash
 vera convert "input.pdf" "output.vera"
 vera convert "notes.md" "notes.vera"
-vera convert "memo.docx" "memo.vera"   # requires vera[docling]
-vera convert "notes.html" "notes.vera"
+vera convert "memo.docx" "memo.vera"
+vera convert "deck.pptx" "deck.vera"
+vera convert "budget.xlsx" "budget.vera"
+vera convert "notes.html" "notes.vera"   # requires vera[docling]
 vera convert "filing.md" "filing.vera" --metadata company=GRID --metadata source_id=src_aaa
 ```
 
@@ -145,7 +147,13 @@ lists only unchanged valid archives. `malformed_existing` entries include
 write the same `.vera` path (`manual.pdf` and `manual.md`) are reported as
 failures instead of overwriting each other. Batch conversion
 continues after an individual file fails and exits nonzero if any conversion
-failed or malformed existing output was found.
+failed or malformed existing output was found. A Word file that opens but
+skips a part (one unreadable table, plus headers, footers, footnotes,
+endnotes, comments, content controls, or text boxes) still converts.
+`warnings` lists those files with `input`, `output`, and `warnings`. The
+same lines are stored on the archive as `ingest_warnings`, beside `ocr`.
+Search covers the extracted text. A corrupt, encrypted, or empty file stays
+in `errors`.
 
 In the desktop app, right-click a folder in Explorer and choose
 **Convert** to batch-convert its new files immediately (existing up-to-date
@@ -343,7 +351,8 @@ override aliases for the same key.
 | --- | --- | --- |
 | PyMuPDF (`pymupdf`) | `chunk_size=500` words, `overlap=75` words, `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false` | Sliding-window chunks of whitespace-split words (`str.split()`, not characters or LLM subword tokens); Tesseract OCR; language picker lists bundled/downloadable codes |
 | Markdown (`markdown`) | `chunk_size=500` words, `overlap=75` words | Bundled in `vera-ingest`. ATX/Setext headings, lists, fenced code, GFM tables; heading-aware sliding windows. Citations use heading paths and `text_span` locators, not PDF page boxes. Silently ignores OCR keys (`ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_download`) so a mixed PDF+Markdown directory convert can reuse one `pipeline_options` bag |
-| Docling (`docling`) | `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | PDF, DOCX, PPTX, XLSX, HTML (`.htm`). No `overlap` / `ocr_dpi` / Tesseract `--ocr-language` aliases; RapidOCR and auto page recovery / `pypdfium2` fallback apply to **PDFs only**. Office/HTML are search-only (no highlight overlay). The 0.3.x desktop app excludes this pipeline; Explorer does not list Office/HTML sources |
+| OOXML (`ooxml`) | `chunk_size=500` words, `overlap=75` words, `rows_per_chunk=40`, `include_notes=true` | Default for `.docx`, `.pptx`, and `.xlsx`. Ships in the CLI and the desktop app. Word stores a Markdown preview with `text_span` highlights. PowerPoint and Excel store native JSON previews with `slide` and `sheet_range` locators. Ignores OCR keys. See [`vera-ingest-ooxml`](packages/vera-ingest-ooxml.md) |
+| Docling (`docling`) | `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | Optional higher-fidelity path for PDF, DOCX, PPTX, XLSX, and HTML (`.htm`). Pass `--parser docling`. No `overlap` / `ocr_dpi` / Tesseract `--ocr-language` aliases; RapidOCR and auto page recovery / `pypdfium2` fallback apply to **PDFs only**. The desktop app excludes this pipeline |
 
 Discover descriptors from Python with `describe_ingest_pipeline` /
 `list_ingest_pipeline_descriptors`, or from the desktop sidecar action

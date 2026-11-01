@@ -1,12 +1,14 @@
 # Additional source formats and visual grounding
 
-**Status:** Markdown ingest ships. Convert, batch discovery, and the desktop
-source viewer handle PDF (PyMuPDF) and native Markdown (`markdown` pipeline
-in `vera-ingest`). With `vera-ingest-docling`, CLI convert also ingests DOCX,
-PPTX, XLSX, and HTML for **search only** (no PDF-style highlight overlay).
-Richer visual grounding for those types remains planned. This page
-records the intended direction so plugin naming, locators, and viewers stay
-consistent as more formats land.
+**Status:** PDF (PyMuPDF), native Markdown, and Office ingest ship. Convert,
+batch discovery, and the desktop source viewer handle PDF, Markdown, Word
+(`.docx`), PowerPoint (`.pptx`), and Excel (`.xlsx`). The default Office
+provider is `ooxml` (`vera-ingest-ooxml`). Docling remains the optional
+higher-fidelity path: pass `--parser docling` (and install `vera[docling]`)
+for DOCX, PPTX, XLSX, or HTML. Word highlights a stored Markdown preview.
+Slides and sheets highlight native JSON previews, not generated Markdown.
+This page records the locator and viewer rules so later formats stay
+consistent.
 
 See the [roadmap](https://github.com/dkylewillis/vera/blob/main/ROADMAP.md)
 for the checklist. Nothing here changes the `.vera` **0.2** schema.
@@ -16,6 +18,7 @@ for the checklist. Nothing here changes the `.vera` **0.2** schema.
 Name ingest packages after the **engine**, not the file type:
 
 - `vera-ingest-pymupdf` registers provider `pymupdf`
+- `vera-ingest-ooxml` registers provider `ooxml`
 - `vera-ingest-docling` registers provider `docling`
 - Markdown lives inside `vera-ingest` as provider `markdown` (stdlib parser,
   no extra package)
@@ -31,8 +34,12 @@ types. Two engines may both handle PDF; the user picks `--parser`.
 
 `PipelineCapabilities.source_formats` is the metadata slot for “what this
 plugin can ingest” (the example pipeline already sets `("txt",)`; PyMuPDF sets
-`("pdf",)`; Docling sets `("pdf", "docx", "pptx", "xlsx", "html", "htm")`;
-Markdown sets `("md", "markdown")`). Convert, batch
+`("pdf",)`; OOXML sets `("docx", "pptx", "xlsx")`; Docling sets
+`("pdf", "docx", "pptx", "xlsx", "html", "htm")`;
+Markdown sets `("md", "markdown")`). When more than one installed provider
+advertises a suffix, preference order is `pymupdf`, `markdown`, `ooxml`,
+then `docling`, so Office files use `ooxml` unless the caller passes
+`--parser docling`. Convert, batch
 discovery, and file pickers consult that list instead of hardcoding `.pdf`.
 
 ## Two grounding surfaces
@@ -45,7 +52,7 @@ That surface is not the same for every format.
 | PDF | layout blocks, as today | original PDF + page bounding boxes |
 | DOCX, HTML, Markdown, TXT | Markdown (or the file when it is already Markdown) | stored Markdown preview |
 | CSV / small tables | Markdown or row text for retrieval | Markdown excerpt is acceptable; sheet+range is better later |
-| Excel, PPTX | Markdown excerpts may be searchable | do not treat generated Markdown as the visual source of truth |
+| Excel, PPTX | row-group tables and slide text | native JSON preview (`sheet_range`, `slide`), not generated Markdown |
 
 Keep today’s PDF overlay. Do not convert PDFs to Markdown in order to reuse
 a Markdown viewer — that would drop page-accurate citations, scans, and
@@ -63,9 +70,12 @@ anchors** (`block_id` mapped to a heading or preview `id`). Line spans of
 generated Markdown are a convenience, not a stable contract across reconvert.
 
 Spreadsheets and slides are spatial. A 20k-row sheet as one GFM table is not
-a viewer, and “line 40” is not `Sheet1!B4:D18` or “slide 7.” Retrieval may
-still embed Markdown excerpts; visual grounding for those types is a later
-native locator (`sheet_range`, slide + bbox), not this Markdown preview.
+a viewer, and “line 40” is not `Budget!B4:D18` or “slide 7.” OOXML stores
+searchable text in chunks and a separate preview attachment
+(`application/vnd.vera.sheets+json` or `application/vnd.vera.slides+json`).
+Those previews are native JSON, not Markdown. Highlights use `sheet_range`
+and `slide` locators. The sheet preview is capped (first rows and columns);
+a cited range past that cap is reported as beyond the preview.
 
 ## Locators stay in chunk metadata
 
@@ -88,6 +98,9 @@ tables:
 
 { "kind": "sheet_range", "block_id": "block_0010",
   "sheet": "Budget", "range": "B4:D18" }
+
+{ "kind": "slide", "block_id": "block_0012",
+  "slide": 7, "shape_index": 2 }
 ```
 
 Existing PDF archives without `kind` stay valid; viewers treat a missing
@@ -105,9 +118,14 @@ archive (or later index extra columns). Neither change is a format 0.2 bump.
 source MIME (and archive metadata such as `source_mime_type`):
 
 - `application/pdf` — current page + bbox overlay
-- `text/markdown` — line-numbered preview of the stored original with
-  `text_span` highlights. The viewer strips a leading UTF-8 BOM (`U+FEFF`)
-  before numbering lines so those locators stay aligned.
+- `text/markdown` — rendered preview of stored Markdown (a `.md` file or the
+  Word preview): headings, lists, emphasis, code, and tables, with the cited
+  block highlighted. The desktop sidecar caches an HTML rendering, so a large
+  preview opens without parsing it in the window. `markdownDisplayLines()` strips a leading UTF-8 BOM
+  (`U+FEFF`) before numbering lines so those `text_span` locators stay aligned.
+- `application/vnd.vera.slides+json` — slide list with cited blocks highlighted
+- `application/vnd.vera.sheets+json` — sheet tabs and a cell grid with the
+  cited `sheet_range` highlighted
 - unknown — result text plus the citation string (already works)
 
 Pipeline capabilities can later advertise both `source_formats` and which

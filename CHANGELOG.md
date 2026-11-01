@@ -16,6 +16,24 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Added
 
+- Word convert keeps going when one part cannot be read. Headers, footers,
+  footnotes, endnotes, comments, content controls, text boxes, and a single
+  unreadable table are stored as `ingest_warnings` and shown in Convert
+  details. A corrupt, encrypted, or empty file still fails.
+- Office ingest. `vera convert` and the desktop app convert `.docx`, `.pptx`,
+  and `.xlsx` with the `ooxml` pipeline (`python-docx`, `python-pptx`,
+  `openpyxl`). Word highlights a stored Markdown preview. PowerPoint and
+  Excel highlight native slide and sheet previews (`slide` and `sheet_range`
+  regions). `--parser docling` remains the optional higher-fidelity path.
+- Managed libraries. `vera library init` creates a hidden `.vera/` folder that
+  mirrors source documents under `archives/`, keeps the collection index at
+  `index/`, and holds deleted archives in `trash/` for 30 days. `vera library
+  sync` converts new or changed files, moves renamed archives, and pauses
+  trash when a folder is unreachable or a mass delete is detected. Search of
+  a managed library returns `source_path` and scopes a subfolder to that
+  path. MCP adds read-only `vera_library_status`. The desktop app creates a
+  managed library when a folder is added, syncs on file changes and on a
+  timer, and can restore trash or copy one archive out.
 - VERA Pro **Allow cloud agents** connects Desktop to one OAuth-protected
   relay URL. Cloud assistants sign in with the VERA account. The relay checks
   the subscription and forwards MCP traffic to the open desktop app.
@@ -75,8 +93,10 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   choose **Make this a library**). Folders saved before this change reopen as
   libraries (`vera.libraryPaths`). Explorer now shows nested subfolders as a
   collapsible tree, shows a source and the `.vera` converted from it as one
-  document row, shows unconverted sources in a muted style, and filters by
-  **All / Ready / To convert**.
+  document row, and marks unconverted sources with a muted name and a dot.
+  Folders and subfolders with unconverted sources show a sync-arrow badge
+  with their count that converts them with the saved settings and spins while
+  that folder converts.
 - Desktop **File > Settings → ChatGPT Bridge** (developer-mode PoC) supervises
   OpenAI Secure MCP Tunnel against one approved library via
   `vera-sidecar mcp-bridge` and a fail-closed policy file.

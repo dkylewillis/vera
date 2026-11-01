@@ -21,6 +21,7 @@ DEFAULT_MAX_SOURCES = 12
 BRIDGE_TOOLS = frozenset(
     {
         "vera_library_info",
+        "vera_library_status",
         "vera_search",
         "vera_corpus_search",
         "vera_inspect",

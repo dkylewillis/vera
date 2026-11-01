@@ -5,8 +5,10 @@ import {
   ChevronDown,
   ChevronRight,
   Database,
+  FileSpreadsheet,
   FileText,
   Folder,
+  Presentation,
   FolderOpen,
   Library,
   Plus,
@@ -17,18 +19,14 @@ import {
   applyFileListCheckbox,
   applyFileListSelection,
   buildExplorerTree,
-  explorerFileMatchesFilter,
   explorerRowTone,
   explorerSelectionAfterFileList,
-  filterExplorerTree,
   partitionExplorerSelection,
   convertibleSelection,
   persistExpandedSubfolders,
-  pruneExplorerSelectionForFilter,
   readExpandedSubfolders,
   visibleExplorerDocuments,
   type ExplorerDocument,
-  type ExplorerFileFilter,
   type ExplorerTreeFolder,
 } from '../lib/explorer';
 import { fileName, isPathInsideFolder, showInFolderLabel, type ExplorerSelection } from '../lib/formatting';
@@ -54,12 +52,6 @@ export type ExplorerFileSelection = {
   explorerSelection: ExplorerSelection | null;
 };
 
-const FILTERS = [
-  ['all', 'All'],
-  ['ready', 'Ready'],
-  ['pending', 'To convert'],
-] as const;
-
 export function ExplorerPanel({
   folders,
   libraryPaths,
@@ -70,7 +62,6 @@ export function ExplorerPanel({
   selectedPdfs,
   selectionAnchorPath,
   explorerSelection,
-  explorerFileFilter,
   collapsedFolders,
   pendingSourcePath,
   sourceDocumentPath,
@@ -82,11 +73,11 @@ export function ExplorerPanel({
   busyFolderPath,
   busyAction,
   convertLocked,
+  convertingTargets,
   escapeBlocked,
   onClearFileSelection,
   onAddLibrary,
   onAddFolder,
-  onFileFilterChange,
   onCollapsedFoldersChange,
   onFileSelectionChange,
   onSelectFolder,
@@ -107,6 +98,9 @@ export function ExplorerPanel({
   onMakeFolder,
   onRemoveFolder,
   onTrashEntry,
+  onOpenLibraryTrash,
+  onShareArchive,
+  librarySyncNotices,
 }: {
   folders: WorkspaceFolderResult[];
   libraryPaths: string[];
@@ -118,7 +112,6 @@ export function ExplorerPanel({
   selectedPdfs: string[];
   selectionAnchorPath: string | null;
   explorerSelection: ExplorerSelection | null;
-  explorerFileFilter: ExplorerFileFilter;
   collapsedFolders: string[];
   pendingSourcePath: string;
   sourceDocumentPath: string;
@@ -130,11 +123,12 @@ export function ExplorerPanel({
   busyFolderPath: string;
   busyAction: string | null;
   convertLocked: boolean;
+  /** Folder or file paths the running conversion is working on. */
+  convertingTargets: string[];
   escapeBlocked: boolean;
   onClearFileSelection: () => boolean;
   onAddLibrary: () => void;
   onAddFolder: () => void;
-  onFileFilterChange: (filter: ExplorerFileFilter) => void;
   onCollapsedFoldersChange: (update: (prev: string[]) => string[]) => void;
   onFileSelectionChange: (next: ExplorerFileSelection) => void;
   onSelectFolder: (folderPath: string) => void;
@@ -157,20 +151,20 @@ export function ExplorerPanel({
   onMakeFolder: (folderPath: string) => void;
   onRemoveFolder: (folderPath: string) => void;
   onTrashEntry: (entry: FolderEntry, folderPath: string) => void;
+  onOpenLibraryTrash?: (folderPath: string) => void;
+  onShareArchive?: (archivePath: string) => void;
+  librarySyncNotices?: Record<string, string>;
 }) {
   const [menu, setMenu] = useState<ExplorerMenu | null>(null);
   const menuTriggerRef = useRef<HTMLElement | null>(null);
   const [expandedSubfolders, setExpandedSubfolders] = useState(readExpandedSubfolders);
 
   const trees = useMemo(
-    () => folders.map((folder) => {
-      const full = buildExplorerTree(folder);
-      return { folder, full, visible: filterExplorerTree(full, explorerFileFilter) };
-    }),
-    [folders, explorerFileFilter],
+    () => folders.map((folder) => ({ folder, full: buildExplorerTree(folder) })),
+    [folders],
   );
   const visibleDocuments = useMemo(
-    () => visibleExplorerDocuments(trees.map((tree) => tree.visible), collapsedFolders, expandedSubfolders),
+    () => visibleExplorerDocuments(trees.map((tree) => tree.full), collapsedFolders, expandedSubfolders),
     [trees, collapsedFolders, expandedSubfolders],
   );
   const libraryTrees = trees.filter((tree) => libraryPaths.includes(tree.folder.path));
@@ -267,34 +261,6 @@ export function ExplorerPanel({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [menu, escapeBlocked, onClearFileSelection]);
 
-  function applyExplorerFileFilter(filter: ExplorerFileFilter) {
-    onFileFilterChange(filter);
-    const current = fileSelectionRef.current;
-    const next = pruneExplorerSelectionForFilter(
-      [...current.selectedFiles, ...current.selectedPdfs],
-      filter,
-      current.selectionAnchorPath,
-    );
-    const partitioned = partitionExplorerSelection(next.selected);
-    if (next.selected.length === 0) {
-      fileSelectionRef.current = {
-        selectedFiles: [],
-        selectedPdfs: [],
-        selectionAnchorPath: next.anchor,
-      };
-      onClearFileSelection();
-      return;
-    }
-    commitFileSelection({
-      selectedFiles: partitioned.vera,
-      selectedPdfs: convertibleSelection(partitioned),
-      selectionAnchorPath: next.anchor,
-      explorerSelection: explorerSelection?.kind !== 'file'
-        ? explorerSelection
-        : explorerFileMatchesFilter(explorerSelection.type, filter) ? explorerSelection : null,
-    });
-  }
-
   function commitFromFileList(doc: TreeDocument, next: { selected: string[]; anchor: string | null }) {
     const partitioned = partitionExplorerSelection(next.selected);
     if (next.selected.length === 0) {
@@ -376,6 +342,34 @@ export function ExplorerPanel({
     action();
   }
 
+  function renderPendingBadge(folderPath: string, pending: number) {
+    if (pending === 0) return null;
+    const files = `${pending} file${pending === 1 ? '' : 's'}`;
+    const converting = convertingTargets.some((target) => (
+      isPathInsideFolder(target, folderPath) || isPathInsideFolder(folderPath, target)
+    ));
+    return (
+      <button
+        type="button"
+        className={converting ? 'pendingBadge converting' : 'pendingBadge'}
+        disabled={convertLocked}
+        title={converting
+          ? `Converting · ${files} left`
+          : convertLocked
+            ? `${files} not converted yet · wait for conversion to finish`
+            : `${files} not searchable yet · click to convert with your default settings`}
+        aria-label={converting ? `Converting, ${files} left` : `Convert ${files}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onConvertFolder(folderPath);
+        }}
+      >
+        <RefreshCw size={10} className={converting ? 'spinning' : undefined} aria-hidden="true" />
+        {pending}
+      </button>
+    );
+  }
+
   function convertMenuItems(folderPath: string, sourceCount: number, pending: number) {
     const lockedTitle = convertLocked ? 'Wait for conversion to finish' : undefined;
     return (
@@ -428,6 +422,11 @@ export function ExplorerPanel({
               Make this a library
             </button>
           )}
+          {onOpenLibraryTrash && isLibrary ? (
+            <button role="menuitem" onClick={() => runMenuAction(() => onOpenLibraryTrash(current.path))}>
+              Library trash…
+            </button>
+          ) : null}
           <button role="menuitem" onClick={() => runMenuAction(() => onRefreshFolder(current.path))}>
             Rescan folder
           </button>
@@ -522,6 +521,11 @@ export function ExplorerPanel({
             </button>
           </>
         )}
+        {doc.archive && onShareArchive ? (
+          <button role="menuitem" onClick={() => runMenuAction(() => onShareArchive(doc.archive?.path || primary.path))}>
+            Share archive…
+          </button>
+        ) : null}
         <button role="menuitem" onClick={() => runMenuAction(() => onRevealInFolder(primary.path))}>
           {showInFolderLabel(window.vera.platform)}
         </button>
@@ -610,8 +614,13 @@ export function ExplorerPanel({
         >
           {doc.archive
             ? <VeraIcon size={14} className="fileRowIcon vera" />
-            : <FileText size={14} className={`fileRowIcon ${doc.type}`} />}
+            : doc.type === 'xlsx'
+              ? <FileSpreadsheet size={14} className="fileRowIcon xlsx" />
+              : doc.type === 'pptx'
+                ? <Presentation size={14} className="fileRowIcon pptx" />
+                : <FileText size={14} className={`fileRowIcon ${doc.type}`} />}
           <span className="fileRowName">{doc.label}</span>
+          {doc.archive ? null : <span className="fileRowPendingDot" aria-label="Not converted yet" />}
         </button>
       </div>
     );
@@ -624,28 +633,31 @@ export function ExplorerPanel({
           const expanded = expandedSubfolders.includes(child.path);
           return (
             <div className="subfolderGroup" key={child.path}>
-              <button
-                type="button"
-                className={folderScopePath === child.path ? 'subfolderRow scoped' : 'subfolderRow'}
-                style={{ '--depth': depth } as CSSProperties}
-                aria-expanded={expanded}
-                title={child.relativePath}
-                onClick={() => toggleSubfolder(child.path)}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  showMenu({ kind: 'subfolder', folder: child, rootPath, x: event.clientX, y: event.clientY });
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
-                  event.preventDefault();
-                  const bounds = event.currentTarget.getBoundingClientRect();
-                  showMenu({ kind: 'subfolder', folder: child, rootPath, x: bounds.left, y: bounds.bottom });
-                }}
-              >
-                {expanded ? <ChevronDown size={12} className="subfolderCaret" /> : <ChevronRight size={12} className="subfolderCaret" />}
-                {expanded ? <FolderOpen size={13} className="subfolderIcon" /> : <Folder size={13} className="subfolderIcon" />}
-                <span className="subfolderName">{child.name}</span>
-              </button>
+              <div className="subfolderRowWrap">
+                <button
+                  type="button"
+                  className={folderScopePath === child.path ? 'subfolderRow scoped' : 'subfolderRow'}
+                  style={{ '--depth': depth } as CSSProperties}
+                  aria-expanded={expanded}
+                  title={child.relativePath}
+                  onClick={() => toggleSubfolder(child.path)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    showMenu({ kind: 'subfolder', folder: child, rootPath, x: event.clientX, y: event.clientY });
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+                    event.preventDefault();
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    showMenu({ kind: 'subfolder', folder: child, rootPath, x: bounds.left, y: bounds.bottom });
+                  }}
+                >
+                  {expanded ? <ChevronDown size={12} className="subfolderCaret" /> : <ChevronRight size={12} className="subfolderCaret" />}
+                  {expanded ? <FolderOpen size={13} className="subfolderIcon" /> : <Folder size={13} className="subfolderIcon" />}
+                  <span className="subfolderName">{child.name}</span>
+                </button>
+                {renderPendingBadge(child.path, child.pendingCount)}
+              </div>
               {expanded ? renderFolderContents(child, depth + 1, rootPath) : null}
             </div>
           );
@@ -655,11 +667,11 @@ export function ExplorerPanel({
     );
   }
 
-  function renderRoot({ folder, full, visible }: (typeof trees)[number]) {
+  function renderRoot({ folder, full }: (typeof trees)[number]) {
     const isLibrary = libraryPaths.includes(folder.path);
     const collapsed = collapsedFolders.includes(folder.path);
     const folderBusy = busyFolderPath === folder.path;
-    const empty = visible.documents.length === 0 && visible.folders.length === 0;
+    const empty = full.documents.length === 0 && full.folders.length === 0;
     return (
       <section
         className={isLibrary && activeLibraryPath === folder.path && selectedFiles.length === 0
@@ -711,15 +723,15 @@ export function ExplorerPanel({
           >
             <span className="folderGroupName">{folder.name}</span>
           </button>
+          {folderBusy ? null : renderPendingBadge(folder.path, full.pendingCount)}
           {isLibrary ? renderIndexBadge(folder.path) : null}
+          {librarySyncNotices?.[folder.path] ? (
+            <span className="sideMuted">{librarySyncNotices[folder.path]}</span>
+          ) : null}
         </div>
         {collapsed ? null : empty ? (
-          <p className="folderEmpty">
-            {explorerFileFilter === 'all'
-              ? 'No .vera, .pdf, or .md files'
-              : explorerFileFilter === 'ready' ? 'No converted documents yet' : 'Everything here is converted'}
-          </p>
-        ) : renderFolderContents(visible, 0, folder.path)}
+          <p className="folderEmpty">No .vera, PDF, Markdown, or Office files</p>
+        ) : renderFolderContents(full, 0, folder.path)}
       </section>
     );
   }
@@ -782,19 +794,6 @@ export function ExplorerPanel({
         </div>
       ) : (
         <>
-          <div className="explorerFileFilter" role="group" aria-label="Filter explorer documents">
-            {FILTERS.map(([filter, label]) => (
-              <button
-                type="button"
-                key={filter}
-                className={explorerFileFilter === filter ? 'active' : ''}
-                onClick={() => applyExplorerFileFilter(filter)}
-                aria-pressed={explorerFileFilter === filter}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
           <div className="explorerTree">
             <div className="explorerSection">
               <div className="explorerSectionHead">

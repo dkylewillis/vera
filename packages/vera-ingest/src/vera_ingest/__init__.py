@@ -21,6 +21,13 @@ from .formats import (
     source_mime_type,
     source_suffix,
 )
+from .library import (
+    init_library,
+    library_status,
+    list_trash,
+    restore_from_trash,
+    sync_library,
+)
 from .markdown import ensure_registered as ensure_markdown_pipeline_registered
 from .pipeline import (
     PLUGIN_API_VERSION,
@@ -59,6 +66,7 @@ from .viewer import (
     get_chunk_regions,
     get_page,
     get_source_document,
+    get_viewer_preview,
     regions_for,
     result_payload,
 )
@@ -87,6 +95,11 @@ __all__ = [
     "chunk_payload",
     "clear_ingest_pipeline_cache",
     "convert",
+    "init_library",
+    "library_status",
+    "list_trash",
+    "restore_from_trash",
+    "sync_library",
     "describe_ingest_pipeline",
     "detect_heading",
     "ensure_ingest_request",
@@ -100,6 +113,7 @@ __all__ = [
     "get_ingest_pipeline",
     "get_page",
     "get_source_document",
+    "get_viewer_preview",
     "installed_source_formats",
     "invoke_ingest_pipeline",
     "list_ingest_pipeline_descriptors",

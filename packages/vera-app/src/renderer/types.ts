@@ -7,6 +7,7 @@ import type {
   StreamEvent,
 } from '../shared/contracts';
 import type { ProAccount, ProActionResult } from '../shared/pro';
+import type { FolderPickPurpose } from '../shared/protocol';
 
 export type {
   AgentServiceSettings,
@@ -80,7 +81,7 @@ export interface VeraApi {
   listModes(): Promise<VeraResponse<{ modes: Mode[] }>>;
   openModesFolder(): Promise<unknown>;
   pickArchive(): Promise<string | null>;
-  pickFolder(): Promise<string | null>;
+  pickFolder(purpose?: FolderPickPurpose): Promise<string | null>;
   listFolder(dir: string): Promise<WorkspaceFolderResult | null>;
   pathExists(targetPath: string): Promise<boolean>;
   showInFolder(targetPath: string): Promise<void>;
@@ -89,6 +90,10 @@ export interface VeraApi {
   getConvertLogPath(): Promise<string>;
   trashWorkspaceFile(filePath: string, folderPath: string): Promise<'trashed' | 'deleted' | 'cancelled'>;
   setWatchedFolders(paths: string[]): Promise<void>;
+  /** `requestId` routes `library_progress` events to `onAnswerEvent` and lets `cancelAnswer` stop the sync. */
+  syncLibrary(folderPath: string, requestId?: string): Promise<LibrarySyncReport | null>;
+  shareArchive(archivePath: string): Promise<string | null>;
+  onLibrarySync(callback: (folderPath: string, report: LibrarySyncReport | null) => void): () => void;
   pickPdf(): Promise<string[]>;
   saveAny(): Promise<string | null>;
   openTargetReady(): Promise<void>;
@@ -108,7 +113,7 @@ export interface FolderEntry {
   path: string;
   name: string;
   relativePath: string;
-  type: 'vera' | 'pdf' | 'md';
+  type: 'vera' | 'pdf' | 'md' | 'docx' | 'pptx' | 'xlsx';
 }
 
 export interface WorkspaceFolderResult {
@@ -117,6 +122,29 @@ export interface WorkspaceFolderResult {
   entries: FolderEntry[];
   truncated?: boolean;
   index?: LibraryIndexStatus;
+}
+
+export interface LibrarySyncReport {
+  managed?: boolean;
+  needs_confirmation?: boolean;
+  ok?: boolean;
+  error?: string;
+  converted?: number;
+  moved?: number;
+  trashed?: number;
+  pending_trash?: number;
+  failed?: number;
+  errors?: { input: string; error: string }[];
+  busy?: boolean;
+  adoptable?: string[];
+  inside_library?: boolean;
+  library_root?: string | null;
+}
+
+export interface LibraryTrashEntry {
+  entry: string;
+  source_path: string;
+  trashed_at: string;
 }
 
 export interface LibraryIndexStatus {
@@ -208,6 +236,7 @@ export interface InspectResult {
   ocr_language?: string;
   ocr_dpi?: string;
   ocr_pages?: string;
+  ingest_warnings?: string[];
   directory?: string;
   file_count?: number;
   discovered_file_count?: number;
@@ -282,6 +311,7 @@ export interface BatchConvertResult {
   skipped_by_user?: string[];
   malformed_existing: { input: string; output: string; issues: string[] }[];
   errors: { input: string; error: string }[];
+  warnings?: { input: string; output: string; warnings: string[] }[];
 }
 
 export interface ExportResult {
@@ -298,6 +328,8 @@ export interface SourceDocumentResult {
   size: number;
   /** Privileged app URL for the cached source bytes (not a base64 data URL). */
   url: string;
+  /** Pre-rendered HTML for Markdown sources, with `data-ls`/`data-le` line ranges. */
+  html_url?: string;
 }
 
 export interface OcrLanguageStatus {

@@ -28,6 +28,11 @@ vera index build ./library --recursive --json
 vera index update ./library --json
 vera index status ./library --json
 
+# Managed library: hidden .vera/ mirrors sources and stays in sync
+vera library init ./library --json
+vera library sync ./library --json
+vera library status ./library --json
+
 # Include figure/table metadata near each result
 vera search manual.vera "pipe sizing chart" --json --figures
 
@@ -60,13 +65,15 @@ vera get manual.vera chunk_0042 --json
 # Is this file well-formed? (exit code 0 = valid, 1 = invalid)
 vera validate manual.vera --json
 
-# Create an .vera from a PDF, Markdown, or (with Docling) Office/HTML file
+# Create an .vera from a PDF, Markdown, Word, PowerPoint, or Excel file
 vera convert manual.pdf manual.vera --json
 vera convert notes.md notes.vera --json
 vera convert memo.docx memo.vera --json
+vera convert deck.pptx deck.vera --json
+vera convert budget.xlsx budget.vera --json
 vera convert notes.html notes.vera --json
 
-# Docling (optional CLI extra: vera[docling] or --extra docling; not in the 0.3.0 desktop app)
+# Docling (optional, higher-fidelity layout; vera[docling] or --extra docling; not a desktop pipeline)
 vera convert scan.pdf scan.vera --parser docling --json
 vera convert scan.pdf scan.vera --parser docling --pipeline-option pdf_backend=pypdfium2 --json
 
@@ -75,7 +82,7 @@ vera convert manual.pdf --model hashing --embedder-option dimension=256 --json
 vera convert manual.pdf --model openai:text-embedding-3-small --json
 vera convert filing.md out.vera --metadata company=GRID --metadata source_id=src_aaa --json
 
-# Batch-convert a nested PDF, Markdown, and (with Docling) Office/HTML library
+# Batch-convert a nested PDF, Markdown, and Office library
 vera convert ./proposals --recursive --json
 
 # Scope a library search by path include and stored metadata (filter before top_k)
@@ -190,6 +197,7 @@ VERA ships an MCP server (stdio) exposing the same capabilities as tools:
 | Tool | Purpose |
 |------|---------|
 | `vera_library_info` | Approved `library_roots` (and `library_root` when there is one) and whether the server is unrestricted local MCP or the Desktop agent service |
+| `vera_library_status` | Read-only pending-change report for a managed library (no sync, no deletes) |
 | `vera_search` | Hybrid/semantic/keyword search with optional figure metadata, highlight regions, and pretty context |
 | `vera_corpus_search` | Search every .vera file in a directory as one corpus; results attributed per file, with optional pretty context |
 | `vera_inspect` | Document metadata, page/chunk counts, embedding model, pipeline `ocr` diagnostics |
@@ -222,6 +230,10 @@ Desktop grant. A cloud assistant uses the VERA Pro connector URL instead.
 VERA account. Stay inside the same `library_roots`.
 
 ## Working on this repository
+
+Read [VISION.md](VISION.md) before designing features or changing how
+conversion, libraries, indexing, or ingest pipelines behave. It states the
+product direction that design decisions should follow.
 
 Contributor setup, checks, and package layout live in
 [CONTRIBUTING.md](CONTRIBUTING.md). Keep human and agent documentation current.
@@ -267,12 +279,12 @@ non-obvious caveats for this environment; standard commands live in the sections
   mode, so Ask offers **Use VERA Pro** and **Add your own provider** when none is configured.
   For fully offline testing use the left-sidebar **Search**
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
-  **Convert** view. Convert lists PyMuPDF (PDF) and the bundled `markdown`
-  pipeline. OpenAI embeddings are
+  **Convert** view. Convert lists PyMuPDF (PDF), the bundled `markdown`
+  pipeline, and `ooxml` for Word, PowerPoint, and Excel. OpenAI embeddings are
   bundled (`openai:text-embedding-3-small` / `-large`). Desktop Convert defaults to
   local MiniLM (`DEFAULT_EMBEDDING_MODEL`); the CLI default embedder is still hashing. Save `OPENAI_API_KEY` under **File > Settings → Embeddings** (or
   export it for CLI convert). Archives converted with OpenAI are not portable
-  for semantic search. Docling is a CLI extra
+  for semantic search. Docling is an optional higher-fidelity layout path
   (`uv sync --extra docling`; `vera convert --parser docling`), not a desktop
   pipeline in 0.3.0. The packaged
   Windows sidecar freezes ONNX Runtime and vendors a VERA-exported

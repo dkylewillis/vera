@@ -72,6 +72,10 @@ export interface RegionResult {
   page_height?: number;
   start?: { line?: number; column?: number };
   end?: { line?: number; column?: number };
+  slide?: number;
+  shape_index?: number;
+  sheet?: string;
+  range?: string;
 }
 
 export interface ContextChunkResult {

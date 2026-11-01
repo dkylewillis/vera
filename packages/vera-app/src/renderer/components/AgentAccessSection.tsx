@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AGENT_SERVICE_NOTE } from '../../shared/agent-snippets';
 import type { ProAccount } from '../../shared/pro';
+import { useProAccount } from '../lib/proAccount';
 import type { AgentServiceStatus } from '../types';
 
 function subscriptionActive(account: ProAccount | null): boolean {
@@ -22,7 +23,7 @@ export function AgentAccessSection() {
   const [roots, setRoots] = useState<string[]>([]);
   const [enabled, setEnabled] = useState(false);
   const [cloudEnabled, setCloudEnabled] = useState(false);
-  const [isPro, setIsPro] = useState(false);
+  const isPro = subscriptionActive(useProAccount());
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
 
@@ -43,12 +44,9 @@ export function AgentAccessSection() {
       setEnabled(next.enabled);
       setCloudEnabled(Boolean(next.cloudEnabled));
     });
-    const unsubscribePro = api.onProAccountChanged?.((account) => setIsPro(subscriptionActive(account)));
-    void api.proGetAccount?.().then((account) => setIsPro(subscriptionActive(account))).catch(() => undefined);
     return () => {
       cancelled = true;
       unsubscribe?.();
-      unsubscribePro?.();
     };
   }, []);
 
@@ -74,7 +72,7 @@ export function AgentAccessSection() {
   }
 
   async function addLibrary() {
-    const picked = await window.vera.pickFolder();
+    const picked = await window.vera.pickFolder('agent-library');
     if (!picked) return;
     if (roots.some((root) => root.toLowerCase() === picked.toLowerCase())) return;
     await save(enabled, [...roots, picked]);

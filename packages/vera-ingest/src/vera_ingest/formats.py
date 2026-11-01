@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .pipeline import describe_ingest_pipeline, list_ingest_pipeline_descriptors
 
-_PREFERRED_PROVIDERS = ("pymupdf", "markdown", "docling")
+_PREFERRED_PROVIDERS = ("pymupdf", "markdown", "ooxml", "docling")
 
 _MIME_BY_SUFFIX = {
     "pdf": "application/pdf",

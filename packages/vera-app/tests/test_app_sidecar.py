@@ -73,6 +73,45 @@ def test_sidecar_start_does_not_import_torch(monkeypatch):
     assert "torch" not in sys.modules
 
 
+def test_library_sync_runs_off_the_request_loop_and_can_be_cancelled(monkeypatch):
+    import threading
+    import time
+
+    from vera_app.cancellation import CancelledError
+
+    sidecar = importlib.import_module("vera_app.sidecar")
+    responses: list[dict] = []
+    monkeypatch.setattr(sidecar, "_write_response", responses.append)
+    started = threading.Event()
+
+    def slow_sync(request, write_event=None, cancel=None):
+        started.set()
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if cancel is not None and cancel.cancelled:
+                raise CancelledError("Library sync cancelled")
+            time.sleep(0.01)
+        return {"converted": 1}
+
+    def requests():
+        yield '{"id":"sync","action":"library_sync","path":"F:/Manuals"}\n'
+        assert started.wait(5)
+        yield '{"id":"status","action":"ping"}\n'
+        yield '{"id":"stop","action":"cancel","target_id":"sync"}\n'
+
+    monkeypatch.setitem(sidecar.HANDLERS, "library_sync", slow_sync)
+    monkeypatch.setattr(sidecar.sys, "stdin", requests())
+
+    assert sidecar.main() == 0
+    deadline = time.monotonic() + 5
+    while not any(item.get("id") == "sync" for item in responses) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    ids = [item.get("id") for item in responses]
+    assert ids.index("status") < ids.index("sync")
+    assert next(item for item in responses if item.get("id") == "stop")["result"]["cancelled"]
+    assert next(item for item in responses if item.get("id") == "sync")["cancelled"] is True
+
+
 def test_sidecar_main_rejects_malformed_lines_and_missing_ids(monkeypatch):
     sidecar = importlib.import_module("vera_app.sidecar")
     responses = []
@@ -1131,6 +1170,54 @@ def test_source_action_uses_sibling_markdown_when_original_is_not_stored(tmp_pat
     assert response["ok"] is True
     assert response["result"]["mime_type"] == "text/markdown"
     assert Path(response["result"]["cache_path"]).read_text(encoding="utf-8") == body
+
+
+def test_source_action_prerenders_markdown_html_with_line_ranges(tmp_path, monkeypatch):
+    import vera_app.markdown_html as markdown_html
+
+    source = tmp_path / "notes.md"
+    cache_dir = tmp_path / "source-cache"
+    source.write_text(
+        "\ufeff# Detention\n\nPonds <script>x()</script> hold water.\n\n"
+        "| Item | Size |\n| --- | --- |\n| Pond | Large |\n\n[Site](https://example.com)\n",
+        encoding="utf-8",
+    )
+
+    response = handle({"id": "1", "action": "source", "path": str(source), "cache_dir": str(cache_dir)})
+    assert response["ok"] is True
+    html_path = Path(response["result"]["html_cache_path"])
+    assert html_path.resolve().parent == cache_dir.resolve()
+    html = html_path.read_text(encoding="utf-8")
+    assert '<h1 data-ls="1" data-le="1">Detention</h1>' in html
+    assert '<table data-ls="5" data-le="7">' in html
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html
+    assert 'target="_blank"' in html
+
+    def fail(_text):
+        raise AssertionError("cached HTML should be reused")
+
+    monkeypatch.setattr(markdown_html, "render_markdown_html", fail)
+    again = handle({"id": "2", "action": "source", "path": str(source), "cache_dir": str(cache_dir)})
+    assert again["result"]["html_cache_path"] == str(html_path)
+
+
+def test_source_action_keeps_markdown_when_html_render_fails(tmp_path, monkeypatch):
+    import vera_app.markdown_html as markdown_html
+
+    source = tmp_path / "notes.md"
+    source.write_text("# Title\n", encoding="utf-8")
+
+    def broken(_text):
+        raise ValueError("renderer failed")
+
+    monkeypatch.setattr(markdown_html, "render_markdown_html", broken)
+    response = handle(
+        {"id": "1", "action": "source", "path": str(source), "cache_dir": str(tmp_path / "cache")}
+    )
+    assert response["ok"] is True
+    assert "html_cache_path" not in response["result"]
+    assert Path(response["result"]["cache_path"]).is_file()
 
 
 def test_source_action_extracts_embedded_pdf_when_sibling_is_missing(tmp_path):

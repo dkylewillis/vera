@@ -92,6 +92,8 @@ def _compact_hit(hit: dict[str, Any], file: str) -> dict[str, Any]:
         if key in hit
     }
     result["file"] = str(Path(file).resolve())
+    if hit.get("source_path"):
+        result["source_path"] = hit["source_path"]
     for key in ("before_chunks", "after_chunks"):
         if hit.get(key):
             result[key] = [_compact_hit(item, file) for item in hit[key]]
@@ -308,6 +310,24 @@ def build_server(policy: AccessPolicy | None = None):
                 return response
             finally:
                 corpus.close()
+
+    if _maybe_tool("vera_library_status"):
+
+        @server.tool()
+        def vera_library_status(directory: str) -> dict[str, Any]:
+            """Report whether a folder is a managed VERA library and what sync would change.
+
+            Read-only. Does not convert, move, or delete anything. A folder inside
+            a managed library reports that library.
+            """
+            from vera_ingest.library import library_status
+
+            if policy is not None:
+                directory = str(policy.check_library_root(directory))
+            report = library_status(directory)
+            if policy is not None and report.get("library_root"):
+                policy.check_library_root(str(report["library_root"]))
+            return report
 
     if _maybe_tool("vera_inspect"):
 

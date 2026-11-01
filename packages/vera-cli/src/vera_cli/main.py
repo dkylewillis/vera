@@ -11,6 +11,11 @@ from .commands import (
     cmd_index_build,
     cmd_index_status,
     cmd_index_update,
+    cmd_library_init,
+    cmd_library_restore,
+    cmd_library_status,
+    cmd_library_sync,
+    cmd_library_trash_list,
     cmd_inspect,
     cmd_mcp,
     cmd_ocr_languages_download,
@@ -309,6 +314,81 @@ def build_parser() -> argparse.ArgumentParser:
     index_status_p.add_argument("directory", help="Indexed library root")
     index_status_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     index_status_p.set_defaults(func=cmd_index_status)
+
+    library_p = sub.add_parser("library", help="Create and sync a managed folder library")
+    library_sub = library_p.add_subparsers(dest="library_command", required=True)
+
+    library_init_p = library_sub.add_parser("init", help="Create a managed library in a folder")
+    library_init_p.add_argument("directory", help="Folder of source documents")
+    library_init_p.add_argument(
+        "--adopt",
+        action="store_true",
+        help="Move matching sibling .vera files into .vera/archives",
+    )
+    library_init_p.add_argument("--model", default="hashing", help="Embedding model spec to store")
+    library_init_p.add_argument(
+        "--parser", default=None, help="Ingest pipeline spec to store (default: choose by extension)"
+    )
+    library_init_p.add_argument(
+        "--pipeline-option",
+        dest="pipeline_options",
+        action="append",
+        type=pipeline_option,
+        default=[],
+        help="Pipeline option KEY=VALUE stored for later syncs (repeatable)",
+    )
+    library_init_p.add_argument(
+        "--embedder-option",
+        dest="embedder_options",
+        action="append",
+        type=embedder_option,
+        default=[],
+        help="Embedder option KEY=VALUE stored for later syncs (repeatable)",
+    )
+    library_init_p.add_argument(
+        "--metadata",
+        dest="metadata",
+        action="append",
+        type=pipeline_option,
+        default=[],
+        help="Metadata KEY=VALUE stamped on archives created by later syncs (repeatable)",
+    )
+    library_init_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    library_init_p.set_defaults(func=cmd_library_init)
+
+    library_sync_p = library_sub.add_parser("sync", help="Convert, move, and trash archives to match the folder")
+    library_sync_p.add_argument("directory", help="Managed library root, or a folder inside it")
+    library_sync_p.add_argument("--dry-run", action="store_true", help="Report the plan without changing files")
+    library_sync_p.add_argument(
+        "--confirm-deletes",
+        action="store_true",
+        help="Trash archives when many source documents disappeared at once",
+    )
+    library_sync_p.add_argument(
+        "--reconvert",
+        action="store_true",
+        help="Reconvert every source document, including unchanged files",
+    )
+    library_sync_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    library_sync_p.set_defaults(func=cmd_library_sync)
+
+    library_status_p = library_sub.add_parser("status", help="Show whether a folder is a managed library and what sync would do")
+    library_status_p.add_argument("directory")
+    library_status_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    library_status_p.set_defaults(func=cmd_library_status)
+
+    library_trash_p = library_sub.add_parser("trash", help="List or inspect recoverable deleted archives")
+    library_trash_sub = library_trash_p.add_subparsers(dest="trash_command", required=True)
+    library_trash_list_p = library_trash_sub.add_parser("list", help="List archives in .vera/trash")
+    library_trash_list_p.add_argument("directory")
+    library_trash_list_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    library_trash_list_p.set_defaults(func=cmd_library_trash_list)
+
+    library_restore_p = library_sub.add_parser("restore", help="Restore a trashed document and its archive")
+    library_restore_p.add_argument("directory")
+    library_restore_p.add_argument("entry", help="Trash entry from 'vera library trash list'")
+    library_restore_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    library_restore_p.set_defaults(func=cmd_library_restore)
 
     validate_p = sub.add_parser("validate", help="Validate a VERA file")
     validate_p.add_argument("file")

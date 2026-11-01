@@ -1,3 +1,6 @@
+/** Why a folder picker opened; sets its title and confirm button. */
+export type FolderPickPurpose = 'library' | 'folder' | 'convert' | 'agent-library';
+
 /** IPC invoke and event channel names shared by Electron main and preload. */
 export const IPC_CHANNELS = {
   showMenu: 'vera:showMenu',
@@ -49,6 +52,9 @@ export const IPC_CHANNELS = {
   serviceStop: 'vera:serviceStop',
   serviceRotateToken: 'vera:serviceRotateToken',
   serviceEvent: 'vera:serviceEvent',
+  shareArchive: 'vera:shareArchive',
+  syncLibrary: 'vera:syncLibrary',
+  librarySync: 'vera:librarySync',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -79,6 +85,11 @@ export const SIDECAR_ACTIONS = {
   ocrLanguagesList: 'ocr_languages_list',
   ocrLanguagesDownload: 'ocr_languages_download',
   listModes: 'list_modes',
+  libraryInit: 'library_init',
+  librarySync: 'library_sync',
+  libraryStatus: 'library_status',
+  libraryTrashList: 'library_trash_list',
+  libraryRestore: 'library_restore',
   cancel: 'cancel',
   skip: 'skip',
 } as const;
@@ -98,6 +109,7 @@ export const STREAM_EVENTS = [
   'index_progress',
   'inspection_progress',
   'ocr_download_progress',
+  'library_progress',
 ] as const;
 
 export type StreamEventName = (typeof STREAM_EVENTS)[number];

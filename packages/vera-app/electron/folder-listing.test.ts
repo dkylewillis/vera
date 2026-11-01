@@ -30,12 +30,18 @@ describe('listFolderEntries', () => {
     writeFileSync(join(current, 'deep.vera'), '');
     writeFileSync(join(root, 'skip.txt'), '');
     writeFileSync(join(root, 'notes.md'), '# Notes\n');
+    writeFileSync(join(root, 'memo.docx'), '');
+    writeFileSync(join(root, 'deck.pptx'), '');
+    writeFileSync(join(root, 'budget.xlsx'), '');
 
     const listed = listFolderEntries(root);
     expect(listed).not.toBeNull();
     expect(listed?.truncated).toBe(false);
     expect(listed?.entries.map((entry) => entry.relativePath)).toEqual([
+      'budget.xlsx',
       'd1/d2/d3/d4/d5/d6/deep.vera',
+      'deck.pptx',
+      'memo.docx',
       'notes.md',
       'root.vera',
     ]);
@@ -43,6 +49,12 @@ describe('listFolderEntries', () => {
 
     const capped = listFolderEntries(root, 2);
     expect(capped?.truncated).toBe(true);
-    expect(capped?.entries.map((entry) => entry.relativePath)).toEqual(['notes.md', 'root.vera']);
+    expect(capped?.entries.map((entry) => entry.relativePath)).toEqual([
+      'budget.xlsx',
+      'deck.pptx',
+      'memo.docx',
+      'notes.md',
+      'root.vera',
+    ]);
   });
 });

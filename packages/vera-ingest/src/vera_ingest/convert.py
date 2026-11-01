@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import sqlite3
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
@@ -76,6 +77,7 @@ _CONVERT_OWNED_ARCHIVE_KEYS = frozenset(
         "viewer_pages_attachment_id",
         "viewer_blocks_attachment_id",
         "source_attachment_id",
+        "ingest_warnings",
     }
 )
 _RESERVED_CALLER_METADATA_KEYS = frozenset(
@@ -154,6 +156,18 @@ def _validate_output(path: Path) -> dict[str, Any]:
         return {"ok": False, "issues": [f"Unable to validate VERA database: {exc}"]}
 
     return report
+
+
+def read_ingest_warnings(path: str | Path) -> list[str]:
+    """Return part-skip warnings stored on an archive, if any."""
+    try:
+        with VeraDocument.open(path) as document:
+            stored = document.metadata.get("ingest_warnings")
+    except Exception:
+        return []
+    if not isinstance(stored, list):
+        return []
+    return [str(item).strip() for item in stored if str(item).strip()]
 
 
 def _stored_source_file_hash(path: Path) -> str | None:
@@ -447,10 +461,11 @@ def convert(
         raise ValueError("No searchable text or chunks were extracted from this file.")
     raise_if_cancelled(settings.cancel)
     target.parent.mkdir(parents=True, exist_ok=True)
+    # SQLite flushes on every schema step and commit; on USB flash or network
+    # drives that costs minutes per archive. Build locally, then publish once.
     file_descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{target.name}.",
         suffix=".tmp",
-        dir=target.parent,
     )
     os.close(file_descriptor)
     temporary = Path(temporary_name)
@@ -545,6 +560,20 @@ def convert(
             "source_attachment_id": source_attachment_id,
             **caller_metadata,
         }
+        preview = ingest_result.viewer_preview
+        if preview is not None and preview.data:
+            attachments.append(
+                AttachmentRecord(
+                    id="viewer_preview",
+                    media_type=preview.media_type,
+                    filename=preview.filename,
+                    data=preview.data,
+                    metadata={"role": "viewer_preview"},
+                )
+            )
+            archive_metadata["viewer_preview_attachment_id"] = "viewer_preview"
+        if ingest_result.warnings:
+            archive_metadata["ingest_warnings"] = list(ingest_result.warnings)
         contextualized_indices = [
             index for index, chunk in enumerate(chunks) if chunk.embedding_text is not None
         ]
@@ -608,12 +637,33 @@ def convert(
                 issues = "; ".join(validation["issues"])
                 raise ValueError(f"Converted VERA database failed validation: {issues}")
 
-            os.replace(temporary, target)
+            _publish_archive(temporary, target)
     finally:
         if document is not None:
             document.close()
         temporary.unlink(missing_ok=True)
     return str(target)
+
+
+def _publish_archive(temporary: Path, target: Path) -> None:
+    """Move a finished archive into place atomically, copying across drives."""
+    try:
+        os.replace(temporary, target)
+        return
+    except OSError:
+        pass
+    file_descriptor, staged_name = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+        dir=target.parent,
+    )
+    os.close(file_descriptor)
+    staged = Path(staged_name)
+    try:
+        shutil.copyfile(temporary, staged)
+        os.replace(staged, target)
+    finally:
+        staged.unlink(missing_ok=True)
 
 
 def _resolve_batch_sources(
@@ -803,6 +853,7 @@ def batch_convert(
     skipped_by_user: list[str] = []
     malformed_existing: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
+    warnings: list[dict[str, Any]] = []
     output_collisions = _batch_output_collisions(sources)
     total = len(sources)
     if progress and not sources:
@@ -835,13 +886,17 @@ def batch_convert(
                     clear_user_skip(settings.cancel)
                     skipped_existing.append(str(output))
                     continue
-            outputs.append(
-                convert(
-                    str(source_file),
-                    str(output),
-                    **file_settings.as_convert_kwargs(),
-                )
+            written = convert(
+                str(source_file),
+                str(output),
+                **file_settings.as_convert_kwargs(),
             )
+            outputs.append(written)
+            notes = read_ingest_warnings(written)
+            if notes:
+                warnings.append(
+                    {"input": str(source_file), "output": written, "warnings": notes}
+                )
         except Exception as exc:
             if settings.cancel is not None and getattr(settings.cancel, "cancelled", False):
                 raise
@@ -868,4 +923,5 @@ def batch_convert(
         "skipped_by_user": skipped_by_user,
         "malformed_existing": malformed_existing,
         "errors": errors,
+        "warnings": warnings,
     }

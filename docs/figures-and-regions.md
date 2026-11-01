@@ -122,6 +122,13 @@ Regions are block-granular. When a chunk starts or ends in the middle of a
 block, the region covers the whole contributing block. Image blocks are
 excluded from text regions and are returned through the figure API instead.
 
+`kind` says how to read the locator. PDF regions use `page_bbox` (or omit
+`kind` when a bbox is present). Markdown and Word use `text_span` with
+`start` and `end` line/column. PowerPoint uses `slide` (`slide`,
+`shape_index`). Excel uses `sheet_range` (`sheet`, `range` such as `B4:D18`).
+Search `--regions` and MCP `vera_get_chunk_regions` pass those fields through.
+See [Additional source formats and visual grounding](multi-format-ingest.md).
+
 ## Coordinate conversion
 
 For a rendered page of width `rendered_width` and height `rendered_height`:

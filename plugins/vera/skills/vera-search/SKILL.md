@@ -77,6 +77,11 @@ metadata, index diagnostics, figures, regions, or `pretty: true`. Compact mode
 keeps requested neighboring chunks; cite paraphrases as well as direct quotes.
 These output options apply to MCP only; the CLI workflow below uses `--json`.
 
+A managed library is a folder of source documents with a hidden `.vera/`
+directory. Search it like any other directory. Hits include `source_path`.
+Use `vera library status` or MCP `vera_library_status` to see pending
+changes. Do not sync from MCP; sync can move archives to trash.
+
 1. Identify the `.vera` file or directory and the question.
 2. Run a high-recall first search:
 
@@ -214,8 +219,10 @@ commands write or replace local files and require normal user authorization:
 - `convert` creates a validated `.vera` archive and publishes it atomically;
   omit `--parser` to choose an installed ingest pipeline from the file
   extension (`pdf` → `pymupdf` from `vera-ingest-pymupdf`; `md`/`markdown` →
-  bundled `markdown`; `docx`/`pptx`/`xlsx`/`html`/`htm` → `docling` when
-  `vera[docling]` or `vera-ingest-docling` is installed). An explicit
+  bundled `markdown`; `docx`/`pptx`/`xlsx` → `ooxml` from `vera-ingest-ooxml`;
+  `html`/`htm` → `docling` when `vera[docling]` or `vera-ingest-docling` is
+  installed). `--parser docling` is the optional higher-fidelity path for
+  Office files too. An explicit
   `--parser` that does not advertise the file's extension fails; there is no
   silent fallback.
   Image-based low-text PDF pages use selective local OCR by default. Use
@@ -233,9 +240,10 @@ commands write or replace local files and require normal user authorization:
   `vera-doc[onnx]` (ONNX Runtime) plus a VERA-exported snapshot. MiniLM uses
   ONNX Runtime when a snapshot is present and Sentence Transformers otherwise.
   Use `vera-doc[ml]` for all other Sentence Transformers models. The
-  0.3.x packaged desktop app converts PDFs with PyMuPDF and Markdown with the
-  bundled `markdown` pipeline; Docling is the
-  `vera[docling]` extra, not Advanced layout in Convert. OpenAI embeddings
+  0.3.x packaged desktop app converts PDFs with PyMuPDF, Markdown with the
+  bundled `markdown` pipeline, and Word, PowerPoint, and Excel with `ooxml`.
+  Docling is the optional higher-fidelity `vera[docling]` extra, not Advanced
+  layout in Convert. OpenAI embeddings
   ship with `vera` as `vera-embed-openai`; set `OPENAI_API_KEY`. Hashing
   remains the default. Archives converted with OpenAI are not portable for
   semantic search.

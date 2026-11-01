@@ -16,7 +16,6 @@ import numpy as np
 
 from ._index_layout import (
     INDEX_DATABASE,
-    INDEX_DIRECTORY,
     INDEX_GENERATIONS,
     INDEX_POINTER,
     INDEX_VERSION,
@@ -24,12 +23,14 @@ from ._index_layout import (
     _gc_index_generations,
     _generation_path,
     _index_build_lock,
+    _index_build_workspace,
     _index_path,
     _path_size,
     _relative,
     _sha256_file,
-    discover_vera_files,
+    discover_index_entries,
 )
+from .library import is_managed_library
 from ._util import _utc_now
 from .document import VeraDocument
 from .embeddings import deserialize_vector
@@ -59,6 +60,7 @@ def _create_index_schema(conn: sqlite3.Connection) -> None:
             mtime_ns INTEGER NOT NULL,
             content_hash TEXT NOT NULL,
             source_hash TEXT,
+            source_path TEXT,
             source_filename TEXT,
             title TEXT,
             created_at TEXT,
@@ -175,6 +177,9 @@ def build_library_index(
         raise NotADirectoryError(directory)
     exclude_patterns = tuple(dict.fromkeys(str(pattern) for pattern in excludes))
     include_patterns = tuple(dict.fromkeys(str(pattern) for pattern in includes))
+    managed = is_managed_library(root)
+    if managed:
+        recursive = True
     if progress:
         progress(
             {
@@ -186,20 +191,20 @@ def build_library_index(
                 "skipped": 0,
             }
         )
-    paths = discover_vera_files(
+    entries = discover_index_entries(
         root,
         recursive=recursive,
         excludes=exclude_patterns,
         includes=include_patterns,
     )
-    if not paths:
+    if not entries and not managed:
         raise FileNotFoundError(f"No .vera files found in {directory}")
     if progress:
         progress(
             {
                 "phase": "indexing",
                 "completed": 0,
-                "total": len(paths),
+                "total": len(entries),
                 "input": "",
                 "chunks": 0,
                 "skipped": 0,
@@ -209,7 +214,7 @@ def build_library_index(
     old_files = _read_existing_files(root)
     target = _index_path(root)
     generation_name = f"generation-{uuid.uuid4().hex}"
-    temporary = root / f"{INDEX_DIRECTORY}.build-{uuid.uuid4().hex}"
+    temporary = _index_build_workspace(root)
     temporary.mkdir()
     conn = sqlite3.connect(temporary / INDEX_DATABASE)
     conn.row_factory = sqlite3.Row
@@ -251,14 +256,15 @@ def build_library_index(
         }
         conn.executemany("INSERT INTO index_metadata(key, value) VALUES (?, ?)", metadata.items())
 
-        for path in paths:
+        for entry in entries:
+            path = entry.path
             relative_path = _relative(path, root)
             if progress:
                 progress(
                     {
                         "phase": "indexing",
                         "completed": processed_files,
-                        "total": len(paths),
+                        "total": len(entries),
                         "input": relative_path,
                         "chunks": indexed_chunks,
                         "skipped": processed_files - indexed_files,
@@ -329,8 +335,8 @@ def build_library_index(
                         """
                         INSERT INTO files(
                             relative_path, size, mtime_ns, content_hash, source_hash,
-                            source_filename, title, created_at, metadata_json
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            source_path, source_filename, title, created_at, metadata_json
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             relative_path,
@@ -338,6 +344,7 @@ def build_library_index(
                             stat.st_mtime_ns,
                             _sha256_file(path),
                             file_metadata.get("source_file_hash"),
+                            entry.source_path,
                             document["source_filename"]
                             if document
                             else file_metadata.get("source_file_name"),
@@ -411,21 +418,21 @@ def build_library_index(
                         {
                             "phase": "indexing",
                             "completed": processed_files,
-                            "total": len(paths),
+                            "total": len(entries),
                             "input": relative_path,
                             "chunks": indexed_chunks,
                             "skipped": processed_files - indexed_files,
                         }
                     )
 
-        if not indexed_files:
+        if not indexed_files and not managed:
             raise ValueError("No valid .vera files could be indexed")
         if progress:
             progress(
                 {
                     "phase": "finalizing",
                     "completed": processed_files,
-                    "total": len(paths),
+                    "total": len(entries),
                     "input": "",
                     "chunks": indexed_chunks,
                     "skipped": processed_files - indexed_files,
@@ -494,10 +501,10 @@ def build_library_index(
         "recursive": recursive,
         "excludes": list(exclude_patterns),
         "includes": list(include_patterns),
-        "discovered": len(paths),
+        "discovered": len(entries),
         "indexed": indexed_files,
         "chunks": indexed_chunks,
-        "skipped": len(paths) - indexed_files,
+        "skipped": len(entries) - indexed_files,
         "invalid": invalid,
         "incompatible": incompatible,
         **changes,
@@ -623,12 +630,13 @@ def library_index_status(directory: str, *, verify_hashes: bool = True) -> dict[
         model_groups = []
         index_metadata = {}
 
-    discovered = discover_vera_files(
+    discovered_entries = discover_index_entries(
         root,
         recursive=bool(config.get("recursive", False)),
         excludes=config.get("excludes", ()),
         includes=config.get("includes", ()),
     )
+    discovered = [entry.path for entry in discovered_entries]
     current_paths = {_relative(path, root): path for path in discovered}
     indexed_paths = set(indexed) | set(skipped)
     if set(current_paths) != indexed_paths:

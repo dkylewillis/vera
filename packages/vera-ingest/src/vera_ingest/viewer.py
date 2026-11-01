@@ -4,7 +4,8 @@
 attachment and metadata conventions written by :mod:`vera_ingest.convert`:
 
 - archive metadata keys ``viewer_pages_attachment_id``,
-  ``viewer_blocks_attachment_id``, and ``source_attachment_id``
+  ``viewer_blocks_attachment_id``, ``viewer_preview_attachment_id``, and
+  ``source_attachment_id``
 - figure attachments with ``metadata.role == "figure"``
 - chunk metadata ``regions`` for visual grounding
 """
@@ -23,6 +24,14 @@ from vera_doc.models import thaw_json
 
 # Top-level JSON keys owned by CLI/MCP transport, not caller chunk metadata.
 _JSON_TRANSPORT_KEYS = frozenset({"file", "path", "ok", "error"})
+
+
+def get_viewer_preview(document: VeraDocument) -> AttachmentRecord | None:
+    """Return the ingest-generated preview, when the pipeline stored one."""
+    attachment_id = document.metadata.get("viewer_preview_attachment_id")
+    if not attachment_id:
+        return None
+    return document.get_attachment(str(attachment_id))
 
 
 def get_source_document(document: VeraDocument) -> AttachmentRecord:
@@ -135,6 +144,9 @@ def format_search_context(results: Iterable[Mapping[str, Any]]) -> str:
         archive = result.get("file")
         if archive:
             lines.append(f"Archive: {archive}")
+        source_path = result.get("source_path")
+        if source_path:
+            lines.append(f"Source path: {source_path}")
 
         before = result.get("before_chunks") or []
         after = result.get("after_chunks") or []
@@ -183,7 +195,7 @@ def _append_chunk_details(lines: list[str], chunk: Mapping[str, Any]) -> None:
         lines.append(f"Heading: {heading}")
 
     source = chunk.get("source_filename")
-    page = _page_label(chunk.get("page_start"), chunk.get("page_end"))
+    page = _citation_label(chunk)
     if source and page:
         lines.append(f"Source: {source} ({page})")
     elif source:
@@ -193,6 +205,41 @@ def _append_chunk_details(lines: list[str], chunk: Mapping[str, Any]) -> None:
 
     text = str(chunk.get("text") or "").strip()
     lines.extend(["", text])
+
+
+def _citation_label(chunk: Mapping[str, Any]) -> str | None:
+    """Prefer a pipeline citation, then slide or sheet regions, then a page span."""
+    explicit = chunk.get("citation_label")
+    if isinstance(explicit, str) and explicit.strip():
+        return explicit.strip()
+    sheets: list[str] = []
+    slides: list[int] = []
+    for region in chunk.get("regions") or []:
+        if not isinstance(region, Mapping):
+            continue
+        kind = region.get("kind")
+        if kind == "sheet_range":
+            sheet = region.get("sheet")
+            cell_range = region.get("range")
+            if isinstance(sheet, str) and sheet and isinstance(cell_range, str) and cell_range:
+                label = _sheet_citation(sheet, cell_range)
+                if label not in sheets:
+                    sheets.append(label)
+        elif kind == "slide" and isinstance(region.get("slide"), int):
+            slides.append(int(region["slide"]))
+    if sheets:
+        return ", ".join(sheets)
+    if slides:
+        start, end = min(slides), max(slides)
+        return f"slide {start}" if start == end else f"slides {start}-{end}"
+    return _page_label(chunk.get("page_start"), chunk.get("page_end"))
+
+
+def _sheet_citation(name: str, cell_range: str) -> str:
+    if name.replace("_", "").isalnum() and name[:1].isalpha():
+        return f"{name}!{cell_range}"
+    escaped = name.replace("'", "''")
+    return f"'{escaped}'!{cell_range}"
 
 
 def _page_label(page_start: Any, page_end: Any) -> str | None:
