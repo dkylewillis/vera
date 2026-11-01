@@ -62,11 +62,10 @@ The library list is stored in `localStorage` (`vera.libraryPaths`).
 
 Each folder is a tree. Subfolders start collapsed and remember whether you
 expanded them; a chain of folders that only contain one subfolder is shown as
-one row (for example `reports/2024`). A PDF, Markdown, Word, PowerPoint, or Excel file and its archive appear as one document row with the
-VERA icon. In a managed library the archive lives under `.vera/archives/` and
+one row (for example `reports/2024`). A PDF, Markdown, Word, PowerPoint, or Excel file and its archive appear as one document row. The row icon matches the source type. A `.vera` file with no source beside it keeps the VERA mark. In a managed library the archive lives under `.vera/archives/` and
 pairs by the full source name (`Site Plan.pdf` with `Site Plan.pdf.vera`).
-A loose `.vera` beside its source still pairs by file-name stem. Sources that are not converted yet show their file
-name in a muted style with a small dot. A library, folder, or subfolder that
+A loose `.vera` beside its source still pairs by file-name stem. A converted document shows a green dot. Sources that are not converted yet show their file
+name in a muted style with a blue dot. A library, folder, or subfolder that
 holds unconverted sources shows a sync-arrow badge with the count of files not
 searchable yet; select it to convert those files with your default settings.
 The arrows spin while that folder is converting. Right-click a subfolder to convert it or show it
@@ -177,20 +176,28 @@ skipped, subfolders are included, and progress shows in the footer status bar,
 which also has a Stop button. Inside a managed library (one with a hidden
 `.vera/` folder), Explorer's Convert and the Convert view's Convert button both
 sync the library: new and changed files convert into `.vera/archives` with the
-library's own settings, and the library index updates afterward. When a
+library's own settings, and the library index updates afterward. Office lock
+files (`~$…`) that Excel, Word, or PowerPoint leave beside an open document
+are ignored. When a
 background sync is already running, Convert waits for it and then reports
 anything still pending. In other folders that already have archives,
 Explorer's Convert uses their embedding model so the folder stays searchable
 as one corpus. The Convert view opens on its own only
 when something needs attention, such as a failed file or a missing API key.
+Converting one file opens Document Info for the new archive. Parts VERA
+leaves out of search by design, such as Word headers, footers, and comments,
+appear as a plain note under **Not searched**. That is normal and does not
+mean the convert went wrong. Content that could not be read, such as a
+damaged table, appears under **Warnings**.
 Choose **Convert with options…** instead to review settings first.
 
 The Convert view shows **What to convert** (a folder or a list of files;
 **Add files…** and **Choose folder…** replace the Explorer selection) and the
 Convert button. The result summary reports
 converted, already-up-to-date, failed files, and files converted with
-issues, with **Show details** for per-file errors and skipped Word parts.
-Document Info lists the same `ingest_warnings`. If the target library already uses a different model,
+warnings, with **Show details** for per-file errors, warnings, and notes.
+Notes are not counted as warnings. Document Info lists the same
+`ingest_warnings` and `ingest_notes`. If the target library already uses a different model,
 Convert warns that mixing models leaves some documents out of semantic search
 and offers to switch back. Everything else lives under a collapsed
 **Advanced** section: **Replace existing .vera files**, **Include

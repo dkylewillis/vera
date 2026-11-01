@@ -161,4 +161,51 @@ describe('createSourceDocumentController', () => {
     expect(setViewerMode).toHaveBeenCalledWith('document');
     expect(setViewerCollapsed).toHaveBeenCalledWith(false);
   });
+
+  it('opens Document Info and waits for archive inspect', async () => {
+    let releaseInspect: (() => void) | undefined;
+    const openTargetPath = vi.fn(() => new Promise<void>((resolve) => {
+      releaseInspect = resolve;
+    }));
+    const call = vi.fn(async () => ({
+      filename: 'zones.docx',
+      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      hash: 'abc',
+      size: 12,
+      url: 'vera-source://zones',
+    })) as SourceDocumentHost['call'];
+    const setViewerMode = vi.fn();
+    const controller = createSourceDocumentController(() => host({
+      call,
+      openTargetPath,
+      setPendingSourcePath: vi.fn(),
+      setLibraryInfoPath: vi.fn(),
+      setSourceDocument: vi.fn(),
+      setSourceDocumentPath: vi.fn(),
+      setViewerMode,
+      setViewerCollapsed: vi.fn(),
+      setExplorerSelection: vi.fn(),
+      setSelected: vi.fn(),
+    }));
+
+    let finished = false;
+    const preview = controller.previewSourceDocument({
+      path: 'C:\\library\\.vera\\archives\\zones.docx.vera',
+      name: 'zones.docx.vera',
+      relativePath: 'zones.docx.vera',
+      type: 'vera',
+    }, { preserveLibrary: true, replacePending: true, mode: 'info' }).then(() => {
+      finished = true;
+    });
+
+    await vi.waitFor(() => expect(openTargetPath).toHaveBeenCalledWith(
+      'C:\\library\\.vera\\archives\\zones.docx.vera',
+      { preserveLibrary: true },
+    ));
+    expect(setViewerMode).toHaveBeenCalledWith('info');
+    expect(finished).toBe(false);
+    releaseInspect?.();
+    await preview;
+    expect(finished).toBe(true);
+  });
 });

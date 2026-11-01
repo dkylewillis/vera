@@ -144,6 +144,14 @@ def test_convert_markdown_without_explicit_parser(markdown_ready, tmp_path):
         assert document.inspect()["parser_name"] == "markdown"
 
 
+def test_convert_rejects_office_owner_file(markdown_ready, tmp_path):
+    source = tmp_path / "~$notes.md"
+    source.write_text("# Lock\n\nNot a document.\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Office lock file"):
+        convert(str(source), str(tmp_path / "out.vera"), model="hashing")
+    assert not (tmp_path / "out.vera").exists()
+
+
 def test_empty_markdown_fails_with_generic_message(markdown_ready, tmp_path):
     source = tmp_path / "empty.md"
     source.write_text("\n\n", encoding="utf-8")
@@ -158,6 +166,7 @@ def test_batch_convert_mixed_pdf_and_markdown(markdown_ready, tmp_path):
     make_pdf(tmp_path / "manual.pdf")
     _write_manual(tmp_path / "notes.md")
     (tmp_path / "ignored.txt").write_text("not converted", encoding="utf-8")
+    (tmp_path / "~$notes.md").write_text("lock", encoding="utf-8")
 
     report = batch_convert(str(tmp_path), model="hashing")
     assert report["discovered"] == 2

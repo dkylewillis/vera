@@ -145,15 +145,19 @@ malformed existing outputs, and conversion failures. `skipped_existing`
 lists only unchanged valid archives. `malformed_existing` entries include
 `input`, `output`, and validation `issues`. Same-stem sources that would
 write the same `.vera` path (`manual.pdf` and `manual.md`) are reported as
-failures instead of overwriting each other. Batch conversion
+failures instead of overwriting each other. Directory discovery skips
+Microsoft Office lock files, the `~$` files Excel, Word, and PowerPoint
+create beside an open document (`~$budget.xlsx`). Those files are locked
+while the document is open and are not workbooks or documents. Batch conversion
 continues after an individual file fails and exits nonzero if any conversion
 failed or malformed existing output was found. A Word file that opens but
-skips a part (one unreadable table, plus headers, footers, footnotes,
-endnotes, comments, content controls, or text boxes) still converts.
-`warnings` lists those files with `input`, `output`, and `warnings`. The
-same lines are stored on the archive as `ingest_warnings`, beside `ocr`.
-Search covers the extracted text. A corrupt, encrypted, or empty file stays
-in `errors`.
+has one unreadable table or paragraph still converts. `warnings` lists those
+files with `input`, `output`, and `warnings`. The same lines are stored on
+the archive as `ingest_warnings`, beside `ocr`. Parts left out of search by
+design (headers, footers, footnotes, endnotes, comments, content controls,
+text boxes, embedded documents, and charts) are not warnings. `notes` lists
+those files with `input`, `output`, and `notes`, and the archive stores them
+as `ingest_notes`. A corrupt, encrypted, or empty file stays in `errors`.
 
 In the desktop app, right-click a folder in Explorer and choose
 **Convert** to batch-convert its new files immediately (existing up-to-date

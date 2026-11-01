@@ -86,7 +86,7 @@ export function createSourceDocumentController(getHost: () => SourceDocumentHost
 
   async function previewSourceDocument(
     entry: FolderEntry,
-    options: { preserveLibrary?: boolean; replacePending?: boolean } = {},
+    options: { preserveLibrary?: boolean; replacePending?: boolean; mode?: 'document' | 'info' } = {},
   ) {
     if (entry.type !== 'vera' && entry.type !== 'pdf' && entry.type !== 'md' && entry.type !== 'docx' && entry.type !== 'pptx' && entry.type !== 'xlsx') return;
     const host = getHost();
@@ -100,7 +100,7 @@ export function createSourceDocumentController(getHost: () => SourceDocumentHost
     host.setSourceDocumentPath('');
     host.setExplorerSelection(selection);
     host.setSelected(null);
-    host.setViewerMode('document');
+    host.setViewerMode(options.mode === 'info' ? 'info' : 'document');
     host.setViewerCollapsed(false);
     if (entry.type !== 'vera') {
       host.applyConvertDefaultsFromSelection(selection);
@@ -110,7 +110,12 @@ export function createSourceDocumentController(getHost: () => SourceDocumentHost
     // at a time, and inspect was delaying the first paint of the document.
     const loading = loadSourceDocument(entry.path, true, requestId);
     if (entry.type === 'vera') {
-      void host.openTargetPath(entry.path, { preserveLibrary: options.preserveLibrary ?? true });
+      const opening = host.openTargetPath(entry.path, { preserveLibrary: options.preserveLibrary ?? true });
+      if (options.mode === 'info') {
+        await Promise.all([opening, loading]);
+        return;
+      }
+      void opening;
     }
     await loading;
   }

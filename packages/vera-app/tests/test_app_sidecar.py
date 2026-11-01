@@ -2,6 +2,7 @@ import importlib
 import io
 import json
 import queue
+import re
 import sys
 import threading
 from pathlib import Path
@@ -1194,12 +1195,49 @@ def test_source_action_prerenders_markdown_html_with_line_ranges(tmp_path, monke
     assert "&lt;script&gt;" in html
     assert 'target="_blank"' in html
 
-    def fail(_text):
+    def fail(_text, _figures=None):
         raise AssertionError("cached HTML should be reused")
 
     monkeypatch.setattr(markdown_html, "render_markdown_html", fail)
     again = handle({"id": "2", "action": "source", "path": str(source), "cache_dir": str(cache_dir)})
     assert again["result"]["html_cache_path"] == str(html_path)
+
+
+def test_source_action_renders_word_figures_from_the_archive(tmp_path):
+    from docx import Document
+
+    png = bytes.fromhex(
+        "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
+        "890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082"
+    )
+    image = tmp_path / "plan.png"
+    image.write_bytes(png)
+    source = tmp_path / "plan.docx"
+    document = Document()
+    document.add_paragraph("The pond sits north of the lot.")
+    document.add_picture(str(image))
+    document.inline_shapes[0]._inline.docPr.set("descr", "Pond layout")
+    document.save(source)
+    out = tmp_path / "plan.vera"
+    convert(str(source), str(out), model="hashing")
+
+    cache_dir = tmp_path / "source-cache"
+    response = handle({"id": "1", "action": "source", "path": str(out), "cache_dir": str(cache_dir)})
+    assert response["ok"] is True
+    html_path = Path(response["result"]["html_cache_path"])
+    html = html_path.read_text(encoding="utf-8")
+    match = re.search(r'<img alt="Pond layout" data-vera-src="([^"]+)"', html)
+    assert match is not None
+    assert "vera-figure:" not in html
+    assert (html_path.parent / match.group(1)).read_bytes() == png
+
+
+def test_markdown_html_shows_alt_text_for_figures_without_a_cached_image():
+    from vera_app.markdown_html import render_markdown_html
+
+    html = render_markdown_html("![Wiring <diagram>](vera-figure:block_000004)\n", {})
+    assert "<img" not in html
+    assert "[Figure: Wiring &lt;diagram&gt;]" in html
 
 
 def test_source_action_keeps_markdown_when_html_render_fails(tmp_path, monkeypatch):
@@ -1208,7 +1246,7 @@ def test_source_action_keeps_markdown_when_html_render_fails(tmp_path, monkeypat
     source = tmp_path / "notes.md"
     source.write_text("# Title\n", encoding="utf-8")
 
-    def broken(_text):
+    def broken(_text, _figures=None):
         raise ValueError("renderer failed")
 
     monkeypatch.setattr(markdown_html, "render_markdown_html", broken)

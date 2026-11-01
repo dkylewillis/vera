@@ -154,7 +154,8 @@ the [two-file plugin walkthrough](https://github.com/dkylewillis/vera/blob/main/
   `vera figures FILE --out-dir DIR --json` (attach the `path`) or MCP
   `vera_get_figure`. Tables are usually markdown in chunk text, not figures.
   A missing `asset_id` means no stored raster (vector drawings, decorative
-  marks); do not crop the PDF by hand.
+  marks); do not crop the PDF by hand. Word pictures converted with `ooxml`
+  are figures too; their alt text is the Word description.
 - Add `--regions` only when page bounding boxes are needed for visual grounding.
 - Increase `--top-k` to 10 for broad coverage; split compound questions into
   separate searches.

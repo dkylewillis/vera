@@ -8,6 +8,12 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+### Fixed
+
+- Folder convert and library sync skip Microsoft Office lock files (`~$…`),
+  the temporary files Excel, Word, and PowerPoint create beside an open
+  document. Those files no longer fail conversion with permission denied.
+
 ### Removed
 
 - Desktop **ChatGPT Bridge** and the OpenAI Secure MCP Tunnel supervisor.
@@ -16,10 +22,22 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Added
 
-- Word convert keeps going when one part cannot be read. Headers, footers,
-  footnotes, endnotes, comments, content controls, text boxes, and a single
-  unreadable table are stored as `ingest_warnings` and shown in Convert
-  details. A corrupt, encrypted, or empty file still fails.
+- Converting one file from Explorer opens Document Info for the new archive.
+  The Convert view still opens when a file fails.
+- Word parts left out of search by design (headers, footers, footnotes,
+  endnotes, comments, content controls, text boxes, embedded documents, and
+  charts) are now one plain note, stored as `ingest_notes`, instead of a
+  warning. Document Info shows it under **Not searched**. `vera convert --json`
+  and the batch report return it as `notes`. `ingest_warnings` and the Convert
+  summary's **with warnings** count are kept for content that could not be
+  read, such as an unreadable table.
+- Desktop Explorer gives PDF, Markdown, Word, PowerPoint, and Excel each a
+  Lucide icon and its own color. A `.vera` file with no source beside it
+  keeps the VERA mark. Converted documents show a green dot; files that are
+  not converted yet keep the blue dot.
+- Word convert keeps going when one part cannot be read. A single unreadable
+  table or paragraph is stored as `ingest_warnings` and counted in the Convert
+  summary as warnings. A corrupt, encrypted, or empty file still fails.
 - Office ingest. `vera convert` and the desktop app convert `.docx`, `.pptx`,
   and `.xlsx` with the `ooxml` pipeline (`python-docx`, `python-pptx`,
   `openpyxl`). Word highlights a stored Markdown preview. PowerPoint and

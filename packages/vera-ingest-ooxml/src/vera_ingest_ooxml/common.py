@@ -7,6 +7,13 @@ from dataclasses import dataclass, field
 
 from vera_ingest.types import ParsedBlock
 
+FIGURE_LINK_SCHEME = "vera-figure:"
+
+
+def block_id_for(index: int) -> str:
+    """Block id for the 1-based position of a block in parser output."""
+    return f"block_{index:06d}"
+
 
 @dataclass
 class OfficeBlock:

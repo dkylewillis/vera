@@ -48,8 +48,8 @@ from vera_doc.library import (
 )
 
 from .cancellation import raise_if_cancelled
-from .convert import _stored_source_file_hash, convert
-from .formats import installed_source_formats, source_suffix
+from .convert import _stored_source_file_hash, convert, read_ingest_notes, read_ingest_warnings
+from .formats import installed_source_formats, is_office_owner_file, source_suffix
 from .viewer import export_source_document
 
 TRASH_STAMP_FORMAT = "%Y%m%dT%H%M%S%fZ"
@@ -112,7 +112,7 @@ def discover_sources(root: Path, suffixes: set[str]) -> list[tuple[str, Path]]:
                         continue
                 except OSError:
                     continue
-                if source_suffix(path) not in suffixes:
+                if is_office_owner_file(name) or source_suffix(path) not in suffixes:
                     continue
                 found.append((path.relative_to(root_plain).as_posix(), path))
     except OSError as exc:
@@ -523,7 +523,13 @@ def _apply_plan(
                 raise
             errors.append({"input": source_rel, "error": str(exc)})
             continue
-        actions.append({key: value for key, value in step.items() if key != "error"})
+        recorded = {key: value for key, value in step.items() if key != "error"}
+        if step["action"] == "convert" and not dry_run:
+            destination = archive_path_for(root, source_rel)
+            recorded["output"] = str(destination)
+            recorded["warnings"] = read_ingest_warnings(destination)
+            recorded["notes"] = read_ingest_notes(destination)
+        actions.append(recorded)
         if step["action"] in {"move", "convert", "unchanged"} and step.get("size") is not None:
             state_files[source_rel] = {
                 "size": step.get("size"),

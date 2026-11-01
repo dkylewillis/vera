@@ -182,3 +182,4 @@ class IngestResult:
     diagnostics: dict[str, Any] = field(default_factory=dict)
     viewer_preview: IngestPreview | None = None
     warnings: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)

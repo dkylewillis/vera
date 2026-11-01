@@ -81,6 +81,24 @@ def test_init_adopt_sync_and_source_path_search(tmp_path: Path):
     assert included_hits == []
 
 
+def test_sync_skips_office_owner_files(tmp_path: Path):
+    _write(tmp_path / "notes.md", NOTE)
+    (tmp_path / "~$notes.md").write_text("lock", encoding="utf-8")
+    (tmp_path / "~$DKSalaries.xlsx").write_bytes(b"lock")
+    init_library(str(tmp_path), model="hashing")
+    report = sync_library(str(tmp_path))
+    assert report["converted"] == 1
+    assert report["errors"] == []
+    archives = tmp_path / ".vera" / "archives"
+    converted = [action for action in report["actions"] if action["action"] == "convert"]
+    assert len(converted) == 1
+    assert Path(converted[0]["output"]) == archives / "notes.md.vera"
+    assert converted[0]["warnings"] == []
+    assert (archives / "notes.md.vera").is_file()
+    assert not (archives / "~$notes.md.vera").exists()
+    assert not (archives / "~$DKSalaries.xlsx.vera").exists()
+
+
 def test_rename_move_delete_restore_and_purge(tmp_path: Path):
     source = tmp_path / "notes.md"
     _write(source, NOTE)

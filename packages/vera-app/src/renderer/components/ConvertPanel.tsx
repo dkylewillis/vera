@@ -436,11 +436,11 @@ export function ConvertPanel({
 function ConvertResult({ result }: { result: BatchConvertResult }) {
   const upToDate = result.skipped;
   const problems = result.failed + result.malformed;
-  const issueCount = result.warnings?.length ?? 0;
+  const warningCount = result.warnings?.length ?? 0;
   const parts = [
     upToDate ? `${upToDate} already up to date` : '',
     result.user_skipped ? `${result.user_skipped} skipped by you` : '',
-    issueCount ? `${issueCount} with issues` : '',
+    warningCount ? `${warningCount} with warnings` : '',
     result.failed ? `${result.failed} failed` : '',
     result.malformed ? `${result.malformed} damaged .vera file${result.malformed === 1 ? '' : 's'}` : '',
   ].filter(Boolean);
@@ -452,6 +452,12 @@ function ConvertResult({ result }: { result: BatchConvertResult }) {
       text: `${fileName(entry.input)}: ${message}`,
       title: message,
       tone: 'warning' as const,
+    }))),
+    ...(result.notes ?? []).flatMap((entry) => entry.notes.map((message, index) => ({
+      key: `${entry.input}:note:${index}`,
+      text: `${fileName(entry.input)}: ${message}`,
+      title: message,
+      tone: 'muted' as const,
     }))),
     ...(result.skipped_by_user || []).map((filePath) => ({ key: filePath, text: `${fileName(filePath)}: skipped`, title: filePath, tone: 'muted' as const })),
   ];

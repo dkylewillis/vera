@@ -1,6 +1,8 @@
-"""Word (.docx) parser: headings, lists, and tables in document order."""
+"""Word (.docx) parser: headings, lists, tables, and pictures in document order."""
 
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 from docx import Document
 from docx.oxml import parse_xml
@@ -10,7 +12,63 @@ from docx.text.paragraph import Paragraph
 
 from vera_ingest.types import ParsedBlock, ParsedPage
 
-from .common import MarkdownPreview, OfficeBlock, gfm_table, text_span
+from .common import (
+    FIGURE_LINK_SCHEME,
+    MarkdownPreview,
+    OfficeBlock,
+    block_id_for,
+    gfm_table,
+    text_span,
+)
+
+_BLIP = qn("a:blip")
+_VML_IMAGEDATA = "{urn:schemas-microsoft-com:vml}imagedata"
+_MC_FALLBACK = "{http://schemas.openxmlformats.org/markup-compatibility/2006}Fallback"
+_DRAWING_FRAMES = frozenset({qn("wp:inline"), qn("wp:anchor")})
+
+
+@dataclass
+class _Picture:
+    data: bytes
+    ext: str
+    alt: str
+
+
+def _picture_alt(node) -> str:
+    for ancestor in node.iterancestors():
+        if ancestor.tag in _DRAWING_FRAMES:
+            doc_pr = ancestor.find(qn("wp:docPr"))
+            if doc_pr is None:
+                return ""
+            return " ".join((doc_pr.get("descr") or doc_pr.get("title") or "").split())
+    return ""
+
+
+def _pictures(document: Document, element) -> tuple[list[_Picture], int]:
+    """Embedded pictures in ``element`` in document order, and how many are linked or unreadable.
+
+    Word stores a VML copy of a drawing under ``mc:Fallback`` for old readers;
+    those copies are skipped so each picture appears once.
+    """
+    pictures: list[_Picture] = []
+    unread = 0
+    related = document.part.related_parts
+    for node in element.iter(_BLIP, _VML_IMAGEDATA):
+        if any(ancestor.tag == _MC_FALLBACK for ancestor in node.iterancestors()):
+            continue
+        rel_id = node.get(qn("r:embed")) if node.tag == _BLIP else node.get(qn("r:id"))
+        part = related.get(rel_id) if rel_id else None
+        blob = getattr(part, "blob", None)
+        if not blob:
+            unread += 1
+            continue
+        ext = str(part.partname).rsplit(".", 1)[-1].lower()
+        pictures.append(_Picture(blob, "jpeg" if ext == "jpg" else ext, _picture_alt(node)))
+    return pictures, unread
+
+
+def _markdown_alt(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
 
 
 def _heading_level(paragraph: Paragraph) -> int | None:
@@ -87,9 +145,28 @@ def _related_part_has_text(document: Document, reltype: str) -> bool:
     return False
 
 
-def _unread_part_warnings(document: Document) -> list[str]:
-    """Note text the body walker does not extract."""
+def _join_names(names: list[str]) -> str:
+    if len(names) <= 2:
+        return " and ".join(names)
+    return f"{', '.join(names[:-1])}, and {names[-1]}"
+
+
+def _left_out_note(names: list[str]) -> str:
+    """One sentence for parts the body walker leaves out by design."""
+    if not names:
+        return ""
+    listed = _join_names(names)
+    return f"{listed[0].upper()}{listed[1:]} aren't included in search. VERA searches the main body text."
+
+
+def _unread_parts(document: Document) -> tuple[list[str], list[str]]:
+    """Return (notes, warnings) for text the body walker does not extract.
+
+    Notes name parts left out by design. Warnings name parts that could not
+    be checked.
+    """
     warnings: list[str] = []
+    left_out: list[str] = []
     header_text = False
     try:
         stories = []
@@ -109,35 +186,29 @@ def _unread_part_warnings(document: Document) -> list[str]:
         warnings.append(f"Headers and footers could not be checked ({_short_error(exc)}).")
     else:
         if header_text:
-            warnings.append("Header and footer text was left out of search.")
-    notes = (
-        (
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes",
-            "Footnotes were left out of search.",
-        ),
-        (
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes",
-            "Endnotes were left out of search.",
-        ),
-        (
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
-            "Comments were left out of search.",
-        ),
+            left_out.extend(("headers", "footers"))
+    related_parts = (
+        ("http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes", "footnotes"),
+        ("http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes", "endnotes"),
+        ("http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments", "comments"),
     )
-    for reltype, message in notes:
+    for reltype, name in related_parts:
         if _related_part_has_text(document, reltype):
-            warnings.append(message)
+            left_out.append(name)
     body = document.element.body
     if any(
         child.tag == qn("w:sdt") and _element_has_text(child)
         for child in body.iterchildren()
     ):
-        warnings.append("Text inside content controls was left out of search.")
+        left_out.append("content controls")
     if any(_element_has_text(node) for node in body.iter(qn("w:txbxContent"))):
-        warnings.append("Text boxes were left out of search.")
+        left_out.append("text boxes")
     if any(True for _ in body.iter(qn("w:altChunk"))):
-        warnings.append("An embedded alternate chunk was left out of search.")
-    return warnings
+        left_out.append("embedded documents")
+    if any(True for _ in body.iter(qn("c:chart"))):
+        left_out.append("charts")
+    note = _left_out_note(left_out)
+    return ([note] if note else []), warnings
 
 
 def _table_rows(table: Table) -> list[list[str]]:
@@ -153,22 +224,46 @@ def _table_rows(table: Table) -> list[list[str]]:
 
 def parse_docx(
     source_path: str,
-) -> tuple[list[ParsedPage], list[OfficeBlock], str, list[str]]:
-    """Return pages, blocks, the Markdown preview, and part-skip warnings.
+) -> tuple[list[ParsedPage], list[OfficeBlock], str, list[str], list[str]]:
+    """Return pages, blocks, the Markdown preview, warnings, and notes.
 
-    A corrupt or encrypted package still raises. One unreadable paragraph or
-    table is recorded and the rest of the document is kept.
+    Warnings name content that could not be read. Notes name parts left out
+    of search by design. A corrupt or encrypted package still raises. One
+    unreadable paragraph or table is recorded and the rest is kept.
     """
     document = Document(source_path)
     preview = MarkdownPreview()
     blocks: list[OfficeBlock] = []
     try:
-        warnings = _unread_part_warnings(document)
+        notes, warnings = _unread_parts(document)
     except Exception as exc:
+        notes = []
         warnings = [f"Some document parts could not be checked ({_short_error(exc)})."]
     unread_paragraphs = 0
     unread_tables = 0
+    unread_pictures = 0
     first_error = ""
+
+    def add_pictures(element) -> None:
+        nonlocal unread_pictures
+        pictures, unread = _pictures(document, element)
+        unread_pictures += unread
+        for picture in pictures:
+            block_id = block_id_for(len(blocks) + 1)
+            alt = _markdown_alt(picture.alt or "Figure")
+            start, end, end_column = preview.add(f"![{alt}]({FIGURE_LINK_SCHEME}{block_id})")
+            blocks.append(
+                OfficeBlock(
+                    parsed=ParsedBlock(
+                        page_number=1,
+                        block_type="image",
+                        text="",
+                        image_bytes=picture.data,
+                        image_ext=picture.ext,
+                    ),
+                    region=text_span(start, end, end_column),
+                )
+            )
 
     def add(block_type: str, text: str, *, heading_level: int | None = None, markdown: str) -> None:
         if not text.strip():
@@ -190,20 +285,21 @@ def parse_docx(
         try:
             if isinstance(item, Paragraph):
                 text = item.text.strip()
-                if not text:
-                    continue
-                level = _heading_level(item)
-                if level is not None:
-                    add("heading", text, heading_level=level, markdown=f"{'#' * level} {text}")
-                elif _is_list(item):
-                    add("list", text, markdown=f"- {text}")
-                else:
-                    add("paragraph", text, markdown=text)
+                if text:
+                    level = _heading_level(item)
+                    if level is not None:
+                        add("heading", text, heading_level=level, markdown=f"{'#' * level} {text}")
+                    elif _is_list(item):
+                        add("list", text, markdown=f"- {text}")
+                    else:
+                        add("paragraph", text, markdown=text)
+                add_pictures(item._p)
             else:
                 rows = _table_rows(item)
                 rendered = gfm_table(rows)
                 if rendered.strip():
                     add("table", rendered, markdown=rendered)
+                add_pictures(item._tbl)
         except Exception as exc:
             if isinstance(item, Paragraph):
                 unread_paragraphs += 1
@@ -222,9 +318,11 @@ def parse_docx(
             parts.append(f"{unread_tables} table" + ("s" if unread_tables != 1 else ""))
         detail = f" ({first_error})" if first_error else ""
         warnings.append(f"{' and '.join(parts)} could not be read{detail}.")
-    if warnings:
-        warnings.append("Search covers the extracted text.")
-
+    if unread_pictures:
+        plural = "s were" if unread_pictures != 1 else " was"
+        warnings.append(
+            f"{unread_pictures} linked or unreadable picture{plural} left out of figures."
+        )
     body = preview.text()
     page = ParsedPage(page_number=1, width=None, height=None, text=body)
-    return [page], blocks, body, warnings
+    return [page], blocks, body, warnings, notes

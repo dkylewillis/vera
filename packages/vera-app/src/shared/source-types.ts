@@ -15,7 +15,10 @@ const SOURCE_EXTENSIONS: Record<ConvertibleSourceType, readonly string[]> = {
 };
 
 export function folderEntryType(name: string): FolderEntryType | null {
-  const lower = name.toLowerCase();
+  const base = name.split(/[\\/]/).pop() || name;
+  // Excel, Word, and PowerPoint create ``~$...`` lock files beside an open document.
+  if (base.startsWith('~$')) return null;
+  const lower = base.toLowerCase();
   if (lower.endsWith('.vera')) return 'vera';
   for (const type of CONVERTIBLE_SOURCE_TYPES) {
     if (SOURCE_EXTENSIONS[type].some((suffix) => lower.endsWith(suffix))) return type;

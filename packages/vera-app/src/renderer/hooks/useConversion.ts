@@ -16,7 +16,7 @@ import {
 } from '../lib/conversion';
 import { convertDefaultsFromSelection, fileName, isPathInsideFolder, siblingSourcePath, type ExplorerSelection } from '../lib/formatting';
 import { explorerEntryType } from '../lib/explorer';
-import { librarySyncProblem, librarySyncTaskUpdate } from '../lib/managedLibrary';
+import { convertedArchivePath, librarySyncProblem, librarySyncTaskUpdate } from '../lib/managedLibrary';
 import { pipelineAcceptsPdf } from '../lib/convertPresets';
 import {
   findSiblingSourcePath,
@@ -78,6 +78,8 @@ export type ConversionHost = {
   setIngestPipeline: Dispatch<SetStateAction<string>>;
   setIngestPipelineConfigs: Dispatch<SetStateAction<Record<string, PipelineOptions>>>;
   setPipelineOptions: Dispatch<SetStateAction<PipelineOptions>>;
+  /** Open Document Info for an archive this run just wrote. */
+  onConvertedFile?: (archivePath: string) => void;
 };
 
 export type ConversionController = ReturnType<typeof createConversionController>;
@@ -353,7 +355,10 @@ export function createConversionController(getHost: () => ConversionHost) {
    * library's own convert settings, and its index. `unmanaged` means the
    * folder has no `.vera/` and the caller should batch convert instead.
    */
-  async function syncManagedLibrary(target: string): Promise<'ok' | 'attention' | 'unmanaged'> {
+  async function syncManagedLibrary(
+    target: string,
+    sourcePath = '',
+  ): Promise<'ok' | 'attention' | 'unmanaged'> {
     const host = getHost();
     const requestId = crypto.randomUUID();
     conversionCanceledRef.current = false;
@@ -382,7 +387,11 @@ export function createConversionController(getHost: () => ConversionHost) {
       if (conversionCanceledRef.current) return 'ok';
       if (report?.managed === false) return 'unmanaged';
       const problem = librarySyncProblem(report);
-      if (!problem) return 'ok';
+      if (!problem) {
+        const output = sourcePath ? convertedArchivePath(sourcePath, report) : '';
+        if (output) host.onConvertedFile?.(output);
+        return 'ok';
+      }
       host.setConversionError(problem);
       return 'attention';
     } catch (error) {
@@ -400,7 +409,9 @@ export function createConversionController(getHost: () => ConversionHost) {
    * Explorer's Convert: start immediately with saved defaults, skipping
    * archives that are already up to date. Inside a managed library this syncs
    * the library, so archives land in `.vera/archives` with the library's
-   * settings. Opens the Convert view only when something needs attention.
+   * settings. Opens the Convert view when a file fails or an archive is
+   * malformed. A successful single-file convert opens Document Info for the
+   * new archive, including warnings saved on it.
    */
   async function quickConvert(target: { paths?: string[]; directory?: string }) {
     const host = getHost();
@@ -417,7 +428,10 @@ export function createConversionController(getHost: () => ConversionHost) {
       host.setConvertMode('batch');
     }
     const anchor = paths[0] || directory;
-    const synced = await syncManagedLibrary(paths.length ? parentFolder(anchor) : anchor);
+    const synced = await syncManagedLibrary(
+      paths.length ? parentFolder(anchor) : anchor,
+      paths.length === 1 ? paths[0] : '',
+    );
     if (synced === 'attention') {
       host.setSideView('convert');
       host.setSidebarCollapsed(false);
@@ -550,9 +564,10 @@ export function createConversionController(getHost: () => ConversionHost) {
   /**
    * Run a conversion. Options override the Convert view's directory, overwrite,
    * nested-folder, and embedding settings for this run only. Resolves `ok`
-   * when every file converted or was already up to date (or the user stopped
-   * it), and `attention` when the Convert view has an error, a failure, or a
-   * file that converted with skipped parts.
+   * when every file converted or was already up to date, including a file
+   * that converted with notes or warnings, or the user stopped it. `attention`
+   * means the Convert view should open: an error, a failed file, or a
+   * malformed archive.
    */
   async function batchConvertPdfs(options: {
     paths?: string[];
@@ -579,7 +594,10 @@ export function createConversionController(getHost: () => ConversionHost) {
     host.setReconvertNotice(null);
     const reconvertOutput = reconvertConvertOutput(reconvertTargetRef.current, selectedPaths);
     if (!reconvertOutput && !options.librarySyncChecked) {
-      const synced = await syncManagedLibrary(selectedPaths.length ? parentFolder(selectedPaths[0]) : directory);
+      const synced = await syncManagedLibrary(
+        selectedPaths.length ? parentFolder(selectedPaths[0]) : directory,
+        selectedPaths.length === 1 ? selectedPaths[0] : '',
+      );
       if (synced !== 'unmanaged') {
         if (selectedPaths.length) host.setSelectedPdfs([]);
         restoreConvertDefaultsAfterReconvert();
@@ -671,13 +689,14 @@ export function createConversionController(getHost: () => ConversionHost) {
       const convertedOutput = reconvertOutput
         ? (response.result as { output?: string }).output || reconvertOutput
         : null;
-      const singleResult = response.result as { output?: string; warnings?: string[] };
+      const singleResult = response.result as { output?: string; warnings?: string[]; notes?: string[] };
       const result = convertedOutput
         ? singleConvertAsBatchResult({
           outputPath: convertedOutput,
           inputPath: selectedPaths[0],
           overwrite: true,
           warnings: singleResult.warnings,
+          notes: singleResult.notes,
         })
         : response.result as BatchConvertResult;
       host.setBatchConvertResult(result);
@@ -686,8 +705,12 @@ export function createConversionController(getHost: () => ConversionHost) {
       if (selectedPaths.length) {
         host.setSelectedPdfs([]);
       }
-      const issueCount = result.warnings?.length ?? 0;
-      return result.failed > 0 || result.malformed > 0 || issueCount > 0 ? 'attention' : 'ok';
+      const succeeded = result.failed === 0 && result.malformed === 0;
+      const output = succeeded && selectedPaths.length === 1 && result.outputs.length === 1
+        ? result.outputs[0]
+        : '';
+      if (output) host.onConvertedFile?.(output);
+      return succeeded ? 'ok' : 'attention';
     } catch (error) {
       if (conversionRequestWasSuperseded(conversionRequestId)) return 'ok';
       const message = error instanceof Error

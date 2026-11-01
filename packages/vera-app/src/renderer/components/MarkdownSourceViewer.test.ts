@@ -1,10 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import {
+  figureSourceUrl,
   markdownDisplayLines,
   markdownNodeOverlaps,
   markdownRenderBlocks,
   overlappingRanges,
 } from './MarkdownSourceViewer';
+
+describe('figureSourceUrl', () => {
+  it('resolves cached figures beside the HTML file', () => {
+    expect(figureSourceUrl('abc.figures/image_block_000004.png', 'vera-source://cache/abc.v2.html'))
+      .toBe('vera-source://cache/abc.figures/image_block_000004.png');
+  });
+
+  it('refuses paths that leave the source cache origin', () => {
+    expect(figureSourceUrl('https://example.com/x.png', 'vera-source://cache/abc.v2.html')).toBeNull();
+    expect(figureSourceUrl('abc.figures/x.png', undefined)).toBeNull();
+  });
+});
 
 describe('overlappingRanges', () => {
   it('returns every pre-rendered block that covers a cited line', () => {

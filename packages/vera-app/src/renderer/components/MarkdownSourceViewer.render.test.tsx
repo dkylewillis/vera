@@ -23,6 +23,14 @@ describe('MarkdownDocument', () => {
     expect(html).toContain('is-highlighted');
   });
 
+  it('shows a labelled placeholder for Word figures', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownDocument text={'![Pond layout](vera-figure:block_000004)'} highlighted={new Set()} />,
+    );
+    expect(html).not.toContain('<img');
+    expect(html).toContain('Figure: Pond layout');
+  });
+
   it('renders the whole document', () => {
     const text = Array.from({ length: 40 }, (_, index) => `Paragraph ${index} stays readable.`).join('\n\n');
     const html = renderToStaticMarkup(

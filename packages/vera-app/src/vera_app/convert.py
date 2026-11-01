@@ -18,7 +18,7 @@ from vera_ingest import (
     list_ingest_pipeline_descriptors,
     list_ingest_pipelines,
 )
-from vera_ingest.convert import read_ingest_warnings
+from vera_ingest.convert import read_ingest_notes, read_ingest_warnings
 from vera_ingest_pymupdf import (
     describe_ocr_languages,
     download_ocr_language_data,
@@ -130,10 +130,14 @@ def handle_convert(
                 "input": input_path,
             }
         )
-    notes = read_ingest_warnings(output)
+    result: dict[str, Any] = {"output": output}
+    warnings = read_ingest_warnings(output)
+    if warnings:
+        result["warnings"] = warnings
+    notes = read_ingest_notes(output)
     if notes:
-        return {"output": output, "warnings": notes}
-    return {"output": output}
+        result["notes"] = notes
+    return result
 
 
 def handle_batch_convert(

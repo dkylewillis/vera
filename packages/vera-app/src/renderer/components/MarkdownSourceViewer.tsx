@@ -133,6 +133,15 @@ function markdownComponents(
     a: ({ children, node: _node, ...props }) => (
       createElement('a', { ...props, target: '_blank', rel: 'noreferrer' }, children)
     ),
+    // Word figures (`vera-figure:` links) only resolve in the sidecar HTML;
+    // react-markdown drops that scheme, leaving an empty src.
+    img: ({ node: _node, ...props }) => {
+      const { src, alt } = props as { src?: string; alt?: string };
+      if (!src) {
+        return createElement('span', { className: 'markdownFigurePlaceholder' }, `Figure: ${alt || 'not shown'}`);
+      }
+      return createElement('img', { ...props, loading: 'lazy' });
+    },
   };
   for (const tag of HIGHLIGHT_TAGS) {
     components[tag] = ({ node, children, ...props }) => {
@@ -198,6 +207,18 @@ export function overlappingRanges(ranges: readonly LineRange[], lines: ReadonlyS
 
 type IndexedElement = LineRange & { element: HTMLElement };
 
+/** Resolve a figure path from the sidecar HTML against the HTML file's URL. */
+export function figureSourceUrl(relative: string, baseUrl: string | undefined): string | null {
+  if (!relative || !baseUrl) return null;
+  try {
+    const resolved = new URL(relative, baseUrl);
+    const base = new URL(baseUrl);
+    return resolved.protocol === base.protocol && resolved.host === base.host ? resolved.href : null;
+  } catch {
+    return null;
+  }
+}
+
 const PreparedHtml = memo(function PreparedHtml({
   html,
   containerRef,
@@ -218,9 +239,12 @@ const PreparedHtml = memo(function PreparedHtml({
 export function MarkdownHtmlDocument({
   html,
   highlighted,
+  baseUrl,
 }: {
   html: string;
   highlighted: ReadonlySet<number>;
+  /** URL the HTML was loaded from; figure paths resolve against it. */
+  baseUrl?: string;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const indexed = useRef<IndexedElement[]>([]);
@@ -233,6 +257,10 @@ export function MarkdownHtmlDocument({
       indexed.current = [];
       return;
     }
+    for (const image of root.querySelectorAll<HTMLImageElement>('img[data-vera-src]')) {
+      const url = figureSourceUrl(image.dataset.veraSrc ?? '', baseUrl);
+      if (url) image.src = url;
+    }
     indexed.current = Array.from(root.querySelectorAll<HTMLElement>('[data-ls]')).map((node) => {
       const parent = node.parentElement;
       const element = node.tagName === 'CODE' && parent?.tagName === 'PRE' ? parent : node;
@@ -242,7 +270,7 @@ export function MarkdownHtmlDocument({
         end: Number(node.dataset.le),
       };
     });
-  }, [html]);
+  }, [html, baseUrl]);
 
   useLayoutEffect(() => {
     for (const element of marked.current) element.classList.remove('is-highlighted');
@@ -322,7 +350,7 @@ export function MarkdownSourceViewer({
   }
 
   if (loaded.kind === 'html') {
-    return <MarkdownHtmlDocument html={loaded.body} highlighted={highlighted} />;
+    return <MarkdownHtmlDocument html={loaded.body} highlighted={highlighted} baseUrl={source.html_url} />;
   }
   return <MarkdownDocument text={loaded.body} highlighted={highlighted} />;
 }

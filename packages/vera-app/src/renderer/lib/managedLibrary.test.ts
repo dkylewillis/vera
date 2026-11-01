@@ -1,11 +1,29 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  convertedArchivePath,
   librarySyncProblem,
   librarySyncSummary,
   librarySyncTaskUpdate,
   prepareManagedLibrary,
 } from './managedLibrary';
+
+describe('convertedArchivePath', () => {
+  it('matches the file that was just converted', () => {
+    const report = {
+      actions: [{
+        action: 'convert',
+        source: 'new/zones.docx',
+        output: 'C:\\library\\.vera\\archives\\new\\zones.docx.vera',
+        notes: ["Headers and footers aren't included in search. VERA searches the main body text."],
+      }],
+    };
+    expect(convertedArchivePath('C:\\library\\new\\zones.docx', report))
+      .toBe('C:\\library\\.vera\\archives\\new\\zones.docx.vera');
+    expect(convertedArchivePath('C:\\library\\new\\other.docx', report)).toBe('');
+    expect(convertedArchivePath('C:\\library\\new\\zones.docx', { actions: [{ action: 'unchanged', source: 'new/zones.docx' }] })).toBe('');
+  });
+});
 
 describe('librarySyncTaskUpdate', () => {
   it('describes sync steps and the index refresh that follows', () => {

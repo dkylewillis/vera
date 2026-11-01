@@ -26,6 +26,16 @@ def source_suffix(path: str | Path) -> str:
     return Path(path).suffix.lower().lstrip(".")
 
 
+def is_office_owner_file(path: str | Path) -> bool:
+    """True for Microsoft Office lock files named ``~$...``.
+
+    Excel, Word, and PowerPoint create these beside an open document. They
+    use a source extension, but they are not documents and stay locked while
+    the application has the file open.
+    """
+    return Path(path).name.startswith("~$")
+
+
 def source_mime_type(path: str | Path) -> str:
     """Return a MIME type for ``path``, preferring VERA's suffix map."""
     suffix = source_suffix(path)

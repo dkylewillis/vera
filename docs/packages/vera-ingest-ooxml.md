@@ -25,10 +25,12 @@ A1 range. A cited sheet range past the preview cap is labeled as beyond the
 preview. Empty workbooks fail with the same “No searchable text” error as an
 empty Markdown file. A Word file that is corrupt, encrypted, or has no
 searchable text fails the same way. When the package opens, one unreadable
-paragraph or table is skipped and the rest is searched. Headers, footers,
-footnotes, endnotes, comments, block content controls, and text boxes are
-left out of search and recorded in archive metadata `ingest_warnings`. The
-Convert panel lists those files as converted with issues.
+paragraph or table is skipped, recorded in archive metadata
+`ingest_warnings`, and the rest is searched. The Convert panel lists those
+files as converted with warnings. Headers, footers, footnotes, endnotes,
+comments, block content controls, text boxes, embedded documents, and charts
+are left out of search by design. They are recorded as one plain sentence in
+`ingest_notes`, not as a warning.
 
 ```bash
 vera convert memo.docx memo.vera --json

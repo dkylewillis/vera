@@ -8,5 +8,7 @@ describe('source open dialog', () => {
     expect(folderEntryType('memo.docx')).toBe('docx');
     expect(folderEntryType('deck.pptx')).toBe('pptx');
     expect(folderEntryType('budget.xlsx')).toBe('xlsx');
+    expect(folderEntryType('~$budget.xlsx')).toBeNull();
+    expect(folderEntryType('~$memo.docx')).toBeNull();
   });
 });

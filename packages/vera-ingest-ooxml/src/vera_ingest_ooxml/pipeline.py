@@ -17,7 +17,7 @@ from vera_ingest.types import (
     ensure_ingest_request,
 )
 
-from .common import OfficeBlock, sheet_citation
+from .common import OfficeBlock, block_id_for, sheet_citation
 from .docx import parse_docx
 from .options import OoxmlOptions
 from .pptx import parse_pptx
@@ -34,7 +34,7 @@ def _package_version() -> str:
 def _assign_ids(blocks: list[OfficeBlock]) -> list[tuple[str, IngestBlock]]:
     records: list[tuple[str, IngestBlock]] = []
     for index, item in enumerate(blocks, start=1):
-        block_id = f"block_{index:06d}"
+        block_id = block_id_for(index)
         region = {**item.region, "block_id": block_id}
         records.append(
             (
@@ -169,8 +169,9 @@ def ooxml_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
     suffix = source_suffix(source_path)
     source_name = Path(source_path).name
     warnings: list[str] = []
+    notes: list[str] = []
     if suffix == "docx":
-        pages, office_blocks, preview_text, warnings = parse_docx(source_path)
+        pages, office_blocks, preview_text, warnings, notes = parse_docx(source_path)
         records = _assign_ids(office_blocks)
         chunks = _chunks_for_words(records, chunk_size=config.chunk_size, overlap=config.overlap)
         preview = IngestPreview(
@@ -216,4 +217,5 @@ def ooxml_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
         chunking_strategy=strategy,
         viewer_preview=preview,
         warnings=warnings,
+        notes=notes,
     )

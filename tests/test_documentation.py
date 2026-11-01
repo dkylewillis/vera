@@ -277,6 +277,8 @@ def test_hardening_json_contracts_are_documented():
     assert "source_file_hash" in conversion
     assert "skipped_existing" in conversion
     assert "Same-stem sources that would" in conversion
+    assert "~$budget.xlsx" in conversion
+    assert "~$budget.xlsx" in libraries
     assert "source_file_hash" in cli_reference
     assert "`file`, `path`," in conversion
     assert "`ok`, `error`" in conversion
@@ -1222,6 +1224,18 @@ def test_desktop_security_and_markdown_locator_docs():
     assert "CVE-2026-54058" in contributing
     assert "pillow>=12.3.0" in troubleshooting
     assert "CVE-2026-54058" in troubleshooting
+
+
+def test_word_figure_docs():
+    multi_format = (DOCS / "multi-format-ingest.md").read_text(encoding="utf-8")
+    figures = (DOCS / "figures-and-regions.md").read_text(encoding="utf-8")
+    skill = (ROOT / "plugins/vera/skills/vera-search/SKILL.md").read_text(encoding="utf-8")
+
+    assert "vera-figure:<block_id>" in multi_format
+    assert "image_<block_id>" in multi_format
+    assert "Word figures display inline" in multi_format
+    assert "Word pictures" in figures
+    assert "Word pictures converted with `ooxml`" in skill
 
 
 def test_readme_walkthrough_and_embedding_setup():

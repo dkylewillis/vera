@@ -392,7 +392,11 @@ describe('createConversionController', () => {
       };
     }
 
-    function setup(result: BatchConvertResult, syncReport: LibrarySyncReport | null = { managed: false }) {
+    function setup(
+      result: BatchConvertResult,
+      syncReport: LibrarySyncReport | null = { managed: false },
+      hostOverrides: Partial<ConversionHost> = {},
+    ) {
       const request = vi.fn(async (payload: Record<string, unknown>) => {
         if (payload.action === 'inspect') {
           return { ok: true, result: { default_embedding_model: 'vera-hashing-384' } };
@@ -427,6 +431,7 @@ describe('createConversionController', () => {
         setSideView,
         setConversionError,
         dispatchBackgroundTask,
+        ...hostOverrides,
       }));
       return { request, syncLibrary, setSideView, setConversionError, dispatchBackgroundTask, controller };
     }
@@ -507,19 +512,47 @@ describe('createConversionController', () => {
       expect(setSideView).not.toHaveBeenCalled();
     });
 
-    it('opens the Convert view when a file converts with issues', async () => {
+    it('opens Document Info when a single file converts with warnings', async () => {
+      const onConvertedFile = vi.fn();
       const { setSideView, controller } = setup(batchResult({
         converted: 1,
+        outputs: ['C:\\library\\new\\zones.docx.vera'],
         warnings: [{
           input: 'C:\\library\\new\\zones.docx',
           output: 'C:\\library\\new\\zones.docx.vera',
-          warnings: ['Header and footer text was left out of search.'],
+          warnings: ['1 table could not be read.'],
         }],
-      }));
+      }), { managed: false }, { onConvertedFile });
 
       await controller.quickConvert({ paths: ['C:\\library\\new\\zones.docx'] });
 
-      expect(setSideView).toHaveBeenCalledWith('convert');
+      expect(setSideView).not.toHaveBeenCalled();
+      expect(onConvertedFile).toHaveBeenCalledWith('C:\\library\\new\\zones.docx.vera');
+    });
+
+    it('opens Document Info for the archive a managed library just wrote', async () => {
+      const onConvertedFile = vi.fn();
+      const { setSideView, request, controller } = setup(
+        batchResult(),
+        {
+          managed: true,
+          ok: true,
+          converted: 1,
+          actions: [{
+            action: 'convert',
+            source: 'new/zones.docx',
+            output: 'C:\\library\\.vera\\archives\\new\\zones.docx.vera',
+            notes: ["Headers and footers aren't included in search. VERA searches the main body text."],
+          }],
+        },
+        { onConvertedFile },
+      );
+
+      await controller.quickConvert({ paths: ['C:\\library\\new\\zones.docx'] });
+
+      expect(request).not.toHaveBeenCalled();
+      expect(setSideView).not.toHaveBeenCalled();
+      expect(onConvertedFile).toHaveBeenCalledWith('C:\\library\\.vera\\archives\\new\\zones.docx.vera');
     });
 
     it('opens the Convert view when a file fails', async () => {

@@ -1055,14 +1055,21 @@ button {
   color: var(--text-muted);
 }
 
-.fileRowPendingDot {
+.fileRowStatusDot {
   flex: none;
   width: 6px;
   height: 6px;
   margin-left: auto;
   border-radius: 50%;
+}
+
+.fileRowStatusDot.pending {
   background: var(--accent);
   opacity: 0.7;
+}
+
+.fileRowStatusDot.converted {
+  background: var(--good);
 }
 
 .fileRowWrap .fileRow {
@@ -1086,8 +1093,8 @@ button {
 
 .fileRowIcon {
   flex-shrink: 0;
-  width: 13px;
-  height: 13px;
+  width: 16px;
+  height: 16px;
 }
 
 .fileRowIcon.vera {
@@ -1098,11 +1105,20 @@ button {
   color: #d9534f;
 }
 
-.fileRowIcon.docx,
-.fileRowIcon.pptx,
-.fileRowIcon.xlsx,
+.fileRowIcon.docx {
+  color: #2b579a;
+}
+
 .fileRowIcon.md {
-  color: var(--text-faint);
+  color: #3a8fb0;
+}
+
+.fileRowIcon.xlsx {
+  color: #217346;
+}
+
+.fileRowIcon.pptx {
+  color: #d04423;
 }
 
 .fileRowName {
@@ -1705,6 +1721,33 @@ div.convertTargetItem {
 .infoStatus--warn {
   color: var(--warn);
   background: color-mix(in srgb, var(--warn) 12%, var(--bg-surface));
+}
+
+.infoNotes {
+  display: grid;
+  gap: 4px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.infoNotes p {
+  margin: 0;
+}
+
+.infoWarnings {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
+.infoWarnings .infoStatus {
+  margin: 0;
+  width: auto;
+  max-width: 100%;
+  border-radius: 8px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: normal;
 }
 
 .modelGroupList {
@@ -4388,6 +4431,22 @@ input.viewerPageInput:focus {
   margin: 0;
   padding: 0;
   background: transparent;
+}
+
+.markdownSourceDocument img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.markdownFigurePlaceholder {
+  display: inline-block;
+  padding: 6px 10px;
+  border: 1px dashed var(--border, rgba(127, 127, 127, 0.4));
+  border-radius: 6px;
+  color: var(--muted, #8a8a8a);
+  font-size: 0.9em;
 }
 
 .markdownSourcePre {

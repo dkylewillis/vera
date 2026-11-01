@@ -2,6 +2,22 @@ import { SIDECAR_ACTIONS } from '../../shared/protocol';
 import type { LibrarySyncReport, LibraryTrashEntry, StreamEvent, VeraResponse } from '../types';
 import type { BackgroundTask } from './backgroundTasks';
 
+/** Archive written for this source during the sync that just finished. */
+export function convertedArchivePath(
+  sourcePath: string,
+  report: LibrarySyncReport | null | undefined,
+): string {
+  const wanted = sourcePath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  if (!wanted) return '';
+  for (const action of report?.actions ?? []) {
+    if (action.action !== 'convert' || !action.output) continue;
+    const source = (action.source ?? '').replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase();
+    if (!source) continue;
+    if (wanted === source || wanted.endsWith(`/${source}`)) return action.output;
+  }
+  return '';
+}
+
 type Request = <T>(payload: Record<string, unknown>) => Promise<VeraResponse<T>>;
 
 export function librarySyncSummary(report: LibrarySyncReport | null | undefined): string {

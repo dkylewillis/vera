@@ -20,7 +20,7 @@ from vera_ingest import (
     batch_convert,
     convert,
 )
-from vera_ingest.convert import read_ingest_warnings
+from vera_ingest.convert import read_ingest_notes, read_ingest_warnings
 from vera_ingest.library import (
     LibraryBusyError,
     LibraryExistsError,
@@ -221,13 +221,18 @@ def cmd_convert(args) -> int:
             print(str(exc), file=sys.stderr)
         return 1
     warnings = read_ingest_warnings(path)
+    notes = read_ingest_notes(path)
     if args.json:
         payload: dict[str, object] = {"ok": True, "output": str(path)}
         if warnings:
             payload["warnings"] = warnings
+        if notes:
+            payload["notes"] = notes
         print(json.dumps(payload))
     else:
         print(f"Created {path}")
+        for message in notes:
+            print(f"Note: {message}", file=sys.stderr)
         for message in warnings:
             print(f"Warning: {message}", file=sys.stderr)
     return 0

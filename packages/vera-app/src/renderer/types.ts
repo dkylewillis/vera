@@ -136,6 +136,13 @@ export interface LibrarySyncReport {
   failed?: number;
   errors?: { input: string; error: string }[];
   busy?: boolean;
+  actions?: {
+    action?: string;
+    source?: string;
+    output?: string;
+    warnings?: string[];
+    notes?: string[];
+  }[];
   adoptable?: string[];
   inside_library?: boolean;
   library_root?: string | null;
@@ -237,6 +244,7 @@ export interface InspectResult {
   ocr_dpi?: string;
   ocr_pages?: string;
   ingest_warnings?: string[];
+  ingest_notes?: string[];
   directory?: string;
   file_count?: number;
   discovered_file_count?: number;
@@ -312,6 +320,7 @@ export interface BatchConvertResult {
   malformed_existing: { input: string; output: string; issues: string[] }[];
   errors: { input: string; error: string }[];
   warnings?: { input: string; output: string; warnings: string[] }[];
+  notes?: { input: string; output: string; notes: string[] }[];
 }
 
 export interface ExportResult {

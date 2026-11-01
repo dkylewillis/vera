@@ -1,6 +1,7 @@
 import pytest
 
 from vera_ingest.formats import (
+    is_office_owner_file,
     pick_parser_for_suffix,
     resolve_ingest_parser,
     source_mime_type,
@@ -8,6 +9,13 @@ from vera_ingest.formats import (
 )
 from vera_ingest.markdown import ensure_registered as ensure_markdown
 from vera_ingest_pymupdf import ensure_registered as ensure_pymupdf
+
+
+def test_office_owner_files_are_not_documents():
+    assert is_office_owner_file("~$DKSalaries.xlsx")
+    assert is_office_owner_file(r"C:\Manuals\~$memo.docx")
+    assert not is_office_owner_file("DKSalaries.xlsx")
+    assert not is_office_owner_file("notes.md")
 
 
 def test_source_mime_type_covers_pdf_markdown_office_html():

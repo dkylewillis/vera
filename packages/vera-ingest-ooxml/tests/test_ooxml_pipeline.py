@@ -117,6 +117,44 @@ def test_word_table_with_misaligned_merged_cells_keeps_text(tmp_path: Path) -> N
     assert "20 ft" in tables[0]
 
 
+def _word_with_picture(path: Path) -> None:
+    document = Document()
+    document.add_heading("Site plan", level=1)
+    document.add_paragraph("The pond sits north of the lot.")
+    image = path.with_suffix(".png")
+    image.write_bytes(_PNG)
+    document.add_picture(str(image))
+    document.inline_shapes[0]._inline.docPr.set("descr", "Pond [north] layout")
+    document.add_paragraph("Outlet details follow.")
+    document.save(path)
+
+
+def test_word_pictures_become_figures_linked_from_the_preview(tmp_path: Path) -> None:
+    source = tmp_path / "plan.docx"
+    _word_with_picture(source)
+    result = ooxml_pipeline(str(source), IngestRequest())
+    assert result.warnings == []
+    image = next(block for block in result.blocks if block.block_type == "image")
+    assert image.image_bytes == _PNG
+    assert image.image_ext == "png"
+    lines = result.viewer_preview.data.decode("utf-8").splitlines()
+    region = image.regions[0]
+    assert region["kind"] == "text_span"
+    assert lines[region["start"]["line"] - 1] == (
+        f"![Pond \\[north\\] layout](vera-figure:{image.block_id})"
+    )
+    assert any(image.block_id in chunk.block_ids for chunk in result.chunks)
+
+    output = tmp_path / "plan.vera"
+    convert(str(source), str(output), model="hashing")
+    with VeraDocument.open(str(output)) as document:
+        figures = document.attachment_metadata(None, where={"role": "figure"})
+        assert [item["id"] for item in figures] == [f"image_{image.block_id}"]
+        assert figures[0]["media_type"] == "image/png"
+        hit = document.search("pond north of the lot", mode="keyword", top_k=1)[0]
+        assert any(ref.role == "figure" for ref in hit.record.attachments)
+
+
 def test_word_preview_lines_match_heading_span(tmp_path: Path) -> None:
     source = tmp_path / "memo.docx"
     _word(source)
@@ -201,7 +239,7 @@ def test_convert_stores_preview_and_original(tmp_path: Path) -> None:
         assert "ingest_warnings" not in document.metadata
 
 
-def test_header_and_content_control_warn_and_keep_body_text(tmp_path: Path) -> None:
+def test_header_and_content_control_are_notes_not_warnings(tmp_path: Path) -> None:
     source = tmp_path / "zones.docx"
     document = Document()
     document.add_paragraph("Zoning districts")
@@ -219,16 +257,18 @@ def test_header_and_content_control_warn_and_keep_body_text(tmp_path: Path) -> N
     )
     document.save(source)
     result = ooxml_pipeline(str(source), IngestRequest())
-    joined = " ".join(result.warnings)
-    assert "Header and footer text was left out of search." in joined
-    assert "Text inside content controls was left out of search." in joined
-    assert "Search covers the extracted text." in joined
+    assert result.warnings == []
+    assert result.notes == [
+        "Headers, footers, and content controls aren't included in search. "
+        "VERA searches the main body text."
+    ]
     assert any("Zoning districts" in block.text for block in result.blocks)
     assert all("Inside control" not in block.text for block in result.blocks)
     target = tmp_path / "zones.vera"
     convert(str(source), str(target), model="hashing")
     with VeraDocument.open(target) as stored:
-        assert stored.metadata["ingest_warnings"] == result.warnings
+        assert stored.metadata["ingest_notes"] == result.notes
+        assert "ingest_warnings" not in stored.metadata
 
 
 def test_unreadable_table_keeps_the_rest_of_the_document(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -244,7 +284,7 @@ def test_unreadable_table_keeps_the_rest_of_the_document(tmp_path: Path, monkeyp
     assert any("1 table could not be read" in item and "grid_offset=13" in item for item in result.warnings)
 
 
-def test_corrupt_docx_fails_and_a_warned_file_does_not(tmp_path: Path) -> None:
+def test_corrupt_docx_fails_and_a_noted_file_does_not(tmp_path: Path) -> None:
     folder = tmp_path / "library"
     folder.mkdir()
     good = folder / "memo.docx"
@@ -256,6 +296,9 @@ def test_corrupt_docx_fails_and_a_warned_file_does_not(tmp_path: Path) -> None:
     report = batch_convert(str(folder), model="hashing")
     assert report["converted"] == 1
     assert report["failed"] == 1
-    assert report["warnings"][0]["input"].endswith("memo.docx")
-    assert any("Header and footer" in item for item in report["warnings"][0]["warnings"])
+    assert report["warnings"] == []
+    assert report["notes"][0]["input"].endswith("memo.docx")
+    assert report["notes"][0]["notes"] == [
+        "Headers and footers aren't included in search. VERA searches the main body text."
+    ]
     assert "bad.docx" in report["errors"][0]["input"]

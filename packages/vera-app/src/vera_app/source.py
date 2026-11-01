@@ -228,6 +228,41 @@ def _materialize_preview(doc: VeraDocument, cache_dir: Path, cancel: Cancellatio
     return source_result(filename, mime_type, digest, size, extracted)
 
 
+_BROWSER_IMAGE_TYPES = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/gif": "gif",
+    "image/bmp": "bmp",
+    "image/webp": "webp",
+}
+
+
+def _materialize_figures(
+    archive: Path, cache_path: Path, cancel: CancellationToken | None
+) -> dict[str, str]:
+    """Extract browser-viewable figures beside a cached Markdown preview.
+
+    Returns block id -> path relative to the preview's folder. Formats a browser
+    cannot draw (EMF, WMF, TIFF) are left out and render as alt text.
+    """
+    folder = cache_path.with_name(f"{cache_path.stem}.figures")
+    figures: dict[str, str] = {}
+    doc = open_document(str(archive))
+    try:
+        for info in doc.attachment_metadata(None, where={"role": "figure"}):
+            attachment_id = str(info["id"])
+            ext = _BROWSER_IMAGE_TYPES.get(str(info.get("media_type") or "").lower())
+            if ext is None or not re.fullmatch(r"[\w.-]+", attachment_id):
+                continue
+            target = folder / f"{attachment_id}.{ext}"
+            extract_attachment_to_cache(doc, attachment_id, target, int(info["size"]), cancel)
+            figures[attachment_id.removeprefix("image_")] = f"{folder.name}/{target.name}"
+    finally:
+        doc.close()
+    return figures
+
+
 def source(
     request: Request,
     cancel: CancellationToken | None = None,
@@ -240,8 +275,16 @@ def source(
     """
     result = _materialize_source(request, cancel)
     if result.get("mime_type") == "text/markdown":
+        cache_path = Path(str(result["cache_path"]))
+        archive = Path(str(request["path"]))
+        figures = None
+        if archive.suffix.lower() == ".vera":
+
+            def figures() -> dict[str, str]:
+                return _materialize_figures(archive, cache_path, cancel)
+
         try:
-            html_path = ensure_markdown_html(Path(str(result["cache_path"])), cancel)
+            html_path = ensure_markdown_html(cache_path, cancel, figures)
         except CancelledError:
             raise
         except Exception:

@@ -53,6 +53,9 @@ export function DocumentInfoPanel({
   onPageNumberChange: (value: number) => void;
   onPageResult: (result: PageResult) => void;
 }) {
+  const ingestWarnings = ingestLines(viewerInspect?.ingest_warnings);
+  const ingestNotes = ingestLines(viewerInspect?.ingest_notes);
+
   async function handleValidate() {
     const result = await call<ValidateResult>({ action: SIDECAR_ACTIONS.validate, path: viewerInfoPath }, 'Validating');
     if (result) onValidation(result);
@@ -169,10 +172,22 @@ export function DocumentInfoPanel({
               <div><dt>Parser</dt><dd>{viewerInspect?.parser_name ? `${viewerInspect.parser_name}${viewerInspect.parser_version ? ` ${viewerInspect.parser_version}` : ''}` : '-'}</dd></div>
               <div><dt>Chunking</dt><dd>{formatChunkingStrategy(viewerInspect?.chunking_strategy)}</dd></div>
               <div><dt>OCR</dt><dd>{formatOcrSummary(viewerInspect?.ocr)}</dd></div>
-              {viewerInspect?.ingest_warnings?.length ? (
+              {ingestNotes.length ? (
                 <div>
-                  <dt>Ingest</dt>
-                  <dd className="infoStatus infoStatus--warn">{viewerInspect.ingest_warnings.join(' ')}</dd>
+                  <dt>Not searched</dt>
+                  <dd className="infoNotes">
+                    {ingestNotes.map((note, index) => <p key={`${index}-${note}`}>{note}</p>)}
+                  </dd>
+                </div>
+              ) : null}
+              {ingestWarnings.length ? (
+                <div>
+                  <dt>Warnings</dt>
+                  <dd className="infoWarnings">
+                    {ingestWarnings.map((warning, index) => (
+                      <p key={`${index}-${warning}`} className="infoStatus infoStatus--warn">{warning}</p>
+                    ))}
+                  </dd>
                 </div>
               ) : null}
               <div><dt>Attachments</dt><dd>{viewerInspect?.attachments ?? '-'}</dd></div>
@@ -215,4 +230,9 @@ export function DocumentInfoPanel({
       )}
     </article>
   );
+}
+
+function ingestLines(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item).trim()).filter(Boolean);
 }

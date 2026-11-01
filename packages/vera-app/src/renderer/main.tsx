@@ -235,6 +235,7 @@ function App() {
   });
   const [isResizingSide, setIsResizingSide] = useState(false);
   const openLibraryRef = useRef<(folderPath: string) => Promise<void> | void>(() => undefined);
+  const showConvertedDocumentRef = useRef<(archivePath: string) => void>(() => undefined);
   const openTargetPathRef = useRef<(
     value: string,
     options?: { asLibrary?: boolean; preserveLibrary?: boolean },
@@ -522,6 +523,7 @@ function App() {
     setIngestPipeline,
     setIngestPipelineConfigs,
     setPipelineOptions,
+    onConvertedFile: (archivePath) => { showConvertedDocumentRef.current(archivePath); },
   });
   const source = useSourceDocument({
     path,
@@ -610,6 +612,19 @@ function App() {
     return () => { canceled = true; };
   }, [sideView, convertTarget, libraryArchiveKey, libraryEmbeddingModel]);
   const { loadSourceDocument, closeSourceDocument, previewSourceDocument } = source;
+  showConvertedDocumentRef.current = (archivePath) => {
+    const name = fileName(archivePath);
+    void previewSourceDocument({
+      path: archivePath,
+      name,
+      relativePath: name,
+      type: 'vera',
+    }, {
+      preserveLibrary: true,
+      replacePending: true,
+      mode: 'info',
+    });
+  };
   const { searchTarget, selectSearchResult, selectChunkResult, selectCitation } = search;
 
   function openSide(view: SideView, selectionOverride?: ExplorerSelection | null) {

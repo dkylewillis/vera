@@ -128,10 +128,13 @@ export function singleConvertAsBatchResult(options: {
   inputPath?: string;
   overwrite: boolean;
   warnings?: string[];
+  notes?: string[];
 }): BatchConvertResult {
   const output = options.outputPath;
   const cut = Math.max(output.lastIndexOf('/'), output.lastIndexOf('\\'));
-  const notes = options.warnings?.filter(Boolean) ?? [];
+  const warnings = options.warnings?.filter(Boolean) ?? [];
+  const notes = options.notes?.filter(Boolean) ?? [];
+  const input = options.inputPath || output;
   return {
     directory: cut >= 0 ? output.slice(0, cut) : '',
     recursive: false,
@@ -147,9 +150,8 @@ export function singleConvertAsBatchResult(options: {
     skipped_by_user: [],
     malformed_existing: [],
     errors: [],
-    ...(notes.length ? {
-      warnings: [{ input: options.inputPath || output, output, warnings: notes }],
-    } : {}),
+    ...(warnings.length ? { warnings: [{ input, output, warnings }] } : {}),
+    ...(notes.length ? { notes: [{ input, output, notes }] } : {}),
   };
 }
 

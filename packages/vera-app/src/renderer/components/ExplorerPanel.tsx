@@ -5,16 +5,13 @@ import {
   ChevronDown,
   ChevronRight,
   Database,
-  FileSpreadsheet,
-  FileText,
   Folder,
-  Presentation,
   FolderOpen,
   Library,
   Plus,
   RefreshCw,
 } from 'lucide-react';
-import { VeraIcon } from './VeraIcon';
+import { FileTypeIcon } from './FileTypeIcon';
 import {
   applyFileListCheckbox,
   applyFileListSelection,
@@ -594,15 +591,16 @@ export function ExplorerPanel({
               : `${described} — click to select · Ctrl/Cmd+click to add or remove · Shift+click a range · click empty space or Esc to clear · double-click to preview`
           }
         >
-          {doc.archive
-            ? <VeraIcon size={14} className="fileRowIcon vera" />
-            : doc.type === 'xlsx'
-              ? <FileSpreadsheet size={14} className="fileRowIcon xlsx" />
-              : doc.type === 'pptx'
-                ? <Presentation size={14} className="fileRowIcon pptx" />
-                : <FileText size={14} className={`fileRowIcon ${doc.type}`} />}
+          <FileTypeIcon
+            type={doc.source?.type ?? doc.type}
+            size={16}
+            className={`fileRowIcon ${doc.source?.type ?? doc.type}`}
+          />
           <span className="fileRowName">{doc.label}</span>
-          {doc.archive ? null : <span className="fileRowPendingDot" aria-label="Not converted yet" />}
+          <span
+            className={doc.archive ? 'fileRowStatusDot converted' : 'fileRowStatusDot pending'}
+            aria-label={doc.archive ? 'Converted' : 'Not converted yet'}
+          />
         </button>
       </div>
     );

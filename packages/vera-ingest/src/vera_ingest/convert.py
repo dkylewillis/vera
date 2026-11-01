@@ -32,6 +32,7 @@ from vera_doc.validation import validate_document
 from .cancellation import clear_user_skip, is_user_skip_error, raise_if_cancelled
 from .formats import (
     installed_source_formats,
+    is_office_owner_file,
     pipeline_source_formats,
     resolve_ingest_parser,
     source_mime_type,
@@ -78,6 +79,7 @@ _CONVERT_OWNED_ARCHIVE_KEYS = frozenset(
         "viewer_blocks_attachment_id",
         "source_attachment_id",
         "ingest_warnings",
+        "ingest_notes",
     }
 )
 _RESERVED_CALLER_METADATA_KEYS = frozenset(
@@ -158,16 +160,25 @@ def _validate_output(path: Path) -> dict[str, Any]:
     return report
 
 
-def read_ingest_warnings(path: str | Path) -> list[str]:
-    """Return part-skip warnings stored on an archive, if any."""
+def _read_metadata_lines(path: str | Path, key: str) -> list[str]:
     try:
         with VeraDocument.open(path) as document:
-            stored = document.metadata.get("ingest_warnings")
+            stored = document.metadata.get(key)
     except Exception:
         return []
     if not isinstance(stored, list):
         return []
     return [str(item).strip() for item in stored if str(item).strip()]
+
+
+def read_ingest_warnings(path: str | Path) -> list[str]:
+    """Return warnings about content that could not be read, if any."""
+    return _read_metadata_lines(path, "ingest_warnings")
+
+
+def read_ingest_notes(path: str | Path) -> list[str]:
+    """Return notes about parts left out of search by design, if any."""
+    return _read_metadata_lines(path, "ingest_notes")
 
 
 def _stored_source_file_hash(path: Path) -> str | None:
@@ -403,6 +414,10 @@ def convert(
     """
     source = Path(input_path)
     target = Path(output_path)
+    if is_office_owner_file(source):
+        raise ValueError(
+            f"Office lock file is not a document: {source.name}. Convert the original file instead."
+        )
     if not source.exists():
         raise FileNotFoundError(input_path)
 
@@ -574,6 +589,8 @@ def convert(
             archive_metadata["viewer_preview_attachment_id"] = "viewer_preview"
         if ingest_result.warnings:
             archive_metadata["ingest_warnings"] = list(ingest_result.warnings)
+        if ingest_result.notes:
+            archive_metadata["ingest_notes"] = list(ingest_result.notes)
         contextualized_indices = [
             index for index, chunk in enumerate(chunks) if chunk.embedding_text is not None
         ]
@@ -680,7 +697,11 @@ def _resolve_batch_sources(
         raise ValueError("No installed ingest pipeline advertises source formats to convert.")
 
     def is_source(path: Path) -> bool:
-        return path.is_file() and source_suffix(path) in suffixes
+        return (
+            path.is_file()
+            and not is_office_owner_file(path)
+            and source_suffix(path) in suffixes
+        )
 
     if paths is not None:
         if not paths:
@@ -691,6 +712,10 @@ def _resolve_batch_sources(
             path = Path(raw).expanduser().resolve()
             if not path.is_file():
                 raise FileNotFoundError(f"Source file not found: {path}")
+            if is_office_owner_file(path):
+                raise ValueError(
+                    f"Office lock file is not a document: {path.name}. Convert the original file instead."
+                )
             if source_suffix(path) not in suffixes:
                 supported = ", ".join(f".{item}" for item in sorted(suffixes))
                 raise ValueError(f"Not a supported source file ({supported}): {path}")
@@ -854,6 +879,7 @@ def batch_convert(
     malformed_existing: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
     warnings: list[dict[str, Any]] = []
+    notes: list[dict[str, Any]] = []
     output_collisions = _batch_output_collisions(sources)
     total = len(sources)
     if progress and not sources:
@@ -892,11 +918,14 @@ def batch_convert(
                 **file_settings.as_convert_kwargs(),
             )
             outputs.append(written)
-            notes = read_ingest_warnings(written)
-            if notes:
+            file_warnings = read_ingest_warnings(written)
+            if file_warnings:
                 warnings.append(
-                    {"input": str(source_file), "output": written, "warnings": notes}
+                    {"input": str(source_file), "output": written, "warnings": file_warnings}
                 )
+            file_notes = read_ingest_notes(written)
+            if file_notes:
+                notes.append({"input": str(source_file), "output": written, "notes": file_notes})
         except Exception as exc:
             if settings.cancel is not None and getattr(settings.cancel, "cancelled", False):
                 raise
@@ -924,4 +953,5 @@ def batch_convert(
         "malformed_existing": malformed_existing,
         "errors": errors,
         "warnings": warnings,
+        "notes": notes,
     }

@@ -35,6 +35,9 @@ How to read the map:
   also as searchable chunk text. The figure API joins a caption by page number.
 - **Image blocks** are excluded from chunk `regions` and surfaced through
   figure attachments instead.
+- **Word pictures** (`ooxml`) are stored as figure attachments too, with no
+  `bbox` because Word has no fixed pages. See
+  [Additional source formats](multi-format-ingest.md).
 - Coordinate contract for every `bbox`: `[x0, y0, x1, y1]` in page points,
   origin top-left. See [Coordinate conversion](#coordinate-conversion).
 

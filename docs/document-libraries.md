@@ -29,7 +29,8 @@ extension (`Plans/Site Plan.pdf` becomes
 Deleted archives move to `.vera/trash/` for 30 days (`trash_retention_days`
 in `library.json`). `vera library sync` converts new or changed files, moves
 archives when a rename keeps the same content, and trashes archives whose
-sources are gone. If the folder cannot be read, or more than 20% of archives
+sources are gone. Sync skips Microsoft Office lock files (`~$budget.xlsx`
+and the same `~$` names for Word and PowerPoint). If the folder cannot be read, or more than 20% of archives
 and more than five files disappear, sync reports `needs_confirmation` and
 does not trash anything until `--confirm-deletes`.
 

@@ -33,6 +33,7 @@ describe('listFolderEntries', () => {
     writeFileSync(join(root, 'memo.docx'), '');
     writeFileSync(join(root, 'deck.pptx'), '');
     writeFileSync(join(root, 'budget.xlsx'), '');
+    writeFileSync(join(root, '~$budget.xlsx'), '');
 
     const listed = listFolderEntries(root);
     expect(listed).not.toBeNull();

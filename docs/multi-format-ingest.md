@@ -69,6 +69,14 @@ Durable locators in that stored Markdown should be **block or heading
 anchors** (`block_id` mapped to a heading or preview `id`). Line spans of
 generated Markdown are a convenience, not a stable contract across reconvert.
 
+Word pictures become figure attachments, the same as PDF images. Each one is
+an `image` block linked to the chunk beside it, so `--figures`,
+`vera figures`, and MCP `vera_get_figure` return them. The Markdown preview
+marks each picture with a `![alt text](vera-figure:<block_id>)` line, and the
+figure attachment id is `image_<block_id>`. Alt text comes from the picture's
+Word description or title. Linked pictures (stored outside the `.docx`) and
+charts produce a conversion warning and are left out.
+
 Spreadsheets and slides are spatial. A 20k-row sheet as one GFM table is not
 a viewer, and “line 40” is not `Budget!B4:D18` or “slide 7.” OOXML stores
 searchable text in chunks and a separate preview attachment
@@ -121,7 +129,10 @@ source MIME (and archive metadata such as `source_mime_type`):
 - `text/markdown` — rendered preview of stored Markdown (a `.md` file or the
   Word preview): headings, lists, emphasis, code, and tables, with the cited
   block highlighted. The desktop sidecar caches an HTML rendering, so a large
-  preview opens without parsing it in the window. `markdownDisplayLines()` strips a leading UTF-8 BOM
+  preview opens without parsing it in the window. Word figures display inline:
+  the sidecar copies PNG, JPEG, GIF, BMP, and WebP figures beside that HTML.
+  Other formats (EMF, WMF, TIFF) show their alt text as a placeholder.
+  `markdownDisplayLines()` strips a leading UTF-8 BOM
   (`U+FEFF`) before numbering lines so those `text_span` locators stay aligned.
 - `application/vnd.vera.slides+json` — slide list with cited blocks highlighted
 - `application/vnd.vera.sheets+json` — sheet tabs and a cell grid with the

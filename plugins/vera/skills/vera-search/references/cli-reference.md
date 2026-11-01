@@ -201,9 +201,13 @@ Directory JSON:
     }
   ],
   "errors": [],
-  "warnings": []
+  "warnings": [],
+  "notes": []
 }
 ```
+
+A single-file `--json` result adds `warnings` and `notes` arrays only when
+the archive stored them.
 
 Existing outputs are validated: only valid archives whose stored
 `source_file_hash` matches the current source file appear in `skipped_existing`.
@@ -213,10 +217,12 @@ Same-stem sources that would write the same `.vera` path are reported in
 `malformed_existing`.
 `skipped_by_user` / `user_skipped` are reserved for interactive skip
 requests (desktop app); CLI runs leave them empty. Each error entry has
-`input` and `error`. `warnings` lists files that converted with skipped
-parts. Each entry has `input`, `output`, and `warnings`. Those lines are
-also stored on the archive as `ingest_warnings`. A warning does not set
-`ok` false. A conversion failure or malformed existing output
+`input` and `error`. `warnings` lists files that converted with content
+that could not be read. Each entry has `input`, `output`, and `warnings`.
+Those lines are also stored on the archive as `ingest_warnings`. `notes`
+lists files with parts left out of search by design (for example Word
+headers and comments). Each entry has `input`, `output`, and `notes`, also
+stored as `ingest_notes`. Neither a warning nor a note sets `ok` false. A conversion failure or malformed existing output
 sets `ok` false, prints the report, and exits 1. Supplying a directory
 and an output path prints an error to stderr and exits 2.
 

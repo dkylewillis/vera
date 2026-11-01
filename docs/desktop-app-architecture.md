@@ -283,7 +283,8 @@ Explorer's **Convert** (folder, subfolder, or unconverted files) calls `quickCon
 library is not split across embedding models; outside a library, or in a
 library with no archives yet, the saved Convert model is used. The Convert
 view opens only when the run needs attention (preflight failure, error, or a
-failed or malformed file). The footer conversion item has a Stop button.
+failed or malformed file). A successful single-file convert opens Document Info
+for the new archive, including warnings stored as `ingest_warnings`. The footer conversion item has a Stop button.
 **Convert with options…** opens the Convert view prefilled with the target
 instead. The Convert view shows the target and the Convert button;
 overwrite, nested folders, embedding the original, the **Search model**
