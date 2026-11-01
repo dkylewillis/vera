@@ -65,10 +65,10 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   (`preserveLibrary: false`), which clears the saved active library.
   **File > Add Library...** adds or activates a library. Explorer preview
   keeps the current library scope.
-- Desktop Explorer **Search this folder** on a library subfolder limits
-  Search and Ask to that folder and its subfolders, using the library's
-  index. Adding a library inside another library (or around one) now asks
-  first and offers to search the folder in the existing library instead.
+- Desktop Explorer selects a library subfolder to limit Search and Ask to
+  that folder and its subfolders, using the library's index. Adding a library
+  inside another library (or around one) asks first and offers
+  **Search this folder** to search it in the existing library instead.
 - A fresh library index built without include patterns now serves a narrower
   `--include` / `includes` search (for example one subfolder) instead of
   falling back to per-file search; `index.used` stays true and the filter is

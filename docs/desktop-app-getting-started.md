@@ -70,11 +70,12 @@ name in a muted style with a small dot. A library, folder, or subfolder that
 holds unconverted sources shows a sync-arrow badge with the count of files not
 searchable yet; select it to convert those files with your default settings.
 The arrows spin while that folder is converting. Right-click a subfolder to convert it or show it
-in the system file manager. Inside a library, a subfolder also offers
-**Search this folder**: Search and Ask then use only documents in that folder
-and its subfolders, using the library's index. The folder row is highlighted
-and the scope line under the search box reads **Folder “…” in “…”**; select
-**Whole library** there (or **Search whole library** on the folder) to go back.
+in the system file manager. Inside a library, select a subfolder to limit
+Search and Ask to that folder and its subfolders, using the library's index.
+The arrow beside the name only expands or collapses the row. The selected
+folder is highlighted and the scope line under the search box reads
+**Folder “…” in “…”**. Select the library name, or **Whole library** under
+the search box, to search the whole library again.
 Checking files overrides the folder scope. Right-clicking a converted document offers
 **Preview document**, **Reconvert…**, and **Move .vera to Recycle Bin**,
 which leaves the source file in place.

@@ -257,9 +257,12 @@ quick convert, and its icon spins when the running conversion's
 `convertingTargets` (the batch directory or selected files) overlap that
 folder. Shift+click ranges use the visible rows in tree order
 (`visibleExplorerDocuments`). Subfolder context menus offer the same
-two convert actions and show-in-system-folder; inside a library they also
-offer **Search this folder** (or **Search whole library** when it is already
-scoped).
+two convert actions and show-in-system-folder. Inside a library, selecting
+a subfolder (`onSearchFolder`) limits Search and Ask to that folder and its
+subfolders; the disclosure arrow only expands or collapses the row. Clicking
+the library name clears that scope. The nested-library prompt still offers
+**Search this folder** so the folder can be searched inside the existing
+library.
 
 Folder scope is renderer state in `main.tsx`. It applies only while its
 library is active and no files are checked. `libraryQueryScope` turns it into

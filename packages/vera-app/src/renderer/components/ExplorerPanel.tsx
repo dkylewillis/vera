@@ -452,26 +452,8 @@ export function ExplorerPanel({
 
     if (current.kind === 'subfolder') {
       const pending = current.folder.pendingCount;
-      const inLibrary = libraryPaths.includes(current.rootPath);
-      const scoped = folderScopePath === current.folder.path;
       return (
         <>
-          {inLibrary ? (
-            <button
-              role="menuitem"
-              disabled={!scoped && current.folder.readyCount === 0}
-              title={!scoped && current.folder.readyCount === 0
-                ? 'Convert files in this folder before searching it'
-                : scoped
-                  ? 'Search and Ask use the whole library again'
-                  : 'Search and Ask only use documents in this folder and its subfolders'}
-              onClick={() => runMenuAction(() => (
-                scoped ? onSelectFolder(current.rootPath) : onSearchFolder(current.rootPath, current.folder.path)
-              ))}
-            >
-              {scoped ? 'Search whole library' : 'Search this folder'}
-            </button>
-          ) : null}
           {convertMenuItems(current.folder.path, current.folder.readyCount + pending, pending)}
           <button role="menuitem" onClick={() => runMenuAction(() => onRevealInFolder(current.folder.path))}>
             {showInFolderLabel(window.vera.platform)}
@@ -631,31 +613,54 @@ export function ExplorerPanel({
       <>
         {folder.folders.map((child) => {
           const expanded = expandedSubfolders.includes(child.path);
+          const inLibrary = libraryPaths.includes(rootPath);
+          const scoped = folderScopePath === child.path;
           return (
             <div className="subfolderGroup" key={child.path}>
               <div className="subfolderRowWrap">
-                <button
-                  type="button"
-                  className={folderScopePath === child.path ? 'subfolderRow scoped' : 'subfolderRow'}
+                <div
+                  className={scoped ? 'subfolderRow scoped' : 'subfolderRow'}
                   style={{ '--depth': depth } as CSSProperties}
-                  aria-expanded={expanded}
-                  title={child.relativePath}
-                  onClick={() => toggleSubfolder(child.path)}
                   onContextMenu={(event) => {
                     event.preventDefault();
                     showMenu({ kind: 'subfolder', folder: child, rootPath, x: event.clientX, y: event.clientY });
                   }}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
-                    event.preventDefault();
-                    const bounds = event.currentTarget.getBoundingClientRect();
-                    showMenu({ kind: 'subfolder', folder: child, rootPath, x: bounds.left, y: bounds.bottom });
-                  }}
                 >
-                  {expanded ? <ChevronDown size={12} className="subfolderCaret" /> : <ChevronRight size={12} className="subfolderCaret" />}
-                  {expanded ? <FolderOpen size={13} className="subfolderIcon" /> : <Folder size={13} className="subfolderIcon" />}
-                  <span className="subfolderName">{child.name}</span>
-                </button>
+                  <button
+                    type="button"
+                    className="subfolderCaretButton"
+                    aria-expanded={expanded}
+                    title={expanded ? 'Collapse' : 'Expand'}
+                    onClick={() => toggleSubfolder(child.path)}
+                  >
+                    {expanded ? <ChevronDown size={12} className="subfolderCaret" /> : <ChevronRight size={12} className="subfolderCaret" />}
+                  </button>
+                  <button
+                    type="button"
+                    className="subfolderSelect"
+                    aria-pressed={inLibrary ? scoped : undefined}
+                    title={inLibrary
+                      ? `${child.relativePath} — search only this folder and its subfolders`
+                      : child.relativePath}
+                    onClick={() => {
+                      if (!inLibrary) {
+                        toggleSubfolder(child.path);
+                        return;
+                      }
+                      onSearchFolder(rootPath, child.path);
+                      if (!expanded) toggleSubfolder(child.path);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+                      event.preventDefault();
+                      const bounds = event.currentTarget.getBoundingClientRect();
+                      showMenu({ kind: 'subfolder', folder: child, rootPath, x: bounds.left, y: bounds.bottom });
+                    }}
+                  >
+                    {expanded ? <FolderOpen size={13} className="subfolderIcon" /> : <Folder size={13} className="subfolderIcon" />}
+                    <span className="subfolderName">{child.name}</span>
+                  </button>
+                </div>
                 {renderPendingBadge(child.path, child.pendingCount)}
               </div>
               {expanded ? renderFolderContents(child, depth + 1, rootPath) : null}
@@ -674,7 +679,7 @@ export function ExplorerPanel({
     const empty = full.documents.length === 0 && full.folders.length === 0;
     return (
       <section
-        className={isLibrary && activeLibraryPath === folder.path && selectedFiles.length === 0
+        className={isLibrary && activeLibraryPath === folder.path && selectedFiles.length === 0 && !folderScopePath
           ? 'folderGroup activeLibrary'
           : 'folderGroup'}
         key={folder.path}

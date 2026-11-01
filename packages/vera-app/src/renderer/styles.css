@@ -676,17 +676,36 @@ button {
 .subfolderRow {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   width: 100%;
   min-width: 0;
-  padding: 3px 6px 3px calc(9px + var(--depth, 0) * 14px);
+  padding: 1px 4px 1px calc(4px + var(--depth, 0) * 14px);
   color: var(--text);
   background: transparent;
-  border: 0;
   border-radius: var(--radius-sm);
-  text-align: left;
   font-size: 12px;
   user-select: none;
+}
+
+.subfolderCaretButton,
+.subfolderSelect {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+
+.subfolderCaretButton {
+  flex: none;
+}
+
+.subfolderSelect {
+  flex: 1;
 }
 
 .subfolderRow:hover {
