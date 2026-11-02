@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from vera_app.library_set import LibrarySet
 from vera_app.types import Request
 from vera_doc import VeraDocument
 from vera_doc.corpus import VeraCorpus
@@ -38,12 +39,25 @@ def open_corpus(path: str, request: Request) -> VeraCorpus:
     )
 
 
+def library_entries(request: Request) -> list[dict[str, object]]:
+    """Return the ``libraries`` scope entries that name a folder path."""
+    raw = request.get("libraries")
+    if not isinstance(raw, list):
+        return []
+    return [
+        dict(entry)
+        for entry in raw
+        if isinstance(entry, dict) and str(entry.get("path") or "").strip()
+    ]
+
+
 def resolve_target(request: Request):
     """Open the search/inspect target for a request.
 
     Returns a VeraCorpus when multiple paths are selected or the path is a
     directory; otherwise a single VeraDocument. Single-file selection keeps
-    the original single-document code path.
+    the original single-document code path. Explicit ``paths`` win over a
+    multi-library ``libraries`` scope, which returns a LibrarySet.
     """
     paths = request.get("paths")
     if isinstance(paths, list):
@@ -56,6 +70,17 @@ def resolve_target(request: Request):
                 if Path(files[0]).is_dir()
                 else open_document(files[0])
             )
+    libraries = library_entries(request)
+    if len(libraries) > 1:
+        corpora: list[VeraCorpus] = []
+        try:
+            for entry in libraries:
+                corpora.append(open_corpus(str(entry["path"]), {**entry, "allow_empty": True}))
+        except Exception:
+            for corpus in corpora:
+                corpus.close()
+            raise
+        return LibrarySet(corpora)
     path = str(request["path"])
     return open_corpus(path, request) if Path(path).is_dir() else open_document(path)
 

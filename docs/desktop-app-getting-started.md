@@ -65,10 +65,10 @@ expanded them; a chain of folders that only contain one subfolder is shown as
 one row (for example `reports/2024`). A PDF, Markdown, Word, PowerPoint, or Excel file and its archive appear as one document row. The row icon matches the source type. A `.vera` file with no source beside it keeps the VERA mark. In a managed library the archive lives under `.vera/archives/` and
 pairs by the full source name (`Site Plan.pdf` with `Site Plan.pdf.vera`).
 A loose `.vera` beside its source still pairs by file-name stem. A converted document shows a green dot. Sources that are not converted yet show their file
-name in a muted style with a blue dot. A library, folder, or subfolder that
-holds unconverted sources shows a sync-arrow badge with the count of files not
+name in a muted style with a grey dot. A library, folder, or subfolder that
+holds unconverted sources shows a grey sync-arrow badge with the count of files not
 searchable yet; select it to convert those files with your default settings.
-The arrows spin while that folder is converting. Right-click a subfolder to convert it or show it
+The badge turns blue and its arrows spin while that folder is converting. Right-click a subfolder to convert it or show it
 in the system file manager. Inside a library, select a subfolder to limit
 Search and Ask to that folder and its subfolders, using the library's index.
 The arrow beside the name only expands or collapses the row. The selected
@@ -257,12 +257,29 @@ convert. Use `vera inspect FILE --json` (or sidecar inspect) for the full bag.
 ## Select documents and search
 
 In Explorer, click a file to select it, Ctrl/Cmd+click to add or remove it, and
-Shift+click to select a range. The checkbox next to a file adds or removes that
-row from the same list — unchecking it deselects it, and the highlight and the
-Chat/Search “selected document” count stay in sync. Selected converted documents become the Search/Ask
+Shift+click to select a range. Hovering a file replaces its icon with a
+checkbox that adds or removes that row from the same list — unchecking it
+deselects it, and the highlight and the Chat/Search “selected document” count
+stay in sync. Once two or more files are selected, every file shows its
+checkbox and the bottom of Explorer reads **N selected** with **Clear**. Selected converted documents become the Search/Ask
 scope and selected unconverted PDFs, Markdown, or Office files become the Convert list. Shift+click ranges
-follow the rows currently visible in the tree. Click the library name, empty
-Explorer space, or press Escape to search the whole library again.
+follow the rows currently visible in the tree.
+
+To search several libraries at once, click one library name, then
+Ctrl/Cmd+click others to add them; Ctrl/Cmd+click a highlighted library to take
+it out again. Every library in the scope stays highlighted, and Chat and Search
+read **All documents in “Manuals” and “Standards”** (or a count past three).
+Each library is searched with its own index, and the results are merged into
+one ranked list, so every library contributes its best passages. Selecting
+files narrows the scope to those files; a plain click on a library name returns
+to that one library.
+
+Click the library name or
+**Clear**, or press Escape, to search the whole library again. Click empty
+Explorer space (between sections or below the last item), or press Escape a
+second time, to clear everything: Chat and
+Search then read **No documents selected** and ask you to choose a library or
+documents, or attach a file. You can still type and attach files in that state.
 Use the **Chat / Search** switch above the center workspace to choose between
 LLM-backed conversation and direct retrieval. Search supports hybrid, semantic,
 and keyword modes from its composer options. Its ranked passage cards open and

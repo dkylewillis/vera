@@ -47,6 +47,7 @@ export function CenterChatView({
   selectedFiles,
   activeLibraryIsEmpty,
   activeLibraryPath,
+  multiLibraryLabel,
   folderScopeName = '',
   onClearFolderScope,
   path,
@@ -111,6 +112,7 @@ export function CenterChatView({
   selectedFiles: string[];
   activeLibraryIsEmpty: boolean;
   activeLibraryPath: string;
+  multiLibraryLabel?: string;
   /** Library-relative folder Ask is limited to, or '' for the whole library. */
   folderScopeName?: string;
   onClearFolderScope?: () => void;
@@ -166,9 +168,12 @@ export function CenterChatView({
     ? 'Chat unavailable while the conversion completes.'
     : selectedFiles.length > 0
       ? null
+      : multiLibraryLabel ? multiLibraryLabel
       : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
         : folderScopeName ? `Folder “${folderScopeName}” in “${fileName(activeLibraryPath)}”`
-        : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? `Current document: “${fileName(path)}”` : 'No search scope';
+        : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? `Current document: “${fileName(path)}”`
+        : fileAttachments?.length ? 'Attached files only'
+        : 'No documents selected. Choose a library or documents in Explorer, or attach a file.';
 
   return (
     <div className={sessionTurns.length > 0 ? 'chatPanel chatPanel--active' : 'chatPanel chatPanel--empty'}>

@@ -136,6 +136,8 @@ export interface ChatFileAttachment {
   chunk_count: number;
   page_count: number;
   outline?: string[];
+  /** Size of the dropped file, shown on its chip. */
+  size_bytes?: number;
   /** First `[A#]` number for this file's chunks; fixed for the life of the chat. */
   label_start?: number;
   /** True until the first answer after the file was attached. */

@@ -115,6 +115,20 @@ def test_full_text_block_drops_the_repeated_overlap() -> None:
     assert "[C3] (p. 1) unrelated start" in text
 
 
+def test_search_passages_name_their_source(monkeypatch) -> None:
+    hits = [
+        {"chunk_id": "chunk_0001", "score": 1.0, "text": "Library text.", "file": "lib/spec.vera", "source_filename": "spec.pdf"},
+        {"chunk_id": "chunk_0001", "score": 1.0, "text": "Memo text.", "file": "cache/memo.vera", "source_filename": "memo.md"},
+    ]
+    monkeypatch.setattr("vera_app.chat.search", lambda request, cancel=None: hits)
+    request = {
+        "path": "lib",
+        "file_attachments": [{"id": "m", "name": "Memo.txt", "vera_path": "cache/memo.vera", "chunk_count": 1}],
+    }
+    output = SearchTool(request, Mode(id="ask", label="Ask")).run({"query": "text", "quality": "permissive"})
+    assert [passage["source"] for passage in output["passages"]] == ["spec.pdf", "attached: Memo.txt"]
+
+
 def test_cited_full_text_chunk_gets_highlight_regions(tmp_path) -> None:
     source = tmp_path / "notes.md"
     source.write_text("# Pond\n\nThe pond holds 1.2 acre-feet.\n", encoding="utf-8")

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { SIDECAR_ACTIONS } from '../../shared/protocol';
-import { buildSearchPayload, folderScopeInclude, libraryQueryScope, unwrapSearchReport } from './search';
+import {
+  buildSearchPayload,
+  folderScopeInclude,
+  libraryQueryScope,
+  multiLibraryScope,
+  multiLibraryScopeLabel,
+  unwrapSearchReport,
+} from './search';
 
 describe('libraryQueryScope', () => {
   it('omits recursive options when files are selected or no library is active', () => {
@@ -74,6 +81,38 @@ describe('buildSearchPayload', () => {
       include_figures: true,
       include_figure_data: false,
     });
+  });
+
+  it('sends every scoped library with its own index settings', () => {
+    const payload = buildSearchPayload({
+      searchScopePath: 'C:\\roads',
+      selectedFiles: [],
+      activeLibraryPath: 'C:\\roads',
+      scopeLibraryPaths: ['C:\\roads', 'D:\\water'],
+      indexStatuses: { 'C:\\roads': { fresh: true, recursive: false, excludes: ['tmp'] } },
+      query: 'drainage',
+      mode: 'hybrid',
+      topK: 8,
+      contextChunks: 0,
+      includeFigures: false,
+    });
+    expect(payload.libraries).toEqual([
+      { path: 'C:\\roads', recursive: false, excludes: ['tmp'] },
+      { path: 'D:\\water', recursive: true, excludes: [] },
+    ]);
+  });
+});
+
+describe('multiLibraryScope', () => {
+  it('leaves single libraries and file selections to the existing scope', () => {
+    expect(multiLibraryScope(['C:\\roads'], [])).toEqual({});
+    expect(multiLibraryScope(['C:\\roads', 'D:\\water'], ['C:\\roads\\a.vera'])).toEqual({});
+  });
+
+  it('names up to three libraries, then counts them', () => {
+    expect(multiLibraryScopeLabel(['C:\\roads', 'D:\\water'])).toBe('All documents in “roads” and “water”');
+    expect(multiLibraryScopeLabel(['C:\\a', 'C:\\b', 'C:\\c'])).toBe('All documents in “a”, “b”, and “c”');
+    expect(multiLibraryScopeLabel(['C:\\a', 'C:\\b', 'C:\\c', 'C:\\d'])).toBe('All documents in 4 libraries');
   });
 });
 

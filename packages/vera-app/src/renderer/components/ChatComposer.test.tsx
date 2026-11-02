@@ -43,6 +43,50 @@ describe('ChatComposer file chips', () => {
     expect(html).toContain('disabled');
   });
 
+  it('uses the card layout and shows the size of a new file', () => {
+    const html = renderToStaticMarkup(
+      <ChatComposer
+        attachments={[]}
+        fileAttachments={[{ ...ready, size_bytes: 172_000 }]}
+        busy={false}
+        busyAction={null}
+        hasSearchableScope
+        hasPreviousTurns={false}
+        resetVersion={0}
+        restoredDraft={{ version: 0, text: '' }}
+        onAddAttachments={async () => {}}
+        onRemoveAttachment={() => {}}
+        onAsk={async () => {}}
+        onStopAnswer={() => {}}
+      />,
+    );
+    expect(html).toContain('askComposer--multiline');
+    expect(html).toContain('172kB');
+  });
+
+  it('keeps typing and attaching available with no documents selected', () => {
+    const html = renderToStaticMarkup(
+      <ChatComposer
+        attachments={[]}
+        fileAttachments={[]}
+        busy={false}
+        busyAction={null}
+        hasSearchableScope={false}
+        hasPreviousTurns={false}
+        resetVersion={0}
+        restoredDraft={{ version: 0, text: '' }}
+        onAddAttachments={async () => {}}
+        onRemoveAttachment={() => {}}
+        onAsk={async () => {}}
+        onStopAnswer={() => {}}
+      />,
+    );
+    expect(html).toContain('Select documents or attach a file to ask');
+    expect(html).not.toMatch(/<textarea[^>]*disabled/);
+    expect(html).not.toMatch(/<button[^>]*attachButton[^>]*disabled/);
+    expect(html).toMatch(/<button[^>]*askSendButton[^>]*disabled/);
+  });
+
   it('labels a ready file from the last answer', () => {
     const html = renderComposer(ready);
     expect(html).toContain('Read in full');

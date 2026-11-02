@@ -34,11 +34,45 @@ export function libraryQueryScope(
   };
 }
 
+type IndexScope = Pick<LibraryIndexStatus, 'fresh' | 'recursive' | 'excludes'>;
+
+export type LibraryScopeEntry = { path: string; recursive?: boolean; excludes?: string[] };
+
+/**
+ * Per-library scope for searching several libraries together, each with its
+ * own index settings. Empty for one library or when files are selected.
+ */
+export function multiLibraryScope(
+  scopeLibraryPaths: string[],
+  selectedFiles: string[],
+  indexStatuses: Record<string, IndexScope | undefined> = {},
+): { libraries?: LibraryScopeEntry[] } {
+  if (scopeLibraryPaths.length < 2 || selectedFiles.length > 0) return {};
+  return {
+    libraries: scopeLibraryPaths.map((libraryPath) => ({
+      path: libraryPath,
+      ...libraryQueryScope(libraryPath, [], indexStatuses[libraryPath]),
+    })),
+  };
+}
+
+/** Scope line for several libraries: names up to three, then a count. */
+export function multiLibraryScopeLabel(scopeLibraryPaths: string[]): string {
+  const names = scopeLibraryPaths.map((p) => `“${p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? p}”`);
+  if (names.length > 3) return `All documents in ${names.length} libraries`;
+  const list = names.length === 2
+    ? `${names[0]} and ${names[1]}`
+    : `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+  return `All documents in ${list}`;
+}
+
 export function buildSearchPayload(options: {
   searchScopePath: string;
   selectedFiles: string[];
   activeLibraryPath: string;
-  activeIndexStatus?: Pick<LibraryIndexStatus, 'fresh' | 'recursive' | 'excludes'> | null;
+  activeIndexStatus?: IndexScope | null;
+  scopeLibraryPaths?: string[];
+  indexStatuses?: Record<string, IndexScope | undefined>;
   folderScopePath?: string;
   query: string;
   mode: string;
@@ -56,6 +90,7 @@ export function buildSearchPayload(options: {
       options.activeIndexStatus,
       options.folderScopePath,
     ),
+    ...multiLibraryScope(options.scopeLibraryPaths ?? [], options.selectedFiles, options.indexStatuses),
     query: options.query,
     mode: options.mode,
     top_k: options.topK,

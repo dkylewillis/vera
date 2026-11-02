@@ -77,7 +77,7 @@ import {
 } from './lib/explorer';
 import { DEFAULT_EMBEDDING_MODEL, embeddingProviderFromSpec } from './lib/convertPresets';
 import { librarySyncSummary, prepareManagedLibrary } from './lib/managedLibrary';
-import { folderScopeInclude, libraryQueryScope } from './lib/search';
+import { folderScopeInclude, libraryQueryScope, multiLibraryScope, multiLibraryScopeLabel } from './lib/search';
 import { hydrateSessionTurns, stripTrace, traceKey } from './lib/sessions';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS } from './lib/providers';
 import { SIDECAR_ACTIONS } from '../shared/protocol';
@@ -101,6 +101,8 @@ function App() {
   const [viewerMode, setViewerMode] = useState<ViewerMode>('document');
   const [path, setPath] = useState('');
   const [activeLibraryPath, setActiveLibraryPath] = useState('');
+  // Libraries Ctrl/Cmd+clicked into the Search/Ask scope alongside the active one.
+  const [extraLibraryPaths, setExtraLibraryPaths] = useState<string[]>([]);
   const [indexStatuses, setIndexStatuses] = useState<Record<string, LibraryIndexStatus>>({});
   const [indexStatusChecking, setIndexStatusChecking] = useState<Record<string, boolean>>({});
   const [indexReports, setIndexReports] = useState<Record<string, LibraryIndexBuildReport>>({});
@@ -348,8 +350,14 @@ function App() {
   const searchBusy = operationTasks.some((task) => task.label === 'Searching');
 
   const searchScopePath = activeLibraryPath || path;
+  const scopeLibraryPaths = activeLibraryPath
+    ? [activeLibraryPath, ...extraLibraryPaths.filter((p) => p !== activeLibraryPath && libraryPaths.includes(p))]
+    : [];
+  const multiLibraryScopeActive = scopeLibraryPaths.length > 1 && selectedFiles.length === 0;
+  const multiLibraryLabel = multiLibraryScopeActive ? multiLibraryScopeLabel(scopeLibraryPaths) : '';
   // Only meaningful while that folder's library is active and nothing is checked.
   const folderScopePath = activeLibraryPath
+    && !multiLibraryScopeActive
     && selectedFiles.length === 0
     && folderScopeInclude(activeLibraryPath, folderScopeRequest)
     ? folderScopeRequest
@@ -553,6 +561,8 @@ function App() {
     selectedFiles,
     activeLibraryPath,
     activeIndexStatus,
+    scopeLibraryPaths,
+    indexStatuses,
     folderScopePath,
     searchQuery,
     mode,
@@ -647,7 +657,37 @@ function App() {
     setSidebarCollapsed(false);
   }
 
+  function toggleLibraryInScope(libraryPath: string) {
+    if (!activeLibraryPath) {
+      selectExplorerFolder(libraryPath);
+      return;
+    }
+    const current = scopeLibraryPaths;
+    const next = current.includes(libraryPath)
+      ? current.filter((p) => p !== libraryPath)
+      : [...current, libraryPath];
+    if (next.length === 0) {
+      clearExplorerScope();
+      return;
+    }
+    setSelectedFiles([]);
+    setSelectedPdfs([]);
+    setSelectionAnchorPath(null);
+    setFolderScopeRequest('');
+    if (next[0] !== activeLibraryPath) {
+      selectExplorerFolder(next[0]);
+    } else {
+      setExplorerSelection({ kind: 'folder', path: next[0] });
+      if (path !== next[0]) setPath(next[0]);
+    }
+    setExtraLibraryPaths(next.slice(1));
+    for (const extra of next.slice(1)) {
+      if (!indexStatuses[extra]) void refreshIndexStatus(extra);
+    }
+  }
+
   function selectExplorerFolder(folderPath: string) {
+    setExtraLibraryPaths([]);
     setFolderScopeRequest('');
     setLibraryInfoPath('');
     setSelected(null);
@@ -658,6 +698,7 @@ function App() {
 
   function searchExplorerFolder(libraryPath: string, folderPath: string) {
     if (activeLibraryPath !== libraryPath) selectExplorerFolder(libraryPath);
+    setExtraLibraryPaths([]);
     setSelectedFiles([]);
     setSelectedPdfs([]);
     setSelectionAnchorPath(null);
@@ -796,11 +837,29 @@ function App() {
     return true;
   }
 
+  function clearExplorerScope() {
+    const hadScope = Boolean(activeLibraryPath || path || explorerSelection)
+      || selectedFiles.length > 0
+      || selectedPdfs.length > 0;
+    setSelectedPdfs([]);
+    setSelectedFiles([]);
+    setSelectionAnchorPath(null);
+    setFolderScopeRequest('');
+    setExplorerSelection(null);
+    setExtraLibraryPaths([]);
+    if (activeLibraryPath) {
+      setActiveLibraryPath('');
+      try { localStorage.removeItem('vera.activeLibraryPath'); } catch { /* ignore persistence errors */ }
+    }
+    if (path) updateTargetPath('');
+    return hadScope;
+  }
+
   function handleExplorerBlankPointer(event: { button?: number; currentTarget: HTMLElement; target: EventTarget | null }) {
     if (event.button !== undefined && event.button !== 0) return;
     if (!isExplorerBlankPointerTarget(event.target, event.currentTarget)) return;
     event.currentTarget.focus({ preventScroll: true });
-    clearExplorerFileSelection();
+    clearExplorerScope();
   }
 
   async function trashEntry(entry: FolderEntry, folderPath: string) {
@@ -1255,6 +1314,7 @@ function App() {
           token_estimate: 0,
           chunk_count: 0,
           page_count: 0,
+          size_bytes: file.size,
           preparing: true,
           status: 'Preparing…',
           fresh: true,
@@ -1316,7 +1376,9 @@ function App() {
   async function askTarget(prompt: string, onAccepted: () => void) {
     if (conversionInProgress) return;
     if (!hasSearchableScope) {
-      setErrorMessage('This library does not contain any VERA documents yet.');
+      setErrorMessage(activeLibraryPath
+        ? 'This library does not contain any VERA documents yet.'
+        : 'No documents selected. Choose a library or documents in Explorer, or attach a file.');
       return;
     }
     const provider = activeProvider;
@@ -1436,6 +1498,7 @@ function App() {
       path: searchScopePath,
       ...(selectedFiles.length ? { paths: selectedFiles } : {}),
       ...libraryQueryScope(activeLibraryPath, selectedFiles, activeIndexStatus, folderScopePath),
+      ...multiLibraryScope(scopeLibraryPaths, selectedFiles, indexStatuses),
       prompt,
       mode_id: activeModeId || activeMode?.id || '',
       history,
@@ -2088,6 +2151,7 @@ function App() {
                   folders={folders}
                   libraryPaths={libraryPaths}
                   activeLibraryPath={activeLibraryPath}
+                  scopeLibraryPaths={scopeLibraryPaths}
                   folderScopePath={folderScopePath}
                   path={path}
                   selectedFiles={selectedFiles}
@@ -2111,6 +2175,7 @@ function App() {
                   escapeBlocked={Boolean(settingsOpen || indexPrompt || indexReport || nestedLibraryPrompt || adoptPrompt || trashFolderPath)}
                   librarySyncNotices={librarySyncNotices}
                   onClearFileSelection={clearExplorerFileSelection}
+                  onClearScope={clearExplorerScope}
                   onAddLibrary={() => { void addFolder('library'); }}
                   onAddFolder={() => { void addFolder('folder'); }}
                   onCollapsedFoldersChange={setCollapsedFolders}
@@ -2121,6 +2186,7 @@ function App() {
                     setExplorerSelection(next.explorerSelection);
                   }}
                   onSelectFolder={selectExplorerFolder}
+                  onToggleLibraryScope={toggleLibraryInScope}
                   onSearchFolder={searchExplorerFolder}
                   onOpenLibraryInfo={(folderPath) => { void openLibraryInfo(folderPath); }}
                   onUpdateTargetPath={updateTargetPath}
@@ -2266,9 +2332,10 @@ function App() {
             scopeLabel={
               selectedFiles.length > 0
                 ? `${selectedFiles.length} selected document${selectedFiles.length === 1 ? '' : 's'}`
+                : multiLibraryLabel ? multiLibraryLabel
                 : activeLibraryIsEmpty ? `“${fileName(activeLibraryPath)}” is empty`
                 : folderScopePath ? `Folder “${folderScopeName}” in “${fileName(activeLibraryPath)}”`
-                : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? `Current document: “${fileName(path)}”` : 'No search scope'
+                : activeLibraryPath ? `All documents in “${fileName(activeLibraryPath)}”` : path ? `Current document: “${fileName(path)}”` : 'No documents selected'
             }
             onClearFolderScope={folderScopePath ? () => setFolderScopeRequest('') : undefined}
             hasSearchableScope={hasSearchableScope}
@@ -2303,6 +2370,7 @@ function App() {
             selectedFiles={selectedFiles}
             activeLibraryIsEmpty={activeLibraryIsEmpty}
             activeLibraryPath={activeLibraryPath}
+            multiLibraryLabel={multiLibraryLabel}
             folderScopeName={folderScopeName}
             onClearFolderScope={() => setFolderScopeRequest('')}
             path={path}

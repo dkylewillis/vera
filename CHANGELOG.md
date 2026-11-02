@@ -42,7 +42,16 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Desktop Explorer gives PDF, Markdown, Word, PowerPoint, and Excel each a
   Lucide icon and its own color. A `.vera` file with no source beside it
   keeps the VERA mark. Converted documents show a green dot; files that are
-  not converted yet keep the blue dot.
+  not converted yet show a grey dot, and the folder count badge is grey until
+  a conversion is running. File checkboxes appear on hover in place of the
+  icon, and on every file once two or more are selected, with an
+  **N selected** · **Clear** line at the bottom of Explorer. Clicking empty
+  Explorer space clears the library as well, and Chat reads **No documents
+  selected** with a prompt to choose documents or attach a file; attaching
+  stays available in that state.
+- Desktop: search several libraries at once. Ctrl/Cmd+click library names in
+  Explorer to add them to the Search/Ask scope; each library is searched with
+  its own index and the results are merged into one ranked list.
 - Word convert keeps going when one part cannot be read. A single unreadable
   table or paragraph is stored as `ingest_warnings` and counted in the Convert
   summary as warnings. A corrupt, encrypted, or empty file still fails.

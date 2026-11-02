@@ -307,14 +307,27 @@ for query-time prompts, not for an explicit menu action. File rows offer show-in
 folder (and preview/trash where applicable). File rows use ordinary list
 selection: click selects one file, Ctrl/Cmd+click adds or removes it, Shift+click
 selects the range from the last anchor, and the checkbox sets that row's membership
-(check adds, uncheck removes). The row highlight and the Search/Ask selected-document
+(check adds, uncheck removes). The checkbox overlays the file icon and is hidden
+until the row is hovered or two or more files are selected; in that state a
+**N selected** line with **Clear** sits at the bottom of Explorer. The row highlight and the Search/Ask selected-document
 count follow that same list (a previewed document uses a
 distinct marker, not the selected background). Selected `.vera` files become the Search/Ask scope; selected PDFs and Markdown files become
 the Convert selection. Clicking a folder name clears the file selection and
-returns Search/Ask to the whole library. Clicking empty Explorer space or pressing Escape
-(while the sidebar has focus) clears file selection — PDF and Markdown picks, `.vera`
+returns Search/Ask to the whole library. Ctrl/Cmd+click on a library name adds
+it to (or removes it from) a multi-library scope next to the active library.
+The renderer then sends `libraries: [{path, recursive, excludes}]` with each
+library's own index settings, and the sidecar's `LibrarySet` opens one corpus
+per library (each uses its fresh collection index when present), searches
+each, and merges the per-library rankings with reciprocal rank fusion. Explicit
+`paths` (selected files or chat attachments) take precedence over `libraries`;
+folder scope applies only to a single library. Pressing Escape (while the sidebar has
+focus) clears file selection — PDF and Markdown picks, `.vera`
 checkboxes, and a single-document scope (restoring the parent library when
-possible) — and does not leave the last file looking selected. Clicking a `.vera` does not collapse
+possible) — and does not leave the last file looking selected. Clicking empty
+Explorer space, or a second Escape, clears the whole scope: file selection,
+folder scope, and the active library (also removed from saved state). Chat and
+Search then show **No documents selected**; the composer keeps typing and
+attaching available and enables Send once documents or an attached file exist. Clicking a `.vera` does not collapse
 the folder or replace the document viewer. Double-click or right-click **View in document
 viewer** / **Preview document** loads that PDF, Markdown file, or archive original in
 the source pane; right-clicking an unconverted PDF or Markdown file also offers **Convert file** /

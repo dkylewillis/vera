@@ -20,6 +20,8 @@ export type SearchHost = {
   selectedFiles: string[];
   activeLibraryPath: string;
   activeIndexStatus?: LibraryIndexStatus;
+  scopeLibraryPaths?: string[];
+  indexStatuses?: Record<string, LibraryIndexStatus | undefined>;
   folderScopePath: string;
   searchQuery: string;
   mode: string;
@@ -141,6 +143,8 @@ export function createSearchController(getHost: () => SearchHost) {
         selectedFiles: host.selectedFiles,
         activeLibraryPath: host.activeLibraryPath,
         activeIndexStatus: host.activeIndexStatus,
+        scopeLibraryPaths: host.scopeLibraryPaths,
+        indexStatuses: host.indexStatuses,
         folderScopePath: host.folderScopePath,
         query: host.searchQuery,
         mode: host.mode,

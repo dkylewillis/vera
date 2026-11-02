@@ -67,6 +67,13 @@ export function nextLabelStart(
   return next;
 }
 
+export function formatFileSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1000) return `${bytes} B`;
+  if (bytes < 1_000_000) return `${Math.round(bytes / 1000)}kB`;
+  return `${(bytes / 1_000_000).toFixed(1)}MB`;
+}
+
 export function usageLabel(usage?: AttachmentUsage): string {
   if (!usage) return '';
   if (usage.delivery === 'full') return 'Read in full';

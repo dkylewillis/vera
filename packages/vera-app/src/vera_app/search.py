@@ -6,6 +6,7 @@ from typing import Any
 
 from vera_app.cancellation import CancellationToken
 from vera_app.documents import open_document, resolve_target, scoped_single_file
+from vera_app.library_set import LibrarySet
 from vera_app.types import Request
 from vera_doc.corpus import VeraCorpus
 from vera_ingest.viewer import figure_data_url, figures, result_payload
@@ -37,7 +38,11 @@ def search_report(request: Request, cancel: CancellationToken | None = None) -> 
         for result in results:
             if cancel:
                 cancel.raise_if_cancelled()
-            document = target.document(result.file) if isinstance(target, VeraCorpus) else target
+            document = (
+                target.document(result.file)
+                if isinstance(target, VeraCorpus | LibrarySet)
+                else target
+            )
             entry = result_payload(
                 result,
                 document=document,

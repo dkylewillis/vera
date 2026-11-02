@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import sys
 from collections.abc import Callable
 from typing import Any
@@ -169,6 +170,25 @@ def _clear_figure_context_flags(citations: list[dict[str, Any]]) -> None:
     for citation in citations:
         for figure in (citation.get("result") or {}).get("figures") or []:
             figure.pop("included_in_context", None)
+
+
+def _source_name(request: Request, result: dict[str, Any]) -> str:
+    """Document name shown to the model beside a passage.
+
+    Attached files use the name the user dropped; library hits use the
+    archive's source filename.
+    """
+    file = str(result.get("file") or "")
+    if file:
+        target = os.path.normcase(os.path.abspath(file))
+        for row in attachment_rows(request):
+            path = str(row.get("vera_path") or "")
+            if path and os.path.normcase(os.path.abspath(path)) == target:
+                return f"attached: {row.get('name') or os.path.basename(path)}"
+    name = str(result.get("source_filename") or "")
+    if name:
+        return name
+    return os.path.basename(file) if file else "document"
 
 
 def _add_missing_regions(citations: list[dict[str, Any]], fallback_file: str = "") -> None:
@@ -623,6 +643,7 @@ class SearchTool:
             citation_id = self._register(result)
             passage: dict[str, Any] = {
                 "citation": citation_id,
+                "source": _source_name(self._request, result),
                 "page_start": result.get("page_start"),
                 "page_end": result.get("page_end"),
                 "heading_path": result.get("heading_path"),
@@ -767,7 +788,9 @@ def _retrieval_payload(
                 image_parts.append({"type": "image_url", "image_url": {"url": data_url}})
                 image_budget -= 1
     evidence = "\n".join(
-        f"[{citation['id']}] {citation['result'].get('text', '')}" for citation in citations
+        f"[{citation['id']}] ({_source_name(request, citation['result'])}) "
+        f"{citation['result'].get('text', '')}"
+        for citation in citations
     )
     llm_prompt = (
         f"Instructions:\n{instructions}\n\nUser question:\n{prompt}\n\nEvidence:\n{evidence}"

@@ -53,6 +53,7 @@ export function ExplorerPanel({
   folders,
   libraryPaths,
   activeLibraryPath,
+  scopeLibraryPaths,
   folderScopePath,
   path,
   selectedFiles,
@@ -73,11 +74,13 @@ export function ExplorerPanel({
   convertingTargets,
   escapeBlocked,
   onClearFileSelection,
+  onClearScope,
   onAddLibrary,
   onAddFolder,
   onCollapsedFoldersChange,
   onFileSelectionChange,
   onSelectFolder,
+  onToggleLibraryScope,
   onSearchFolder,
   onOpenLibraryInfo,
   onUpdateTargetPath,
@@ -102,6 +105,7 @@ export function ExplorerPanel({
   folders: WorkspaceFolderResult[];
   libraryPaths: string[];
   activeLibraryPath: string;
+  scopeLibraryPaths: string[];
   /** Subfolder of the active library that Search and Ask are limited to, or ''. */
   folderScopePath: string;
   path: string;
@@ -124,11 +128,13 @@ export function ExplorerPanel({
   convertingTargets: string[];
   escapeBlocked: boolean;
   onClearFileSelection: () => boolean;
+  onClearScope: () => boolean;
   onAddLibrary: () => void;
   onAddFolder: () => void;
   onCollapsedFoldersChange: (update: (prev: string[]) => string[]) => void;
   onFileSelectionChange: (next: ExplorerFileSelection) => void;
   onSelectFolder: (folderPath: string) => void;
+  onToggleLibraryScope: (libraryPath: string) => void;
   onSearchFolder: (libraryPath: string, folderPath: string) => void;
   onOpenLibraryInfo: (folderPath: string) => void;
   onUpdateTargetPath: (value: string) => void;
@@ -249,14 +255,15 @@ export function ExplorerPanel({
       if (!(active instanceof HTMLElement)) return;
       if (active.closest('input, textarea, select, [contenteditable="true"]')) return;
       if (!active.closest('.sidePanel')) return;
-      if (onClearFileSelection()) {
+      // First Escape drops the file selection; the next one clears the library too.
+      if (onClearFileSelection() || onClearScope()) {
         event.preventDefault();
       }
     }
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [menu, escapeBlocked, onClearFileSelection]);
+  }, [menu, escapeBlocked, onClearFileSelection, onClearScope]);
 
   function commitFromFileList(doc: TreeDocument, next: { selected: string[]; anchor: string | null }) {
     const partitioned = partitionExplorerSelection(next.selected);
@@ -534,6 +541,10 @@ export function ExplorerPanel({
     </div>
   ) : null;
 
+  const selectionCount = selectedFiles.length + selectedPdfs.length;
+  // Checkboxes show on hover, and on every row once several files are selected.
+  const selectingMany = selectionCount >= 2;
+
   function renderDocument(doc: TreeDocument, depth: number, folderPath: string) {
     const listed = selectedFiles.includes(doc.path) || selectedPdfs.includes(doc.path);
     const rowPaths = [doc.archive?.path, doc.source?.path];
@@ -555,7 +566,7 @@ export function ExplorerPanel({
     return (
       <div
         key={doc.path}
-        className="fileRowWrap"
+        className={selectingMany ? 'fileRowWrap fileRowWrap--selecting' : 'fileRowWrap'}
         style={{ '--depth': depth } as CSSProperties}
         onClick={(event) => {
           const origin = event.target;
@@ -677,7 +688,7 @@ export function ExplorerPanel({
     const empty = full.documents.length === 0 && full.folders.length === 0;
     return (
       <section
-        className={isLibrary && activeLibraryPath === folder.path && selectedFiles.length === 0 && !folderScopePath
+        className={isLibrary && scopeLibraryPaths.includes(folder.path) && selectedFiles.length === 0 && !folderScopePath
           ? 'folderGroup activeLibrary'
           : 'folderGroup'}
         key={folder.path}
@@ -710,7 +721,11 @@ export function ExplorerPanel({
           </button>
           <button
             className="folderGroupToggle"
-            onClick={() => (isLibrary ? onSelectFolder(folder.path) : toggleFolderCollapsed(folder.path))}
+            onClick={(event) => {
+              if (!isLibrary) toggleFolderCollapsed(folder.path);
+              else if (event.ctrlKey || event.metaKey) onToggleLibraryScope(folder.path);
+              else onSelectFolder(folder.path);
+            }}
             onDoubleClick={() => { if (isLibrary) void onOpenLibraryInfo(folder.path); }}
             onKeyDown={(event) => {
               if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
@@ -719,7 +734,7 @@ export function ExplorerPanel({
               showMenu({ kind: 'root', path: folder.path, x: bounds.left, y: bounds.bottom });
             }}
             title={isLibrary
-              ? 'Search this library · double-click for Library Info'
+              ? 'Search this library · Ctrl+click to add it to the search · double-click for Library Info'
               : 'Expand or collapse · check .vera files to search them · right-click to make this a library'}
             aria-haspopup="menu"
             aria-expanded={menu?.kind === 'root' && menu.path === folder.path}
@@ -821,6 +836,14 @@ export function ExplorerPanel({
               </div>
             ) : null}
           </div>
+          {selectingMany ? (
+            <div className="explorerSelectionBar">
+              <span>{selectionCount} selected</span>
+              <button type="button" className="sideLink" onClick={() => { onClearFileSelection(); }}>
+                Clear
+              </button>
+            </div>
+          ) : null}
         </>
       )}
       {createPortal(menus, document.body)}

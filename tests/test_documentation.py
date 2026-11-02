@@ -431,6 +431,12 @@ def test_hardening_json_contracts_are_documented():
     assert "does not leave the last file looking selected" in desktop_architecture
     assert "distinct marker" in desktop_architecture
     assert "checkbox sets that row's membership" in desktop_architecture
+    assert "checkbox overlays the file icon" in desktop_architecture
+    assert "**N selected** with **Clear**" in desktop
+    assert "**No documents selected**" in desktop
+    assert "clears the whole scope" in desktop_architecture
+    assert "To search several libraries at once" in desktop
+    assert "`libraries: [{path, recursive, excludes}]`" in desktop_architecture
     assert "collapses inactive libraries immediately" in desktop
     assert "active library stays expanded" in desktop_architecture
     assert "index-status checks" in desktop_architecture
