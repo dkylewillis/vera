@@ -258,6 +258,8 @@ making it a library.
 Right-click a library and choose **Convert** to convert its new files with
 local MiniLM semantic search (the desktop default) in one step.
 Connect an LLM provider, or a VERA Pro subscription, for grounded questions and answers.
+Drop a document onto Ask to use it as context. Follow-up questions reuse
+passages already retrieved, and any answer can be saved as Markdown.
 **Settings → Agent access** can share those libraries with local agents through
 one loopback MCP service while the app is open. VERA Pro can also turn on
 **Allow cloud agents** so a signed-in cloud assistant uses the same libraries.

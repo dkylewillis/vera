@@ -4,12 +4,24 @@ from __future__ import annotations
 
 import copy
 import json
-import re
 import sys
 from collections.abc import Callable
 from typing import Any
 
+from vera_app.agent_tools import AgentTool, ToolContext, ToolTable, allowlisted
 from vera_app.cancellation import CancellationToken, CancelledError
+from vera_app.chat_attachments import (
+    SEARCH_ATTACHMENTS_TOOL,
+    VIEW_FIGURE_TOOL,
+    attachment_rows,
+    attachment_usage,
+    build_attachment_prompt,
+    delivery_for,
+    register_attachments,
+    searchable_paths,
+)
+from vera_app.citations import CitationRegistry, evidence_block, evidence_token_budget
+from vera_app.documents import scoped_single_file
 from vera_app.llm import (
     ChatResponse,
     LlmConfig,
@@ -19,9 +31,12 @@ from vera_app.llm import (
     generate,
     list_models,
 )
+from vera_app.markdown_drafts import current_draft_block
 from vera_app.modes import Mode, load_modes, resolve_mode
 from vera_app.search import search
 from vera_app.types import Request, WriteEvent
+from vera_doc import VeraDocument
+from vera_ingest.viewer import get_chunk_regions
 
 DEFAULT_RAG_INSTRUCTIONS = """You are VERA, a grounded document assistant.
 Use only the cited evidence supplied in this prompt when answering.
@@ -156,6 +171,35 @@ def _clear_figure_context_flags(citations: list[dict[str, Any]]) -> None:
             figure.pop("included_in_context", None)
 
 
+def _add_missing_regions(citations: list[dict[str, Any]], fallback_file: str = "") -> None:
+    """Load highlight regions for cited passages that arrived without them.
+
+    Full-text attachment chunks and passages reused from earlier evidence are
+    cited from stored text, so they lack the regions a search hit carries.
+    """
+    by_file: dict[str, list[dict[str, Any]]] = {}
+    for citation in citations:
+        result = citation.get("result")
+        if not isinstance(result, dict) or result.get("regions") or not result.get("chunk_id"):
+            continue
+        file = str(result.get("file") or fallback_file or "")
+        if file:
+            by_file.setdefault(file, []).append(result)
+    for file, results in by_file.items():
+        try:
+            document = VeraDocument.open(file)
+        except Exception:
+            continue
+        try:
+            for result in results:
+                try:
+                    result["regions"] = get_chunk_regions(document, str(result["chunk_id"]))
+                except Exception:
+                    continue
+        finally:
+            document.close()
+
+
 def _instructions(request: Request, mode: Mode) -> str:
     base = mode.instructions.strip() or DEFAULT_RAG_INSTRUCTIONS
     custom = str(request.get("instructions", "") or "").strip()
@@ -220,6 +264,213 @@ SEARCH_TOOL = {
 }
 
 
+def _tool_choice(mode: Mode, turn: int, has_prior_evidence: bool, offering: bool) -> str:
+    """``auto`` unless a mode's search_policy asks the model to call a tool."""
+    if not offering:
+        return "auto"
+    policy = getattr(mode, "search_policy", "auto")
+    if policy == "always":
+        return "required"
+    if policy == "first_turn" and turn == 0 and not has_prior_evidence:
+        return "required"
+    return "auto"
+
+
+def _chat_turn(
+    messages: list[dict[str, Any]],
+    config: LlmConfig,
+    *,
+    tools: list[dict[str, Any]] | None,
+    tool_choice: str,
+    on_delta,
+    cancel: CancellationToken | None,
+) -> ChatResponse:
+    """Call the model, retrying ``tool_choice=required`` as ``auto`` when rejected."""
+    kwargs: dict[str, Any] = {"cancel": cancel} if cancel else {}
+    try:
+        return chat(
+            messages,
+            config,
+            tools=tools,
+            tool_choice=tool_choice,
+            on_delta=on_delta,
+            **kwargs,
+        )
+    except (CancelledError, VisionUnsupportedError, ToolsUnsupportedError):
+        raise
+    except Exception as exc:
+        if tool_choice != "auto" and "tool_choice" in str(exc).lower():
+            return chat(
+                messages,
+                config,
+                tools=tools,
+                tool_choice="auto",
+                on_delta=on_delta,
+                **kwargs,
+            )
+        raise
+
+
+def _answered_from(request: Request, searches: list[dict[str, Any]]) -> str:
+    if searches:
+        return "search"
+    attachments = request.get("file_attachments")
+    if isinstance(attachments, list) and attachments:
+        return "attachments"
+    evidence = request.get("prior_evidence")
+    if isinstance(evidence, list) and any(isinstance(item, dict) and item.get("text") for item in evidence):
+        return "prior_evidence"
+    return "none"
+
+
+def _run_search_attachments(arguments: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+    raw_ids = arguments.get("ids")
+    ids = [str(item) for item in raw_ids if str(item).strip()] if isinstance(raw_ids, list) else None
+    paths = searchable_paths(ctx.request, delivery_for(ctx.request), ids)
+    if not paths:
+        return {"error": "No searchable attached files match that request."}
+    if ctx.search_tool is None:
+        return {"error": "Search is not available."}
+    return ctx.search_tool.run(arguments, paths_override=paths)
+
+
+def _run_view_figure(arguments: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+    if not ctx.vision_available:
+        return {"error": "This model does not accept images."}
+    if ctx.search_tool is None:
+        return {"error": "Image viewing is not available."}
+    asset_id = str(arguments.get("asset_id") or "").strip()
+    if not asset_id:
+        return {"error": "asset_id is required"}
+    images = ctx.request.get("image_attachments")
+    if isinstance(images, list):
+        for image in images:
+            if not isinstance(image, dict) or str(image.get("id") or "") != asset_id:
+                continue
+            url = str(image.get("data_url") or "")
+            name = str(image.get("name") or asset_id)
+            if ctx.search_tool.queue_image(url, f"Attached image {name}"):
+                return {"ok": True, "name": name}
+            return {"error": "Image budget exhausted."}
+    file = str(arguments.get("file") or "").strip()
+    if not file:
+        for row in attachment_rows(ctx.request):
+            candidate = str(row.get("vera_path") or "")
+            if candidate:
+                file = candidate
+                break
+    if not file:
+        return {"error": "Figure file was not found."}
+    from vera_app.search import figure_data
+
+    rows = figure_data({"path": file, "asset_ids": [asset_id]})
+    if not rows:
+        return {"error": "Figure was not found."}
+    url = str(rows[0].get("data_url") or "")
+    caption = rows[0].get("caption") or asset_id
+    if ctx.search_tool.queue_image(url, f"Figure {asset_id}: {caption}"):
+        return {"ok": True, "asset_id": asset_id}
+    return {"error": "Image budget exhausted."}
+
+
+def _attachments_available(ctx: ToolContext) -> bool:
+    return bool(searchable_paths(ctx.request, delivery_for(ctx.request)))
+
+
+def _figures_available(ctx: ToolContext) -> bool:
+    if not ctx.vision_available:
+        return False
+    images = ctx.request.get("image_attachments")
+    if isinstance(images, list) and images:
+        return True
+    return bool(attachment_rows(ctx.request))
+
+
+def _search_agent_tool(search_tool: SearchTool) -> AgentTool:
+    return AgentTool(
+        name="search",
+        schema=SEARCH_TOOL,
+        run=lambda arguments, _ctx: search_tool.run(arguments if isinstance(arguments, dict) else {}),
+        max_calls=search_tool._mode.max_searches,
+        available=lambda ctx: has_library_scope(ctx.request),
+    )
+
+
+WRITE_MARKDOWN_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "write_markdown",
+        "description": (
+            "Write a Markdown report when the user asks for a report, document, or file. "
+            "Cite claims with [C#] or [A#] ids from the evidence. Keep the chat reply short."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string"},
+                "title": {"type": "string"},
+                "content": {"type": "string"},
+            },
+            "required": ["content"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
+def _run_write_markdown(arguments: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+    from vera_app.markdown_drafts import render_report, write_draft
+
+    drafts_dir = str(ctx.request.get("drafts_dir") or "")
+    if not drafts_dir:
+        return {"error": "Drafts folder is not configured."}
+    title = str(arguments.get("title") or "Report")
+    content = str(arguments.get("content") or "")
+    if not content.strip():
+        return {"error": "content is required"}
+    text, missing = render_report(title, content, ctx.citations)
+    saved = write_draft(
+        drafts_dir,
+        str(ctx.request.get("session_id") or "session"),
+        str(arguments.get("filename") or "report.md"),
+        text,
+    )
+    saved["title"] = title
+    if missing:
+        saved["unresolved_citations"] = missing
+    drafts = ctx.outputs.setdefault("drafts", [])
+    if isinstance(drafts, list):
+        drafts.append(saved)
+    return saved
+
+
+def _builtin_tools(search_tool: SearchTool) -> list[AgentTool]:
+    mode = search_tool._mode
+    return [
+        _search_agent_tool(search_tool),
+        AgentTool(
+            name="search_attachments",
+            schema=SEARCH_ATTACHMENTS_TOOL,
+            run=_run_search_attachments,
+            max_calls=mode.max_searches,
+            available=_attachments_available,
+        ),
+        AgentTool(
+            name="view_figure",
+            schema=VIEW_FIGURE_TOOL,
+            run=_run_view_figure,
+            max_calls=max(1, mode.max_figure_images),
+            available=_figures_available,
+        ),
+        AgentTool(
+            name="write_markdown",
+            schema=WRITE_MARKDOWN_TOOL,
+            run=_run_write_markdown,
+            max_calls=2,
+        ),
+    ]
+
+
 def resolve_answer_mode(request: Request) -> Mode:
     return resolve_mode(
         str(request.get("mode_id") or "") or None,
@@ -241,29 +492,12 @@ def list_llm_models(request: Request) -> dict[str, Any]:
     return {"models": models}
 
 
-def _prior_citation_labels(request: Request) -> tuple[dict[str, str], int]:
-    """Build a stable chunk_id -> citation id map from earlier turns.
-
-    Returns the registry plus the highest numeric id used so far, so new chunks
-    continue numbering after it and previously-cited chunks keep their original id.
-    """
-    registry: dict[str, str] = {}
-    max_index = 0
-    raw = request.get("prior_citations")
-    if not isinstance(raw, list):
-        return registry, max_index
-    for entry in raw:
-        if not isinstance(entry, dict):
-            continue
-        citation_id = str(entry.get("id") or "").strip()
-        chunk_id = str(entry.get("chunk_id") or "").strip()
-        if not citation_id or not chunk_id:
-            continue
-        registry.setdefault(chunk_id, citation_id)
-        match = re.fullmatch(r"C(\d+)", citation_id)
-        if match:
-            max_index = max(max_index, int(match.group(1)))
-    return registry, max_index
+def has_library_scope(request: Request) -> bool:
+    """True when the request names a document, file list, or library folder."""
+    paths = request.get("paths")
+    if isinstance(paths, list) and any(str(path).strip() for path in paths):
+        return True
+    return bool(str(request.get("path") or "").strip())
 
 
 class SearchTool:
@@ -282,18 +516,21 @@ class SearchTool:
         label_registry: dict[str, str] | None = None,
         label_start: int = 0,
         cancel: CancellationToken | None = None,
+        citations: CitationRegistry | None = None,
+        paths_override: list[str] | None = None,
     ) -> None:
         self._request = request
         self._mode = mode
-        self._by_chunk: dict[str, dict[str, Any]] = {}
-        self.citations: list[dict[str, Any]] = []
+        self._paths_override = paths_override
+        self._citations = citations or CitationRegistry()
+        if label_registry:
+            self._citations.seed_legacy_map(label_registry, label_start)
+        # Recorded citations for this answer. Seeded prior labels stay out of
+        # this list until a search retrieves them or the answer cites them.
+        self.citations = self._citations.recorded
         self.searches: list[dict[str, Any]] = []
         self._write_event = write_event
         self._cancel = cancel
-        # Session-wide label registry: chunk_id -> citation id (e.g. "C2"). Seeded
-        # from prior turns so the same chunk keeps its id across the conversation.
-        self._label_registry: dict[str, str] = dict(label_registry or {})
-        self._label_counter = label_start
         # Bounds how many figure images get offered to the LLM across the whole
         # answer (not just one search call) so a chatty agent loop can't blow up
         # the prompt with dozens of images.
@@ -310,28 +547,22 @@ class SearchTool:
         return parts
 
     def _register(self, result: dict[str, Any]) -> str:
-        chunk_id = str(result.get("chunk_id") or f"chunk_{len(self._by_chunk)}")
-        existing = self._by_chunk.get(chunk_id)
-        if existing is not None:
-            return str(existing["id"])
-        # Reuse a stable session-wide label if this chunk was cited in a prior turn;
-        # otherwise allocate the next id after the highest one used so far.
-        citation_id = self._label_registry.get(chunk_id)
-        if citation_id is None:
-            self._label_counter += 1
-            citation_id = f"C{self._label_counter}"
-            self._label_registry[chunk_id] = citation_id
-        page = result.get("page_start") or result.get("page_end") or "-"
-        entry = {
-            "id": citation_id,
-            "label": f"[{citation_id}] p. {page}",
-            "result": result,
-        }
-        self.citations.append(entry)
-        self._by_chunk[chunk_id] = entry
-        return citation_id
+        return self._citations.label(result, record=True)
 
-    def run(self, arguments: dict[str, Any]) -> dict[str, Any]:
+    def queue_image(self, data_url: str, note: str) -> bool:
+        """Offer one image to the model if the per-answer image budget allows it."""
+        if self._image_budget <= 0 or not data_url:
+            return False
+        self._pending_image_parts.append({"type": "text", "text": note})
+        self._pending_image_parts.append({"type": "image_url", "image_url": {"url": data_url}})
+        self._image_budget -= 1
+        return True
+
+    def run(
+        self,
+        arguments: dict[str, Any],
+        paths_override: list[str] | None = None,
+    ) -> dict[str, Any]:
         remaining = self._mode.max_chunks - self.chunk_count
         if remaining <= 0:
             return {"error": "Chunk budget exhausted; answer with the evidence already gathered."}
@@ -352,9 +583,14 @@ class SearchTool:
             self._write_event(
                 {"event": "search_start", "query": query, "mode": search_mode, "top_k": top_k}
             )
+        active_override = self._paths_override if paths_override is None else paths_override
+        search_request = dict(self._request)
+        if active_override is not None:
+            search_request["paths"] = list(active_override)
+            search_request.pop("path", None)
         results = search(
             {
-                **self._request,
+                **search_request,
                 "query": query,
                 "mode": search_mode,
                 "top_k": top_k,
@@ -381,7 +617,7 @@ class SearchTool:
             chunk_id = str(result.get("chunk_id") or "")
             # Dedup: skip passages already retrieved earlier so re-searches surface
             # fresh evidence (the model still has the originals in prior tool output).
-            if chunk_id and chunk_id in self._by_chunk:
+            if chunk_id and self._citations.seen(result):
                 skipped_cited += 1
                 continue
             citation_id = self._register(result)
@@ -427,9 +663,15 @@ class SearchTool:
                     )
                     self._image_budget -= 1
             passages.append(passage)
-        self.searches.append(
-            {"query": query, "mode": search_mode, "top_k": top_k, "hits": len(passages)}
-        )
+        record_search: dict[str, Any] = {
+            "query": query,
+            "mode": search_mode,
+            "top_k": top_k,
+            "hits": len(passages),
+        }
+        if active_override is not None:
+            record_search["scope"] = "attachments"
+        self.searches.append(record_search)
         if self._write_event:
             self._write_event(
                 {"event": "search_done", "query": query, "mode": search_mode, "hits": len(passages)}
@@ -456,43 +698,58 @@ def _retrieval_payload(
 ) -> dict[str, Any]:
     """Non-agentic fallback: one search, then synthesize (or list passages)."""
     prompt = str(request.get("prompt", "")).strip()
-    results = search(
-        {
-            **request,
-            "query": prompt,
-            "mode": mode.search_mode,
-            "top_k": mode.top_k,
-            "context_chunks": mode.context_chunks,
-            "include_regions": True,
-            "include_figures": mode.include_figures,
-            # Fetch actual image bytes too (not just captions), same as the agentic
-            # path, so this fallback can also offer figure images to the model.
-            "include_figure_data": mode.include_figures,
-        },
-        cancel=cancel,
-    )
-    citations = []
-    label_registry, label_index = _prior_citation_labels(request)
+    search_request = dict(request)
+    if not has_library_scope(request):
+        paths = [str(row.get("vera_path") or "") for row in attachment_rows(request)]
+        paths = [path for path in paths if path]
+        if not paths:
+            results: list[dict[str, Any]] = []
+        else:
+            search_request["paths"] = paths
+            search_request.pop("path", None)
+            results = search(
+                {
+                    **search_request,
+                    "query": prompt,
+                    "mode": mode.search_mode,
+                    "top_k": mode.top_k,
+                    "context_chunks": mode.context_chunks,
+                    "include_regions": True,
+                    "include_figures": mode.include_figures,
+                    "include_figure_data": mode.include_figures,
+                },
+                cancel=cancel,
+            )
+    else:
+        results = search(
+            {
+                **request,
+                "query": prompt,
+                "mode": mode.search_mode,
+                "top_k": mode.top_k,
+                "context_chunks": mode.context_chunks,
+                "include_regions": True,
+                "include_figures": mode.include_figures,
+                # Fetch actual image bytes too (not just captions), same as the agentic
+                # path, so this fallback can also offer figure images to the model.
+                "include_figure_data": mode.include_figures,
+            },
+            cancel=cancel,
+        )
+    registry = CitationRegistry()
+    scoped = scoped_single_file(request)
+    if scoped:
+        registry.fallback_file = scoped
+    registry.seed_request(request)
+    register_attachments(request, registry)
+    citations = registry.recorded
     # Mirrors SearchTool.run()'s image-part queueing, bounded by the same
     # per-answer image budget.
     image_parts: list[dict[str, Any]] = []
     image_budget = mode.max_figure_images
     for result in results:
-        chunk_id = str(result.get("chunk_id") or "")
-        citation_id = label_registry.get(chunk_id)
-        if citation_id is None:
-            label_index += 1
-            citation_id = f"C{label_index}"
-            if chunk_id:
-                label_registry[chunk_id] = citation_id
+        citation_id = registry.label(result, record=True)
         page = result.get("page_start") or result.get("page_end") or "-"
-        citations.append(
-            {
-                "id": citation_id,
-                "label": f"[{citation_id}] p. {page}",
-                "result": result,
-            }
-        )
         if mode.include_figures:
             for fig in result.get("figures") or []:
                 data_url = fig.pop("data_url", None)
@@ -521,6 +778,7 @@ def _retrieval_payload(
         "instructions": instructions,
         "llm_prompt": llm_prompt,
         "image_parts": image_parts,
+        "registry": registry,
     }
 
 
@@ -606,22 +864,57 @@ def answer(
 
     # Seed the citation labeller with ids already assigned in earlier turns so the
     # same chunk keeps its `[C#]` id across the whole session.
-    label_registry, label_start = _prior_citation_labels(request)
+    registry = CitationRegistry()
+    scoped = scoped_single_file(request)
+    if scoped:
+        registry.fallback_file = scoped
+    registry.seed_request(request)
     tool = SearchTool(
         request,
         mode,
         write_event=record,
-        label_registry=label_registry,
-        label_start=label_start,
         cancel=cancel,
+        citations=registry,
     )
+    ctx = ToolContext(
+        request=request,
+        mode=mode,
+        citations=registry,
+        write_event=record,
+        cancel=cancel,
+        outputs={"searches": tool.searches},
+        search_tool=tool,
+    )
+    table = ToolTable(allowlisted(_builtin_tools(tool), mode))
+    if attachment_rows(request):
+        instructions += (
+            "\n\nThe user attached files. Use the attached text when it is included in full. "
+            "Call search_attachments for files marked searchable. "
+            "Call view_figure when you need to see a listed figure or an attached image. "
+            "Attached-file passages carry [A#] ids; cite them exactly like [C#] ids."
+        )
+    instructions += (
+        "\n\nWhen the user asks for a report, document, or file, call write_markdown "
+        "and keep the chat reply to a short summary. Otherwise answer in the chat."
+    )
+    attachment_preamble, _delivery = build_attachment_prompt(request, registry)
+    if searchable_paths(request, _delivery):
+        tool.run(
+            {"query": prompt, "top_k": mode.top_k, "include_figures": mode.include_figures},
+            paths_override=searchable_paths(request, _delivery),
+        )
+    prior_block = evidence_block(request.get("prior_evidence"), evidence_token_budget(request))
+    has_prior_evidence = bool(prior_block)
     # Images the user attached to this message (via the composer's attach button
     # or drag-and-drop) ride along in the initial user message, alongside any
     # figure images the agent surfaces later while searching.
     attachment_parts = _user_attachment_parts(request)
-    user_content: Any = prompt
+    draft_block = current_draft_block(request)
+    question_parts = [part for part in (attachment_preamble, prior_block, draft_block, prompt) if part]
+    question = "\n\n".join(question_parts)
+    user_content: Any = question
     if attachment_parts:
-        user_content = [{"type": "text", "text": prompt}, *attachment_parts]
+        user_content = [{"type": "text", "text": question}, *attachment_parts]
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": instructions},
         *history,
@@ -635,30 +928,33 @@ def answer(
     vision_available = True
     vision_fallback = False
     try:
-        # One extra turn beyond the search budget lets the model write its final answer.
-        for turn in range(mode.max_searches + 1):
+        # One extra turn beyond the tool budgets lets the model write its final answer.
+        for turn in range(table.max_turns()):
             if cancel:
                 cancel.raise_if_cancelled()
-            force_answer = turn >= mode.max_searches or tool.chunk_count >= mode.max_chunks
-            offered_tools = None if force_answer else [SEARCH_TOOL]
+            chunk_limited = tool.chunk_count >= mode.max_chunks
+            offered = table.offered(ctx, force_answer=chunk_limited)
+            force_answer = not offered
+            offered_tools = table.schemas(offered)
+            choice = _tool_choice(mode, turn, has_prior_evidence, bool(offered))
             answer_stream = AnswerStream(write_event)
             record(
                 {
                     "event": "llm_request",
                     "turn": turn,
                     "model": config.model,
-                    "tools": [t["function"]["name"] for t in (offered_tools or [])],
+                    "tools": [item.schema_name() for item in offered],
                     "messages": _redact_messages_for_trace(messages),
                 }
             )
             try:
-                response = chat(
+                response = _chat_turn(
                     messages,
                     config,
                     tools=offered_tools,
-                    tool_choice="auto",
+                    tool_choice=choice,
                     on_delta=answer_stream.callback,
-                    **({"cancel": cancel} if cancel else {}),
+                    cancel=cancel,
                 )
             except VisionUnsupportedError:
                 # Neutralize every image-bearing message (user attachments and/or
@@ -669,13 +965,14 @@ def answer(
                 _strip_image_parts(messages)
                 vision_available = False
                 vision_fallback = True
-                response = chat(
+                ctx.vision_available = False
+                response = _chat_turn(
                     messages,
                     config,
                     tools=offered_tools,
-                    tool_choice="auto",
+                    tool_choice=choice,
                     on_delta=answer_stream.callback,
-                    **({"cancel": cancel} if cancel else {}),
+                    cancel=cancel,
                 )
             if cancel:
                 cancel.raise_if_cancelled()
@@ -711,10 +1008,10 @@ def answer(
             for call in response.tool_calls:
                 if cancel:
                     cancel.raise_if_cancelled()
-                output = (
-                    tool.run(call.arguments)
-                    if call.name == "search"
-                    else {"error": f"Unknown tool: {call.name}"}
+                output = table.dispatch(
+                    call.name,
+                    call.arguments if isinstance(call.arguments, dict) else {},
+                    ctx,
                 )
                 messages.append(
                     {
@@ -760,7 +1057,11 @@ def answer(
         # Provider can't do tool-calling: fall back to one-shot retrieve-then-answer.
         answer_stream.abandon()
         fallback = _retrieval_payload(request, mode, instructions, cancel=cancel)
-        fallback_user_content: Any = fallback["llm_prompt"]
+        fallback_prompt = fallback["llm_prompt"]
+        prefix = "\n\n".join(part for part in (attachment_preamble, prior_block) if part)
+        if prefix:
+            fallback_prompt = f"{prefix}\n\n{fallback_prompt}"
+        fallback_user_content: Any = fallback_prompt
         if attachment_parts:
             fallback_user_content = [
                 {"type": "text", "text": fallback["llm_prompt"]},
@@ -831,6 +1132,10 @@ def answer(
         images_sent = _count_image_parts(fallback_messages)
         if images_sent == 0:
             _clear_figure_context_flags(fallback["citations"])
+        unresolved = fallback["registry"].resolve_answer(llm_result.answer)
+        if unresolved:
+            record({"event": "citation_resolve", "unresolved": unresolved})
+        _add_missing_regions(fallback["citations"], scoped or "")
         return {
             "prompt": prompt,
             "answer": llm_result.answer,
@@ -839,6 +1144,7 @@ def answer(
             "mode": mode.id,
             "mode_label": mode.label,
             "answer_mode": "retrieval",
+            "answered_from": "search" if fallback["citations"] else _answered_from(request, []),
             "searches": [],
             "trace": trace,
             "images_sent": images_sent,
@@ -905,9 +1211,21 @@ def answer(
             pass
     if not answer_text:
         answer_text = "I could not produce an answer from the selected VERA source."
+    unresolved = registry.resolve_answer(answer_text)
+    if unresolved:
+        record({"event": "citation_resolve", "unresolved": unresolved})
+    _add_missing_regions(tool.citations, scoped or "")
     images_sent = _count_image_parts(messages)
     if images_sent == 0:
         _clear_figure_context_flags(tool.citations)
+    if attachment_rows(request):
+        ctx.outputs["attachment_usage"] = attachment_usage(
+            attachment_rows(request),
+            _delivery,
+            tool.searches,
+            tool.citations,
+        )
+    extra_outputs = {key: value for key, value in ctx.outputs.items() if key != "searches"}
     return {
         "prompt": prompt,
         "answer": answer_text,
@@ -916,7 +1234,9 @@ def answer(
         "mode": mode.id,
         "mode_label": mode.label,
         "answer_mode": "agent",
+        "answered_from": _answered_from(request, tool.searches),
         "searches": tool.searches,
+        **extra_outputs,
         "trace": trace,
         "images_sent": images_sent,
         "vision_fallback": vision_fallback,

@@ -671,6 +671,21 @@ export function SettingsModal({
               <span>Temperature</span>
               <input className="numberInput" type="number" min={0} max={2} step={0.1} value={profile.temperature} onChange={(event) => patchProfile(row, { temperature: Number(event.target.value) })} />
             </label>
+            <label className="field">
+              <span>Context tokens</span>
+              <input
+                className="numberInput"
+                type="number"
+                min={256}
+                step={256}
+                placeholder="Provider default"
+                value={profile.context_tokens ?? ''}
+                onChange={(event) => {
+                  const value = event.target.value.trim();
+                  patchProfile(row, { context_tokens: value ? Number(value) : undefined });
+                }}
+              />
+            </label>
           </div>
         ) : null}
 

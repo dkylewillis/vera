@@ -1,6 +1,7 @@
 import type {
   AgentServiceStatus,
   AppSettings,
+  AttachmentUsage,
   ChatCitationResult,
   CredentialResult,
   Session,
@@ -15,6 +16,8 @@ export type {
   AgentServiceStatus,
   AppSettings,
   ChatAttachment,
+  ChatFileAttachment,
+  AttachmentUsage,
   ChatCitationResult,
   ContentPart,
   ContextChunkResult,
@@ -93,6 +96,10 @@ export interface VeraApi {
   /** `requestId` routes `library_progress` events to `onAnswerEvent` and lets `cancelAnswer` stop the sync. */
   syncLibrary(folderPath: string, requestId?: string): Promise<LibrarySyncReport | null>;
   shareArchive(archivePath: string): Promise<string | null>;
+  pathForFile(file: File): string;
+  saveDroppedFile(name: string, data: ArrayBuffer): Promise<string>;
+  saveDraftAs(sourcePath: string, suggestedName: string): Promise<string | null>;
+  readDraft(sourcePath: string): Promise<string>;
   onLibrarySync(callback: (folderPath: string, report: LibrarySyncReport | null) => void): () => void;
   pickPdf(): Promise<string[]>;
   saveAny(): Promise<string | null>;
@@ -268,12 +275,15 @@ export interface ChatAnswerResult {
   prompt: string;
   answer: string;
   answer_mode?: 'retrieval' | 'agent';
+  answered_from?: 'prior_evidence' | 'search' | 'attachments' | 'none';
   citations: ChatCitationResult[];
   instructions: string;
   llm_prompt?: string;
   mode?: string;
   mode_label?: string;
   searches?: { query: string; mode: string; top_k: number; hits: number }[];
+  attachment_usage?: Record<string, AttachmentUsage>;
+  drafts?: { path: string; filename: string; title: string; version: number }[];
   trace?: StreamEvent[];
   images_sent?: number;
   vision_fallback?: boolean;
@@ -296,6 +306,8 @@ export interface Mode {
   max_searches: number;
   max_chunks: number;
   max_figure_images: number;
+  search_policy?: 'auto' | 'first_turn' | 'always';
+  tools?: string[];
   builtin: boolean;
   path: string;
 }

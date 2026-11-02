@@ -57,8 +57,11 @@ export function createSidecarCaller(
         label,
       },
     });
-    setErrorMessage(null);
-    setProviderErrorDetail(null);
+    const quiet = Boolean(callOptions.quiet);
+    if (!quiet) {
+      setErrorMessage(null);
+      setProviderErrorDetail(null);
+    }
     let timeout: ReturnType<typeof setTimeout> | null = null;
     try {
       const request = window.vera.request<T>(payload, activityId);
@@ -78,6 +81,7 @@ export function createSidecarCaller(
         if (sidecarCallWasCancelled(response.error, response.cancelled)) {
           return null;
         }
+        if (quiet) return null;
         setErrorMessage(response.error || 'Request failed');
         setProviderErrorDetail(response.provider_error_detail || null);
         return null;
@@ -88,7 +92,7 @@ export function createSidecarCaller(
         return null;
       }
       const message = error instanceof Error ? error.message : 'Request failed';
-      if (sidecarCallWasCancelled(message)) {
+      if (sidecarCallWasCancelled(message) || quiet) {
         return null;
       }
       setErrorMessage(message);

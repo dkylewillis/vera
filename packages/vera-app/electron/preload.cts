@@ -2,7 +2,7 @@ import type { AppSettings, Session, StreamEvent } from '../src/shared/contracts.
 import type { ProAccount } from '../src/shared/pro.js';
 import type { FolderPickPurpose, IPC_CHANNELS as IpcChannels } from '../src/shared/protocol.js';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 /**
  * Duplicated from protocol.ts's IPC_CHANNELS (kept in sync by
@@ -62,6 +62,9 @@ const IPC_CHANNELS: typeof IpcChannels = {
   serviceRotateToken: 'vera:serviceRotateToken',
   serviceEvent: 'vera:serviceEvent',
   shareArchive: 'vera:shareArchive',
+  saveDroppedFile: 'vera:saveDroppedFile',
+  saveDraftAs: 'vera:saveDraftAs',
+  readDraft: 'vera:readDraft',
   syncLibrary: 'vera:syncLibrary',
   librarySync: 'vera:librarySync',
 };
@@ -110,6 +113,16 @@ contextBridge.exposeInMainWorld('vera', {
   setWatchedFolders: (paths: string[]) => ipcRenderer.invoke(IPC_CHANNELS.setWatchedFolders, paths),
   syncLibrary: (folderPath: string, requestId?: string) => ipcRenderer.invoke(IPC_CHANNELS.syncLibrary, folderPath, requestId),
   shareArchive: (archivePath: string) => ipcRenderer.invoke(IPC_CHANNELS.shareArchive, archivePath),
+  pathForFile: (file: File) => {
+    try {
+      return webUtils.getPathForFile(file) || '';
+    } catch {
+      return '';
+    }
+  },
+  saveDroppedFile: (name: string, data: ArrayBuffer) => ipcRenderer.invoke(IPC_CHANNELS.saveDroppedFile, name, data),
+  saveDraftAs: (sourcePath: string, suggestedName: string) => ipcRenderer.invoke(IPC_CHANNELS.saveDraftAs, sourcePath, suggestedName),
+  readDraft: (sourcePath: string) => ipcRenderer.invoke(IPC_CHANNELS.readDraft, sourcePath),
   pickPdf: () => ipcRenderer.invoke(IPC_CHANNELS.pickPdf),
   saveAny: () => ipcRenderer.invoke(IPC_CHANNELS.saveAny),
   openTargetReady: () => ipcRenderer.invoke(IPC_CHANNELS.openTargetReady),

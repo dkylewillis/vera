@@ -17,7 +17,9 @@ import { ChatTurn } from './ChatTurn';
 import { fileName } from '../lib/formatting';
 import { providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from '../lib/providers';
 import type {
+  AttachmentUsage,
   ChatAttachment,
+  ChatFileAttachment,
   ChatCitationResult,
   Mode,
   ProviderProfile,
@@ -49,14 +51,20 @@ export function CenterChatView({
   onClearFolderScope,
   path,
   attachments,
+  fileAttachments,
+  attachmentUsage,
   busyAction,
   hasSearchableScope,
   composerResetVersion,
   composerRestoredDraft,
   onAddAttachments,
   onRemoveAttachment,
+  onRemoveFile,
   onAsk,
   onStopAnswer,
+  onSaveDraft,
+  onShowDraft,
+  onSaveAnswerMarkdown,
   modePickerOpen,
   onModePickerOpenChange,
   modes,
@@ -108,14 +116,20 @@ export function CenterChatView({
   onClearFolderScope?: () => void;
   path: string;
   attachments: ChatAttachment[];
+  fileAttachments?: Array<ChatFileAttachment & { preparing?: boolean; status?: string }>;
+  attachmentUsage?: Record<string, AttachmentUsage>;
   busyAction: string | null;
   hasSearchableScope: boolean;
   composerResetVersion: number;
   composerRestoredDraft: { version: number; text: string };
   onAddAttachments: (files: FileList | File[]) => Promise<void>;
   onRemoveAttachment: (id: string) => void;
+  onRemoveFile?: (id: string) => void;
   onAsk: (prompt: string, onAccepted: () => void) => Promise<void>;
   onStopAnswer: () => void;
+  onSaveDraft?: (path: string, filename: string) => void;
+  onShowDraft?: (path: string) => void;
+  onSaveAnswerMarkdown?: (turn: SessionTurn) => void;
   modePickerOpen: boolean;
   onModePickerOpenChange: (open: boolean | ((value: boolean) => boolean)) => void;
   modes: Mode[];
@@ -169,6 +183,9 @@ export function CenterChatView({
                 selectCitation={selectCitation}
                 selectedChunkId={selected?.chunk_id}
                 showTrace={showTrace}
+                onSaveDraft={onSaveDraft}
+                onShowDraft={onShowDraft}
+                onSaveAnswerMarkdown={onSaveAnswerMarkdown}
               />
             ))}
             {chatBusy ? (
@@ -221,6 +238,8 @@ export function CenterChatView({
         </div>
         <ChatComposer
           attachments={attachments}
+          fileAttachments={fileAttachments}
+          attachmentUsage={attachmentUsage}
           busy={chatBusy || conversionInProgress}
           busyAction={busyAction}
           hasSearchableScope={hasSearchableScope}
@@ -229,6 +248,7 @@ export function CenterChatView({
           restoredDraft={composerRestoredDraft}
           onAddAttachments={onAddAttachments}
           onRemoveAttachment={onRemoveAttachment}
+          onRemoveFile={onRemoveFile}
           onAsk={onAsk}
           onStopAnswer={onStopAnswer}
         />

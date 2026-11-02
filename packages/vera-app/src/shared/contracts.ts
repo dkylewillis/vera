@@ -38,6 +38,7 @@ export interface StreamEvent {
   name?: string;
   arguments?: Record<string, unknown>;
   output?: unknown;
+  unresolved?: string[];
   text?: string;
   completed?: number;
   total?: number;
@@ -126,14 +127,38 @@ export interface ChatAttachment {
   data_url: string;
 }
 
+export interface ChatFileAttachment {
+  id: string;
+  name: string;
+  source_path: string;
+  vera_path: string;
+  token_estimate: number;
+  chunk_count: number;
+  page_count: number;
+  outline?: string[];
+  /** First `[A#]` number for this file's chunks; fixed for the life of the chat. */
+  label_start?: number;
+  /** True until the first answer after the file was attached. */
+  fresh?: boolean;
+}
+
+export interface AttachmentUsage {
+  delivery: 'full' | 'searchable';
+  searches: number;
+  cited: number;
+}
+
 export interface SessionTurn {
   role: 'user' | 'assistant';
   content: string;
   citations?: ChatCitationResult[];
   attachments?: ChatAttachment[];
-  searches?: { query: string; mode: string; top_k: number; hits: number }[];
+  searches?: { query: string; mode: string; top_k: number; hits: number; scope?: string }[];
+  attachment_usage?: Record<string, AttachmentUsage>;
+  drafts?: { path: string; filename: string; title: string; version: number }[];
   selected_paths?: string[];
   answer_mode?: 'retrieval' | 'agent';
+  answered_from?: 'prior_evidence' | 'search' | 'attachments' | 'none';
   mode_label?: string;
   trace?: StreamEvent[];
   images_sent?: number;
@@ -147,6 +172,8 @@ export interface Session {
   title: string;
   source_path: string;
   selected_paths?: string[];
+  file_attachments?: ChatFileAttachment[];
+  image_attachments?: ChatAttachment[];
   turns: SessionTurn[];
   created_at: number;
   updated_at: number;
@@ -169,6 +196,8 @@ export interface ProviderProfile {
     fast?: boolean;
   }>;
   has_api_key?: boolean;
+  /** Optional context window. Empty uses the provider default. */
+  context_tokens?: number;
 }
 
 export type JsonValue =

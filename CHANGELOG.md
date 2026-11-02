@@ -22,6 +22,14 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Added
 
+- Desktop Ask accepts dropped documents as chat context. Files that fit the
+  provider window are read in full; larger files stay searchable. Follow-up
+  questions reuse earlier evidence, and a mode can set `search_policy` or a
+  `tools` allowlist. Ask can write a Markdown report, and **Save as Markdown**
+  on any answer adds citation footnotes. **LLM Providers** has an optional
+  **Context tokens** setting that sizes those budgets. Attached-file passages
+  are cited as `[A#]` with fixed numbers for the chat, and their citations
+  open the stored original in the viewer.
 - Converting one file from Explorer opens Document Info for the new archive.
   The Convert view still opens when a file fails.
 - Word parts left out of search by design (headers, footers, footnotes,

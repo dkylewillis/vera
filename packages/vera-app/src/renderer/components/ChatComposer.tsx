@@ -1,9 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Image as ImageIcon, Plus, Square, X } from 'lucide-react';
-import type { ChatAttachment } from '../types';
+import { ArrowUp, FileUp, Plus, Square, X } from 'lucide-react';
+import type { AttachmentUsage, ChatAttachment, ChatFileAttachment } from '../types';
+import { FileTypeIcon } from './FileTypeIcon';
+import { fileIconType, usageLabel } from '../lib/fileAttachments';
 
 export const ChatComposer = React.memo(function ChatComposer({
   attachments,
+  fileAttachments = [],
+  attachmentUsage,
   busy,
   busyAction,
   hasSearchableScope,
@@ -12,10 +16,13 @@ export const ChatComposer = React.memo(function ChatComposer({
   restoredDraft,
   onAddAttachments,
   onRemoveAttachment,
+  onRemoveFile,
   onAsk,
   onStopAnswer,
 }: {
   attachments: ChatAttachment[];
+  fileAttachments?: Array<ChatFileAttachment & { preparing?: boolean; status?: string }>;
+  attachmentUsage?: Record<string, AttachmentUsage>;
   busy: boolean;
   busyAction: string | null;
   hasSearchableScope: boolean;
@@ -24,6 +31,7 @@ export const ChatComposer = React.memo(function ChatComposer({
   restoredDraft: { version: number; text: string };
   onAddAttachments: (files: FileList | File[]) => Promise<void>;
   onRemoveAttachment: (id: string) => void;
+  onRemoveFile?: (id: string) => void;
   onAsk: (prompt: string, onAccepted: () => void) => Promise<void>;
   onStopAnswer: () => void;
 }) {
@@ -31,7 +39,8 @@ export const ChatComposer = React.memo(function ChatComposer({
   const [multiline, setMultiline] = useState(false);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
-  const inputUnavailable = !hasSearchableScope || (busy && busyAction !== 'Asking');
+  const filesPreparing = fileAttachments.some((file) => file.preparing);
+  const inputUnavailable = !hasSearchableScope || filesPreparing || (busy && busyAction !== 'Asking');
 
   useEffect(() => {
     setDraft('');
@@ -78,7 +87,7 @@ export const ChatComposer = React.memo(function ChatComposer({
       <input
         ref={attachmentInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.pdf,.docx,.pptx,.xlsx,.md,.markdown,.html,.htm,.txt,.vera"
         multiple
         disabled={inputUnavailable}
         style={{ display: 'none' }}
@@ -87,6 +96,29 @@ export const ChatComposer = React.memo(function ChatComposer({
           event.target.value = '';
         }}
       />
+      {fileAttachments.length ? (
+        <div className="attachRow">
+          {fileAttachments.map((file) => {
+            const label = file.preparing ? (file.status || 'Preparing…') : usageLabel(attachmentUsage?.[file.id]);
+            return (
+              <span className="attachChip attachChip--file" key={file.id} title={file.name}>
+                <FileTypeIcon type={fileIconType(file.name)} size={14} />
+                <span className="attachChipName">{file.name}</span>
+                {label ? <span className="attachChipMeta">{label}</span> : null}
+                <button
+                  type="button"
+                  className="attachChipRemove"
+                  onClick={() => onRemoveFile?.(file.id)}
+                  aria-label={`Remove ${file.name}`}
+                  title="Remove"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
       {attachments.length ? (
         <div className="attachRow">
           {attachments.map((att) => (
@@ -108,8 +140,8 @@ export const ChatComposer = React.memo(function ChatComposer({
       ) : null}
       {isDraggingFiles ? (
         <div className="attachDropHint">
-          <ImageIcon size={16} />
-          <span>Drop images to attach</span>
+          <FileUp size={16} />
+          <span>Drop files to attach</span>
         </div>
       ) : null}
       <div className="askInputRow">
@@ -117,8 +149,8 @@ export const ChatComposer = React.memo(function ChatComposer({
           type="button"
           className="ghostIcon attachButton"
           onClick={() => attachmentInputRef.current?.click()}
-          title="Attach images"
-          aria-label="Attach images"
+          title="Attach files"
+          aria-label="Attach files"
           disabled={inputUnavailable}
         >
           <Plus size={16} />
@@ -143,7 +175,7 @@ export const ChatComposer = React.memo(function ChatComposer({
         <button
           className="askSendButton"
           onClick={busyAction === 'Asking' ? onStopAnswer : submitDraft}
-          disabled={busy ? busyAction !== 'Asking' : !hasSearchableScope || !draft.trim()}
+          disabled={busy ? busyAction !== 'Asking' : !hasSearchableScope || filesPreparing || !draft.trim()}
           title={busyAction === 'Asking' ? 'Stop generating' : 'Send (Enter)'}
           aria-label={busyAction === 'Asking' ? 'Stop generating' : 'Send'}
         >

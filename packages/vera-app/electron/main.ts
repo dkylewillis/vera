@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, safeStorage, shell } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type {
@@ -197,6 +198,14 @@ protocol.registerSchemesAsPrivileged([
 
 function sourceCacheDir(): string {
   return join(app.getPath('userData'), 'source-cache');
+}
+
+function chatAttachmentsDir(): string {
+  return join(app.getPath('userData'), 'chat-attachments');
+}
+
+function chatDraftsDir(): string {
+  return join(app.getPath('userData'), 'drafts');
 }
 
 function isPathInsideDir(filePath: string, dirPath: string): boolean {
@@ -622,8 +631,36 @@ function upsertSession(session: Session): Session[] {
   return writeSessions(sessions);
 }
 
+function referencedAttachmentPaths(sessions: Session[]): Set<string> {
+  const paths = new Set<string>();
+  for (const session of sessions) {
+    for (const file of session.file_attachments ?? []) {
+      if (file.vera_path) paths.add(resolve(file.vera_path));
+    }
+  }
+  return paths;
+}
+
+function cleanupSessionFiles(removed: Session, remaining: Session[]): void {
+  const still = referencedAttachmentPaths(remaining);
+  const root = resolve(chatAttachmentsDir());
+  for (const file of removed.file_attachments ?? []) {
+    if (!file.vera_path) continue;
+    const target = resolve(file.vera_path);
+    if (!isPathInsideDir(target, root) || still.has(target)) continue;
+    rmSync(dirname(target), { recursive: true, force: true });
+  }
+  const drafts = join(chatDraftsDir(), removed.id);
+  if (existsSync(drafts)) rmSync(drafts, { recursive: true, force: true });
+}
+
 function deleteSession(id: string): Session[] {
-  return writeSessions(readSessions().filter((s) => s.id !== id));
+  const sessions = readSessions();
+  const removed = sessions.find((session) => session.id === id);
+  const next = sessions.filter((session) => session.id !== id);
+  const saved = writeSessions(next);
+  if (removed) cleanupSessionFiles(removed, next);
+  return saved;
 }
 
 function modesDir(): string {
@@ -1739,6 +1776,36 @@ if (singleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.getSessions, async () => readSessions());
   ipcMain.handle(IPC_CHANNELS.saveSession, async (_event, session: Session) => upsertSession(session));
   ipcMain.handle(IPC_CHANNELS.deleteSession, async (_event, id: string) => deleteSession(id));
+  ipcMain.handle(IPC_CHANNELS.saveDroppedFile, async (_event, name: string, data: ArrayBuffer) => {
+    const dir = join(chatAttachmentsDir(), 'incoming');
+    mkdirSync(dir, { recursive: true });
+    const safe = basename(String(name || 'file')).replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 80) || 'file';
+    const target = join(dir, `${randomUUID()}-${safe}`);
+    writeFileSync(target, Buffer.from(data));
+    return target;
+  });
+  ipcMain.handle(IPC_CHANNELS.saveDraftAs, async (_event, sourcePath: string, suggestedName: string) => {
+    if (typeof sourcePath !== 'string' || !existsSync(sourcePath)) {
+      throw new Error('Draft was not found.');
+    }
+    const root = resolve(chatDraftsDir());
+    if (!isPathInsideDir(sourcePath, root)) {
+      throw new Error('Draft path is outside the drafts folder.');
+    }
+    const result = await dialog.showSaveDialog({
+      title: 'Save Markdown',
+      defaultPath: basename(suggestedName || sourcePath),
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    copyFileSync(sourcePath, result.filePath);
+    return result.filePath;
+  });
+  ipcMain.handle(IPC_CHANNELS.readDraft, async (_event, sourcePath: string) => {
+    if (typeof sourcePath !== 'string' || !existsSync(sourcePath)) return '';
+    if (!isPathInsideDir(sourcePath, chatDraftsDir())) return '';
+    return readFileSync(sourcePath, 'utf8');
+  });
   ipcMain.handle(IPC_CHANNELS.request, async (event, payload: SidecarPayload, requestId?: string) => {
     const sender = event.sender;
     const onEvent = (e: JsonLineEvent) => {
@@ -1747,7 +1814,11 @@ if (singleInstanceLock) app.whenReady().then(() => {
     const prepared = withModesDir(withStoredApiKey(payload));
     const request = prepared.action === 'source'
       ? { ...prepared, cache_dir: sourceCacheDir() }
-      : prepared;
+      : prepared.action === 'chat_attachment_prepare'
+        ? { ...prepared, attachments_dir: chatAttachmentsDir() }
+        : prepared.action === 'answer' || prepared.action === 'render_markdown'
+          ? { ...prepared, attachments_dir: chatAttachmentsDir(), drafts_dir: chatDraftsDir() }
+          : prepared;
     const response = await sidecar.request(request, onEvent, requestId);
     if (
       response.ok

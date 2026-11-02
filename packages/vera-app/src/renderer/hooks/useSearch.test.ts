@@ -23,6 +23,7 @@ function host(overrides: Partial<SearchHost> = {}): SearchHost {
     promptForIndexBeforeQuery: async () => false,
     loadSourceDocument: async () => undefined,
     nextSourceLoadId: () => 1,
+    currentSourceLoadId: () => 1,
     setErrorMessage: () => undefined,
     setSubmittedSearchQuery: () => undefined,
     setResults: () => undefined,
@@ -105,6 +106,26 @@ describe('createSearchController', () => {
     ]);
     expect(setSelected).toHaveBeenCalledWith(first);
     expect(setCenterView).toHaveBeenCalledWith('search');
-    expect(loadSourceDocument).toHaveBeenCalledWith('C:\\lib\\manual.vera', false, 1);
+    expect(loadSourceDocument).toHaveBeenCalledWith('C:\\lib\\manual.vera', false, 1, { quiet: true });
+  });
+
+  it('shows the chunk view when a passage has no displayable source', async () => {
+    const setViewerMode = vi.fn();
+    const controller = createSearchController(() => host({
+      loadSourceDocument: vi.fn(async () => false),
+      setViewerMode,
+    }));
+    controller.selectSearchResult({
+      chunk_id: 'chunk_0001',
+      score: 1,
+      text: 'Pond volume.',
+      page_start: 1,
+      page_end: 1,
+      heading_path: null,
+      source_filename: 'notes.md',
+      document_id: 'document_0001',
+      file: 'C:\\cache\\notes.vera',
+    });
+    await vi.waitFor(() => expect(setViewerMode).toHaveBeenCalledWith('selection'));
   });
 });

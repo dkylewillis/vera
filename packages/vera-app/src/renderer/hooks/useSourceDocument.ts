@@ -43,13 +43,14 @@ export function createSourceDocumentController(getHost: () => SourceDocumentHost
     targetPath = getHost().path,
     activateViewer = true,
     requestId = nextLoadId(),
-  ) {
+    options: { quiet?: boolean } = {},
+  ): Promise<boolean> {
     const host = getHost();
     if (host.folders.some((folder) => folder.path === targetPath)) {
       if (requestId === sourceDocumentLoadRef.current) {
         host.setPendingSourcePath('');
       }
-      return;
+      return false;
     }
     host.setPendingSourcePath(targetPath);
     try {
@@ -57,7 +58,7 @@ export function createSourceDocumentController(getHost: () => SourceDocumentHost
         { action: SIDECAR_ACTIONS.source, path: targetPath },
         'Loading source',
         undefined,
-        { scope: 'source' },
+        { scope: 'source', quiet: options.quiet },
       );
       if (result && requestId === sourceDocumentLoadRef.current) {
         host.setLibraryInfoPath('');
@@ -65,6 +66,7 @@ export function createSourceDocumentController(getHost: () => SourceDocumentHost
         host.setSourceDocumentPath(targetPath);
         if (activateViewer) host.setViewerMode('document');
       }
+      return Boolean(result);
     } finally {
       if (requestId === sourceDocumentLoadRef.current) {
         host.setPendingSourcePath('');
@@ -125,6 +127,7 @@ export function createSourceDocumentController(getHost: () => SourceDocumentHost
     closeSourceDocument,
     previewSourceDocument,
     nextLoadId,
+    currentLoadId: () => sourceDocumentLoadRef.current,
     invalidateLoad,
   };
 }

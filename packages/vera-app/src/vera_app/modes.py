@@ -17,6 +17,7 @@ BUILTIN_DIR = Path(__file__).resolve().parent / "modes_builtin"
 _TRUE = {"true", "yes", "on", "1"}
 _FALSE = {"false", "no", "off", "0"}
 _SEARCH_MODES = {"hybrid", "semantic", "keyword"}
+_SEARCH_POLICIES = {"auto", "first_turn", "always"}
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,8 @@ class Mode:
     max_searches: int = 6
     max_chunks: int = 20
     max_figure_images: int = 4
+    search_policy: str = "auto"
+    tools: tuple[str, ...] = ()
     builtin: bool = False
     path: str = ""
 
@@ -56,6 +59,8 @@ class Mode:
             "max_searches": self.max_searches,
             "max_chunks": self.max_chunks,
             "max_figure_images": self.max_figure_images,
+            "search_policy": self.search_policy,
+            "tools": list(self.tools),
             "builtin": self.builtin,
             "path": self.path,
         }
@@ -107,6 +112,18 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
     return meta, body
 
 
+def _search_policy(value: str) -> str:
+    token = value.strip().lower().replace("-", "_")
+    if token in _SEARCH_POLICIES:
+        return token
+    return "auto"
+
+
+def _tool_allowlist(value: str) -> tuple[str, ...]:
+    names = tuple(part.strip() for part in value.split(",") if part.strip())
+    return names
+
+
 def _slugify(name: str) -> str:
     slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in name)
     while "--" in slug:
@@ -135,6 +152,8 @@ def parse_mode(text: str, *, path: str = "", builtin: bool = False) -> Mode | No
         max_searches=max(1, min(12, _coerce_int(meta.get("max_searches", "6"), 6))),
         max_chunks=max(1, min(60, _coerce_int(meta.get("max_chunks", "20"), 20))),
         max_figure_images=max(0, min(20, _coerce_int(meta.get("max_figure_images", "4"), 4))),
+        search_policy=_search_policy(meta.get("search_policy", "auto")),
+        tools=_tool_allowlist(meta.get("tools", "")),
         builtin=builtin,
         path=path,
     )

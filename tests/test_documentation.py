@@ -369,6 +369,13 @@ def test_hardening_json_contracts_are_documented():
     assert "`write_attachment()`" in python_api
     assert "`size`" in python_api
     assert "Answer prose appears incrementally" in desktop
+    assert "search_policy" in desktop
+    assert "From earlier evidence" in desktop
+    assert "search_attachments" in desktop
+    assert "Save as Markdown" in desktop
+    assert "Drop files to attach" in desktop
+    assert "Context tokens" in desktop
+    assert "`[A#]`" in desktop
     assert "LaTeX math" in desktop
     assert "KaTeX" in desktop
     assert "remark-math" in desktop_architecture

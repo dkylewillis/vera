@@ -3133,6 +3133,16 @@ details.traceEntry[open] > summary {
   flex-shrink: 0;
 }
 
+.attachChip--file {
+  max-width: 280px;
+}
+
+.attachChipMeta {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
 .attachChipName {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3154,6 +3164,45 @@ details.traceEntry[open] > summary {
 .attachChipRemove:hover {
   color: var(--text-strong);
   background: var(--bg-surface-3);
+}
+
+.draftCard {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface-2);
+}
+
+.draftCardBar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+}
+
+.draftCardTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+
+.draftCardChevron--open {
+  transform: rotate(180deg);
+}
+
+.draftSaveAnswer {
+  margin-top: 8px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 12px;
 }
 
 .attachDropHint {

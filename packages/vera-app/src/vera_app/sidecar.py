@@ -85,10 +85,12 @@ from vera_app.cancellation import CancellationToken, CancelledError, SkipCurrent
 from vera_app.chat import answer as _answer
 from vera_app.chat import list_llm_models as _list_models
 from vera_app.chat import list_modes as _list_modes
+from vera_app.chat_attachments import handle_chat_attachment_prepare
 from vera_app.inspect import inspect as _inspect
 from vera_app.inspect import page as _page
 from vera_app.inspect import validate as _validate
 from vera_app.llm import ProviderHttpError
+from vera_app.markdown_drafts import handle_render_markdown
 from vera_app.protocol import SIDECAR_ACTIONS
 from vera_app.search import figure_data as _figure_data
 from vera_app.search import search_report as _search_report
@@ -107,6 +109,8 @@ HANDLERS: dict[str, Handler] = {
     "search": _search_report,
     "figure_data": _figure_data,
     "answer": _answer,
+    "chat_attachment_prepare": handle_chat_attachment_prepare,
+    "render_markdown": handle_render_markdown,
     "convert": convert_handlers.handle_convert,
     "batch_convert": convert_handlers.handle_batch_convert,
     "export": _export,
@@ -190,7 +194,14 @@ def handle(request: Request, cancel: CancellationToken | None = None) -> Respons
                 _write_response({**data, "id": request_id})
 
             result = _answer(request, write_event=_emit, cancel=cancel)
-        elif action in {"convert", "batch_convert", "ocr_languages_download", "library_init", "library_sync"}:
+        elif action in {
+            "convert",
+            "batch_convert",
+            "ocr_languages_download",
+            "library_init",
+            "library_sync",
+            "chat_attachment_prepare",
+        }:
 
             def _emit(data: dict[str, Any]) -> None:
                 _write_response({**data, "id": request_id})

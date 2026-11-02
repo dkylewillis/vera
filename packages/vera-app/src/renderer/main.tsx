@@ -44,6 +44,8 @@ import { useSidecarCall } from './hooks/useSidecarCall';
 import { useSourceDocument, type ViewerMode } from './hooks/useSourceDocument';
 import { useWorkspaceFolders } from './hooks/useWorkspaceFolders';
 import { firstCitationInAnswer } from './lib/citations';
+import { priorCitationRefs, priorEvidence } from './lib/priorEvidence';
+import { fullAttachmentIds, latestAttachmentUsage, nextLabelStart, restoredChatAttachments, splitDroppedFiles } from './lib/fileAttachments';
 import { backgroundTasksReducer } from './lib/backgroundTasks';
 import { EMPTY_FIGURES, EMPTY_REGIONS } from './lib/constants';
 import {
@@ -79,7 +81,7 @@ import { folderScopeInclude, libraryQueryScope } from './lib/search';
 import { hydrateSessionTurns, stripTrace, traceKey } from './lib/sessions';
 import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS } from './lib/providers';
 import { SIDECAR_ACTIONS } from '../shared/protocol';
-import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatCitationResult, EmbedderDescriptor, ExportResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, SkippedSemanticModelGroup, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
+import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatFileAttachment, ChatCitationResult, EmbedderDescriptor, ExportResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, SkippedSemanticModelGroup, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
 import 'katex/dist/katex.min.css';
 import './styles.css';
 
@@ -122,7 +124,8 @@ function App() {
   const [submittedSearchQuery, setSubmittedSearchQuery] = useState('');
   const [composerResetVersion, setComposerResetVersion] = useState(0);
   const [composerRestoredDraft, setComposerRestoredDraft] = useState({ version: 0, text: '' });
-  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [attachments, setAttachments] = useState<Array<ChatAttachment & { fresh?: boolean }>>([]);
+  const [fileAttachments, setFileAttachments] = useState<Array<ChatFileAttachment & { preparing?: boolean; status?: string }>>([]);
   const [mode, setMode] = useState('hybrid');
   const [topK, setTopK] = useState(8);
   const [contextChunks, setContextChunks] = useState(0);
@@ -364,7 +367,7 @@ function App() {
   );
   // Explicit checkbox selections are a valid scope even when the active library
   // inspection is empty or a document/folder has not been opened in the viewer.
-  const hasSearchableScope = selectedFiles.length > 0 || (Boolean(searchScopePath.trim()) && !activeLibraryIsEmpty);
+  const hasSearchableScope = selectedFiles.length > 0 || fileAttachments.length > 0 || (Boolean(searchScopePath.trim()) && !activeLibraryIsEmpty);
   const isCorpus = Boolean(
     (activeLibraryPath && path === activeLibraryPath)
     || inspect?.directory
@@ -565,6 +568,7 @@ function App() {
     promptForIndexBeforeQuery: () => promptForIndexBeforeQueryRef.current(),
     loadSourceDocument: source.loadSourceDocument,
     nextSourceLoadId: source.nextLoadId,
+    currentSourceLoadId: source.currentLoadId,
     setErrorMessage,
     setSubmittedSearchQuery,
     setResults,
@@ -1177,10 +1181,13 @@ function App() {
     });
   }
 
-  // Reads dropped/selected image files into data URLs and adds them as chat
-  // attachments, up to MAX_ATTACHMENTS. Non-image files are ignored.
+  // Images become session attachments. Documents are converted to a chat .vera.
   async function addAttachmentFiles(fileList: FileList | File[]) {
-    const files = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
+    const { images: files, documents, rejected } = splitDroppedFiles(Array.from(fileList));
+    if (rejected.length) {
+      setErrorMessage(`Can't attach ${rejected.join(', ')}. Use an image, PDF, Office, Markdown, HTML, text, or VERA file.`);
+    }
+    if (documents.length) void addDocumentFiles(documents);
     if (!files.length) return;
     const room = MAX_ATTACHMENTS - attachments.length;
     if (room <= 0) {
@@ -1194,6 +1201,7 @@ function App() {
         name: file.name,
         mime_type: file.type,
         data_url: await readFileAsDataUrl(file),
+        fresh: true,
       })),
     );
     setAttachments((prev) => [...prev, ...read]);
@@ -1204,6 +1212,95 @@ function App() {
 
   function removeAttachment(id: string) {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  function removeFileAttachment(id: string) {
+    setFileAttachments((prev) => prev.filter((file) => file.id !== id));
+  }
+
+  async function saveDraftAs(sourcePath: string, filename: string) {
+    try {
+      await window.vera.saveDraftAs(sourcePath, filename);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to save the draft');
+    }
+  }
+
+  function showDraft(sourcePath: string) {
+    void window.vera.showInFolder(sourcePath);
+  }
+
+  async function saveAnswerMarkdown(turn: SessionTurn) {
+    const rendered = await call<{ path: string; filename: string }>({
+      action: SIDECAR_ACTIONS.renderMarkdown,
+      title: 'Answer',
+      filename: 'answer.md',
+      content: turn.content,
+      citations: turn.citations ?? [],
+      session_id: activeSessionId || 'session',
+    }, 'Saving Markdown');
+    if (rendered?.path) await saveDraftAs(rendered.path, rendered.filename);
+  }
+
+  async function addDocumentFiles(files: File[]) {
+    for (const file of files) {
+      const id = `file_${Math.random().toString(36).slice(2)}`;
+      setFileAttachments((prev) => {
+        if (prev.some((item) => item.name === file.name && item.preparing)) return prev;
+        return [...prev, {
+          id,
+          name: file.name,
+          source_path: '',
+          vera_path: '',
+          token_estimate: 0,
+          chunk_count: 0,
+          page_count: 0,
+          preparing: true,
+          status: 'Preparing…',
+          fresh: true,
+        }];
+      });
+      const requestId = crypto.randomUUID();
+      const off = window.vera.onAnswerEvent((event) => {
+        if (event.id !== requestId || event.event !== 'conversion_progress') return;
+        setFileAttachments((prev) => prev.map((item) => item.id === id ? { ...item, status: 'Converting…' } : item));
+      });
+      try {
+        const sourcePath = window.vera.pathForFile(file) || await window.vera.saveDroppedFile(file.name, await file.arrayBuffer());
+        const prepared = await call<{ vera_path: string; token_estimate: number; chunk_count: number; page_count: number; outline?: string[] }>({
+          action: SIDECAR_ACTIONS.chatAttachmentPrepare,
+          input: sourcePath,
+          model: embeddingModel,
+        }, 'Preparing attachment', requestId, { timeoutMs: 0 });
+        if (!prepared) {
+          setFileAttachments((prev) => prev.filter((item) => item.id !== id));
+          continue;
+        }
+        setFileAttachments((prev) => {
+          if (prev.some((item) => item.vera_path && item.vera_path === prepared.vera_path && item.id !== id)) {
+            return prev.filter((item) => item.id !== id);
+          }
+          return prev.map((item) => item.id === id ? {
+            ...item,
+            source_path: sourcePath,
+            vera_path: prepared.vera_path,
+            token_estimate: prepared.token_estimate,
+            chunk_count: prepared.chunk_count,
+            page_count: prepared.page_count,
+            outline: prepared.outline,
+            label_start: nextLabelStart(prev),
+            preparing: false,
+            status: undefined,
+            fresh: true,
+          } : item);
+        });
+      } catch (error) {
+        setFileAttachments((prev) => prev.filter((item) => item.id !== id));
+        setErrorMessage(error instanceof Error ? error.message : `Couldn't read ${file.name}`);
+      } finally {
+        off();
+      }
+    }
   }
 
   function stopAnswer() {
@@ -1262,32 +1359,23 @@ function App() {
     };
     if (modelOptions.reasoning_effort) llm.reasoning_effort = modelOptions.reasoning_effort;
     if (modelOptions.fast) llm.service_tier = 'priority';
+    if (provider.context_tokens) llm.context_tokens = provider.context_tokens;
     onAccepted();
 
     // Build conversation history from prior turns for multi-turn context.
     const history = sessionTurns.map((t) => ({ role: t.role, content: t.content }));
 
-    // Carry forward citation labels so `[C#]` markers stay stable across the whole
-    // session: the same chunk keeps its original id in follow-up answers, and new
-    // chunks continue numbering after the highest id already used.
-    const priorCitationsMap = new Map<string, { id: string; chunk_id: string }>();
-    for (const t of sessionTurns) {
-      if (t.role !== 'assistant' || !t.citations) continue;
-      for (const c of t.citations) {
-        const chunkId = c.result?.chunk_id;
-        if (chunkId && !priorCitationsMap.has(chunkId)) {
-          priorCitationsMap.set(chunkId, { id: c.id, chunk_id: chunkId });
-        }
-      }
-    }
-    const priorCitations = [...priorCitationsMap.values()];
+    const priorCitations = priorCitationRefs(sessionTurns);
+    const evidence = priorEvidence(sessionTurns);
 
     answerCanceledRef.current = false;
     const answerRequestId = crypto.randomUUID();
     activeAnswerRequestIdRef.current = answerRequestId;
 
     // Optimistically append the user turn to the thread.
-    const pendingAttachments = attachments;
+    const pendingAttachments = attachments.filter((item) => item.fresh);
+    const readyFiles = fileAttachments.filter((file) => !file.preparing && file.vera_path);
+    const fullIds = fullAttachmentIds(readyFiles, sessionTurns);
     const userTurn: SessionTurn = {
       role: 'user',
       content: prompt,
@@ -1298,7 +1386,8 @@ function App() {
     shouldAutoScrollThreadRef.current = true;
     setShowJumpToLatest(false);
     setSessionTurns(nextTurns);
-    setAttachments([]);
+    setAttachments((prev) => prev.map((item) => ({ ...item, fresh: false })));
+    setFileAttachments((prev) => prev.map((file) => ({ ...file, fresh: false })));
 
     // Set up streaming event listener before firing the request.
     setStreamEvents([]);
@@ -1351,10 +1440,21 @@ function App() {
       mode_id: activeModeId || activeMode?.id || '',
       history,
       prior_citations: priorCitations,
+      ...(evidence.length ? { prior_evidence: evidence } : {}),
       llm,
       ...(pendingAttachments.length
         ? { attachments: pendingAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })) }
         : {}),
+      ...(attachments.length ? { image_attachments: attachments.map(({ id, name, mime_type, data_url }) => ({ id, name, mime_type, data_url })) } : {}),
+      ...(readyFiles.length ? {
+        file_attachments: readyFiles,
+        full_attachment_ids: fullIds,
+      } : {}),
+      session_id: activeSessionId ?? undefined,
+      ...(() => {
+        const draftTurn = [...sessionTurns].reverse().find((turn) => turn.drafts?.length);
+        return draftTurn?.drafts?.length ? { current_drafts: draftTurn.drafts } : {};
+      })(),
     }, 'Asking', answerRequestId, { timeoutMs: 0 });
     offEvents();
     const wasCancelled = answerCanceledRef.current;
@@ -1381,6 +1481,9 @@ function App() {
         searches: result.searches,
         ...(selectedFiles.length ? { selected_paths: selectedFiles } : {}),
         answer_mode: result.answer_mode,
+        ...(result.answered_from ? { answered_from: result.answered_from } : {}),
+        ...(result.attachment_usage ? { attachment_usage: result.attachment_usage } : {}),
+        ...(result.drafts?.length ? { drafts: result.drafts } : {}),
         mode_label: result.mode_label,
         trace: turnTrace,
         images_sent: result.images_sent,
@@ -1420,6 +1523,8 @@ function App() {
         title,
         source_path: searchScopePath,
         ...(selectedFiles.length ? { selected_paths: selectedFiles } : {}),
+        ...(readyFiles.length ? { file_attachments: readyFiles.map(({ preparing: _preparing, status: _status, ...file }) => file) } : {}),
+        ...(attachments.length ? { image_attachments: attachments.map(({ fresh: _fresh, ...image }) => image) } : {}),
         turns: withAssistant.map(stripTrace),
         created_at: activeSessionId ? (sessions.find((s) => s.id === sid)?.created_at ?? now) : now,
         updated_at: now,
@@ -1476,6 +1581,7 @@ function App() {
     setSearchQuery('');
     setComposerResetVersion((version) => version + 1);
     setAttachments([]);
+    setFileAttachments([]);
   }
 
   async function loadSession(session: Session) {
@@ -1485,6 +1591,9 @@ function App() {
     shouldAutoScrollThreadRef.current = true;
     setShowJumpToLatest(false);
     setSessionTurns(hydratedTurns);
+    const restored = restoredChatAttachments(session);
+    setFileAttachments(restored.files);
+    setAttachments(restored.images);
     // Restore scope before selecting citations so result.file fallbacks resolve
     // against the session path. Viewer content is replaced by loadSourceDocument below.
     const sessionPath = session.source_path;
@@ -2202,8 +2311,14 @@ function App() {
             hasSearchableScope={hasSearchableScope}
             composerResetVersion={composerResetVersion}
             composerRestoredDraft={composerRestoredDraft}
+            fileAttachments={fileAttachments}
+            attachmentUsage={latestAttachmentUsage(sessionTurns)}
             onAddAttachments={addAttachmentFiles}
             onRemoveAttachment={removeAttachment}
+            onRemoveFile={removeFileAttachment}
+            onSaveDraft={saveDraftAs}
+            onShowDraft={showDraft}
+            onSaveAnswerMarkdown={saveAnswerMarkdown}
             onAsk={askTarget}
             onStopAnswer={stopAnswer}
             modePickerOpen={modePickerOpen}

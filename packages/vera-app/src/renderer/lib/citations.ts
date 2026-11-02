@@ -1,6 +1,6 @@
 import type { ChatCitationResult } from '../types';
 
-const CITATION_MARKER = /\[(C\d+)\]/g;
+const CITATION_MARKER = /\[([CA]\d+)\]/g;
 
 export function citationsForTurn(
   turnCitations: Iterable<ChatCitationResult>,

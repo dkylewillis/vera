@@ -47,6 +47,12 @@ describe('ChatTurn citation markers', () => {
     );
   });
 
+  it('links an attached-file marker beside a library marker', () => {
+    const html = renderAnswer('Sized per the memo. [A3] [C1]', [citation('C1'), citation('A3')]);
+    expect(html).toContain('<button class="inlineCitation">[A3]</button>');
+    expect(html).toContain('<button class="inlineCitation">[C1]</button>');
+  });
+
   it('links a marker reused from an earlier turn without a new search', () => {
     expect(renderAnswer('The earlier result still applies. [C1]', [], [citation('C1')])).toContain(
       '<button class="inlineCitation">[C1]</button>',
@@ -126,5 +132,43 @@ describe('ChatTurn LaTeX', () => {
 
   it('does not throw on incomplete display math', () => {
     expect(() => renderAnswer('$$E = mc', [])).not.toThrow();
+  });
+});
+
+describe('ChatTurn evidence and drafts', () => {
+  it('notes an answer that reused earlier evidence', () => {
+    const turn: SessionTurn = {
+      role: 'assistant',
+      content: 'The pond is already sized. [C1]',
+      citations: [citation('C1')],
+      timestamp: 0,
+      answered_from: 'prior_evidence',
+    };
+    const html = renderToStaticMarkup(
+      <ChatTurn turn={turn} selectCitation={() => {}} showTrace={false} />,
+    );
+    expect(html).toContain('From earlier evidence. No new search was needed.');
+  });
+
+  it('shows a draft card and Save as Markdown', () => {
+    const turn: SessionTurn = {
+      role: 'assistant',
+      content: 'See the report.',
+      timestamp: 0,
+      drafts: [{ path: 'C:/drafts/report.md', filename: 'report.md', title: 'Report', version: 1 }],
+    };
+    const html = renderToStaticMarkup(
+      <ChatTurn
+        turn={turn}
+        selectCitation={() => {}}
+        showTrace={false}
+        onSaveDraft={() => {}}
+        onShowDraft={() => {}}
+        onSaveAnswerMarkdown={() => {}}
+      />,
+    );
+    expect(html).toContain('report.md');
+    expect(html).toContain('Copy Markdown');
+    expect(html).toContain('Save as Markdown');
   });
 });

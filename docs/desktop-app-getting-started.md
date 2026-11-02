@@ -296,6 +296,15 @@ prompt body. Clamped fields:
 | `max_searches` | 6 | 1–12 |
 | `max_chunks` | 20 | 1–60 |
 | `max_figure_images` | 4 | 0–20 |
+| `search_policy` | `auto` | `auto`, `first_turn`, `always` |
+| `tools` | every built-in tool | comma-separated names |
+
+`search_policy: auto` searches when the evidence already in the conversation
+does not cover the question. `first_turn` requires a search on the opening
+question of a chat that has no earlier evidence. `always` requires a search
+on every turn while the search budget remains. `tools` limits which tools
+that mode may call. Omit it, or leave it empty, to allow `search`,
+`search_attachments`, `view_figure`, and `write_markdown`.
 
 Ask's LLM `search` tool also accepts `quality`: `strict` (keep hits at least
 0.85 of the top score), `balanced` (0.55, default), or `permissive` (keep
@@ -477,6 +486,49 @@ Convert and embed always run in-process in the sidecar; see
   skipped, the embedder used at convert time is not available in this
   sidecar. OpenAI embeddings are bundled (`OPENAI_API_KEY` under **File >
   Settings → Embeddings**); Voyage and Ollama are not.
+
+## Files, earlier evidence, and Markdown reports
+
+Drop PDF, Word, PowerPoint, Excel, Markdown, HTML, plain text, or `.vera`
+files onto Ask, or use the attach button. The hint reads
+**Drop files to attach**. Each document is converted once for that chat. Files that fit the
+model's context are read in full; the rest stay searchable with
+`search_attachments`. The chip shows progress while a file is preparing, then
+**Read in full**, **Searched N×**, or **Not used** after the answer. Send
+stays unavailable until every attached file is ready. Ask works with attached
+files alone, before a library is selected.
+
+Passages from attached files are cited as `[A#]`, beside `[C#]` for library
+results. Each file keeps its numbers for the whole chat. The cached copy
+stores the original file, so selecting an `[A#]` citation opens and
+highlights it in the viewer. The cache lives in the app's data folder
+(`%APPDATA%\VERA\chat-attachments` on Windows) and is removed when the last
+chat that uses it is deleted. A `.vera` you attach is used in place. When a
+cited archive has nothing the viewer can open, the viewer shows the passage
+text instead.
+
+Follow-up questions include passages retrieved earlier. When those passages
+cover the question, Ask answers without a new search and shows
+**From earlier evidence**. A search still runs when the question needs
+something that is not already in the chat, or when the mode's `search_policy`
+requires one.
+
+**File > Settings → LLM Providers** has an optional **Context tokens** field
+beside temperature. Leave it empty to use the provider default: about 8,000
+tokens for Ollama and LM Studio, and 128,000 for OpenAI, OpenRouter, and
+VERA Pro. Attached documents use about 40% of that window, up to 40,000
+tokens. Earlier evidence uses about 10%, or about 2,000 tokens on the local
+default.
+
+Figures inside a file that was read in full are listed in the prompt. Ask
+fetches the ones it needs with `view_figure` when the model accepts images.
+Images dropped into the composer stay with the chat and can be viewed again
+on a later turn.
+
+When you ask for a report or a Markdown file, Ask writes one under the chat's
+drafts folder. The reply shows the filename with a preview, **Copy Markdown**,
+**Save as**, and **Show in folder**. **Save as Markdown** on any assistant
+reply writes that answer with citation footnotes.
 
 ## Provider request errors
 

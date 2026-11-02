@@ -1,6 +1,7 @@
 export const DEFAULT_ACTION_TIMEOUT_MS = 5 * 60 * 1000;
 
-export type ActionCallOptions = { scope?: string; timeoutMs?: number };
+/** `quiet` leaves the error banner alone; the caller handles a failed result itself. */
+export type ActionCallOptions = { scope?: string; timeoutMs?: number; quiet?: boolean };
 
 export type SidecarCall = <T>(
   payload: Record<string, unknown>,

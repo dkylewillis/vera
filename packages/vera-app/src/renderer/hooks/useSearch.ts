@@ -33,8 +33,14 @@ export type SearchHost = {
   call: SidecarCall;
   cancelActionScope: (scope: string) => void;
   promptForIndexBeforeQuery: () => Promise<boolean>;
-  loadSourceDocument: (targetPath?: string, activateViewer?: boolean, requestId?: number) => Promise<void>;
+  loadSourceDocument: (
+    targetPath?: string,
+    activateViewer?: boolean,
+    requestId?: number,
+    options?: { quiet?: boolean },
+  ) => Promise<boolean | void>;
   nextSourceLoadId: () => number;
+  currentSourceLoadId: () => number;
   setErrorMessage: (message: string | null) => void;
   setSubmittedSearchQuery: Dispatch<SetStateAction<string>>;
   setResults: Dispatch<SetStateAction<SearchResult[]>>;
@@ -91,7 +97,13 @@ export function createSearchController(getHost: () => SearchHost) {
     }
     const requestId = host.nextSourceLoadId();
     if (resultPath && (resultPath !== host.sourceDocumentPath || !host.sourceDocument)) {
-      void host.loadSourceDocument(resultPath, false, requestId);
+      // A passage whose archive has nothing to display (no stored original,
+      // preview, or sibling file) falls back to the chunk view without an error.
+      void host.loadSourceDocument(resultPath, false, requestId, { quiet: true }).then((loaded) => {
+        if (loaded === false && requestId === host.currentSourceLoadId()) {
+          host.setViewerMode('selection');
+        }
+      });
     } else {
       host.cancelActionScope('source');
       host.setPendingSourcePath('');

@@ -3,12 +3,13 @@ import type { ChatCitationResult, SessionTurn } from '../types';
 import { citationsForTurn } from '../lib/citations';
 import { ActivityTrace } from './activity/ActivityTrace';
 import { ChatMarkdown } from './ChatMarkdown';
+import { DraftCard } from './DraftCard';
 import { TraceView } from './activity/TraceView';
 
-// A code span holding nothing but `[C#]` markers (optionally comma/semicolon
+// A code span holding nothing but `[C#]` / `[A#]` markers (optionally comma/semicolon
 // separated). Models routinely imitate the prompt's `[C1]` example verbatim,
 // backticks included, which would otherwise render as an inert code span.
-const CITATION_ONLY_CODE = /^\s*\[C\d+\](\s*[,;]?\s*\[C\d+\])*\s*$/;
+const CITATION_ONLY_CODE = /^\s*\[[CA]\d+\](\s*[,;]?\s*\[[CA]\d+\])*\s*$/;
 
 function renderAnswerWithCitations(
   answerText: string,
@@ -22,9 +23,9 @@ function renderAnswerWithCitations(
   const injectCitations = (children: ReactNode): ReactNode =>
     React.Children.map(children, (child, index) => {
       if (typeof child !== 'string') return child;
-      if (!child.includes('[C')) return child;
-      return child.split(/(\[C\d+\])/g).map((part, partIndex) => {
-        const id = part.match(/^\[(C\d+)\]$/)?.[1];
+      if (!child.includes('[C') && !child.includes('[A')) return child;
+      return child.split(/(\[[CA]\d+\])/g).map((part, partIndex) => {
+        const id = part.match(/^\[([CA]\d+)\]$/)?.[1];
         const citation = id ? citationById.get(id) : null;
         if (!citation) return <React.Fragment key={`t-${index}-${partIndex}`}>{part}</React.Fragment>;
         return (
@@ -87,6 +88,9 @@ export const ChatTurn = React.memo(function ChatTurn({
   selectCitation,
   selectedChunkId,
   showTrace,
+  onSaveDraft,
+  onShowDraft,
+  onSaveAnswerMarkdown,
 }: {
   turn: SessionTurn;
   // Includes citations retrieved by earlier turns so a follow-up can link a
@@ -95,6 +99,9 @@ export const ChatTurn = React.memo(function ChatTurn({
   selectCitation: (citation: ChatCitationResult, citationGroup?: ChatCitationResult[]) => void;
   selectedChunkId?: string;
   showTrace: boolean;
+  onSaveDraft?: (path: string, filename: string) => void;
+  onShowDraft?: (path: string) => void;
+  onSaveAnswerMarkdown?: (turn: SessionTurn) => void;
 }) {
   if (turn.role === 'user') {
     return (
@@ -124,12 +131,26 @@ export const ChatTurn = React.memo(function ChatTurn({
         selectedChunkId={selectedChunkId}
       />
       {turn.answer_mode === 'retrieval' ? <div className="noteBanner">The active API route rejected tool calling, so VERA used a single retrieval pass instead of agentic search.</div> : null}
+      {turn.answered_from === 'prior_evidence' ? <div className="noteBanner">From earlier evidence. No new search was needed.</div> : null}
       {turn.vision_fallback ? <div className="noteBanner">This model does not support image input. VERA omitted the images and retried with text only.</div> : null}
       {answerCitations.length ? (
         renderAnswerWithCitations(turn.content, answerCitations, selectCitation)
       ) : (
         <ChatMarkdown>{turn.content}</ChatMarkdown>
       )}
+      {turn.drafts?.map((draft) => (
+        <DraftCard
+          key={draft.path}
+          draft={draft}
+          onSave={onSaveDraft ?? (() => {})}
+          onShow={onShowDraft ?? (() => {})}
+        />
+      ))}
+      {onSaveAnswerMarkdown ? (
+        <button type="button" className="draftSaveAnswer" onClick={() => onSaveAnswerMarkdown(turn)}>
+          Save as Markdown
+        </button>
+      ) : null}
       {showTrace && turn.trace?.length ? <TraceView events={turn.trace} /> : null}
     </article>
   );
