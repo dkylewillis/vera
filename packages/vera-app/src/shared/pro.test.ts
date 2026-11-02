@@ -7,7 +7,10 @@ import {
   PRO_PRESET_KEY,
   parseVeraAuthCallback,
   providerCredentialKey,
+  includedUsagePercent,
+  onDemandLabel,
   usagePercent,
+  veraProLimitMessage,
   veraAuthCallbackFromArgs,
   withProProvider,
 } from './pro.js';
@@ -73,6 +76,30 @@ describe('Pro usage display', () => {
     expect(usagePercent(null, 6)).toBe(0);
     expect(usagePercent(1, null)).toBeNull();
     expect(usagePercent(1, 0)).toBeNull();
+  });
+
+  it('shows included usage as a percentage and on-demand usage in dollars', () => {
+    const account = {
+      includedPercent: 52,
+      usageUsd: 99,
+      limitUsd: 6,
+      onDemandEnabled: true,
+      onDemandUsedUsd: 3.4,
+      onDemandLimitUsd: 10,
+    };
+    expect(includedUsagePercent(account)).toBe(52);
+    expect(onDemandLabel(account)).toBe('$3.40 of $10.00');
+    expect(onDemandLabel({ ...account, onDemandEnabled: false })).toBe('Off');
+    expect(includedUsagePercent({ ...account, includedPercent: null })).toBe(100);
+  });
+
+  it('explains a VERA Pro key limit and leaves other providers alone', () => {
+    const error = 'LLM provider request failed (HTTP 402): Key limit exceeded';
+    expect(veraProLimitMessage(error, { onDemandEnabled: false, siteUrl: 'https://veradoc.si' }, 'vera_pro'))
+      .toBe('Included usage is used up. Turn on on-demand usage at https://veradoc.si/account.html');
+    expect(veraProLimitMessage(error, { onDemandEnabled: true, siteUrl: 'https://veradoc.si/' }, 'vera_pro'))
+      .toBe('On-demand limit reached. Raise your limit at https://veradoc.si/account.html');
+    expect(veraProLimitMessage(error, null, 'openrouter')).toBeNull();
   });
 });
 

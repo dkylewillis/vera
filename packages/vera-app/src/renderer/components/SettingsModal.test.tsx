@@ -52,10 +52,10 @@ describe('SettingsModal', () => {
     expect(html).not.toContain('huggingface.co/settings/tokens');
   });
 
-  it('opens Account with sign-in and Get Pro', () => {
+  it('opens Account with sign-in and Get VERA Pro', () => {
     const html = renderSettings('account');
     expect(html).toContain('Sign in');
-    expect(html).toContain('Get Pro');
+    expect(html).toContain('Get VERA Pro');
     expect(html).not.toContain('Activate Pro');
     expect(html).toContain('Search stays on this computer');
   });
@@ -93,9 +93,9 @@ describe('SettingsModal', () => {
     expect(html).toContain('HTTP snippet');
     expect(html).toContain('Stdio snippet');
     expect(html).toContain('model provider');
-    expect(html).toContain('Allow cloud agents (VERA Pro)');
+    expect(html).toContain('Allow cloud agents (Agent Access)');
     expect(html).toContain('Cloud assistants reach your library through VERA');
-    expect(html).toContain('Get Pro');
+    expect(html).toContain('Get Agent Access');
   });
 
   it('opens the Embeddings section with hosted credential fields', () => {

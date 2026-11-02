@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AGENT_SERVICE_NOTE } from '../../shared/agent-snippets';
-import type { ProAccount } from '../../shared/pro';
+import { subscriptionActive } from '../../shared/pro';
 import { useProAccount } from '../lib/proAccount';
 import type { AgentServiceStatus } from '../types';
-
-function subscriptionActive(account: ProAccount | null): boolean {
-  return account?.subscriptionStatus === 'active' || account?.subscriptionStatus === 'trialing';
-}
 
 async function copyText(value: string): Promise<boolean> {
   if (!value || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return false;
@@ -23,7 +19,7 @@ export function AgentAccessSection() {
   const [roots, setRoots] = useState<string[]>([]);
   const [enabled, setEnabled] = useState(false);
   const [cloudEnabled, setCloudEnabled] = useState(false);
-  const isPro = subscriptionActive(useProAccount());
+  const hasAgentAccess = subscriptionActive(useProAccount()?.agentAccessStatus || '');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
 
@@ -95,15 +91,15 @@ export function AgentAccessSection() {
         <input
           type="checkbox"
           checked={cloudEnabled}
-          disabled={busy || !isPro}
+          disabled={busy || !hasAgentAccess}
           onChange={(event) => void save(enabled, roots, event.target.checked)}
         />
-        Allow cloud agents (VERA Pro)
+        Allow cloud agents (Agent Access)
       </label>
-      <p>Cloud assistants reach your library through VERA's relay while this app is open.</p>
-      {!isPro ? (
+      <p>Cloud assistants reach your library through VERA's relay while this app is open. This needs an Agent Access subscription. VERA Pro does not include it.</p>
+      {!hasAgentAccess ? (
         <button type="button" className="secondaryAction" disabled={busy} onClick={() => void window.vera.proOpenPage('pricing')}>
-          Get Pro
+          Get Agent Access
         </button>
       ) : null}
       {status?.cloud?.message ? <p role="status">{status.cloud.message}</p> : null}

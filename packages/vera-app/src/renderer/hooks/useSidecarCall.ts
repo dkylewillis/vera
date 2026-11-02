@@ -1,4 +1,6 @@
 import { useRef, type Dispatch } from 'react';
+import { veraProLimitMessage } from '../../shared/pro';
+import { readProAccount } from '../lib/proAccount';
 import type { BackgroundTaskAction } from '../lib/backgroundTasks';
 import {
   DEFAULT_ACTION_TIMEOUT_MS,
@@ -82,7 +84,10 @@ export function createSidecarCaller(
           return null;
         }
         if (quiet) return null;
-        setErrorMessage(response.error || 'Request failed');
+        const llm = payload.llm;
+        const providerKey = llm && typeof llm === 'object' ? (llm as { provider_key?: unknown }).provider_key : undefined;
+        const limitMessage = veraProLimitMessage(response.error || '', readProAccount(), providerKey);
+        setErrorMessage(limitMessage || response.error || 'Request failed');
         setProviderErrorDetail(response.provider_error_detail || null);
         return null;
       }

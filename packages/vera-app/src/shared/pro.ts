@@ -35,10 +35,16 @@ export interface ProAccount {
   signedIn: boolean;
   email: string;
   subscriptionStatus: string;
+  agentAccessStatus: string;
   hasProKey: boolean;
   usageUsd: number | null;
   limitUsd: number | null;
   remainingUsd: number | null;
+  /** Included usage for the open period, 0 to 100. Null when usage has not loaded. */
+  includedPercent: number | null;
+  onDemandEnabled: boolean;
+  onDemandUsedUsd: number | null;
+  onDemandLimitUsd: number | null;
   error?: string;
 }
 
@@ -47,6 +53,39 @@ export function usagePercent(usageUsd: number | null, limitUsd: number | null): 
   if (limitUsd === null || !Number.isFinite(limitUsd) || limitUsd <= 0) return null;
   const used = usageUsd !== null && Number.isFinite(usageUsd) ? Math.max(0, usageUsd) : 0;
   return Math.min(100, Math.round((used / limitUsd) * 100));
+}
+
+export function subscriptionActive(status: string): boolean {
+  return status === 'active' || status === 'trialing';
+}
+
+/** Included percentage from the server, or from the older usage and limit fields. */
+export function includedUsagePercent(account: Pick<ProAccount, 'includedPercent' | 'usageUsd' | 'limitUsd'>): number | null {
+  if (account.includedPercent !== null && Number.isFinite(account.includedPercent)) {
+    return Math.min(100, Math.max(0, Math.round(account.includedPercent)));
+  }
+  return usagePercent(account.usageUsd, account.limitUsd);
+}
+
+function usd(value: number | null): string {
+  const amount = value !== null && Number.isFinite(value) ? value : 0;
+  return `$${amount.toFixed(2)}`;
+}
+
+/** "Off", or dollars used out of the limit the customer set. */
+export function onDemandLabel(account: Pick<ProAccount, 'onDemandEnabled' | 'onDemandUsedUsd' | 'onDemandLimitUsd'>): string {
+  if (!account.onDemandEnabled) return 'Off';
+  return `${usd(account.onDemandUsedUsd)} of ${usd(account.onDemandLimitUsd)}`;
+}
+
+/** Replaces a VERA Pro key-limit failure. Other providers keep the provider's own message. */
+export function veraProLimitMessage(error: string, account: Pick<ProAccount, 'onDemandEnabled' | 'siteUrl'> | null, providerKey: unknown): string | null {
+  if (providerKey !== PRO_PRESET_KEY) return null;
+  if (!error.includes('HTTP 402')) return null;
+  const site = (account?.siteUrl || 'https://veradoc.si').replace(/\/+$/, '');
+  const page = `${site}/account.html`;
+  if (account?.onDemandEnabled) return `On-demand limit reached. Raise your limit at ${page}`;
+  return `Included usage is used up. Turn on on-demand usage at ${page}`;
 }
 
 export interface ProActionResult {

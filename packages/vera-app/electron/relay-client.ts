@@ -70,8 +70,8 @@ export class RelayClient {
   }
 
   markNotPro(): void {
-    this.stop('VERA Pro is required for cloud agents.');
-    this.setState('not_pro', 'VERA Pro is required for cloud agents.');
+    this.stop('Agent Access is required for cloud agents.');
+    this.setState('not_pro', 'Agent Access is required for cloud agents.');
   }
 
   private async loop(): Promise<void> {

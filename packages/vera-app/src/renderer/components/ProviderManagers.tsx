@@ -132,7 +132,7 @@ const SETTINGS_SECTIONS: {
   {
     id: 'account',
     label: 'Account',
-    description: 'Sign in to VERA Pro and see this month’s Ask usage.',
+    description: 'Sign in to VERA Pro and see included and on-demand usage.',
     icon: UserRound,
   },
   {

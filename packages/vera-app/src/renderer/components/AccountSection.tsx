@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { usagePercent, type ProAccount } from '../../shared/pro';
+import { includedUsagePercent, onDemandLabel, type ProAccount } from '../../shared/pro';
 import { canLoadProAccount, publishProAccount, useProAccount } from '../lib/proAccount';
 
 const EMPTY_ACCOUNT: ProAccount = {
@@ -8,10 +8,15 @@ const EMPTY_ACCOUNT: ProAccount = {
   signedIn: false,
   email: '',
   subscriptionStatus: '',
+  agentAccessStatus: '',
   hasProKey: false,
   usageUsd: null,
   limitUsd: null,
   remainingUsd: null,
+  includedPercent: null,
+  onDemandEnabled: false,
+  onDemandUsedUsd: null,
+  onDemandLimitUsd: null,
 };
 
 export function AccountSection({ onChanged }: { onChanged: () => Promise<void> }) {
@@ -39,7 +44,8 @@ export function AccountSection({ onChanged }: { onChanged: () => Promise<void> }
 
   const status = account.subscriptionStatus || (account.signedIn ? 'signed in' : 'signed out');
   const subscribed = ['active', 'trialing', 'past_due', 'paused'].includes(account.subscriptionStatus);
-  const used = usagePercent(account.usageUsd, account.limitUsd);
+  const included = includedUsagePercent(account);
+  const usage = included === null ? '' : `Included usage ${included}% · On demand ${onDemandLabel(account)}`;
 
   return (
     <div className="settingsForm">
@@ -58,7 +64,7 @@ export function AccountSection({ onChanged }: { onChanged: () => Promise<void> }
               {account.email ? `${account.email} · ` : ''}
               {status}
               {account.hasProKey ? ' · key saved' : ''}
-              {used !== null ? ` · ${used}% of this month's allowance used` : ''}
+              {usage ? ` · ${usage}` : ''}
             </p>
           )}
           <div className="editorActions">
@@ -77,7 +83,7 @@ export function AccountSection({ onChanged }: { onChanged: () => Promise<void> }
               </button>
             ) : (
               <button type="button" className="secondaryAction" disabled={busy} onClick={() => void run(() => window.vera.proOpenPage('pricing'))}>
-                Get Pro
+                Get VERA Pro
               </button>
             )}
           </div>

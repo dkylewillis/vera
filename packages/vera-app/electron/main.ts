@@ -548,7 +548,7 @@ const relayClient: RelayClient = new RelayClient({
     writeProSession(next);
     return next;
   }),
-  isPro: async () => proSubscriptionActive((await currentProAccount()).subscriptionStatus),
+  isPro: async () => proSubscriptionActive((await currentProAccount()).agentAccessStatus),
   log: (line) => logSidecarStderr('agent-relay', line),
   onStatus: (): void => {
     publishServiceStatus(serviceManager.getStatus());
@@ -584,7 +584,7 @@ async function syncRelay(): Promise<void> {
     return;
   }
   const account = await currentProAccount();
-  if (!proSubscriptionActive(account.subscriptionStatus)) {
+  if (!proSubscriptionActive(account.agentAccessStatus)) {
     relayClient.markNotPro();
     publishServiceStatus(serviceManager.getStatus());
     return;
@@ -1103,9 +1103,14 @@ async function currentProAccount(): Promise<ProAccount> {
       email: fresh.email || base.email,
       hasProKey: hasProKey(),
       subscriptionStatus: usage.subscriptionStatus,
+      agentAccessStatus: usage.agentAccessStatus,
       usageUsd: usage.usageUsd,
       limitUsd: usage.limitUsd,
       remainingUsd: usage.remainingUsd,
+      includedPercent: usage.includedPercent,
+      onDemandEnabled: usage.onDemandEnabled,
+      onDemandUsedUsd: usage.onDemandUsedUsd,
+      onDemandLimitUsd: usage.onDemandLimitUsd,
       error: keyError || undefined,
     };
     lastProAccount = { ...account, error: undefined };

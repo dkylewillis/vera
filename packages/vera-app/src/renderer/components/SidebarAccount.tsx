@@ -8,10 +8,15 @@ const EMPTY_ACCOUNT: ProAccount = {
   signedIn: false,
   email: '',
   subscriptionStatus: '',
+  agentAccessStatus: '',
   hasProKey: false,
   usageUsd: null,
   limitUsd: null,
   remainingUsd: null,
+  includedPercent: null,
+  onDemandEnabled: false,
+  onDemandUsedUsd: null,
+  onDemandLimitUsd: null,
 };
 
 export function sidebarAccountLabel(account: Pick<ProAccount, 'signedIn' | 'email'>): string {

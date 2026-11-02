@@ -9,6 +9,10 @@ function veraApi() {
   return typeof window !== 'undefined' ? window.vera : undefined;
 }
 
+export function readProAccount(): ProAccount | null {
+  return current;
+}
+
 export function publishProAccount(next: ProAccount): void {
   current = next;
   for (const listener of listeners) listener();

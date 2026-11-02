@@ -72,10 +72,15 @@ export function emptyProAccount(config: ProCloudConfig, extras: Partial<ProAccou
     signedIn: false,
     email: '',
     subscriptionStatus: '',
+    agentAccessStatus: '',
     hasProKey: false,
     usageUsd: null,
     limitUsd: null,
     remainingUsd: null,
+    includedPercent: null,
+    onDemandEnabled: false,
+    onDemandUsedUsd: null,
+    onDemandLimitUsd: null,
     ...extras,
   };
 }
@@ -222,9 +227,14 @@ export async function claimProKey(
 
 export interface ProUsage {
   subscriptionStatus: string;
+  agentAccessStatus: string;
   usageUsd: number | null;
   limitUsd: number | null;
   remainingUsd: number | null;
+  includedPercent: number | null;
+  onDemandEnabled: boolean;
+  onDemandUsedUsd: number | null;
+  onDemandLimitUsd: number | null;
 }
 
 export async function fetchProUsage(
@@ -241,8 +251,13 @@ export async function fetchProUsage(
   const payload = await response.json() as Record<string, unknown>;
   return {
     subscriptionStatus: typeof payload.subscription_status === 'string' ? payload.subscription_status : '',
+    agentAccessStatus: typeof payload.agent_access_status === 'string' ? payload.agent_access_status : '',
     usageUsd: typeof payload.usage_monthly === 'number' ? payload.usage_monthly : null,
     limitUsd: typeof payload.limit_usd === 'number' ? payload.limit_usd : null,
     remainingUsd: typeof payload.limit_remaining === 'number' ? payload.limit_remaining : null,
+    includedPercent: typeof payload.included_percent === 'number' ? payload.included_percent : null,
+    onDemandEnabled: payload.on_demand_enabled === true,
+    onDemandUsedUsd: typeof payload.on_demand_used_usd === 'number' ? payload.on_demand_used_usd : null,
+    onDemandLimitUsd: typeof payload.on_demand_limit_usd === 'number' ? payload.on_demand_limit_usd : null,
   };
 }
