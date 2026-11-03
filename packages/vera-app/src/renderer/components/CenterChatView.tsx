@@ -15,7 +15,7 @@ import { ChatComposer } from './ChatComposer';
 import { ChatMarkdown } from './ChatMarkdown';
 import { ChatTurn } from './ChatTurn';
 import { fileName } from '../lib/formatting';
-import { providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from '../lib/providers';
+import { isModelListStale, MODEL_LIST_MAX_AGE_MS, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from '../lib/providers';
 import type {
   AttachmentUsage,
   ChatAttachment,
@@ -272,7 +272,7 @@ export function CenterChatView({
               <>
                 <div className="modelPickerBackdrop" onClick={() => onModePickerOpenChange(false)} />
                 <div className="modelPickerMenu" role="menu">
-                  <div className="modelPickerGroupLabel">Answer mode</div>
+                  <div className="modelPickerGroupLabel">Chat mode</div>
                   {modes.map((entry) => (
                     <button
                       type="button"
@@ -321,8 +321,7 @@ export function CenterChatView({
                 onModelPickerOpenChange(opening);
                 if (!opening) return;
                 onModelFilterChange('');
-                const refreshedAt = activeProvider?.models_refreshed_at ?? 0;
-                if (activeProvider && Date.now() - refreshedAt > 60 * 60 * 1000) {
+                if (activeProvider && isModelListStale(activeProvider, MODEL_LIST_MAX_AGE_MS)) {
                   onRefreshProviderModels(activeProvider.id);
                 }
               }}

@@ -58,7 +58,7 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 - Optional domain-specific response templates
 
 ### 6. LLM Ask
-- Connect to one or more LLM providers under **File > Settings**, or sign in
+- Connect to one or more LLM providers under **File > Settings → AI providers**, or sign in
   to **VERA Pro** under **File > Settings → Account** for Ask without your own key
 - Optionally share libraries with local agents under **File > Settings →
   Agent access**. One loopback MCP service stays up while Desktop is open.

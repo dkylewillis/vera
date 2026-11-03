@@ -299,7 +299,8 @@ Every signed-in computer keeps its own connection. **Cloud agents use** defaults
 to **Automatic**: requests stay on the current computer while it is healthy,
 and move to the most recently connected computer when it goes offline. Choose
 a computer in the list to pin requests to it. **Use this computer** pins this
-one. The others stay connected in standby and do not answer. If the pinned
+one. The others stay connected in standby and do not answer. The desktop
+status bar names the computer cloud agents are using. If the pinned
 computer is offline, the relay returns `503` naming that computer and listing
 the computers that are online. It does not fall back to another machine.
 Turning **Allow cloud agents** off on the pinned computer switches the account

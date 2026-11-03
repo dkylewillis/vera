@@ -16,6 +16,7 @@ import { IPC_CHANNELS, SIDECAR_ACTIONS, type FolderPickPurpose } from '../src/sh
 import { LIBRARY_SYNC_INTERVAL_MS, isManagedLibraryEvent, librarySyncDecision } from './folder-watch.js';
 import { DEFAULT_AGENT_SERVICE_PORT } from '../src/shared/agent-snippets.js';
 import { DESKTOP_DEFAULT_EMBEDDING_MODEL } from '../src/shared/desktop-defaults.js';
+import { helpLinkUrl } from '../src/shared/help-links.js';
 import {
   PRO_KEY_SECRET,
   PRO_PKCE_SECRET,
@@ -900,6 +901,9 @@ function normalizeProvider(raw: unknown): ProviderProfile | null {
     available_models: availableModels,
     models_refreshed_at: typeof profile.models_refreshed_at === 'number' ? profile.models_refreshed_at : undefined,
     model_options: modelOptions,
+    context_tokens: typeof profile.context_tokens === 'number' && Number.isFinite(profile.context_tokens) && profile.context_tokens > 0
+      ? Math.round(profile.context_tokens)
+      : undefined,
   };
 }
 
@@ -1644,7 +1648,7 @@ function configureMenu(): void {
           click: () => sendOpenSettings(),
         },
         {
-          label: 'Answer Modes Folder...',
+          label: 'Chat Modes Folder...',
           click: () => {
             void shell.openPath(modesDir());
           },
@@ -1913,6 +1917,12 @@ if (singleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.proOpenPage, async (_event, page: 'pricing' | 'account') => (
     openProPage(page === 'account' ? 'account' : 'pricing')
   ));
+  ipcMain.handle(IPC_CHANNELS.openHelpLink, async (_event, id: unknown) => {
+    const url = helpLinkUrl(id);
+    if (!url) return false;
+    await shell.openExternal(url);
+    return true;
+  });
   ipcMain.handle(IPC_CHANNELS.checkForUpdates, async () => {
     await checkForUpdatesManually();
   });

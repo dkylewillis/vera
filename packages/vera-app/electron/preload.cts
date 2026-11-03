@@ -31,6 +31,7 @@ const IPC_CHANNELS: typeof IpcChannels = {
   proActivate: 'vera:proActivate',
   proClearKey: 'vera:proClearKey',
   proOpenPage: 'vera:proOpenPage',
+  openHelpLink: 'vera:openHelpLink',
   checkForUpdates: 'vera:checkForUpdates',
   proAccountChanged: 'vera:proAccountChanged',
   getSessions: 'vera:getSessions',
@@ -94,6 +95,7 @@ contextBridge.exposeInMainWorld('vera', {
   proActivate: () => ipcRenderer.invoke(IPC_CHANNELS.proActivate),
   proClearKey: () => ipcRenderer.invoke(IPC_CHANNELS.proClearKey),
   proOpenPage: (page: 'pricing' | 'account') => ipcRenderer.invoke(IPC_CHANNELS.proOpenPage, page),
+  openHelpLink: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.openHelpLink, id),
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.checkForUpdates),
   onProAccountChanged: (callback: (account: ProAccount) => void) => {
     const listener = (_event: unknown, account: ProAccount) => callback(account);

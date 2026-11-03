@@ -79,6 +79,32 @@ Checking files overrides the folder scope. Right-clicking a converted document o
 **Preview document**, **Reconvert…**, and **Move .vera to Recycle Bin**,
 which leaves the source file in place.
 
+## Settings
+
+**File > Settings**, or the gear at the bottom of the left sidebar, opens on
+**Overview**. It shows what is ready and what still needs setup. Search and
+Convert need nothing there. Type in **Search settings** to find a section by
+everyday words such as `api key`, `ollama`, or `log`. Changes save as you
+make them, and **Done** closes the dialog.
+
+**AI providers** chooses the model that answers in Ask. **Model used for Ask**
+lists every enabled model. Providers are grouped as **Online services**
+(VERA Pro, OpenAI, OpenRouter) and **On this computer** (Ollama, LM Studio).
+Open one to set it up. For an online service, paste its key; **Get a key**
+opens the provider's key page in your browser. For a local server, select
+**Connect**. VERA loads the model list as soon as a key is saved or a local
+server answers, and turns the first model on for Ask when none is chosen
+yet. Lists more than an hour old are checked again when Settings or the
+model list opens, and after five minutes when you open that provider. The
+refresh icon beside **Models** checks right away. **Advanced options** holds
+the base URL, temperature, **Context tokens**, and **Remove provider**.
+**Add a custom endpoint** connects any other OpenAI-compatible server.
+
+**Embeddings** shows the search model Convert uses and stores keys for
+online search models. **Agent access** shares libraries with other AI apps.
+**Hugging Face** holds an optional download token that most people can skip.
+**Diagnostics** opens the convert log and checks for updates.
+
 ## VERA Pro
 
 The bottom of the left sidebar shows the signed-in email, a **Pro** mark when
@@ -88,7 +114,7 @@ signs this computer in through the same browser handoff.
 The site redirects to `vera://auth/callback`, and VERA stores the session with
 Electron `safeStorage`. A current subscription saves this computer’s model key
 during that sign-in, separately from any OpenRouter key
-you paste under **LLM Providers**. **Account** shows the percent of this month's allowance
+you paste under **AI providers**. **Account** shows the percent of this month's allowance
 already used. **Get Pro** opens the subscription page only when the
 account has no current subscription. **Manage subscription** opens the account
 page instead.
@@ -128,7 +154,8 @@ the VERA account. Search works only while this app is open. Closing the app
 makes the assistant report that VERA Desktop is not connected. If several
 computers are signed in, **Cloud agents use** stays on **Automatic** or the
 computer you pin. **Use this computer** chooses this one. The others stay
-connected in standby.
+connected in standby. The status bar names the computer cloud agents are
+using. Select it to open Agent access.
 
 ## Requirements
 
@@ -301,7 +328,7 @@ the app copies `ask.md` and `research.md` into that folder if they are
 missing so you can edit them; `summarize.md` stays package-only until you
 add a file. User files override built-ins with the same `id`.
 
-Open the folder from **File → Answer Modes Folder…** or the mode picker's
+Open the folder from **File → Chat Modes Folder…** or the mode picker's
 **Open modes folder…**. Click **Reload modes** (or restart) after edits.
 Only flat `key: value` frontmatter is parsed; nested YAML is treated as
 prompt body. Clamped fields:
@@ -533,8 +560,9 @@ cover the question, Ask answers without a new search and shows
 something that is not already in the chat, or when the mode's `search_policy`
 requires one.
 
-**File > Settings → LLM Providers** has an optional **Context tokens** field
-beside temperature. Leave it empty to use the provider default: about 8,000
+Each provider under **File > Settings → AI providers** has an optional
+**Context tokens** field in **Advanced options**, beside temperature. Leave it
+empty to use the provider default: about 8,000
 tokens for Ollama and LM Studio, and 128,000 for OpenAI, OpenRouter, and
 VERA Pro. Attached documents use about 40% of that window, up to 40,000
 tokens. Earlier evidence uses about 10%, or about 2,000 tokens on the local

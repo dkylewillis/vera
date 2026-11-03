@@ -31,7 +31,8 @@ import { PdfSourceViewer } from './components/PdfSourceViewer';
 import { MarkdownSourceViewer } from './components/MarkdownSourceViewer';
 import { SheetSourceViewer } from './components/SheetSourceViewer';
 import { SlideSourceViewer } from './components/SlideSourceViewer';
-import { ModelManager, SettingsModal, type SettingsSectionId } from './components/ProviderManagers';
+import { ModelManager } from './components/ProviderManagers';
+import { SettingsModal, type SettingsSectionId } from './components/SettingsModal';
 import { AskSetupDialog } from './components/AskSetupDialog';
 import { PRO_PRESET_KEY } from '../shared/pro';
 import { embedderAsPipelineDescriptor } from './components/EmbedderConfigForm';
@@ -79,9 +80,9 @@ import { DEFAULT_EMBEDDING_MODEL, embeddingProviderFromSpec } from './lib/conver
 import { librarySyncSummary, prepareManagedLibrary } from './lib/managedLibrary';
 import { folderScopeInclude, libraryQueryScope, multiLibraryScope, multiLibraryScopeLabel } from './lib/search';
 import { hydrateSessionTurns, stripTrace, traceKey } from './lib/sessions';
-import { defaultEnabledModels, filterDiscoveredModels, providerDisplayName, REASONING_EFFORTS } from './lib/providers';
+import { filterDiscoveredModels, listModelsLlm, providerDisplayName, REASONING_EFFORTS, withDiscoveredModels } from './lib/providers';
 import { SIDECAR_ACTIONS } from '../shared/protocol';
-import type { AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatFileAttachment, ChatCitationResult, EmbedderDescriptor, ExportResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, SkippedSemanticModelGroup, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
+import type { AgentServiceStatus, AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatFileAttachment, ChatCitationResult, EmbedderDescriptor, ExportResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, SkippedSemanticModelGroup, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
 import 'katex/dist/katex.min.css';
 import './styles.css';
 
@@ -151,7 +152,8 @@ function App() {
   const [convertLogPath, setConvertLogPath] = useState('');
   const [modePickerOpen, setModePickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<SettingsSectionId>('providers');
+  const [agentStatus, setAgentStatus] = useState<AgentServiceStatus | null>(null);
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId>('overview');
   const [askSetupOpen, setAskSetupOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [modelFilter, setModelFilter] = useState('');
@@ -160,7 +162,7 @@ function App() {
     model: string;
   } | null>(null);
   const [modelManagerOpen, setModelManagerOpen] = useState(false);
-  const [modelRefreshBusyId, setModelRefreshBusyId] = useState('');
+  const [modelRefreshBusyIds, setModelRefreshBusyIds] = useState<string[]>([]);
   const [modelRefreshMessage, setModelRefreshMessage] = useState('');
   const [convertMode, setConvertMode] = useState<'batch' | 'selected'>('selected');
   const [batchDirectory, setBatchDirectory] = useState('');
@@ -1741,6 +1743,8 @@ function App() {
       ...overrides,
     };
   }
+  const latestSettingsRef = useRef<AppSettings | null>(null);
+  latestSettingsRef.current = settingsSnapshot();
 
   async function saveEmbeddingModel(model: string) {
     const nextModel = model.trim() || DEFAULT_EMBEDDING_MODEL;
@@ -1801,46 +1805,57 @@ function App() {
     }));
   }
 
-  async function refreshProviderModels(providerId: string) {
-    const profile = providers.find((entry) => entry.id === providerId);
-    if (!profile) return;
-    if (!profile.base_url.trim()) {
-      setModelRefreshMessage(`Set a base URL for ${providerDisplayName(profile)} first.`);
+  async function refreshProviderModels(providerIds: string[]) {
+    const targets = providers.filter((entry) => providerIds.includes(entry.id));
+    if (!targets.length) return;
+    const ready = targets.filter((entry) => entry.base_url.trim());
+    if (!ready.length) {
+      setModelRefreshMessage(`Set a base URL for ${providerDisplayName(targets[0])} first.`);
       return;
     }
-    setModelRefreshBusyId(providerId);
-    setModelRefreshMessage(`Refreshing ${providerDisplayName(profile)}…`);
+    setModelRefreshBusyIds(ready.map((entry) => entry.id));
+    setModelRefreshMessage(ready.length === 1 ? `Refreshing ${providerDisplayName(ready[0])}…` : 'Checking for new models…');
     try {
-      const response = await window.vera.request<{ models: string[] }>({
-        action: SIDECAR_ACTIONS.listModels,
-        llm: {
-          provider: profile.provider,
-          base_url: profile.base_url,
-          api_key_env: profile.api_key_env,
-          auth_type: profile.auth_type,
-        },
-      });
-      if (!response.ok) {
-        setModelRefreshMessage(response.error || 'Unable to refresh models.');
-        return;
-      }
-      const discovered = filterDiscoveredModels(profile, response.result?.models ?? []);
-      const enabled = profile.models.length ? profile.models : defaultEnabledModels(profile, discovered);
-      const nextProviders = providers.map((entry) => entry.id === providerId
-        ? { ...entry, available_models: discovered, models_refreshed_at: Date.now(), models: enabled }
-        : entry);
-      const nextActiveModel = activeProviderId === providerId && !enabled.includes(activeModel)
-        ? (enabled[0] ?? '')
-        : activeModel;
-      await persistSettings(settingsSnapshot({
-        providers: nextProviders,
-        active_model: nextActiveModel,
+      const results = await Promise.all(ready.map(async (profile) => {
+        try {
+          const response = await window.vera.request<{ models: string[] }>({
+            action: SIDECAR_ACTIONS.listModels,
+            llm: listModelsLlm(profile),
+          });
+          return { profile, ok: response.ok, models: response.result?.models ?? [], error: response.error || '' };
+        } catch (error) {
+          return { profile, ok: false, models: [] as string[], error: error instanceof Error ? error.message : String(error) };
+        }
       }));
-      setModelRefreshMessage(discovered.length
-        ? `Found ${discovered.length} models from ${providerDisplayName(profile)}.`
-        : `${providerDisplayName(profile)} returned no models.`);
+      const discovered = new Map(results.filter((item) => item.ok).map((item) => [item.profile.id, item.models]));
+      if (discovered.size) {
+        // Merge into the latest settings so a model toggled during the request is kept.
+        const latest = latestSettingsRef.current ?? settingsSnapshot();
+        const nextProviders = latest.providers.map((entry) => {
+          const models = discovered.get(entry.id);
+          return models ? withDiscoveredModels(entry, models) : entry;
+        });
+        const active = nextProviders.find((entry) => entry.id === latest.active_provider_id);
+        const nextActiveModel = active && !active.models.includes(latest.active_model)
+          ? (active.models[0] ?? '')
+          : latest.active_model;
+        await persistSettings({ ...latest, providers: nextProviders, active_model: nextActiveModel });
+      }
+      const failed = results.filter((item) => !item.ok);
+      if (ready.length === 1) {
+        const [only] = results;
+        const name = providerDisplayName(only.profile);
+        const count = filterDiscoveredModels(only.profile, only.models).length;
+        setModelRefreshMessage(!only.ok
+          ? only.error || 'Unable to refresh models.'
+          : count ? `Found ${count} models from ${name}.` : `${name} returned no models.`);
+      } else {
+        setModelRefreshMessage(failed.length
+          ? `Could not refresh ${failed.map((item) => providerDisplayName(item.profile)).join(', ')}.`
+          : 'Model lists are up to date.');
+      }
     } finally {
-      setModelRefreshBusyId('');
+      setModelRefreshBusyIds([]);
     }
   }
 
@@ -1944,9 +1959,23 @@ function App() {
   }, []);
 
   useEffect(() => window.vera.onOpenSettings(() => {
-    setSettingsSection('providers');
+    setSettingsSection('overview');
     setSettingsOpen(true);
   }), []);
+
+  useEffect(() => {
+    const api = window.vera;
+    if (!api?.serviceGetStatus) return undefined;
+    let cancelled = false;
+    void api.serviceGetStatus().then((next) => {
+      if (!cancelled) setAgentStatus(next);
+    }).catch(() => undefined);
+    const unsubscribe = api.onServiceEvent?.((next) => setAgentStatus(next));
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, []);
 
   const folderPathsKey = folders.map((folder) => folder.path).join('\n');
   const libraryPathsKey = libraryPaths.join('\n');
@@ -2272,7 +2301,7 @@ function App() {
           <SidebarAccount
             collapsed={sidebarCollapsed}
             onOpenAccount={() => { setSettingsSection('account'); setSettingsOpen(true); }}
-            onOpenSettings={() => { setSettingsSection('providers'); setSettingsOpen(true); }}
+            onOpenSettings={() => { setSettingsSection('overview'); setSettingsOpen(true); }}
           />
         )}
         onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
@@ -2408,8 +2437,8 @@ function App() {
             hoveredModelOptions={hoveredModelOptions}
             onHoveredModelOptionsChange={setHoveredModelOptions}
             onSelectActiveModel={(providerId, model) => { void selectActiveModel(providerId, model); }}
-            onRefreshProviderModels={(providerId) => { void refreshProviderModels(providerId); }}
-            modelRefreshBusyId={modelRefreshBusyId}
+            onRefreshProviderModels={(providerId) => { void refreshProviderModels([providerId]); }}
+            modelRefreshBusyId={modelRefreshBusyIds[0] ?? ''}
             onOpenSettings={() => { setSettingsSection('providers'); setSettingsOpen(true); }}
             onUseVeraPro={() => { setAskSetupOpen(false); setSettingsSection('account'); setSettingsOpen(true); }}
             onAddOwnProvider={() => { setAskSetupOpen(false); setSettingsSection('providers'); setSettingsOpen(true); }}
@@ -2718,14 +2747,16 @@ function App() {
         tasks={backgroundTasks}
         busyFolderPath={busyFolderPath}
         onStopConversion={stopConversion}
+        agentStatus={agentStatus}
+        onOpenCloudAgents={() => { setSettingsSection('agents'); setSettingsOpen(true); }}
       />
       {modelManagerOpen ? (
         <ModelManager
           providers={providers}
-          busyProviderId={modelRefreshBusyId}
+          busyProviderIds={modelRefreshBusyIds}
           message={modelRefreshMessage}
           onToggle={(providerId, model) => void toggleProviderModel(providerId, model)}
-          onRefresh={(providerId) => void refreshProviderModels(providerId)}
+          onRefresh={(providerIds) => void refreshProviderModels(providerIds)}
           onAddProvider={() => {
             setModelManagerOpen(false);
             setSettingsSection('providers');

@@ -1,18 +1,10 @@
 import { useEffect, useState } from 'react';
+import { Cloud, Folder, FolderPlus, Laptop, Plug } from 'lucide-react';
 import { AGENT_SERVICE_NOTE } from '../../shared/agent-snippets';
 import { subscriptionActive } from '../../shared/pro';
 import { useProAccount } from '../lib/proAccount';
 import type { AgentServiceStatus } from '../types';
-
-async function copyText(value: string): Promise<boolean> {
-  if (!value || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return false;
-  try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { Callout, CopyField, SettingsCard, StatusPill, ToggleRow } from './SettingsWidgets';
 
 export function AgentAccessSection() {
   const [status, setStatus] = useState<AgentServiceStatus | null>(null);
@@ -99,146 +91,158 @@ export function AgentAccessSection() {
     await save(enabled, [...roots, picked]);
   }
 
+  const snippetHint = 'Turn on agent access to copy a config snippet.';
+
   return (
-    <div className="settingsForm">
-      <h3>Agent access</h3>
-      <p>{AGENT_SERVICE_NOTE}</p>
-      <label className="settingsCheck">
-        <input
-          type="checkbox"
+    <div className="settingsStack">
+      <Callout>
+        <p>{AGENT_SERVICE_NOTE}</p>
+      </Callout>
+
+      <SettingsCard
+        icon={<Laptop size={16} />}
+        title="Agents on this computer"
+        badge={enabled ? <StatusPill tone="good">On</StatusPill> : <StatusPill>Off</StatusPill>}
+      >
+        <ToggleRow
+          title="Share libraries with local agents"
+          description="Claude Desktop, Cursor, and other MCP apps on this computer can search the shared libraries while VERA is open."
           checked={enabled}
           disabled={busy}
-          onChange={(event) => void save(event.target.checked, roots)}
+          onChange={(next) => void save(next, roots)}
         />
-        Share libraries with local agents
-      </label>
-      <label className="settingsCheck">
-        <input
-          type="checkbox"
-          checked={cloudEnabled}
-          disabled={busy || !hasAgentAccess}
-          onChange={(event) => void save(enabled, roots, event.target.checked)}
-        />
-        Allow cloud agents (Agent Access)
-      </label>
-      <p>Cloud assistants reach your library through VERA's relay while this app is open. This needs an Agent Access subscription. VERA Pro does not include it. Each signed-in computer stays connected. Cloud agents use one of them.</p>
-      <div className="agentComputer">
-        <p>This computer: <strong>{status?.cloud.device.name || 'This computer'}</strong></p>
-        <form
-          className="agentComputerRename"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const name = nameDraft.trim();
-            if (!name || !window.vera?.relayRenameDevice) return;
-            void runCloudAction(() => window.vera.relayRenameDevice(name), 'Computer renamed.');
-          }}
-        >
-          <input
-            aria-label="Computer name"
-            value={nameDraft}
-            disabled={busy}
-            onChange={(event) => setNameDraft(event.target.value)}
-          />
-          <button type="submit" className="secondaryAction" disabled={busy || !nameDraft.trim()}>
-            Rename
+        <p className="providerHint" role="status">{notice || status?.message || 'Agent access is off.'}</p>
+      </SettingsCard>
+
+      <SettingsCard
+        icon={<Folder size={16} />}
+        title="Shared libraries"
+        description="Agents can search only these folders."
+        actions={(
+          <button type="button" className="secondaryAction compactAction" disabled={busy} onClick={() => void addLibrary()}>
+            <FolderPlus size={14} />Add library
           </button>
-        </form>
-      </div>
-      {cloudEnabled ? (
-        <CloudComputers
-          status={status}
-          busy={busy}
-          onRouting={(mode, deviceId) => void runCloudAction(
-            () => window.vera.relaySetRouting({ mode, deviceId }),
-            mode === 'auto' ? 'Cloud agents will stay on the current computer.' : 'Cloud agents will use that computer.',
-          )}
-          onForget={(deviceId) => void runCloudAction(
-            () => window.vera.relayForgetDevice(deviceId),
-            'Computer removed.',
-          )}
-          onUseThis={() => {
-            const id = status?.cloud.device.id;
-            if (!id) return;
-            void runCloudAction(
-              () => window.vera.relaySetRouting({ mode: 'pinned', deviceId: id }),
-              'Cloud agents will use this computer.',
-            );
-          }}
-        />
-      ) : null}
-      {!hasAgentAccess ? (
-        <button type="button" className="secondaryAction" disabled={busy} onClick={() => void window.vera.proOpenPage('pricing')}>
-          Get Agent Access
-        </button>
-      ) : null}
-      {status?.cloud?.message ? <p role="status">{status.cloud.message}</p> : null}
-      {status?.cloud?.connectorUrl ? (
-        <>
-          <h4>Connector URL</h4>
-          <pre>{status.cloud.connectorUrl}</pre>
+        )}
+      >
+        {roots.length === 0 ? (
+          <p className="mutedText">No libraries shared yet.</p>
+        ) : (
+          <ul className="agentLibraryList">
+            {roots.map((root) => (
+              <li key={root}>
+                <Folder size={14} aria-hidden="true" />
+                <span title={root}>{root}</span>
+                <button
+                  type="button"
+                  className="secondaryAction compactAction"
+                  disabled={busy}
+                  onClick={() => void save(enabled, roots.filter((item) => item !== root))}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SettingsCard>
+
+      <SettingsCard
+        icon={<Plug size={16} />}
+        title="Connect an agent"
+        description="Paste one snippet into the agent's MCP settings. The stdio snippet runs mcp-connect, which needs VERA Desktop open."
+      >
+        <CopyField label="HTTP snippet" value={status?.snippets.http || ''} emptyText={snippetHint} multiline />
+        <CopyField label="Stdio snippet" value={status?.snippets.stdio || ''} emptyText={snippetHint} multiline />
+        <div className="settingRow">
+          <span className="settingRowText">
+            <span className="settingRowTitle">Rotate token</span>
+            <span className="settingRowDescription">Issues a new token. Snippets you already copied stop working.</span>
+          </span>
           <button
             type="button"
-            className="secondaryAction"
-            onClick={() => void copyText(status.cloud.connectorUrl).then((ok) => setNotice(ok ? 'Connector URL copied.' : 'Unable to copy the connector URL.'))}
+            className="secondaryAction compactAction"
+            disabled={busy}
+            onClick={() => {
+              void window.vera.serviceRotateToken().then((next) => {
+                setStatus(next);
+                setNotice(next.message);
+              });
+            }}
           >
-            Copy connector URL
+            Rotate token
           </button>
-        </>
-      ) : null}
-      <h4>Shared libraries</h4>
-      {roots.length === 0 ? <p>No libraries shared yet.</p> : null}
-      <ul className="agentLibraryList">
-        {roots.map((root) => (
-          <li key={root}>
-            <span>{root}</span>
-            <button
-              type="button"
-              className="secondaryAction"
-              disabled={busy}
-              onClick={() => void save(enabled, roots.filter((item) => item !== root))}
-            >
-              Remove
+        </div>
+      </SettingsCard>
+
+      <SettingsCard
+        icon={<Cloud size={16} />}
+        title="Cloud agents"
+        badge={cloudEnabled ? <StatusPill tone="good">On</StatusPill> : <StatusPill>Off</StatusPill>}
+        description="Cloud assistants reach your library through VERA's relay while this app is open. This needs an Agent Access subscription. VERA Pro does not include it. Each signed-in computer stays connected. Cloud agents use one of them."
+      >
+        <ToggleRow
+          title="Allow cloud agents (Agent Access)"
+          description={hasAgentAccess ? 'Uses your VERA account to sign the assistant in.' : 'Requires an Agent Access subscription.'}
+          checked={cloudEnabled}
+          disabled={busy || !hasAgentAccess}
+          onChange={(next) => void save(enabled, roots, next)}
+        />
+        {!hasAgentAccess ? (
+          <div className="editorActions">
+            <button type="button" className="secondaryAction compactAction" disabled={busy} onClick={() => void window.vera.proOpenPage('pricing')}>
+              Get Agent Access
             </button>
-          </li>
-        ))}
-      </ul>
-      <button type="button" className="secondaryAction" disabled={busy} onClick={() => void addLibrary()}>
-        Add library
-      </button>
-      <p role="status">{notice || status?.message || 'Agent access is off.'}</p>
-      <button
-        type="button"
-        className="secondaryAction"
-        disabled={busy}
-        onClick={() => {
-          void window.vera.serviceRotateToken().then((next) => {
-            setStatus(next);
-            setNotice(next.message);
-          });
-        }}
-      >
-        Rotate token
-      </button>
-      <h4>HTTP snippet</h4>
-      <pre>{status?.snippets.http || 'Turn on agent access to copy a config snippet.'}</pre>
-      <button
-        type="button"
-        className="secondaryAction"
-        disabled={!status?.snippets.http}
-        onClick={() => void copyText(status?.snippets.http || '').then((ok) => setNotice(ok ? 'HTTP snippet copied.' : 'Unable to copy the HTTP snippet.'))}
-      >
-        Copy HTTP snippet
-      </button>
-      <h4>Stdio snippet</h4>
-      <pre>{status?.snippets.stdio || 'Turn on agent access to copy a config snippet.'}</pre>
-      <button
-        type="button"
-        className="secondaryAction"
-        disabled={!status?.snippets.stdio}
-        onClick={() => void copyText(status?.snippets.stdio || '').then((ok) => setNotice(ok ? 'Stdio snippet copied.' : 'Unable to copy the stdio snippet.'))}
-      >
-        Copy stdio snippet
-      </button>
+          </div>
+        ) : null}
+        {status?.cloud?.message ? <p className="providerHint" role="status">{status.cloud.message}</p> : null}
+        {status?.cloud?.connectorUrl ? <CopyField label="Connector URL" value={status.cloud.connectorUrl} /> : null}
+        <div className="agentComputer">
+          <span className="settingRowTitle">This computer: {status?.cloud.device.name || 'This computer'}</span>
+          <form
+            className="agentComputerRename"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const name = nameDraft.trim();
+              if (!name || !window.vera?.relayRenameDevice) return;
+              void runCloudAction(() => window.vera.relayRenameDevice(name), 'Computer renamed.');
+            }}
+          >
+            <input
+              type="text"
+              aria-label="Computer name"
+              placeholder="New name for this computer"
+              value={nameDraft}
+              disabled={busy}
+              onChange={(event) => setNameDraft(event.target.value)}
+            />
+            <button type="submit" className="secondaryAction compactAction" disabled={busy || !nameDraft.trim()}>
+              Rename
+            </button>
+          </form>
+        </div>
+        {cloudEnabled ? (
+          <CloudComputers
+            status={status}
+            busy={busy}
+            onRouting={(mode, deviceId) => void runCloudAction(
+              () => window.vera.relaySetRouting({ mode, deviceId }),
+              mode === 'auto' ? 'Cloud agents will stay on the current computer.' : 'Cloud agents will use that computer.',
+            )}
+            onForget={(deviceId) => void runCloudAction(
+              () => window.vera.relayForgetDevice(deviceId),
+              'Computer removed.',
+            )}
+            onUseThis={() => {
+              const id = status?.cloud.device.id;
+              if (!id) return;
+              void runCloudAction(
+                () => window.vera.relaySetRouting({ mode: 'pinned', deviceId: id }),
+                'Cloud agents will use this computer.',
+              );
+            }}
+          />
+        ) : null}
+      </SettingsCard>
     </div>
   );
 }
@@ -282,32 +286,37 @@ function CloudComputers({
           ))}
         </select>
       </label>
-      {devices.length === 0 ? <p>No other computers have connected yet.</p> : null}
+      {devices.length === 0 ? <p className="mutedText">No other computers have connected yet.</p> : null}
       <ul className="agentLibraryList">
         {devices.map((device) => (
           <li key={device.id}>
+            <Laptop size={14} aria-hidden="true" />
             <span>
               {device.name}
-              {device.id === self ? <span className="agentComputerBadge"> this computer</span> : null}
-              {' · '}
-              {device.online ? 'Online' : device.lastSeen ? `Last seen ${new Date(device.lastSeen).toLocaleString()}` : 'Offline'}
+              {device.id === self ? <span className="agentComputerBadge"> · this computer</span> : null}
+              {device.online || !device.lastSeen ? null : (
+                <span className="agentComputerBadge"> · last seen {new Date(device.lastSeen).toLocaleString()}</span>
+              )}
             </span>
+            {device.online ? <StatusPill tone="good">Online</StatusPill> : <StatusPill>Offline</StatusPill>}
             {!device.online ? (
-              <button type="button" className="secondaryAction" disabled={busy} onClick={() => onForget(device.id)}>
+              <button type="button" className="secondaryAction compactAction" disabled={busy} onClick={() => onForget(device.id)}>
                 Forget
               </button>
             ) : null}
           </li>
         ))}
       </ul>
-      <button
-        type="button"
-        className="secondaryAction"
-        disabled={busy || !self || (cloud?.routing.mode === 'pinned' && cloud.routing.pinned === self)}
-        onClick={onUseThis}
-      >
-        Use this computer
-      </button>
+      <div className="editorActions">
+        <button
+          type="button"
+          className="secondaryAction compactAction"
+          disabled={busy || !self || (cloud?.routing.mode === 'pinned' && cloud.routing.pinned === self)}
+          onClick={onUseThis}
+        >
+          Use this computer
+        </button>
+      </div>
     </div>
   );
 }

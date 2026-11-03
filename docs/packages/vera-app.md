@@ -43,8 +43,11 @@ Download `VERA.Setup.<version>.exe` from the
    (`preserveLibrary: false`) and clear the saved active library.
 3. Open **Search** for fully local hybrid retrieval.
 4. To use **Ask**, sign in to **VERA Pro** under **File > Settings → Account**
-   or configure your own provider under **File > Settings → LLM Providers**.
+   or configure your own provider under **File > Settings → AI providers**.
    With no provider, Ask offers **Use VERA Pro** and **Add your own provider**.
+   Settings opens on **Overview**, has a **Search settings** box, and saves
+   changes as you make them. Saving a provider key or connecting a local
+   server loads its model list automatically.
 5. Optional: save a Hugging Face token under **File > Settings → Hugging
    Face** (or set `HF_TOKEN`) for Hub model downloads used by some converters
    and embedders. **File > Open convert log...** (or Convert **Advanced → Open convert log** /
@@ -55,7 +58,8 @@ Download `VERA.Setup.<version>.exe` from the
    **Allow cloud agents (VERA Pro)** publishes a connector URL for cloud
    assistants. They sign in with the VERA account. The desktop must stay open.
    Several signed-in computers can stay connected. **Automatic** keeps using
-   the current computer, and **Use this computer** pins this one.
+   the current computer, and **Use this computer** pins this one. The status
+   bar names the computer cloud agents are using.
 7. Select a citation in an answer to inspect the highlighted source passage.
    The PDF viewer uses Mozilla-style dark chrome with a page thumbnail rail,
    rotate counterclockwise, download, and print. Citation highlights stay

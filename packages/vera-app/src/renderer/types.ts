@@ -7,6 +7,7 @@ import type {
   Session,
   StreamEvent,
 } from '../shared/contracts';
+import type { HelpLinkId } from '../shared/help-links';
 import type { ProAccount, ProActionResult } from '../shared/pro';
 import type { FolderPickPurpose } from '../shared/protocol';
 
@@ -76,6 +77,7 @@ export interface VeraApi {
   proActivate(): Promise<ProActionResult>;
   proClearKey(): Promise<ProActionResult>;
   proOpenPage(page: 'pricing' | 'account'): Promise<ProActionResult>;
+  openHelpLink(id: HelpLinkId): Promise<boolean>;
   checkForUpdates(): Promise<void>;
   onProAccountChanged(callback: (account: ProAccount) => void): () => void;
   getSessions(): Promise<Session[]>;

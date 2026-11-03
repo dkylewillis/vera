@@ -274,12 +274,13 @@ non-obvious caveats for this environment; standard commands live in the sections
   `ELECTRON_DISABLE_SANDBOX=1`. The dbus/GLib warnings Electron prints in the container are
   harmless.
 - The desktop app's "Ask"/chat feature needs a model provider. The left sidebar
-  footer shows the signed-in email and opens **Account**; its gear opens Settings.
+  footer shows the signed-in email and opens **Account**; its gear opens Settings on **Overview**.
   **File > Settings → Account**
   signs in to VERA Pro (browser `vera://` handoff, per-user OpenRouter key in `safeStorage`,
   separate from a personal OpenRouter key) when the build includes `pro-cloud.json` or
   `VERA_PRO_SITE_URL` / `VERA_PRO_SUPABASE_URL` / `VERA_PRO_SUPABASE_ANON_KEY`. Otherwise add
-  OpenAI, OpenRouter, Ollama, or LM Studio under **LLM Providers**. There is no offline answer
+  OpenAI, OpenRouter, Ollama, or LM Studio under **AI providers** (model lists load once a key
+  is saved or a local server connects). There is no offline answer
   mode, so Ask offers **Use VERA Pro** and **Add your own provider** when none is configured.
   For fully offline testing use the left-sidebar **Search**
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the

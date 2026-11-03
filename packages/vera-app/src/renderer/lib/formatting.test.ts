@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { convertDefaultsFromSelection, fileName, formatBytes, formatTimestamp, isPathInsideFolder, sameFsPath, siblingPdfPath, siblingSourcePath, showInFolderLabel } from './formatting';
+import { convertDefaultsFromSelection, fileName, formatBytes, formatTimeAgo, formatTimestamp, isPathInsideFolder, sameFsPath, siblingPdfPath, siblingSourcePath, showInFolderLabel } from './formatting';
+
+describe('formatTimeAgo', () => {
+  it('describes how long ago a model list was loaded', () => {
+    const now = 1_800_000_000_000;
+    expect(formatTimeAgo(now - 10_000, now)).toBe('just now');
+    expect(formatTimeAgo(now + 5_000, now)).toBe('just now');
+    expect(formatTimeAgo(now - 5 * 60_000, now)).toBe('5 min ago');
+    expect(formatTimeAgo(now - 3 * 3_600_000, now)).toBe('3 hr ago');
+    expect(formatTimeAgo(now - 26 * 3_600_000, now)).toBe('1 day ago');
+    expect(formatTimeAgo(now - 4 * 86_400_000, now)).toBe('4 days ago');
+  });
+});
 
 describe('showInFolderLabel', () => {
   it('uses platform-specific wording', () => {

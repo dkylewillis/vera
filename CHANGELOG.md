@@ -8,8 +8,28 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+### Changed
+
+- Desktop **Settings** is reorganized for first-time users. It opens on an
+  **Overview** of what is ready, groups sections in a sidebar with a
+  **Search settings** box, and saves changes as you make them (**Done**
+  replaces **Save & Close** and **Cancel**). **LLM Providers** is now
+  **AI providers**, with a **Model used for Ask** picker, providers grouped by
+  where they run, **Get a key** and download links, and temperature,
+  **Context tokens**, and base URL under **Advanced options**. Diagnostics
+  adds **Check for updates**.
+- **File → Chat Modes Folder…** replaces **Answer Modes Folder…**. The mode
+  picker heading is **Chat mode**.
+- Desktop model lists load on their own. Saving a provider key or connecting
+  to Ollama or LM Studio fetches the models and picks one for Ask when none is
+  chosen. Lists older than an hour are checked again when Settings or the
+  model list opens. The refresh button stays for an immediate check.
+
 ### Fixed
 
+- Desktop **Context tokens** values are kept when settings are saved.
+- Desktop model listing for **VERA Pro** uses the Pro key instead of a
+  personal OpenRouter key.
 - Desktop relay responses larger than 64 KB, including stored figures, stay
   intact. The desktop accepts the 64-bit WebSocket length and splits each
   response into chunks of at most 32 KB.
@@ -25,6 +45,9 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Added
 
+- The desktop status bar names the computer cloud agents are using. Select it
+  to open **Agent access** and switch computers. It stays hidden while cloud
+  agents are off.
 - Desktop Ask accepts dropped documents as chat context. Files that fit the
   provider window are read in full; larger files stay searchable. Follow-up
   questions reuse earlier evidence, and a mode can set `search_policy` or a

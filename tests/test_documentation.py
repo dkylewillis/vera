@@ -993,6 +993,8 @@ def test_index_ask_and_embedder_operational_docs():
     assert "list_embedder_load_errors" in troubleshooting
     assert "provider_error_detail" in troubleshooting
     assert "Open modes folder" in desktop
+    assert "File → Chat Modes Folder" in desktop
+    assert "Answer Modes Folder" not in desktop
     assert "quality" in desktop and "permissive" in desktop
     assert "provider_error_detail" in architecture
     assert "does not call `preflight_embedder`" in conversion
@@ -1163,6 +1165,40 @@ def test_desktop_file_open_clears_library_scope():
     assert "preserveLibrary: false" in app_pkg
 
 
+def test_desktop_settings_layout_is_documented():
+    """Pin the Settings sections, auto-save, and automatic model lists."""
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    app_pkg = (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+
+    for phrase in (
+        "## Settings",
+        "**Overview**",
+        "**Search settings**",
+        "Changes save as you",
+        "**Done**",
+        "**AI providers**",
+        "**Model used for Ask**",
+        "**Online services**",
+        "**On this computer**",
+        "**Get a key**",
+        "VERA loads the model list as soon as a key is saved",
+        "**Advanced options**",
+        "**Add a custom endpoint**",
+        "checks for updates",
+    ):
+        assert phrase in desktop, phrase
+    assert "LLM Providers" not in desktop
+    assert "Settings → AI providers" in app_pkg
+    assert "**Search settings**" in app_pkg
+    assert "LLM Providers" not in app_pkg
+    assert "**AI providers**" in agents
+    assert "LLM Providers" not in agents
+    assert "**Model used for Ask**" in changelog
+    assert "Desktop model lists load on their own" in changelog
+
+
 def test_desktop_agent_service_is_documented():
     """The loopback agent service is documented without changing unrestricted vera mcp."""
     mcp = (DOCS / "mcp.md").read_text(encoding="utf-8")
@@ -1214,12 +1250,15 @@ def test_cloud_agent_relay_is_documented():
     assert "Allow cloud agents" in agents
     assert "Allow cloud agents" in workflow
     assert "Use this computer" in mcp
+    assert "status bar names the computer" in mcp
+    assert "status bar names the computer" in getting_started
     assert "Automatic" in mcp
     assert "computer" in mcp
     assert "Use this computer" in workflow
     assert "Automatic" in workflow
     assert "computer" in workflow
     assert "VERA_PRO_RELAY_URL" in changelog
+    assert "status bar names the computer" in changelog
     assert "stays unrestricted" in changelog
 
 

@@ -22,6 +22,7 @@ export const IPC_CHANNELS = {
   proActivate: 'vera:proActivate',
   proClearKey: 'vera:proClearKey',
   proOpenPage: 'vera:proOpenPage',
+  openHelpLink: 'vera:openHelpLink',
   checkForUpdates: 'vera:checkForUpdates',
   proAccountChanged: 'vera:proAccountChanged',
   getSessions: 'vera:getSessions',

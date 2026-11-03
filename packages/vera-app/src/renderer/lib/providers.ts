@@ -1,3 +1,4 @@
+import type { HelpLinkId } from '../../shared/help-links';
 import { PRO_DEFAULT_MODELS, PRO_OPENROUTER_BASE_URL, PRO_PRESET_KEY } from '../../shared/pro';
 import type { ProviderProfile } from '../types';
 
@@ -7,8 +8,18 @@ export type ProviderPreset = {
   description: string;
   kind: 'hosted' | 'local';
   catalog?: string[];
+  /** Page where the user creates an API key for this provider. */
+  keyLink?: HelpLinkId;
+  /** Page where the user installs a local model server. */
+  setupLink?: HelpLinkId;
   value: Omit<ProviderProfile, 'id'>;
 };
+
+/** Model lists older than this refresh in the background when a model list opens. */
+export const MODEL_LIST_MAX_AGE_MS = 60 * 60 * 1000;
+
+/** Opening a provider in Settings re-checks its model list after this long. */
+export const MODEL_LIST_RECHECK_MS = 5 * 60 * 1000;
 
 export const REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
 
@@ -16,7 +27,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     key: PRO_PRESET_KEY,
     label: 'VERA Pro',
-    description: 'Subscription Ask. The key is issued to your account and stored apart from a personal OpenRouter key.',
+    description: 'Included with a VERA Pro subscription. Sign in under Account; no key to paste.',
     kind: 'hosted',
     catalog: [...PRO_DEFAULT_MODELS],
     value: {
@@ -32,22 +43,25 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     key: 'ollama',
     label: 'Ollama',
-    description: 'Run models locally with Ollama.',
+    description: 'Free models that run on this computer with Ollama.',
     kind: 'local',
+    setupLink: 'ollama_download',
     value: { label: 'Ollama', provider: 'ollama', models: [], base_url: 'http://localhost:11434/v1', api_key_env: '', auth_type: 'none', temperature: 0.2 },
   },
   {
     key: 'lmstudio',
     label: 'LM Studio',
-    description: 'Use models served by LM Studio on this computer.',
+    description: 'Models served by LM Studio on this computer.',
     kind: 'local',
+    setupLink: 'lmstudio_download',
     value: { label: 'LM Studio', provider: 'lmstudio', models: [], base_url: 'http://localhost:1234/v1', api_key_env: '', auth_type: 'none', temperature: 0.2 },
   },
   {
     key: 'openai',
     label: 'OpenAI',
-    description: 'GPT and reasoning models from OpenAI.',
+    description: 'GPT and reasoning models, billed to your OpenAI account.',
     kind: 'hosted',
+    keyLink: 'openai_api_keys',
     catalog: [
       'gpt-5.6-sol',
       'gpt-5.6-terra',
@@ -80,8 +94,9 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     key: 'openrouter',
     label: 'OpenRouter',
-    description: 'One API for models from multiple providers.',
+    description: 'Models from many companies with one OpenRouter key.',
     kind: 'hosted',
+    keyLink: 'openrouter_keys',
     catalog: [
       'openai/gpt-5.6-sol',
       'openai/gpt-5.6-terra',
@@ -147,6 +162,42 @@ export function defaultEnabledModels(profile: ProviderProfile, discovered: strin
   if (!preset?.catalog?.length) return discovered;
   const liveIds = new Set(discovered.map((model) => model.toLowerCase()));
   return preset.catalog.filter((model) => liveIds.has(model.toLowerCase()));
+}
+
+export function isModelListStale(profile: ProviderProfile, maxAgeMs: number, now = Date.now()): boolean {
+  const refreshedAt = profile.models_refreshed_at ?? 0;
+  return !refreshedAt || now - refreshedAt > maxAgeMs;
+}
+
+/** True when a model-list request can succeed without more input from the user. */
+export function canListModels(profile: ProviderProfile, typedKey = ''): boolean {
+  if (!profile.base_url.trim()) return false;
+  if (profile.auth_type === 'api_key') return Boolean(profile.has_api_key || typedKey.trim());
+  return true;
+}
+
+/** `llm` payload for the sidecar `list_models` action. */
+export function listModelsLlm(profile: ProviderProfile, apiKey = ''): Record<string, unknown> {
+  const llm: Record<string, unknown> = {
+    provider: profile.provider,
+    provider_key: profile.preset_key ?? '',
+    base_url: profile.base_url,
+    api_key_env: profile.api_key_env,
+    auth_type: profile.auth_type,
+  };
+  if (apiKey.trim()) llm.api_key = apiKey.trim();
+  return llm;
+}
+
+/** Store a fresh model list; enable the default models only when none are enabled yet. */
+export function withDiscoveredModels(profile: ProviderProfile, discovered: string[], now = Date.now()): ProviderProfile {
+  const models = filterDiscoveredModels(profile, discovered);
+  return {
+    ...profile,
+    available_models: models,
+    models_refreshed_at: now,
+    models: profile.models.length ? profile.models : defaultEnabledModels(profile, models),
+  };
 }
 
 export function newProviderId(): string {

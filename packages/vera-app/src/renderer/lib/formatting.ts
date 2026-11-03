@@ -17,6 +17,18 @@ export function formatBytes(value?: number | null): string {
   return `${amount >= 10 ? amount.toFixed(1) : amount.toFixed(2)} ${unit}`;
 }
 
+/** "just now", "5 min ago", "3 hr ago", or "2 days ago". */
+export function formatTimeAgo(timestamp: number, now = Date.now()): string {
+  const seconds = Math.max(0, Math.round((now - timestamp) / 1000));
+  if (seconds < 45) return 'just now';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? '1 day ago' : `${days} days ago`;
+}
+
 export function formatTimestamp(value?: string | null): string {
   if (!value) return '-';
   const parsed = new Date(value);
