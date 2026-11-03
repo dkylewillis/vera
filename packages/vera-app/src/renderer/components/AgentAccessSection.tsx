@@ -22,6 +22,7 @@ export function AgentAccessSection() {
   const hasAgentAccess = subscriptionActive(useProAccount()?.agentAccessStatus || '');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [nameDraft, setNameDraft] = useState('');
 
   useEffect(() => {
     const api = window.vera;
@@ -46,6 +47,17 @@ export function AgentAccessSection() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!cloudEnabled || !window.vera?.relayRefreshDevices) return undefined;
+    let cancelled = false;
+    void window.vera.relayRefreshDevices().then((next) => {
+      if (!cancelled) setStatus(next);
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [cloudEnabled]);
+
   async function save(nextEnabled: boolean, nextRoots: string[], nextCloud = cloudEnabled) {
     setBusy(true);
     try {
@@ -62,6 +74,19 @@ export function AgentAccessSection() {
       setNotice(next.message);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to update agent access.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runCloudAction(action: () => Promise<AgentServiceStatus>, success: string) {
+    setBusy(true);
+    try {
+      const next = await action();
+      setStatus(next);
+      setNotice(success || next.cloud?.message || next.message);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to update cloud agents.');
     } finally {
       setBusy(false);
     }
@@ -96,7 +121,51 @@ export function AgentAccessSection() {
         />
         Allow cloud agents (Agent Access)
       </label>
-      <p>Cloud assistants reach your library through VERA's relay while this app is open. This needs an Agent Access subscription. VERA Pro does not include it.</p>
+      <p>Cloud assistants reach your library through VERA's relay while this app is open. This needs an Agent Access subscription. VERA Pro does not include it. Each signed-in computer stays connected. Cloud agents use one of them.</p>
+      <div className="agentComputer">
+        <p>This computer: <strong>{status?.cloud.device.name || 'This computer'}</strong></p>
+        <form
+          className="agentComputerRename"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const name = nameDraft.trim();
+            if (!name || !window.vera?.relayRenameDevice) return;
+            void runCloudAction(() => window.vera.relayRenameDevice(name), 'Computer renamed.');
+          }}
+        >
+          <input
+            aria-label="Computer name"
+            value={nameDraft}
+            disabled={busy}
+            onChange={(event) => setNameDraft(event.target.value)}
+          />
+          <button type="submit" className="secondaryAction" disabled={busy || !nameDraft.trim()}>
+            Rename
+          </button>
+        </form>
+      </div>
+      {cloudEnabled ? (
+        <CloudComputers
+          status={status}
+          busy={busy}
+          onRouting={(mode, deviceId) => void runCloudAction(
+            () => window.vera.relaySetRouting({ mode, deviceId }),
+            mode === 'auto' ? 'Cloud agents will stay on the current computer.' : 'Cloud agents will use that computer.',
+          )}
+          onForget={(deviceId) => void runCloudAction(
+            () => window.vera.relayForgetDevice(deviceId),
+            'Computer removed.',
+          )}
+          onUseThis={() => {
+            const id = status?.cloud.device.id;
+            if (!id) return;
+            void runCloudAction(
+              () => window.vera.relaySetRouting({ mode: 'pinned', deviceId: id }),
+              'Cloud agents will use this computer.',
+            );
+          }}
+        />
+      ) : null}
       {!hasAgentAccess ? (
         <button type="button" className="secondaryAction" disabled={busy} onClick={() => void window.vera.proOpenPage('pricing')}>
           Get Agent Access
@@ -169,6 +238,75 @@ export function AgentAccessSection() {
         onClick={() => void copyText(status?.snippets.stdio || '').then((ok) => setNotice(ok ? 'Stdio snippet copied.' : 'Unable to copy the stdio snippet.'))}
       >
         Copy stdio snippet
+      </button>
+    </div>
+  );
+}
+
+function CloudComputers({
+  status,
+  busy,
+  onRouting,
+  onForget,
+  onUseThis,
+}: {
+  status: AgentServiceStatus | null;
+  busy: boolean;
+  onRouting: (mode: 'auto' | 'pinned', deviceId?: string) => void;
+  onForget: (deviceId: string) => void;
+  onUseThis: () => void;
+}) {
+  const cloud = status?.cloud;
+  const devices = cloud?.devices || [];
+  const self = cloud?.device.id || '';
+  const current = devices.find((device) => device.id === cloud?.current);
+  const routingValue = cloud?.routing.mode === 'pinned' && cloud.routing.pinned ? cloud.routing.pinned : 'auto';
+  const automatic = current ? `Automatic (currently ${current.name})` : 'Automatic';
+  return (
+    <div className="agentComputer">
+      <label className="agentComputerRouting">
+        Cloud agents use
+        <select
+          aria-label="Cloud agents use"
+          value={routingValue}
+          disabled={busy}
+          onChange={(event) => {
+            const value = event.target.value;
+            if (value === 'auto') onRouting('auto');
+            else onRouting('pinned', value);
+          }}
+        >
+          <option value="auto">{automatic}</option>
+          {devices.map((device) => (
+            <option key={device.id} value={device.id}>{device.name}</option>
+          ))}
+        </select>
+      </label>
+      {devices.length === 0 ? <p>No other computers have connected yet.</p> : null}
+      <ul className="agentLibraryList">
+        {devices.map((device) => (
+          <li key={device.id}>
+            <span>
+              {device.name}
+              {device.id === self ? <span className="agentComputerBadge"> this computer</span> : null}
+              {' · '}
+              {device.online ? 'Online' : device.lastSeen ? `Last seen ${new Date(device.lastSeen).toLocaleString()}` : 'Offline'}
+            </span>
+            {!device.online ? (
+              <button type="button" className="secondaryAction" disabled={busy} onClick={() => onForget(device.id)}>
+                Forget
+              </button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        className="secondaryAction"
+        disabled={busy || !self || (cloud?.routing.mode === 'pinned' && cloud.routing.pinned === self)}
+        onClick={onUseThis}
+      >
+        Use this computer
       </button>
     </div>
   );

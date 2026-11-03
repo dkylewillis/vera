@@ -105,9 +105,10 @@ async def test_mcp_round_trip_allows_library_and_denies_outside(library: dict[st
     with running_service(library["policy"], port=port, token=token):
         async with httpx.AsyncClient(headers=headers, timeout=httpx.Timeout(30.0, read=60.0)) as http_client:
             client_streams = streamable_http_client(url, http_client=http_client)
-            async with client_streams as (read, write, _get_session_id):
+            async with client_streams as (read, write, get_session_id):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
+                    assert not get_session_id()
                     info = _tool_payload(await session.call_tool("vera_library_info", {}))
                     assert isinstance(info, dict)
                     assert str(library["root"].resolve()) in info["library_roots"]
@@ -149,6 +150,15 @@ async def test_mcp_round_trip_allows_library_and_denies_outside(library: dict[st
                     denied_text = json.dumps(denied)
                     assert getattr(denied_result, "isError", False) or "denied" in denied_text.lower()
                     assert "UNIQUE_SENTINEL" not in denied_text
+
+            second = streamable_http_client(url, http_client=http_client)
+            async with second as (read, write, get_session_id):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    assert not get_session_id()
+                    again = _tool_payload(await session.call_tool("vera_library_info", {}))
+                    assert isinstance(again, dict)
+                    assert str(library["root"].resolve()) in again["library_roots"]
 
 
 def test_bind_failure_is_reported(library: dict[str, Path], capsys: pytest.CaptureFixture[str]) -> None:

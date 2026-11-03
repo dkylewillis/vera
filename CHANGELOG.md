@@ -10,6 +10,9 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Fixed
 
+- Desktop relay responses larger than 64 KB, including stored figures, stay
+  intact. The desktop accepts the 64-bit WebSocket length and splits each
+  response into chunks of at most 32 KB.
 - Folder convert and library sync skip Microsoft Office lock files (`~$…`),
   the temporary files Excel, Word, and PowerPoint create beside an open
   document. Those files no longer fail conversion with permission denied.
@@ -73,6 +76,10 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
   relay URL. Cloud assistants sign in with the VERA account. The relay checks
   the subscription and forwards MCP traffic to the open desktop app.
   `VERA_PRO_RELAY_URL` is the relay origin. `vera mcp` stays unrestricted.
+  Several signed-in computers can stay connected. **Automatic** keeps the
+  current computer until it goes offline, then uses the most recently
+  connected one. **Use this computer** pins one computer and does not fall
+  back while it is offline. `vera_library_info` includes `computer`.
 - Desktop **Settings → Agent access** runs one loopback MCP service
   (`mcp-service`) for the shared library folders. Local agents connect over
   HTTP with a bearer token, or through `mcp-connect` when they can only launch

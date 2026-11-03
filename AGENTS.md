@@ -227,7 +227,11 @@ When an agent is connected through **Settings → Agent access**, call
 loopback-only. Unrestricted `vera mcp` is separate and does not apply the
 Desktop grant. A cloud assistant uses the VERA Pro connector URL instead.
 **Allow cloud agents** must be on, and Desktop must be open. Sign-in is the
-VERA account. Stay inside the same `library_roots`.
+VERA account. Stay inside the same `library_roots`. `vera_library_info`
+includes `computer` (`id` and `name`) for the computer that answered. If a
+path is rejected, call `vera_library_info` again; the user may have switched
+computers. **Automatic** keeps the current computer, and **Use this computer**
+pins one.
 
 ## Working on this repository
 

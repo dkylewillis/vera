@@ -131,10 +131,13 @@ def build_server(policy: AccessPolicy | None = None):
             "Search the approved local VERA library exposed by Desktop. Call "
             "vera_library_info first for the approved library_roots. Use absolute .vera "
             "paths returned by search tools. Retrieval is read-only; conversion and "
-            "export are unavailable."
+            "export are unavailable. If a path is rejected, call vera_library_info "
+            "again; the user may have switched computers."
         )
 
-    server = FastMCP("vera", instructions=instructions)
+    # A cloud request can land on a different computer than the previous one.
+    # Stateless HTTP keeps the bridge from tying the conversation to one process.
+    server = FastMCP("vera", instructions=instructions, stateless_http=bridge)
 
     def _open(file: str) -> VeraDocument:
         if policy is not None:

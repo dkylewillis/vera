@@ -65,9 +65,23 @@ export interface ServiceManagerOptions {
   spawnImpl?: typeof spawn;
   logDiagnostic?: (chunk: string) => void;
   cloudStatus?: () => RelayCloudStatus;
+  /** Computer identity written into the service policy. Empty values are omitted. */
+  readComputer?: () => { id: string; name: string } | null;
   startupTimeoutMs?: number;
   readyPollMs?: number;
   maxRestartAttempts?: number;
+}
+
+function emptyCloudStatus(message = ''): RelayCloudStatus {
+  return {
+    state: 'off',
+    message,
+    connectorUrl: '',
+    device: { id: '', name: '' },
+    routing: { mode: 'auto' },
+    current: null,
+    devices: [],
+  };
 }
 
 const STARTUP_TIMEOUT_MS = 30_000;
@@ -116,7 +130,7 @@ export class ServiceManager {
       lastError: this.lastError || undefined,
       portChanged: this.portChanged,
       cloudEnabled: this.config.cloudEnabled,
-      cloud: this.options.cloudStatus?.() ?? { state: 'off', message: '', connectorUrl: '' },
+      cloud: this.options.cloudStatus?.() ?? emptyCloudStatus(),
       snippets: agentServiceSnippets({
         url,
         token,
@@ -185,6 +199,12 @@ export class ServiceManager {
     this.lastError = '';
     this.message = reason;
     this.deleteGrantFiles();
+    return this.getStatus();
+  }
+
+  /** Rewrite the policy with the current computer name and restart a live service. */
+  async refreshComputer(): Promise<ServiceStatus> {
+    if (this.state === 'running' || this.state === 'starting') return this.restart();
     return this.getStatus();
   }
 
@@ -390,11 +410,17 @@ export class ServiceManager {
     const dir = this.serviceDir();
     mkdirSync(dir, { recursive: true });
     const path = join(dir, 'policy.json');
-    writeFileSync(
-      path,
-      `${JSON.stringify({ library_roots: roots, disclosure: this.config.cloudEnabled ? AGENT_SERVICE_CLOUD_DISCLOSURE : AGENT_SERVICE_DISCLOSURE }, null, 2)}\n`,
-      { encoding: 'utf8', mode: 0o600 },
-    );
+    const computer = this.options.readComputer?.() || null;
+    const policy: {
+      library_roots: string[];
+      disclosure: string;
+      computer?: { id: string; name: string };
+    } = {
+      library_roots: roots,
+      disclosure: this.config.cloudEnabled ? AGENT_SERVICE_CLOUD_DISCLOSURE : AGENT_SERVICE_DISCLOSURE,
+    };
+    if (computer?.id && computer.name) policy.computer = { id: computer.id, name: computer.name };
+    writeFileSync(path, `${JSON.stringify(policy, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
     return path;
   }
 

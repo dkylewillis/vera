@@ -458,6 +458,31 @@ def test_library_roots_mapping_rejects_bad_shapes(approved_library):
         {"library_roots": [root], "disclosure": "Local agents only."}
     )
     assert custom.discovery()["disclosure"] == "Local agents only."
+    assert "computer" not in custom.discovery()
+
+
+def test_computer_is_reported_and_named_when_a_path_is_outside(approved_library):
+    root = str(approved_library["root"])
+    with pytest.raises(ValueError, match="computer"):
+        AccessPolicy.from_mapping({"library_roots": [root], "computer": {"id": "", "name": "Work PC"}})
+    with pytest.raises(ValueError, match="computer"):
+        AccessPolicy.from_mapping(
+            {"library_roots": [root], "computer": {"id": "device-1", "name": "x" * 65}}
+        )
+    policy = AccessPolicy.from_mapping(
+        {
+            "library_roots": [root],
+            "computer": {"id": " 11111111-1111-4111-8111-111111111111 ", "name": " Work PC "},
+        }
+    )
+    assert policy.discovery()["computer"] == {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "name": "Work PC",
+    }
+    with pytest.raises(AccessDenied, match="approved libraries on Work PC"):
+        policy.check_library_root(approved_library["sibling"])
+    with pytest.raises(AccessDenied, match="vera_library_info"):
+        policy.check_archive(approved_library["sentinel"])
 
 
 @pytest.mark.anyio

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, powerMonitor, protocol, safeStorage, shell } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
@@ -53,7 +53,9 @@ import {
   sessionNeedsRefresh,
   type ProCloudConfig,
 } from './pro-account.js';
+import { loadDevice, regenerateDevice, renameDevice, type DeviceIdentity } from './device-identity.js';
 import { RelayClient } from './relay-client.js';
+import { RelayControl } from './relay-control.js';
 import type { RelayCloudStatus } from '../src/shared/contracts.js';
 import { parseSidecarJsonLine } from './sidecar-json.js';
 import { checkForUpdatesManually, configureAutoUpdate } from './updates.js';
@@ -539,6 +541,7 @@ function resolveServiceCommand(): { executable: string; args: string[] } {
 }
 
 let serviceManager: ServiceManager;
+const deviceHolder: { current: DeviceIdentity } = { current: loadDevice(app.getPath('userData')) };
 const relayClient: RelayClient = new RelayClient({
   getConfig: () => proCloudConfig(),
   localMcpUrl: (): string => `http://127.0.0.1:${serviceManager.getStatus().port}/mcp`,
@@ -549,6 +552,12 @@ const relayClient: RelayClient = new RelayClient({
     return next;
   }),
   isPro: async () => proSubscriptionActive((await currentProAccount()).agentAccessStatus),
+  getDevice: () => deviceHolder.current,
+  regenerateDevice: () => {
+    deviceHolder.current = regenerateDevice(app.getPath('userData'), deviceHolder.current);
+    return deviceHolder.current;
+  },
+  appVersion: app.getVersion(),
   log: (line) => logSidecarStderr('agent-relay', line),
   onStatus: (): void => {
     publishServiceStatus(serviceManager.getStatus());
@@ -564,6 +573,7 @@ serviceManager = new ServiceManager({
   extraChildEnv: serviceChildEnv,
   logDiagnostic: (chunk) => logSidecarStderr('agent-service', chunk),
   cloudStatus: (): RelayCloudStatus => relayClient.getStatus(),
+  readComputer: () => deviceHolder.current,
 });
 
 function syncAgentService(settings: AgentServiceSettings | undefined): void {
@@ -576,10 +586,36 @@ function syncAgentService(settings: AgentServiceSettings | undefined): void {
   });
 }
 
+function relayControl(): RelayControl {
+  return new RelayControl({
+    relayUrl: proCloudConfig().relayUrl,
+    readSession: readProSession,
+    refreshSession: (session) => refreshProSession(proCloudConfig(), session, fetch).then((next) => {
+      writeProSession(next);
+      return next;
+    }),
+  });
+}
+
+async function publishDirectory(directory: Awaited<ReturnType<RelayControl['devices']>>): Promise<ServiceStatus> {
+  relayClient.applyDirectory({ ...directory, self: deviceHolder.current.id });
+  return publishServiceStatus(serviceManager.getStatus());
+}
+
 async function syncRelay(): Promise<void> {
   const settings = normalizeAgentServiceSettings(readSettings().agent_service);
   if (!settings.cloud_enabled || serviceManager.getStatus().state !== 'running') {
-    relayClient.stop();
+    let notice = '';
+    const cloud = relayClient.getStatus();
+    if (!settings.cloud_enabled && cloud.routing.mode === 'pinned' && cloud.routing.pinned && cloud.routing.pinned === cloud.device.id) {
+      try {
+        await publishDirectory(await relayControl().setRouting('auto'));
+        notice = 'Cloud agents are off on this computer. Automatic routing is on, so another computer can answer.';
+      } catch (error) {
+        notice = error instanceof Error ? error.message : 'Unable to switch cloud agents back to Automatic.';
+      }
+    }
+    relayClient.stop(notice || undefined);
     publishServiceStatus(serviceManager.getStatus());
     return;
   }
@@ -1745,6 +1781,15 @@ if (singleInstanceLock) app.whenReady().then(() => {
     app.setAsDefaultProtocolClient('vera');
   }
   configureAutoUpdate();
+  powerMonitor.on('suspend', () => {
+    relayClient.suspend();
+    publishServiceStatus(serviceManager.getStatus());
+  });
+  powerMonitor.on('resume', () => {
+    const settings = normalizeAgentServiceSettings(readSettings().agent_service);
+    if (settings.cloud_enabled && serviceManager.getStatus().state === 'running') relayClient.reconnectNow();
+    publishServiceStatus(serviceManager.getStatus());
+  });
   mkdirSync(sourceCacheDir(), { recursive: true });
   protocol.handle('vera-source', (request) => {
     try {
@@ -1919,6 +1964,30 @@ if (singleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.serviceRotateToken, async () => (
     publishServiceStatus(await serviceManager.rotateToken())
   ));
+  ipcMain.handle(IPC_CHANNELS.relaySetRouting, async (_event, routing: { mode?: string; deviceId?: string }) => {
+    const mode = routing?.mode === 'pinned' ? 'pinned' : 'auto';
+    const directory = await relayControl().setRouting(mode, mode === 'pinned' ? String(routing?.deviceId || '') : undefined);
+    return publishDirectory(directory);
+  });
+  ipcMain.handle(IPC_CHANNELS.relayRenameDevice, async (_event, name: string) => {
+    deviceHolder.current = renameDevice(app.getPath('userData'), String(name || ''), deviceHolder.current);
+    try {
+      await publishDirectory(await relayControl().rename(deviceHolder.current.id, deviceHolder.current.name));
+    } catch (error) {
+      await serviceManager.refreshComputer();
+      publishServiceStatus(serviceManager.getStatus());
+      throw error;
+    }
+    return publishServiceStatus(await serviceManager.refreshComputer());
+  });
+  ipcMain.handle(IPC_CHANNELS.relayForgetDevice, async (_event, deviceId: string) => {
+    const directory = await relayControl().forget(String(deviceId || ''));
+    return publishDirectory(directory);
+  });
+  ipcMain.handle(IPC_CHANNELS.relayRefreshDevices, async () => {
+    const directory = await relayControl().devices();
+    return publishDirectory(directory);
+  });
   ipcMain.handle(IPC_CHANNELS.pickArchive, async () => pickArchivePath());
   ipcMain.handle(IPC_CHANNELS.pickFolder, async (_event, purpose: unknown) => pickFolderPath(purpose));
   ipcMain.handle(IPC_CHANNELS.listFolder, async (_event, dir: string) => listFolder(dir));

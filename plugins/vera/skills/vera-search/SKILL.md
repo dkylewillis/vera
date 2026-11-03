@@ -38,6 +38,9 @@ request. A remote task host is not the user's desktop. Check
 Use MCP whenever `vera_search`, `vera_corpus_search`, or another VERA MCP tool
 is available. If `vera_library_info` is present, call it to learn whether the
 server is unrestricted local MCP or limited to an approved library root.
+On the Desktop bridge, `computer` names the computer that answered. If a path
+is rejected, call `vera_library_info` again; the user may have switched
+computers.
 The plugin's MCP server supplies the VERA runtime; a missing
 `vera` command on the agent shell does **not** mean VERA is uninstalled.
 

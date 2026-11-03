@@ -125,7 +125,10 @@ you already copied.
 The desktop app opens an outbound connection to the relay in `VERA_PRO_RELAY_URL`.
 Copy the connector URL into a cloud assistant. That assistant signs in with
 the VERA account. Search works only while this app is open. Closing the app
-makes the assistant report that VERA Desktop is not connected.
+makes the assistant report that VERA Desktop is not connected. If several
+computers are signed in, **Cloud agents use** stays on **Automatic** or the
+computer you pin. **Use this computer** chooses this one. The others stay
+connected in standby.
 
 ## Requirements
 

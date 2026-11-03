@@ -54,6 +54,8 @@ Download `VERA.Setup.<version>.exe` from the
    local agents through one loopback MCP service (`mcp-service` / `mcp-connect`).
    **Allow cloud agents (VERA Pro)** publishes a connector URL for cloud
    assistants. They sign in with the VERA account. The desktop must stay open.
+   Several signed-in computers can stay connected. **Automatic** keeps using
+   the current computer, and **Use this computer** pins this one.
 7. Select a citation in an answer to inspect the highlighted source passage.
    The PDF viewer uses Mozilla-style dark chrome with a page thumbnail rail,
    rotate counterclockwise, download, and print. Citation highlights stay

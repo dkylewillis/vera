@@ -114,6 +114,10 @@ export interface VeraApi {
   serviceStop(): Promise<AgentServiceStatus>;
   serviceRotateToken(): Promise<AgentServiceStatus>;
   onServiceEvent(callback: (status: AgentServiceStatus) => void): () => void;
+  relaySetRouting(routing: { mode: 'auto' | 'pinned'; deviceId?: string }): Promise<AgentServiceStatus>;
+  relayRenameDevice(name: string): Promise<AgentServiceStatus>;
+  relayForgetDevice(deviceId: string): Promise<AgentServiceStatus>;
+  relayRefreshDevices(): Promise<AgentServiceStatus>;
 }
 
 export interface FolderEntry {

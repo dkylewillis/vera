@@ -33,7 +33,7 @@ weights.
 
 | Workflow | Existing actions |
 | --- | --- |
-| Library grant | `vera_library_info` |
+| Library grant | `vera_library_info`, `vera_library_status` |
 | Search | `vera_search`, `vera_corpus_search` |
 | Read | `vera_get_chunk`, `vera_get_page` |
 | Refine | Repeat search with query, mode, `where`, and `context_chunks`; corpus also supports `includes`, `excludes`, `recursive` |
@@ -78,7 +78,9 @@ Refresh/reinstall the local marketplace plugin and start a new task to load the
 changed tools. An existing task can retain its previous remote tool inventory.
 
 Cloud assistants reach a desktop library through **Allow cloud agents** in
-VERA Desktop. That connection is separate from this local plugin. See
+VERA Desktop. Several computers can stay connected; **Automatic** or **Use
+this computer** chooses which one answers. `vera_library_info` includes
+`computer`. That connection is separate from this local plugin. See
 [Cloud agents](mcp.md#cloud-agents-vera-pro).
 
 For the new source viewer, use the **modified server installation** under
@@ -151,9 +153,10 @@ the update.
 ### Cloud assistants
 
 ChatGPT, Claude, and Grok reach a library through the connector URL in
-**Settings → Agent access** when **Allow cloud agents** is on. Keep that
-connection separate from VERA Local in Codex. Do not add an `apps` component
-or a root `.app.json` to the local plugin.
+**Settings → Agent access** when **Allow cloud agents** is on. Several
+computers can stay connected; **Automatic** or **Use this computer** chooses
+which one answers. Keep that connection separate from VERA Local in Codex.
+Do not add an `apps` component or a root `.app.json` to the local plugin.
 
 ### ChatGPT connection
 

@@ -1213,6 +1213,12 @@ def test_cloud_agent_relay_is_documented():
     assert "Allow cloud agents" in app_pkg
     assert "Allow cloud agents" in agents
     assert "Allow cloud agents" in workflow
+    assert "Use this computer" in mcp
+    assert "Automatic" in mcp
+    assert "computer" in mcp
+    assert "Use this computer" in workflow
+    assert "Automatic" in workflow
+    assert "computer" in workflow
     assert "VERA_PRO_RELAY_URL" in changelog
     assert "stays unrestricted" in changelog
 

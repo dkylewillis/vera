@@ -59,11 +59,19 @@ class AccessPolicy:
     max_sources: int = DEFAULT_MAX_SOURCES
     allowed_tools: frozenset[str] = BRIDGE_TOOLS
     disclosure: str = LOCAL_AGENT_DISCLOSURE
+    computer: tuple[str, str] | None = None
 
     def __post_init__(self) -> None:
         if not self.library_roots:
             raise ValueError("Bridge policy requires at least one library root.")
         object.__setattr__(self, "library_roots", _collapse_roots(self.library_roots))
+        if self.computer is not None:
+            ident, name = self.computer
+            if not isinstance(ident, str) or not ident.strip() or len(ident.strip()) > 64:
+                raise ValueError("Bridge policy computer id must be a non-empty string of at most 64 characters.")
+            if not isinstance(name, str) or not name.strip() or len(name.strip()) > 64:
+                raise ValueError("Bridge policy computer name must be a non-empty string of at most 64 characters.")
+            object.__setattr__(self, "computer", (ident.strip(), name.strip()))
 
     @property
     def library_root(self) -> Path:
@@ -103,6 +111,7 @@ class AccessPolicy:
             max_sources=max_sources,
             allowed_tools=allowed,
             disclosure=disclosure.strip(),
+            computer=_computer_from_mapping(data.get("computer", None)),
         )
 
     @classmethod
@@ -130,6 +139,8 @@ class AccessPolicy:
         }
         if len(self.library_roots) == 1:
             payload["library_root"] = str(self.library_roots[0])
+        if self.computer is not None:
+            payload["computer"] = {"id": self.computer[0], "name": self.computer[1]}
         return payload
 
     def clamp_top_k(self, top_k: int) -> int:
@@ -154,7 +165,7 @@ class AccessPolicy:
     def check_library_root(self, directory: str | Path) -> Path:
         path = canonicalize_path(directory, require_directory=True)
         if not self.contains(path):
-            raise AccessDenied()
+            raise AccessDenied(self.outside_roots_message())
         return path
 
     def check_archive(self, file: str | Path) -> Path:
@@ -162,10 +173,31 @@ class AccessPolicy:
         if path.suffix.lower() != ".vera":
             raise AccessDenied("Only .vera archives are allowed.")
         if not self.contains(path):
-            raise AccessDenied()
+            raise AccessDenied(self.outside_roots_message())
         if not path.is_file():
             raise AccessDenied("Archive was not found in the approved library.")
         return path
+
+    def outside_roots_message(self) -> str:
+        if self.computer is None:
+            return "Access denied by VERA bridge policy."
+        name = self.computer[1]
+        return (
+            f"This path is not in the approved libraries on {name}. "
+            "Call vera_library_info; the user may have switched computers."
+        )
+
+
+def _computer_from_mapping(raw: Any) -> tuple[str, str] | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("Bridge policy computer must be an object with id and name.")
+    ident = raw.get("id")
+    name = raw.get("name")
+    if not isinstance(ident, str) or not isinstance(name, str):
+        raise ValueError("Bridge policy computer id and name must be strings.")
+    return (ident, name)
 
 
 def _roots_from_mapping(data: dict[str, Any]) -> tuple[Path, ...]:

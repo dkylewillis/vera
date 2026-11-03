@@ -63,7 +63,8 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 - Optionally share libraries with local agents under **File > Settings →
   Agent access**. One loopback MCP service stays up while Desktop is open.
   **Allow cloud agents** lets a VERA Pro account reach that service from a
-  cloud assistant through the relay.
+  cloud assistant through the relay. Several computers can stay connected;
+  **Automatic** keeps the current one, and **Use this computer** pins this one.
 - Select model by task profile (speed, quality, cost)
 - Stream grounded answers with citation links, Markdown, and rendered LaTeX
 - Search remains fully local when no provider is configured

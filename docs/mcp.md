@@ -295,6 +295,18 @@ Grok, Claude, or ChatGPT. The assistant opens VERA's sign-in page. Supabase
 issues a token for that account, and the relay forwards each call to the
 signed-in desktop.
 
+Every signed-in computer keeps its own connection. **Cloud agents use** defaults
+to **Automatic**: requests stay on the current computer while it is healthy,
+and move to the most recently connected computer when it goes offline. Choose
+a computer in the list to pin requests to it. **Use this computer** pins this
+one. The others stay connected in standby and do not answer. If the pinned
+computer is offline, the relay returns `503` naming that computer and listing
+the computers that are online. It does not fall back to another machine.
+Turning **Allow cloud agents** off on the pinned computer switches the account
+back to **Automatic**. `vera_library_info` includes `computer` with that
+computer's `id` and `name`. If a path is rejected, call `vera_library_info`
+again; the user may have switched computers.
+
 The relay answers `401` with a `WWW-Authenticate` challenge when sign-in is
 missing, `403` when a VERA Pro subscription is required, and `503` with
 "VERA Desktop is not connected. Open VERA and turn on Allow cloud agents."

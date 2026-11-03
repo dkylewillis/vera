@@ -61,6 +61,10 @@ const IPC_CHANNELS: typeof IpcChannels = {
   serviceStop: 'vera:serviceStop',
   serviceRotateToken: 'vera:serviceRotateToken',
   serviceEvent: 'vera:serviceEvent',
+  relaySetRouting: 'vera:relaySetRouting',
+  relayRenameDevice: 'vera:relayRenameDevice',
+  relayForgetDevice: 'vera:relayForgetDevice',
+  relayRefreshDevices: 'vera:relayRefreshDevices',
   shareArchive: 'vera:shareArchive',
   saveDroppedFile: 'vera:saveDroppedFile',
   saveDraftAs: 'vera:saveDraftAs',
@@ -162,4 +166,9 @@ contextBridge.exposeInMainWorld('vera', {
     ipcRenderer.on(IPC_CHANNELS.serviceEvent, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.serviceEvent, listener);
   },
+  relaySetRouting: (routing: { mode: 'auto' | 'pinned'; deviceId?: string }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.relaySetRouting, routing),
+  relayRenameDevice: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.relayRenameDevice, name),
+  relayForgetDevice: (deviceId: string) => ipcRenderer.invoke(IPC_CHANNELS.relayForgetDevice, deviceId),
+  relayRefreshDevices: () => ipcRenderer.invoke(IPC_CHANNELS.relayRefreshDevices),
 });

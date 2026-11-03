@@ -17,7 +17,11 @@ export interface RelayConnectError extends Error {
   status?: number;
 }
 
-export function openRelaySocket(url: string, token: string): Promise<RelaySocket> {
+export function openRelaySocket(
+  url: string,
+  token: string,
+  extraHeaders: Record<string, string> = {},
+): Promise<RelaySocket> {
   const target = new URL(url);
   const secure = target.protocol === 'wss:';
   if (target.protocol !== 'wss:' && target.protocol !== 'ws:') {
@@ -31,6 +35,9 @@ export function openRelaySocket(url: string, token: string): Promise<RelaySocket
     : netConnect({ host: target.hostname, port });
   const path = `${target.pathname || '/'}${target.search}`;
   const host = target.host;
+  const extra = Object.entries(extraHeaders)
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([name, value]) => `${name}: ${value.replace(/[\r\n]/g, '')}`);
 
   return new Promise((resolve, reject) => {
     const fail = (error: Error) => {
@@ -47,6 +54,7 @@ export function openRelaySocket(url: string, token: string): Promise<RelaySocket
         `Sec-WebSocket-Key: ${key}`,
         'Sec-WebSocket-Version: 13',
         `Authorization: Bearer ${token}`,
+        ...extra,
         '',
         '',
       ].join('\r\n'));
@@ -129,35 +137,17 @@ class NodeRelaySocket implements RelaySocket {
     let pending = Buffer.concat(this.pending);
     this.pending.length = 0;
     while (pending.byteLength >= 2) {
-      const first = pending[0] ?? 0;
-      const second = pending[1] ?? 0;
-      let length = second & 0x7f;
-      let offset = 2;
-      if (length === 126) {
-        if (pending.byteLength < 4) break;
-        length = pending.readUInt16BE(2);
-        offset = 4;
-      } else if (length === 127) {
-        if (pending.byteLength < 10) break;
-        length = pending.readUInt32BE(6);
-        offset = 10;
+      let taken: { frame: DecodedFrame; rest: Buffer } | null;
+      try {
+        taken = takeFrame(pending);
+      } catch {
+        this.closeHandler?.(1009);
+        this.socket.end();
+        return;
       }
-      const masked = (second & 0x80) !== 0;
-      const maskLength = masked ? 4 : 0;
-      if (pending.byteLength < offset + maskLength + length) break;
-      let payload = pending.subarray(offset + maskLength, offset + maskLength + length);
-      if (masked) {
-        const mask = pending.subarray(offset, offset + 4);
-        const copy = Buffer.from(payload);
-        for (let index = 0; index < copy.byteLength; index += 1) {
-          copy[index] = (copy[index] ?? 0) ^ (mask[index % 4] ?? 0);
-        }
-        payload = copy;
-      }
-      const opcode = first & 0x0f;
-      const fin = (first & 0x80) !== 0;
-      pending = pending.subarray(offset + maskLength + length);
-      this.dispatch(opcode, payload, fin);
+      if (!taken) break;
+      pending = taken.rest as typeof pending;
+      this.dispatch(taken.frame.opcode, taken.frame.payload, taken.frame.fin);
     }
     if (pending.byteLength) this.pending.push(pending);
   }
@@ -183,12 +173,67 @@ class NodeRelaySocket implements RelaySocket {
   }
 }
 
-function encodeFrame(opcode: number, payload: Buffer, mask: boolean): Buffer {
+export interface DecodedFrame {
+  opcode: number;
+  fin: boolean;
+  payload: Buffer;
+}
+
+/** Reads one WebSocket frame. Returns null when the buffer is incomplete. */
+export function takeFrame(pending: Buffer): { frame: DecodedFrame; rest: Buffer } | null {
+  if (pending.byteLength < 2) return null;
+  const first = pending[0] ?? 0;
+  const second = pending[1] ?? 0;
+  let length = second & 0x7f;
+  let offset = 2;
+  if (length === 126) {
+    if (pending.byteLength < 4) return null;
+    length = pending.readUInt16BE(2);
+    offset = 4;
+  } else if (length === 127) {
+    if (pending.byteLength < 10) return null;
+    if (pending.readUInt32BE(2) !== 0) throw new Error('Relay frame is too large.');
+    length = pending.readUInt32BE(6);
+    offset = 10;
+  }
+  const masked = (second & 0x80) !== 0;
+  const maskLength = masked ? 4 : 0;
+  if (pending.byteLength < offset + maskLength + length) return null;
+  let payload = pending.subarray(offset + maskLength, offset + maskLength + length);
+  if (masked) {
+    const mask = pending.subarray(offset, offset + 4);
+    const copy = Buffer.from(payload);
+    for (let index = 0; index < copy.byteLength; index += 1) {
+      copy[index] = (copy[index] ?? 0) ^ (mask[index % 4] ?? 0);
+    }
+    payload = copy;
+  }
+  return {
+    frame: { opcode: first & 0x0f, fin: (first & 0x80) !== 0, payload: Buffer.from(payload) },
+    rest: pending.subarray(offset + maskLength + length),
+  };
+}
+
+export function encodeFrame(opcode: number, payload: Buffer, mask: boolean): Buffer {
   const length = payload.byteLength;
-  const head = [0x80 | opcode];
-  if (length < 126) head.push((mask ? 0x80 : 0) | length);
-  else if (length < 65536) head.push((mask ? 0x80 : 0) | 126, length >> 8, length & 0xff);
-  else throw new Error('Relay frame is too large.');
+  const head: number[] = [0x80 | opcode];
+  const maskBit = mask ? 0x80 : 0;
+  if (length < 126) head.push(maskBit | length);
+  else if (length < 65536) head.push(maskBit | 126, length >> 8, length & 0xff);
+  else {
+    head.push(maskBit | 127);
+    const extended = Buffer.alloc(8);
+    extended.writeUInt32BE(Math.floor(length / 0x100000000), 0);
+    extended.writeUInt32BE(length >>> 0, 4);
+    const maskKey = mask ? randomBytes(4) : Buffer.alloc(0);
+    const body = Buffer.from(payload);
+    if (mask) {
+      for (let index = 0; index < body.byteLength; index += 1) {
+        body[index] = (body[index] ?? 0) ^ (maskKey[index % 4] ?? 0);
+      }
+    }
+    return Buffer.concat([Buffer.from(head), extended, maskKey, body]);
+  }
   const maskKey = mask ? randomBytes(4) : Buffer.alloc(0);
   const body = Buffer.from(payload);
   if (mask) {

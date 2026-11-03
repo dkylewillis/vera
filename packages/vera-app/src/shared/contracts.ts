@@ -316,12 +316,29 @@ export interface AgentServiceSettings {
   cloud_enabled?: boolean;
 }
 
-export type RelayCloudState = 'off' | 'connecting' | 'connected' | 'error' | 'not_pro';
+export type RelayCloudState = 'off' | 'connecting' | 'connected' | 'standby' | 'error' | 'not_pro';
+
+export interface RelayDevice {
+  id: string;
+  name: string;
+  online: boolean;
+  lastSeen: number;
+  appVersion: string;
+}
+
+export interface RelayRouting {
+  mode: 'auto' | 'pinned';
+  pinned?: string;
+}
 
 export interface RelayCloudStatus {
   state: RelayCloudState;
   message: string;
   connectorUrl: string;
+  device: { id: string; name: string };
+  routing: RelayRouting;
+  current: string | null;
+  devices: RelayDevice[];
 }
 
 export type AgentServiceState = 'disabled' | 'starting' | 'running' | 'error';

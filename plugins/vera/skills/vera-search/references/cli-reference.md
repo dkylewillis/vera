@@ -888,7 +888,9 @@ with the same readable rendering as CLI `--pretty` while preserving the
 structured `results` array.
 `vera_library_info` reports whether the process is unrestricted local MCP or
 the Desktop agent service (`library_roots`, and `library_root` when only one
-folder is approved, plus bounds and disclosure). The agent service omits
+folder is approved, plus bounds, disclosure, and `computer` with `id` and
+`name` when Desktop recorded the computer). If a path is rejected, call
+`vera_library_info` again; the user may have switched computers. The agent service omits
 `vera_validate`. Cloud assistants use that same service through the VERA Pro
 relay while Desktop is open.
 `vera_inspect` and `vera_validate` include both `file` (requested) and

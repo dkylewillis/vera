@@ -4948,6 +4948,28 @@ input.viewerPageInput:focus {
   gap: 12px;
 }
 
+.agentComputer {
+  display: grid;
+  gap: 8px;
+}
+
+.agentComputerRename,
+.agentComputerRouting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agentComputerRename input,
+.agentComputerRouting select {
+  flex: 1;
+  min-width: 0;
+}
+
+.agentComputerBadge {
+  color: var(--text-muted);
+}
+
 .settingsCheck {
   display: flex;
   align-items: center;

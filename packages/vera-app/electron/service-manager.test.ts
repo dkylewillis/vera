@@ -25,7 +25,7 @@ describe('ServiceManager', () => {
     children.length = 0;
   });
 
-  function createManager(port = 47821) {
+  function createManager(port = 47821, readComputer?: () => { id: string; name: string } | null) {
     const userDataDir = mkdtempSync(join(tmpdir(), 'vera-service-'));
     const library = join(userDataDir, 'library');
     mkdirSync(library);
@@ -49,6 +49,7 @@ describe('ServiceManager', () => {
       startupTimeoutMs: 500,
       readyPollMs: 10,
       maxRestartAttempts: 1,
+      readComputer,
       spawnImpl: ((_exe, args, opts) => {
         spawned.push({
           args: [...(args as string[])],
@@ -99,6 +100,20 @@ describe('ServiceManager', () => {
     };
     expect(policy.disclosure).toBe(AGENT_SERVICE_CLOUD_DISCLOSURE);
     expect(manager.getStatus().cloudEnabled).toBe(true);
+  });
+
+  it('writes the computer into the policy and restarts when the name changes', async () => {
+    let computer = { id: '11111111-1111-4111-8111-111111111111', name: 'Work PC' };
+    const { manager, userDataDir } = createManager(47821, () => computer);
+    await manager.start();
+    const readPolicy = () => JSON.parse(readFileSync(join(userDataDir, 'service', 'policy.json'), 'utf8')) as {
+      computer?: { id: string; name: string };
+    };
+    expect(readPolicy().computer).toEqual(computer);
+    computer = { ...computer, name: 'Laptop' };
+    await manager.refreshComputer();
+    await vi.waitFor(() => expect(children).toHaveLength(2));
+    expect(readPolicy().computer?.name).toBe('Laptop');
   });
 
   it('stops the process and removes the connect file', async () => {
