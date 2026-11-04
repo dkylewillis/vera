@@ -22,7 +22,9 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
+
+from pydantic import Field
 
 from vera_doc.corpus import VeraCorpus
 from vera_doc.document import VeraDocument
@@ -39,6 +41,15 @@ from .access_policy import AccessDenied, AccessPolicy
 
 _AUTO_INSTALL_SEMANTIC_DEPS = "VERA_AUTO_INSTALL_SEMANTIC_DEPS"
 _SENTENCE_TRANSFORMERS_REQUIREMENT = "sentence-transformers>=2.7"
+LibraryName = Annotated[
+    str | None,
+    Field(
+        description=(
+            "Library name from vera_library_info. The file or directory is then "
+            "relative to that library. Omit it to pass an absolute path."
+        )
+    ),
+]
 
 
 def ensure_semantic_dependencies(mode: str) -> None:
@@ -118,7 +129,13 @@ def build_server(policy: AccessPolicy | None = None):
             "The MCP server requires the vera-mcp package and its 'mcp' dependency"
         ) from exc
 
+    from .source_viewer import hide_library_parameter
+
     bridge = policy is not None
+
+    def _published(fn):
+        return hide_library_parameter(fn, hide=not bridge)
+
     instructions = (
         "Search VERA (Vector-Embedded Retrieval Archive) files. An .vera file is a "
         "portable SQLite vector database holding ready-made chunks, embeddings, a "
@@ -128,10 +145,12 @@ def build_server(policy: AccessPolicy | None = None):
     )
     if bridge:
         instructions = (
-            "Search the approved local VERA library exposed by Desktop. Call "
-            "vera_library_info first for the approved library_roots. Use absolute .vera "
-            "paths returned by search tools. Retrieval is read-only; conversion and "
-            "export are unavailable. If a path is rejected, call vera_library_info "
+            "Search the approved local VERA libraries exposed by Desktop. Call "
+            "vera_library_info first. Each library has a name. When the user names a "
+            "library, pass that name as library and a path relative to it. If you are "
+            "unsure of the name, call vera_library_info. Never guess a path. Absolute "
+            "paths returned by search tools also work. Retrieval is read-only; conversion "
+            "and export are unavailable. If a path is rejected, call vera_library_info "
             "again; the user may have switched computers."
         )
 
@@ -139,9 +158,9 @@ def build_server(policy: AccessPolicy | None = None):
     # Stateless HTTP keeps the bridge from tying the conversation to one process.
     server = FastMCP("vera", instructions=instructions, stateless_http=bridge)
 
-    def _open(file: str) -> VeraDocument:
+    def _open(file: str, library: LibraryName = None) -> VeraDocument:
         if policy is not None:
-            path = policy.check_archive(file)
+            path = policy.resolve(library, file, directory=False)
             return VeraDocument.open(path)
         return VeraDocument.open(file)
 
@@ -154,9 +173,9 @@ def build_server(policy: AccessPolicy | None = None):
         def vera_library_info() -> dict[str, Any]:
             """Return approved library roots and supported search capabilities.
 
-            A restricted server returns ``library_roots``. When exactly one folder
-            is approved it also returns ``library_root``. Unrestricted local MCP
-            returns ``library_root: null`` and ``unrestricted: true``.
+            A restricted server returns ``library_roots`` and ``libraries`` (name and
+            path). When exactly one folder is approved it also returns ``library_root``.
+            Unrestricted local MCP returns ``library_root: null`` and ``unrestricted: true``.
             """
             if policy is None:
                 return {
@@ -170,6 +189,7 @@ def build_server(policy: AccessPolicy | None = None):
     if _maybe_tool("vera_search"):
 
         @server.tool()
+        @_published
         def vera_search(
             file: str,
             query: str,
@@ -181,6 +201,7 @@ def build_server(policy: AccessPolicy | None = None):
             where: dict[str, str | list[str]] | None = None,
             pretty: bool = False,
             output: Literal["compact", "full"] = "full",
+            library: LibraryName = None,
         ) -> dict[str, Any]:
             """Search a VERA file and return citation-ready chunks.
 
@@ -194,7 +215,7 @@ def build_server(policy: AccessPolicy | None = None):
                 context_chunks = policy.clamp_context_chunks(context_chunks)
             if not bridge:
                 ensure_semantic_dependencies(mode)
-            doc = _open(file)
+            doc = _open(file, library)
             try:
                 results = []
                 for result in doc.search(
@@ -224,9 +245,10 @@ def build_server(policy: AccessPolicy | None = None):
     if _maybe_tool("vera_corpus_search"):
 
         @server.tool()
+        @_published
         def vera_corpus_search(
-            directory: str,
             query: str,
+            directory: str = "",
             mode: str = "hybrid",
             top_k: int = 10,
             include_figures: bool = False,
@@ -238,6 +260,7 @@ def build_server(policy: AccessPolicy | None = None):
             where: dict[str, str | list[str]] | None = None,
             pretty: bool = False,
             output: Literal["compact", "full"] = "full",
+            library: LibraryName = None,
         ) -> dict[str, Any]:
             """Search a VERA library, automatically using its fresh local index when available.
 
@@ -247,7 +270,7 @@ def build_server(policy: AccessPolicy | None = None):
             """
             _check_output(output, pretty, include_figures, include_regions)
             if policy is not None:
-                directory = str(policy.check_library_root(directory))
+                directory = str(policy.resolve(library, directory, directory=True))
                 top_k = policy.clamp_top_k(top_k)
                 context_chunks = policy.clamp_context_chunks(context_chunks)
             if not bridge:
@@ -317,7 +340,8 @@ def build_server(policy: AccessPolicy | None = None):
     if _maybe_tool("vera_library_status"):
 
         @server.tool()
-        def vera_library_status(directory: str) -> dict[str, Any]:
+        @_published
+        def vera_library_status(directory: str = "", library: LibraryName = None) -> dict[str, Any]:
             """Report whether a folder is a managed VERA library and what sync would change.
 
             Read-only. Does not convert, move, or delete anything. A folder inside
@@ -326,7 +350,7 @@ def build_server(policy: AccessPolicy | None = None):
             from vera_ingest.library import library_status
 
             if policy is not None:
-                directory = str(policy.check_library_root(directory))
+                directory = str(policy.resolve(library, directory, directory=True))
             report = library_status(directory)
             if policy is not None and report.get("library_root"):
                 policy.check_library_root(str(report["library_root"]))
@@ -335,9 +359,10 @@ def build_server(policy: AccessPolicy | None = None):
     if _maybe_tool("vera_inspect"):
 
         @server.tool()
-        def vera_inspect(file: str) -> dict[str, Any]:
+        @_published
+        def vera_inspect(file: str, library: LibraryName = None) -> dict[str, Any]:
             """Get metadata for a VERA file."""
-            doc = _open(file)
+            doc = _open(file, library)
             try:
                 return {**doc.inspect(), **_archive_locator(file, doc)}
             finally:
@@ -357,13 +382,15 @@ def build_server(policy: AccessPolicy | None = None):
     if _maybe_tool("vera_figures"):
 
         @server.tool()
+        @_published
         def vera_figures(
             file: str,
             page_start: int | None = None,
             page_end: int | None = None,
+            library: LibraryName = None,
         ) -> list[dict[str, Any]]:
             """List figures in a VERA file with captions and page locations."""
-            doc = _open(file)
+            doc = _open(file, library)
             try:
                 return figures(doc, page_start=page_start, page_end=page_end)
             finally:
@@ -372,14 +399,15 @@ def build_server(policy: AccessPolicy | None = None):
     if _maybe_tool("vera_get_figure"):
 
         @server.tool(structured_output=False)
-        def vera_get_figure(file: str, asset_id: str):
+        @_published
+        def vera_get_figure(file: str, asset_id: str, library: LibraryName = None):
             """Return one stored figure as image content plus citation metadata.
 
             Image bytes are MCP Image content. Metadata (caption, page, bbox, mime
             type) is JSON text. A missing or non-figure asset id returns an error
             object rather than attachment bytes.
             """
-            doc = _open(file)
+            doc = _open(file, library)
             try:
                 items = figures(doc, include_data=True, attachment_ids=[asset_id])
                 if not items:
@@ -397,9 +425,12 @@ def build_server(policy: AccessPolicy | None = None):
     if _maybe_tool("vera_get_page"):
 
         @server.tool()
-        def vera_get_page(file: str, page_number: int) -> dict[str, Any]:
+        @_published
+        def vera_get_page(
+            file: str, page_number: int, library: LibraryName = None
+        ) -> dict[str, Any]:
             """Get the full text of a single page."""
-            doc = _open(file)
+            doc = _open(file, library)
             try:
                 page = get_page(doc, page_number)
                 if page is None:
@@ -411,16 +442,18 @@ def build_server(policy: AccessPolicy | None = None):
     if _maybe_tool("vera_get_chunk"):
 
         @server.tool()
+        @_published
         def vera_get_chunk(
             file: str,
             chunk_id: str,
             include_figures: bool = False,
             include_regions: bool = False,
+            library: LibraryName = None,
         ) -> dict[str, Any]:
             """Fetch one stored chunk by id as citation-ready JSON."""
             if not str(chunk_id).strip():
                 return {"ok": False, "error": f"chunk not found: {chunk_id}"}
-            doc = _open(file)
+            doc = _open(file, library)
             try:
                 try:
                     records = doc.get(ids=[chunk_id])
@@ -441,9 +474,12 @@ def build_server(policy: AccessPolicy | None = None):
     if _maybe_tool("vera_get_chunk_regions"):
 
         @server.tool()
-        def vera_get_chunk_regions(file: str, chunk_id: str) -> list[dict[str, Any]]:
+        @_published
+        def vera_get_chunk_regions(
+            file: str, chunk_id: str, library: LibraryName = None
+        ) -> list[dict[str, Any]]:
             """Get visual grounding regions for a chunk."""
-            doc = _open(file)
+            doc = _open(file, library)
             try:
                 return get_chunk_regions(doc, chunk_id)
             finally:

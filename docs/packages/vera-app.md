@@ -55,6 +55,7 @@ Download `VERA.Setup.<version>.exe` from the
    convert steps.
 6. Optional: **File > Settings → Agent access** shares library folders with
    local agents through one loopback MCP service (`mcp-service` / `mcp-connect`).
+   Each folder can have a short name so a prompt can pass `library` instead of a path.
    **Allow cloud agents (VERA Pro)** publishes a connector URL for cloud
    assistants. They sign in with the VERA account. The desktop must stay open.
    Several signed-in computers can stay connected. **Automatic** keeps using

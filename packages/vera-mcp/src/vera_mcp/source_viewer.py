@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import inspect
 import math
 import sqlite3
 from importlib.resources import files
@@ -21,6 +22,15 @@ RESOURCE_URI = "ui://vera/source-viewer-v1.html"
 MAX_SOURCE_BYTES = 100 * 1024 * 1024
 MAX_IMAGE_BYTES = 3 * 1024 * 1024
 READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
+LibraryName = Annotated[
+    str | None,
+    Field(
+        description=(
+            "Library name from vera_library_info. file is then relative to that library. "
+            "Omit it to pass an absolute path."
+        )
+    ),
+]
 
 
 class SourceRef(BaseModel):
@@ -33,16 +43,76 @@ class SourceRef(BaseModel):
     )
 
 
-def _resolve_archive(ref: SourceRef, policy: AccessPolicy | None) -> Path:
-    path = Path(ref.file)
+class BridgeSourceRef(BaseModel):
+    """Citation locator for the Desktop agent service.
+
+    ``file`` is an absolute archive path, or a path relative to ``library``.
+    """
+
+    file: str = Field(
+        min_length=1, description="Absolute .vera path, or a path relative to library."
+    )
+    library: str | None = Field(
+        default=None,
+        description=(
+            "Library name from vera_library_info. Use with a file path relative to that library."
+        ),
+    )
+    chunk_id: str = Field(min_length=1, description="Chunk ID returned by VERA search.")
+    id: str | None = Field(
+        default=None,
+        pattern=r"^C[1-9]\d*$",
+        description="Optional citation marker used in the response, for example C1.",
+    )
+
+
+SourceLocator = SourceRef | BridgeSourceRef
+
+
+def hide_library_parameter(fn, *, hide: bool):
+    """Drop ``library`` from an unrestricted tool schema. Bridge tools keep it.
+
+    A blank ``file`` or ``directory`` default exists so a bridge call can name a
+    library and omit the path. Unrestricted tools keep those parameters required.
+    """
+    if not hide:
+        return fn
+    sig = inspect.signature(fn, eval_str=True)
+    params = []
+    for param in sig.parameters.values():
+        if param.name == "library":
+            continue
+        if param.name in {"file", "directory"} and param.default == "":
+            params.append(param.replace(default=inspect.Parameter.empty))
+        else:
+            params.append(param)
+    exposed = sig.replace(parameters=params)
+
+    def wrapper(*args, **kwargs):
+        kwargs.pop("library", None)
+        return fn(*args, **kwargs)
+
+    wrapper.__name__ = fn.__name__
+    wrapper.__doc__ = fn.__doc__
+    wrapper.__module__ = fn.__module__
+    wrapper.__qualname__ = fn.__qualname__
+    wrapper.__signature__ = exposed
+    return wrapper
+
+
+def _resolve_archive(ref: SourceLocator, policy: AccessPolicy | None) -> Path:
+    library = getattr(ref, "library", None)
     if policy is not None:
-        return policy.check_archive(path)
+        return policy.resolve(library, ref.file, directory=False)
+    if library:
+        raise ValueError("library is only available on the Desktop agent service.")
+    path = Path(ref.file)
     if not path.is_absolute() or path.suffix.lower() != ".vera":
         raise ValueError("Use an absolute path to a .vera archive.")
     return path
 
 
-def read_chunk(ref: SourceRef, policy: AccessPolicy | None = None) -> dict[str, Any]:
+def read_chunk(ref: SourceLocator, policy: AccessPolicy | None = None) -> dict[str, Any]:
     path = _resolve_archive(ref, policy)
     with VeraDocument.open(path) as doc:
         records = doc.get(ids=[ref.chunk_id])
@@ -122,7 +192,7 @@ def _pdf_view(source, regions, requested_page: int, initial_page: int) -> dict[s
 
 
 def source_view(
-    ref: SourceRef, page: int = 0, policy: AccessPolicy | None = None
+    ref: SourceLocator, page: int = 0, policy: AccessPolicy | None = None
 ) -> dict[str, Any]:
     if page < 0:
         raise ValueError("Page must be zero (first cited page) or a positive page number.")
@@ -201,6 +271,13 @@ def _result(summary: dict, view: dict) -> CallToolResult:
     )
 
 
+def hide_library_parameter_when(hide: bool):
+    def decorate(fn):
+        return hide_library_parameter(fn, hide=hide)
+
+    return decorate
+
+
 def register_source_viewer(server, policy: AccessPolicy | None = None) -> None:
     max_sources = policy.max_sources if policy is not None else 12
 
@@ -213,21 +290,12 @@ def register_source_viewer(server, policy: AccessPolicy | None = None) -> None:
     def viewer_html() -> str:
         return files("vera_mcp").joinpath("ui/source-viewer.html").read_text(encoding="utf-8")
 
-    @server.tool(
-        annotations=READ_ONLY,
-        meta={
-            "ui": {"resourceUri": RESOURCE_URI},
-            "openai/outputTemplate": RESOURCE_URI,
-            "openai/toolInvocation/invoking": "Opening sources",
-            "openai/toolInvocation/invoked": "Sources ready",
-        },
-    )
-    def vera_show_sources(
-        sources: Annotated[list[SourceRef], Field(min_length=1, max_length=12)],
-    ) -> CallToolResult:
+    def vera_show_sources(sources) -> CallToolResult:
         """Show an Open VERA sources button for retrieved citations. First search
         VERA; pass response citation IDs, returned archive paths, and chunk IDs.
-        The viewer opens PDF or Markdown highlights. Does not search or alter archives."""
+        On the Desktop agent service, a source may name a library and give a path
+        relative to it. The viewer opens PDF or Markdown highlights. Does not
+        search or alter archives."""
         if len(sources) > max_sources:
             raise AccessDenied(f"At most {max_sources} sources may be opened at once.")
         cards = []
@@ -264,18 +332,41 @@ def register_source_viewer(server, policy: AccessPolicy | None = None) -> None:
             },
         )
 
+    ref_model = BridgeSourceRef if policy is not None else SourceRef
+    vera_show_sources.__annotations__ = {
+        "sources": Annotated[list[ref_model], Field(min_length=1, max_length=12)],
+        "return": CallToolResult,
+    }
+    server.tool(
+        annotations=READ_ONLY,
+        meta={
+            "ui": {"resourceUri": RESOURCE_URI},
+            "openai/outputTemplate": RESOURCE_URI,
+            "openai/toolInvocation/invoking": "Opening sources",
+            "openai/toolInvocation/invoked": "Sources ready",
+        },
+    )(vera_show_sources)
+
     @server.tool(
         annotations=READ_ONLY,
         meta={"ui": {"visibility": ["app"]}, "openai/widgetAccessible": True},
     )
-    def vera_source_page(file: str, chunk_id: str, page: int = 0) -> CallToolResult:
+    @hide_library_parameter_when(policy is None)
+    def vera_source_page(
+        file: str, chunk_id: str, page: int = 0, library: LibraryName = None
+    ) -> CallToolResult:
         """Read one source page for the viewer's scrollable PDF or Markdown view.
 
         Zero opens the first cited page; positive numbers select a PDF page or a
         200-line Markdown section. The viewer loads further PDF pages on demand.
         """
         try:
-            view = source_view(SourceRef(file=file, chunk_id=chunk_id), page, policy=policy)
+            ref: SourceLocator = (
+                SourceRef(file=file, chunk_id=chunk_id)
+                if policy is None
+                else BridgeSourceRef(file=file, chunk_id=chunk_id, library=library)
+            )
+            view = source_view(ref, page, policy=policy)
         except AccessDenied as exc:
             raise AccessDenied("Access denied by VERA bridge policy.") from exc
         return _result(

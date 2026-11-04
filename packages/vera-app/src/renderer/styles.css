@@ -5694,6 +5694,7 @@ div.settingRow {
 
 .agentLibraryList li {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   min-height: 38px;
@@ -5709,12 +5710,23 @@ div.settingRow {
   color: var(--text-faint);
 }
 
-.agentLibraryList li > span:not(.statusPill) {
+.agentLibraryList li > span:not(.statusPill):not(.agentLibraryNameError) {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.agentLibraryName {
+  width: 9.5rem;
+  flex: none;
+}
+
+.agentLibraryNameError {
+  flex: 1 1 100%;
+  color: var(--danger);
+  font-size: 11.5px;
 }
 
 .agentComputer {

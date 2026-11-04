@@ -311,6 +311,8 @@ export interface AppSettings {
 export interface AgentServiceSettings {
   enabled?: boolean;
   library_roots?: string[];
+  /** Explicit short names keyed by library folder. Missing keys use the folder name. */
+  library_names?: Record<string, string>;
   port?: number;
   /** When true, a signed-in Pro desktop connects to the cloud relay. */
   cloud_enabled?: boolean;
@@ -347,6 +349,8 @@ export interface AgentServiceStatus {
   state: AgentServiceState;
   enabled: boolean;
   libraryRoots: string[];
+  /** Explicit names only. Agents also see a fallback derived from the folder name. */
+  libraryNames: Record<string, string>;
   port: number;
   url: string;
   connectFile: string;

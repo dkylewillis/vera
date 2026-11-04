@@ -307,7 +307,8 @@ archive back.
 Run the long-lived stdio MCP server. This command does not accept `--json`.
 Install the `mcp` optional dependency first. Desktop **Agent access** is a
 separate loopback service (`mcp-service` / `mcp-connect`) and does not change
-this command. Restricted servers report `library_roots`. See [mcp.md](mcp.md).
+this command. Restricted servers report `library_roots` and `libraries`. On
+that service, tools accept `library` plus a relative path. See [mcp.md](mcp.md).
 
 ## `vera ocr-languages list [LANGUAGE]`
 

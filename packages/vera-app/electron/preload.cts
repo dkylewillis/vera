@@ -158,7 +158,7 @@ contextBridge.exposeInMainWorld('vera', {
     return () => ipcRenderer.removeListener(IPC_CHANNELS.answerEvent, listener);
   },
   serviceGetStatus: () => ipcRenderer.invoke(IPC_CHANNELS.serviceGetStatus),
-  serviceSave: (config: { enabled?: boolean; libraryRoots?: string[]; port?: number }) =>
+  serviceSave: (config: { enabled?: boolean; libraryRoots?: string[]; libraryNames?: Record<string, string>; port?: number; cloudEnabled?: boolean }) =>
     ipcRenderer.invoke(IPC_CHANNELS.serviceSave, config),
   serviceStart: () => ipcRenderer.invoke(IPC_CHANNELS.serviceStart),
   serviceStop: () => ipcRenderer.invoke(IPC_CHANNELS.serviceStop),

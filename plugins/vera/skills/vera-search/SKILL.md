@@ -38,7 +38,10 @@ request. A remote task host is not the user's desktop. Check
 Use MCP whenever `vera_search`, `vera_corpus_search`, or another VERA MCP tool
 is available. If `vera_library_info` is present, call it to learn whether the
 server is unrestricted local MCP or limited to an approved library root.
-On the Desktop bridge, `computer` names the computer that answered. If a path
+On the Desktop bridge, `libraries` lists each approved folder's name and
+`computer` names the computer that answered. When the user names a library,
+pass `library` and a path relative to it. Do not guess a path. Unrestricted
+local MCP has no `library` parameter. If a path
 is rejected, call `vera_library_info` again; the user may have switched
 computers.
 The plugin's MCP server supplies the VERA runtime; a missing

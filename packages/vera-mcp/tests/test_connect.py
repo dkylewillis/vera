@@ -75,6 +75,32 @@ async def test_forwards_tools_resources_and_calls(library: dict[str, object], tm
                 info = _tool_payload(await session.call_tool("vera_library_info", {}))
                 assert isinstance(info, dict)
                 assert str(root.resolve()) in info["library_roots"]
+                assert info["libraries"][0]["name"] == "approved"
+                named = _tool_payload(
+                    await session.call_tool(
+                        "vera_corpus_search",
+                        {
+                            "library": "approved",
+                            "query": "restaurant",
+                            "mode": "keyword",
+                            "top_k": 3,
+                            "output": "compact",
+                        },
+                    )
+                )
+                assert isinstance(named, dict)
+                chunk = _tool_payload(
+                    await session.call_tool(
+                        "vera_get_chunk",
+                        {
+                            "library": "approved",
+                            "file": "manual.vera",
+                            "chunk_id": named["results"][0]["chunk_id"],
+                        },
+                    )
+                )
+                assert isinstance(chunk, dict)
+                assert chunk["ok"] is True
 
                 resources = await session.list_resources()
                 viewer = next(

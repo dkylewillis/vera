@@ -27,11 +27,14 @@ not sync or delete. Managed corpus hits may include `source_path`.
 Call `vera_library_info` when the server may be the Desktop agent service or
 the VERA Pro cloud connector. Unrestricted local MCP
 returns `unrestricted: true` and no `library_root`. A restricted server returns
-`library_roots`. When exactly one folder is approved it also returns
-`library_root`. The Desktop bridge also returns `computer` with that
-computer's `id` and `name`. Use those roots for corpus search and only absolute
-archive paths the tools return. Stay inside `library_roots`. If a path is
-rejected, call `vera_library_info` again; the user may have switched computers.
+`library_roots` and `libraries` (each folder's `name` and `path`). When exactly
+one folder is approved it also returns `library_root`. The Desktop bridge also
+returns `computer` with that computer's `id` and `name`. When the user names a
+library, pass `library` and a path relative to that folder. Corpus search may
+omit `directory` to search the named library. Omit `library` to pass an absolute
+path. Unrestricted local MCP has no `library` parameter. Stay inside
+`library_roots`. If a path is rejected, call `vera_library_info` again; the user
+may have switched computers.
 **Automatic** keeps using the current computer. **Use this computer** pins one
 computer and does not fall back while it is offline. The cloud connector
 requires the user to sign in and VERA Desktop to be open with **Allow cloud agents**

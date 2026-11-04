@@ -15,6 +15,7 @@ import type {
 import { IPC_CHANNELS, SIDECAR_ACTIONS, type FolderPickPurpose } from '../src/shared/protocol.js';
 import { LIBRARY_SYNC_INTERVAL_MS, isManagedLibraryEvent, librarySyncDecision } from './folder-watch.js';
 import { DEFAULT_AGENT_SERVICE_PORT } from '../src/shared/agent-snippets.js';
+import { namesForRoots } from '../src/shared/library-names.js';
 import { DESKTOP_DEFAULT_EMBEDDING_MODEL } from '../src/shared/desktop-defaults.js';
 import { helpLinkUrl } from '../src/shared/help-links.js';
 import {
@@ -582,6 +583,7 @@ function syncAgentService(settings: AgentServiceSettings | undefined): void {
   serviceManager.updateConfig({
     enabled: Boolean(normalized.enabled),
     libraryRoots: normalized.library_roots || [],
+    libraryNames: normalized.library_names || {},
     port: normalized.port || DEFAULT_AGENT_SERVICE_PORT,
     cloudEnabled: Boolean(normalized.cloud_enabled),
   });
@@ -846,7 +848,7 @@ function withRuntime(settings: AppSettings): AppSettings {
 
 function normalizeAgentServiceSettings(raw: unknown): AgentServiceSettings {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { enabled: false, library_roots: [], port: DEFAULT_AGENT_SERVICE_PORT, cloud_enabled: false };
+    return { enabled: false, library_roots: [], library_names: {}, port: DEFAULT_AGENT_SERVICE_PORT, cloud_enabled: false };
   }
   const value = raw as Record<string, unknown>;
   const roots = Array.isArray(value.library_roots)
@@ -855,12 +857,23 @@ function normalizeAgentServiceSettings(raw: unknown): AgentServiceSettings {
   const port = typeof value.port === 'number' && Number.isInteger(value.port) && value.port >= 1 && value.port <= 65535
     ? value.port
     : DEFAULT_AGENT_SERVICE_PORT;
+  const libraryNames = namesForRoots(roots, rawLibraryNames(value.library_names));
   return {
     enabled: value.enabled === true,
     library_roots: roots,
+    library_names: libraryNames,
     port,
     cloud_enabled: value.cloud_enabled === true,
   };
+}
+
+function rawLibraryNames(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const names: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === 'string') names[key] = value;
+  }
+  return names;
 }
 
 function normalizeProvider(raw: unknown): ProviderProfile | null {
@@ -1933,16 +1946,18 @@ if (singleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.saveEnvSecret, async (_event, name: string, value: string) => saveEnvSecret(String(name || ''), String(value || '')));
   ipcMain.handle(IPC_CHANNELS.clearEnvSecret, async (_event, name: string) => clearEnvSecret(String(name || '')));
   ipcMain.handle(IPC_CHANNELS.serviceGetStatus, async () => serviceManager.getStatus());
-  ipcMain.handle(IPC_CHANNELS.serviceSave, async (_event, config: { enabled?: boolean; libraryRoots?: string[]; port?: number; cloudEnabled?: boolean }) => {
+  ipcMain.handle(IPC_CHANNELS.serviceSave, async (_event, config: { enabled?: boolean; libraryRoots?: string[]; libraryNames?: Record<string, string>; port?: number; cloudEnabled?: boolean }) => {
     const next = normalizeAgentServiceSettings({
       enabled: config?.enabled === true,
       library_roots: Array.isArray(config?.libraryRoots) ? config.libraryRoots : [],
+      library_names: config?.libraryNames && typeof config.libraryNames === 'object' ? config.libraryNames : {},
       port: typeof config?.port === 'number' ? config.port : DEFAULT_AGENT_SERVICE_PORT,
       cloud_enabled: config?.cloudEnabled === true,
     });
     const status = await serviceManager.reconfigure({
       enabled: Boolean(next.enabled),
       libraryRoots: next.library_roots || [],
+      libraryNames: next.library_names || {},
       port: next.port || DEFAULT_AGENT_SERVICE_PORT,
       cloudEnabled: Boolean(next.cloud_enabled),
     });

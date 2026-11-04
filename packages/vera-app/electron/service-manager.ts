@@ -19,12 +19,14 @@ import {
   type AgentSnippets,
 } from '../src/shared/agent-snippets.js';
 import type { RelayCloudStatus } from '../src/shared/contracts.js';
+import { namesForRoots } from '../src/shared/library-names.js';
 
 export type ServiceState = 'disabled' | 'starting' | 'running' | 'error';
 
 export interface ServiceConfig {
   enabled: boolean;
   libraryRoots: string[];
+  libraryNames: Record<string, string>;
   port: number;
   cloudEnabled: boolean;
 }
@@ -33,6 +35,7 @@ export interface ServiceStatus {
   state: ServiceState;
   enabled: boolean;
   libraryRoots: string[];
+  libraryNames: Record<string, string>;
   port: number;
   url: string;
   connectFile: string;
@@ -94,6 +97,7 @@ export class ServiceManager {
   private config: ServiceConfig = {
     enabled: false,
     libraryRoots: [],
+    libraryNames: {},
     port: DEFAULT_AGENT_SERVICE_PORT,
     cloudEnabled: false,
   };
@@ -120,6 +124,7 @@ export class ServiceManager {
       state: this.state,
       enabled: this.config.enabled,
       libraryRoots: [...this.config.libraryRoots],
+      libraryNames: { ...this.config.libraryNames },
       port,
       url,
       connectFile,
@@ -144,10 +149,20 @@ export class ServiceManager {
     const nextRoots = partial.libraryRoots
       ? normalizeRoots(partial.libraryRoots)
       : this.config.libraryRoots;
+    const nextNames = namesForRoots(
+      nextRoots,
+      partial.libraryNames === undefined ? this.config.libraryNames : partial.libraryNames,
+    );
     const nextPort = partial.port === undefined ? this.config.port : this.normalizePort(partial.port);
     const nextEnabled = partial.enabled === undefined ? this.config.enabled : partial.enabled;
     const nextCloud = partial.cloudEnabled === undefined ? this.config.cloudEnabled : partial.cloudEnabled;
-    this.config = { enabled: nextEnabled, libraryRoots: nextRoots, port: nextPort, cloudEnabled: nextCloud };
+    this.config = {
+      enabled: nextEnabled,
+      libraryRoots: nextRoots,
+      libraryNames: nextNames,
+      port: nextPort,
+      cloudEnabled: nextCloud,
+    };
     if (!nextEnabled && this.state === 'disabled') {
       this.message = 'Agent access is off.';
       this.boundPort = null;
@@ -160,20 +175,31 @@ export class ServiceManager {
   async reconfigure(partial: Partial<ServiceConfig>): Promise<ServiceStatus> {
     const wasLive = this.state === 'running' || this.state === 'starting';
     const nextRoots = partial.libraryRoots ? normalizeRoots(partial.libraryRoots) : this.config.libraryRoots;
+    const nextNames = namesForRoots(
+      nextRoots,
+      partial.libraryNames === undefined ? this.config.libraryNames : partial.libraryNames,
+    );
     const nextPort = partial.port === undefined ? this.config.port : this.normalizePort(partial.port);
     const nextEnabled = partial.enabled === undefined ? this.config.enabled : partial.enabled;
     const nextCloud = partial.cloudEnabled === undefined ? this.config.cloudEnabled : partial.cloudEnabled;
     const rootsChanged = !sameRoots(nextRoots, this.config.libraryRoots);
+    const namesChanged = !sameNames(nextNames, this.config.libraryNames);
     const portChanged = nextPort !== this.normalizePort(this.config.port);
     const cloudChanged = nextCloud !== this.config.cloudEnabled;
-    this.updateConfig({ enabled: nextEnabled, libraryRoots: nextRoots, port: nextPort, cloudEnabled: nextCloud });
+    this.updateConfig({
+      enabled: nextEnabled,
+      libraryRoots: nextRoots,
+      libraryNames: nextNames,
+      port: nextPort,
+      cloudEnabled: nextCloud,
+    });
     if (!nextEnabled) {
       if (wasLive) return this.stop('Agent access is off.');
       this.state = 'disabled';
       this.message = 'Agent access is off.';
       return this.getStatus();
     }
-    if (wasLive && (rootsChanged || portChanged || cloudChanged)) return this.restart();
+    if (wasLive && (rootsChanged || namesChanged || portChanged || cloudChanged)) return this.restart();
     if (!wasLive) return this.start();
     return this.getStatus();
   }
@@ -413,10 +439,12 @@ export class ServiceManager {
     const computer = this.options.readComputer?.() || null;
     const policy: {
       library_roots: string[];
+      library_names: Record<string, string>;
       disclosure: string;
       computer?: { id: string; name: string };
     } = {
       library_roots: roots,
+      library_names: namesForRoots(roots, this.config.libraryNames),
       disclosure: this.config.cloudEnabled ? AGENT_SERVICE_CLOUD_DISCLOSURE : AGENT_SERVICE_DISCLOSURE,
     };
     if (computer?.id && computer.name) policy.computer = { id: computer.id, name: computer.name };
@@ -521,6 +549,12 @@ function normalizeRoots(roots: string[]): string[] {
 function sameRoots(left: string[], right: string[]): boolean {
   if (left.length !== right.length) return false;
   return left.every((value, index) => value === right[index]);
+}
+
+function sameNames(left: Record<string, string>, right: Record<string, string>): boolean {
+  const keys = Object.keys(left);
+  if (keys.length !== Object.keys(right).length) return false;
+  return keys.every((key) => left[key] === right[key]);
 }
 
 function connectLaunchArgs(serviceArgs: string[], connectFile: string): string[] {

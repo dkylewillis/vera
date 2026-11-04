@@ -15,6 +15,7 @@ from vera_mcp.access_policy import (
     AccessDenied,
     AccessPolicy,
     canonicalize_path,
+    library_slug,
 )
 from vera_mcp.source_viewer import SourceRef, read_chunk, source_view
 
@@ -285,6 +286,8 @@ def test_symlink_escape_denied(approved_library):
         pytest.skip(f"could not create symlink: {exc}")
     with pytest.raises(AccessDenied):
         policy.check_archive(file_link)
+    with pytest.raises(AccessDenied):
+        policy.resolve("approved", "escape.vera", directory=False)
 
     dir_link = approved_library["root"] / "escape_dir"
     try:
@@ -293,6 +296,8 @@ def test_symlink_escape_denied(approved_library):
         pytest.skip(f"could not create directory symlink: {exc}")
     with pytest.raises(AccessDenied):
         policy.check_archive(dir_link / "secret.vera")
+    with pytest.raises(AccessDenied):
+        policy.resolve("approved", "escape_dir/secret.vera", directory=False)
 
 
 def test_rejects_unc_style_and_relative_paths(approved_library):
@@ -561,4 +566,153 @@ async def test_show_sources_honors_max_sources(approved_library):
                     },
                 ]
             },
+        )
+
+
+def test_library_slug_matches_the_desktop_rule():
+    assert library_slug("Stormwater Manuals") == "stormwater-manuals"
+    assert library_slug("---") == ""
+    assert library_slug("_hidden") == "hidden"
+    assert library_slug("codes_v2") == "codes-v2"
+    assert library_slug("a" * 80) == "a" * 64
+    assert library_slug("9lives") == "9lives"
+
+
+def test_library_names_fall_back_disambiguate_and_honor_explicit_names(tmp_path):
+    work = tmp_path / "work" / "codes"
+    other = tmp_path / "other" / "codes"
+    work.mkdir(parents=True)
+    other.mkdir(parents=True)
+    fallback = AccessPolicy.from_mapping({"library_roots": [str(work), str(other)]})
+    assert dict(fallback.library_names) == {
+        work.resolve(): "work-codes",
+        other.resolve(): "other-codes",
+    }
+    named = AccessPolicy.from_mapping(
+        {
+            "library_roots": [str(work), str(other)],
+            "library_names": {str(work): "manuals"},
+        }
+    )
+    assert dict(named.library_names) == {work.resolve(): "manuals", other.resolve(): "codes"}
+    libraries = named.discovery()["libraries"]
+    assert libraries[0] == {"name": "manuals", "path": str(work.resolve())}
+    assert named.resolve("Manuals", "", directory=True) == work.resolve()
+    with pytest.raises(ValueError, match="used more than once"):
+        AccessPolicy.from_mapping(
+            {
+                "library_roots": [str(work), str(other)],
+                "library_names": {str(work): "manuals", str(other): "manuals"},
+            }
+        )
+    with pytest.raises(ValueError, match="lowercase slug"):
+        AccessPolicy.from_mapping(
+            {"library_roots": [str(work)], "library_names": {str(work): "Stormwater"}}
+        )
+    odd = tmp_path / "!!!"
+    odd.mkdir()
+    with pytest.raises(ValueError, match="could not derive"):
+        AccessPolicy.from_mapping({"library_roots": [str(odd)]})
+    with pytest.raises(ValueError, match="library_names must be an object"):
+        AccessPolicy.from_mapping({"library_roots": [str(work)], "library_names": []})
+    missing = tmp_path / "missing"
+    with pytest.raises(ValueError, match="not a library folder"):
+        AccessPolicy.from_mapping(
+            {"library_roots": [str(work)], "library_names": {str(missing): "ghost"}}
+        )
+
+
+def test_library_names_ignore_keys_that_are_not_roots(approved_library, tmp_path):
+    extra = tmp_path / "extra"
+    extra.mkdir()
+    nested = approved_library["root"] / "nested"
+    nested.mkdir()
+    policy = AccessPolicy.from_mapping(
+        {
+            "library_roots": [str(approved_library["root"]), str(nested)],
+            "library_names": {str(extra): "extra", str(nested): "inner"},
+        }
+    )
+    assert policy.library_roots == (approved_library["policy"].library_root,)
+    assert dict(policy.library_names) == {approved_library["policy"].library_root: "approved"}
+
+
+def test_resolve_accepts_a_library_name_and_rejects_escapes(approved_library):
+    policy = approved_library["policy"]
+    archive = Path(approved_library["archive"]).resolve()
+    assert policy.resolve("approved", "manual.vera", directory=False) == archive
+    assert policy.resolve("approved", "", directory=True) == approved_library["policy"].library_root
+    assert policy.discovery()["libraries"] == [
+        {"name": "approved", "path": str(approved_library["policy"].library_root)}
+    ]
+    with pytest.raises(AccessDenied, match="Approved libraries: approved"):
+        policy.resolve_library("nope")
+    with pytest.raises(AccessDenied, match="Archive path is required"):
+        policy.resolve("approved", "", directory=False)
+    with pytest.raises(AccessDenied, match="stay inside"):
+        policy.resolve("approved", "nested/../../manual.vera", directory=False)
+    with pytest.raises(AccessDenied, match="relative to the named library"):
+        policy.resolve("approved", str(archive), directory=False)
+    with pytest.raises(AccessDenied, match="relative to the named library"):
+        policy.resolve("approved", "C:manual.vera", directory=False)
+    with pytest.raises(AccessDenied, match="relative to the named library"):
+        policy.resolve("approved", "/manual.vera", directory=False)
+
+
+@pytest.mark.anyio
+async def test_library_parameter_is_bridge_only_and_searches_by_name(approved_library):
+    from vera_mcp import build_server
+
+    opened = build_server()
+    bridge = build_server(policy=approved_library["policy"])
+    open_tools = {tool.name: tool for tool in await opened.list_tools()}
+    bridge_tools = {tool.name: tool for tool in await bridge.list_tools()}
+    for name in (
+        "vera_search",
+        "vera_corpus_search",
+        "vera_get_chunk",
+        "vera_library_status",
+        "vera_inspect",
+        "vera_figures",
+        "vera_get_page",
+        "vera_get_chunk_regions",
+        "vera_source_page",
+    ):
+        assert "library" not in open_tools[name].inputSchema.get("properties", {})
+        assert "library" in bridge_tools[name].inputSchema["properties"]
+    assert "directory" in open_tools["vera_corpus_search"].inputSchema["required"]
+    assert "directory" not in bridge_tools["vera_corpus_search"].inputSchema.get("required", [])
+    assert "library" not in json.dumps(open_tools["vera_show_sources"].inputSchema)
+    assert "library" in json.dumps(bridge_tools["vera_show_sources"].inputSchema)
+    with pytest.raises(Exception, match="(?i)directory"):
+        await opened.call_tool(
+            "vera_corpus_search",
+            {"library": "approved", "query": "restaurant", "mode": "keyword"},
+        )
+
+    payload = _payload(
+        await bridge.call_tool(
+            "vera_corpus_search",
+            {
+                "library": "approved",
+                "query": "restaurant",
+                "mode": "keyword",
+                "top_k": 3,
+                "output": "compact",
+            },
+        )
+    )
+    chunk_id = payload["results"][0]["chunk_id"]
+    chunk = _payload(
+        await bridge.call_tool(
+            "vera_get_chunk",
+            {"library": "approved", "file": "manual.vera", "chunk_id": chunk_id},
+        )
+    )
+    assert chunk["ok"] is True
+    assert chunk["chunk_id"] == chunk_id
+    with pytest.raises(Exception, match="(?i)unknown library"):
+        await bridge.call_tool(
+            "vera_corpus_search",
+            {"library": "missing", "query": "restaurant", "mode": "keyword"},
         )

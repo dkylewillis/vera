@@ -136,7 +136,9 @@ out of Account leaves a saved key on disk until you clear it.
 ## Agent access
 
 **File > Settings → Agent access** shares one or more library folders with
-local AI agents while VERA Desktop is open. The app runs one loopback MCP
+local AI agents while VERA Desktop is open. Each folder can have a short name.
+Agents pass that name as `library` instead of the full path. A blank name uses
+the folder name. The app runs one loopback MCP
 service for every agent, so they share one loaded embedder and one access
 policy. Copy the HTTP snippet or the stdio snippet into the agent's MCP
 config. The stdio snippet runs `mcp-connect`, which fails if Desktop is not

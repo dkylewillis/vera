@@ -52,7 +52,9 @@ retrieval evaluation. Use `vera` or the Python packages for those tasks.
 
 Desktop Agent access is a restricted entry (`vera-sidecar mcp-service`
 and `mcp-connect`). It serves Streamable HTTP on `127.0.0.1` for the folders
-in `library_roots`. `vera mcp` does not start that service. See
+in `library_roots`. Each folder has a name in `libraries`. Tools on that
+service accept `library` plus a path relative to the folder. `vera mcp` does
+not start that service and has no `library` parameter. See
 [mcp.md](../mcp.md).
 
 Source viewer: `vera_show_sources` adds an **Open VERA sources** button beside

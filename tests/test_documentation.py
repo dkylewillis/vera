@@ -1216,6 +1216,8 @@ def test_desktop_agent_service_is_documented():
     assert "mcp-service" in mcp
     assert "mcp-connect" in mcp
     assert "library_roots" in mcp
+    assert "libraries" in mcp
+    assert "`library`" in mcp
     assert "VERA_SERVICE_TOKEN" in mcp
     assert "Agent access" in getting_started
     assert "Agent access" in overview
@@ -1223,7 +1225,11 @@ def test_desktop_agent_service_is_documented():
     assert "mcp-service" in mcp_pkg
     assert "library_roots" in mcp_pkg
     assert "library_roots" in agents
+    assert "libraries" in agents
+    assert "`library`" in agents
     assert "library_roots" in workflow
+    assert "libraries" in workflow
+    assert "`library`" in workflow
     assert "Settings → Agent access" in changelog
     assert "stays unrestricted" in changelog
 

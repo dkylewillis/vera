@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Cloud, Folder, FolderPlus, Laptop, Plug } from 'lucide-react';
 import { AGENT_SERVICE_NOTE } from '../../shared/agent-snippets';
+import { fallbackLibraryName, libraryNameError } from '../../shared/library-names';
 import { subscriptionActive } from '../../shared/pro';
 import { useProAccount } from '../lib/proAccount';
 import type { AgentServiceStatus } from '../types';
@@ -9,6 +10,9 @@ import { Callout, CopyField, SettingsCard, StatusPill, ToggleRow } from './Setti
 export function AgentAccessSection() {
   const [status, setStatus] = useState<AgentServiceStatus | null>(null);
   const [roots, setRoots] = useState<string[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [nameErrors, setNameErrors] = useState<Record<string, string>>({});
   const [enabled, setEnabled] = useState(false);
   const [cloudEnabled, setCloudEnabled] = useState(false);
   const hasAgentAccess = subscriptionActive(useProAccount()?.agentAccessStatus || '');
@@ -24,12 +28,14 @@ export function AgentAccessSection() {
       if (cancelled) return;
       setStatus(next);
       setRoots(next.libraryRoots);
+      setNames(next.libraryNames || {});
       setEnabled(next.enabled);
       setCloudEnabled(Boolean(next.cloudEnabled));
     }).catch(() => undefined);
     const unsubscribe = api.onServiceEvent?.((next) => {
       setStatus(next);
       setRoots(next.libraryRoots);
+      setNames(next.libraryNames || {});
       setEnabled(next.enabled);
       setCloudEnabled(Boolean(next.cloudEnabled));
     });
@@ -50,17 +56,24 @@ export function AgentAccessSection() {
     };
   }, [cloudEnabled]);
 
-  async function save(nextEnabled: boolean, nextRoots: string[], nextCloud = cloudEnabled) {
+  async function save(
+    nextEnabled: boolean,
+    nextRoots: string[],
+    nextCloud = cloudEnabled,
+    nextNames = names,
+  ) {
     setBusy(true);
     try {
       const next = await window.vera.serviceSave({
         enabled: nextEnabled,
         libraryRoots: nextRoots,
+        libraryNames: nextNames,
         port: status?.port,
         cloudEnabled: nextCloud,
       });
       setStatus(next);
       setRoots(next.libraryRoots);
+      setNames(next.libraryNames || {});
       setEnabled(next.enabled);
       setCloudEnabled(Boolean(next.cloudEnabled));
       setNotice(next.message);
@@ -88,7 +101,24 @@ export function AgentAccessSection() {
     const picked = await window.vera.pickFolder('agent-library');
     if (!picked) return;
     if (roots.some((root) => root.toLowerCase() === picked.toLowerCase())) return;
-    await save(enabled, [...roots, picked]);
+    await save(enabled, [...roots, picked], cloudEnabled, names);
+  }
+
+  function commitName(root: string) {
+    const draft = (drafts[root] ?? names[root] ?? '').trim();
+    const next = { ...names };
+    if (draft) next[root] = draft;
+    else delete next[root];
+    const problem = libraryNameError(roots, next);
+    setNameErrors((current) => ({ ...current, [root]: problem }));
+    if (problem) return;
+    setDrafts((current) => {
+      const copy = { ...current };
+      delete copy[root];
+      return copy;
+    });
+    if ((names[root] ?? '') === (next[root] ?? '')) return;
+    void save(enabled, roots, cloudEnabled, next);
   }
 
   const snippetHint = 'Turn on agent access to copy a config snippet.';
@@ -117,7 +147,7 @@ export function AgentAccessSection() {
       <SettingsCard
         icon={<Folder size={16} />}
         title="Shared libraries"
-        description="Agents can search only these folders."
+        description="Agents can search only these folders. A short name lets a prompt choose the library."
         actions={(
           <button type="button" className="secondaryAction compactAction" disabled={busy} onClick={() => void addLibrary()}>
             <FolderPlus size={14} />Add library
@@ -128,20 +158,57 @@ export function AgentAccessSection() {
           <p className="mutedText">No libraries shared yet.</p>
         ) : (
           <ul className="agentLibraryList">
-            {roots.map((root) => (
-              <li key={root}>
-                <Folder size={14} aria-hidden="true" />
-                <span title={root}>{root}</span>
-                <button
-                  type="button"
-                  className="secondaryAction compactAction"
-                  disabled={busy}
-                  onClick={() => void save(enabled, roots.filter((item) => item !== root))}
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
+            {roots.map((root) => {
+              const error = nameErrors[root];
+              const placeholder = (() => {
+                try {
+                  return fallbackLibraryName(roots, names, root);
+                } catch {
+                  return '';
+                }
+              })();
+              return (
+                <li key={root}>
+                  <Folder size={14} aria-hidden="true" />
+                  <input
+                    className="agentLibraryName"
+                    type="text"
+                    aria-label={`Library name for ${root}`}
+                    placeholder={placeholder}
+                    spellCheck={false}
+                    disabled={busy}
+                    value={drafts[root] ?? names[root] ?? ''}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setDrafts((current) => ({ ...current, [root]: value }));
+                      setNameErrors((current) => ({ ...current, [root]: '' }));
+                    }}
+                    onBlur={() => commitName(root)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        (event.target as HTMLInputElement).blur();
+                      }
+                    }}
+                  />
+                  <span title={root}>{root}</span>
+                  {error ? <span className="agentLibraryNameError">{error}</span> : null}
+                  <button
+                    type="button"
+                    className="secondaryAction compactAction"
+                    disabled={busy}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      const next = { ...names };
+                      delete next[root];
+                      void save(enabled, roots.filter((item) => item !== root), cloudEnabled, next);
+                    }}
+                  >
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </SettingsCard>

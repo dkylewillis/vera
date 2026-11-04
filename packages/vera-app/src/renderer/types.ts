@@ -111,7 +111,7 @@ export interface VeraApi {
   onFolderChanged(callback: (path: string) => void): () => void;
   onAnswerEvent(callback: (data: StreamEvent) => void): () => void;
   serviceGetStatus(): Promise<AgentServiceStatus>;
-  serviceSave(config: { enabled?: boolean; libraryRoots?: string[]; port?: number; cloudEnabled?: boolean }): Promise<AgentServiceStatus>;
+  serviceSave(config: { enabled?: boolean; libraryRoots?: string[]; libraryNames?: Record<string, string>; port?: number; cloudEnabled?: boolean }): Promise<AgentServiceStatus>;
   serviceStart(): Promise<AgentServiceStatus>;
   serviceStop(): Promise<AgentServiceStatus>;
   serviceRotateToken(): Promise<AgentServiceStatus>;

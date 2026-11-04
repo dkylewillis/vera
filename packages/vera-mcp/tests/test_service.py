@@ -112,6 +112,9 @@ async def test_mcp_round_trip_allows_library_and_denies_outside(library: dict[st
                     info = _tool_payload(await session.call_tool("vera_library_info", {}))
                     assert isinstance(info, dict)
                     assert str(library["root"].resolve()) in info["library_roots"]
+                    assert info["libraries"] == [
+                        {"name": "approved", "path": str(library["root"].resolve())}
+                    ]
                     assert info["disclosure"] == LOCAL_AGENT_DISCLOSURE
 
                     search = _tool_payload(
@@ -137,6 +140,31 @@ async def test_mcp_round_trip_allows_library_and_denies_outside(library: dict[st
                     assert isinstance(chunk, dict)
                     assert chunk["ok"] is True
                     assert chunk["chunk_id"] == chunk_id
+                    named = _tool_payload(
+                        await session.call_tool(
+                            "vera_corpus_search",
+                            {
+                                "library": "approved",
+                                "query": "restaurant",
+                                "mode": "keyword",
+                                "top_k": 3,
+                                "output": "compact",
+                            },
+                        )
+                    )
+                    assert isinstance(named, dict)
+                    named_chunk = _tool_payload(
+                        await session.call_tool(
+                            "vera_get_chunk",
+                            {
+                                "library": "approved",
+                                "file": "manual.vera",
+                                "chunk_id": named["results"][0]["chunk_id"],
+                            },
+                        )
+                    )
+                    assert isinstance(named_chunk, dict)
+                    assert named_chunk["ok"] is True
 
                     denied_result = await session.call_tool(
                         "vera_search",

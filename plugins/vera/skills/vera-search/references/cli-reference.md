@@ -887,9 +887,12 @@ Both search tools accept `pretty: true`; this adds a top-level `context` string
 with the same readable rendering as CLI `--pretty` while preserving the
 structured `results` array.
 `vera_library_info` reports whether the process is unrestricted local MCP or
-the Desktop agent service (`library_roots`, and `library_root` when only one
+the Desktop agent service (`library_roots`, `libraries` with each folder's
+`name` and `path`, and `library_root` when only one
 folder is approved, plus bounds, disclosure, and `computer` with `id` and
-`name` when Desktop recorded the computer). If a path is rejected, call
+`name` when Desktop recorded the computer). On that service, pass `library`
+and a path relative to the named folder. Unrestricted `vera mcp` has no
+`library` parameter. If a path is rejected, call
 `vera_library_info` again; the user may have switched computers. The agent service omits
 `vera_validate`. Cloud assistants use that same service through the VERA Pro
 relay while Desktop is open.

@@ -62,7 +62,8 @@ client.
 ### `vera_library_info`
 
 Returns the approved library folders and search bounds when running as the
-Desktop agent service. Unrestricted local MCP returns `unrestricted: true` and
+Desktop agent service. The grant includes `library_roots` and `libraries`
+(`name` and `path`). Unrestricted local MCP returns `unrestricted: true` and
 no grant.
 
 ### `vera_library_status`
@@ -261,8 +262,17 @@ retrieval workflow for compatible agents.
 **File > Settings → Agent access** runs one loopback MCP service
 (`vera-sidecar mcp-service`) while VERA Desktop is open. Every local agent
 shares that process, its loaded embedder, and one access policy. The policy
-`library_roots` lists the folders you share. A single-folder policy still
-accepts the legacy `library_root` key.
+`library_roots` lists the folders you share. Each folder has a short name in
+`libraries` (`name` and `path`). Set the name in Agent access, or leave it
+blank to use the folder name. Two folders with the same name are distinguished
+by the parent folder (`work-codes`). A name is a lowercase slug of at most 64
+characters: letters, numbers, hyphens, and underscores. A single-folder policy
+still accepts the legacy `library_root` key.
+
+On this service, search and read tools accept `library`. Pass that name and a
+path relative to the folder. Corpus search and library status may omit the
+directory to use the folder itself. Omit `library` to pass an absolute path.
+Unrestricted `vera mcp` does not accept `library`.
 
 The service listens on `127.0.0.1` only (default port 47821). `/mcp` requires
 `Authorization: Bearer <token>`. Desktop stores the token with Electron
@@ -279,9 +289,11 @@ Copy a config from Agent access:
   clients that only launch a subprocess. The forwarder exits if Desktop is
   not running. It does not fall back to unrestricted `vera mcp`.
 
-Call `vera_library_info` first. Use `library_roots` (and `library_root` when
-only one folder is approved). Search only inside those folders. Ordinary
-`vera mcp` is unchanged: unrestricted, stdio, and no Desktop required.
+Call `vera_library_info` first. When the user names a library, pass `library`
+and a path relative to that folder. Use `library_roots` (and `library_root`
+when only one folder is approved) for absolute paths. Search only inside those
+folders. Ordinary `vera mcp` is unchanged: unrestricted, stdio, and no Desktop
+required.
 
 Excerpts returned to an agent are sent to that agent's model provider. The
 archives stay on this computer.
@@ -314,8 +326,10 @@ missing, `403` when a VERA Pro subscription is required, and `503` with
 when the app is closed. Queries and excerpts pass through the relay and on
 to the assistant's model provider. The relay log records the account, the
 HTTP method, the status, and the duration. `vera_library_info` still returns
-the absolute `library_roots` paths, so the assistant can see those folder
-paths. The `.vera` files stay on the computer. `VERA_PRO_RELAY_URL` is the
+the absolute `library_roots` paths and the `libraries` names, so the assistant
+can choose a folder by name. Use the same name for the same library on each
+computer so a prompt keeps working when Automatic moves the request. The
+`.vera` files stay on the computer. `VERA_PRO_RELAY_URL` is the
 relay origin baked into `pro-cloud.json`.
 
 ## CLI and MCP differences

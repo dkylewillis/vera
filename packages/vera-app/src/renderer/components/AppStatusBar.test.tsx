@@ -8,6 +8,7 @@ function status(overrides: Partial<AgentServiceStatus> = {}, cloud: Partial<Agen
     state: 'running',
     enabled: true,
     libraryRoots: [],
+    libraryNames: {},
     port: 7428,
     url: 'http://127.0.0.1:7428/mcp',
     connectFile: '',

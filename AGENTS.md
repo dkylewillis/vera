@@ -196,7 +196,7 @@ VERA ships an MCP server (stdio) exposing the same capabilities as tools:
 
 | Tool | Purpose |
 |------|---------|
-| `vera_library_info` | Approved `library_roots` (and `library_root` when there is one) and whether the server is unrestricted local MCP or the Desktop agent service |
+| `vera_library_info` | Approved `library_roots` and `libraries` (name and path; `library_root` when there is one) and whether the server is unrestricted local MCP or the Desktop agent service |
 | `vera_library_status` | Read-only pending-change report for a managed library (no sync, no deletes) |
 | `vera_search` | Hybrid/semantic/keyword search with optional figure metadata, highlight regions, and pretty context |
 | `vera_corpus_search` | Search every .vera file in a directory as one corpus; results attributed per file, with optional pretty context |
@@ -223,9 +223,10 @@ Requires the integration package: `pip install "vera[mcp]"` or `pip install vera
 ```
 
 When an agent is connected through **Settings → Agent access**, call
-`vera_library_info` first and stay inside `library_roots`. That service is
-loopback-only. Unrestricted `vera mcp` is separate and does not apply the
-Desktop grant. A cloud assistant uses the VERA Pro connector URL instead.
+`vera_library_info` first and stay inside `library_roots`. When the user names
+a library, pass `library` and a path relative to that folder. The Agent access
+service is loopback-only. Unrestricted `vera mcp` is separate, has no `library`
+parameter, and does not apply the Desktop grant. A cloud assistant uses the VERA Pro connector URL instead.
 **Allow cloud agents** must be on, and Desktop must be open. Sign-in is the
 VERA account. Stay inside the same `library_roots`. `vera_library_info`
 includes `computer` (`id` and `name`) for the computer that answered. If a

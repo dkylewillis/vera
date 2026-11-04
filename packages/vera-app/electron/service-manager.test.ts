@@ -75,9 +75,11 @@ describe('ServiceManager', () => {
     expect(spawned[0]?.env.VERA_SERVICE_TOKEN).toBe(status.token);
     const policy = JSON.parse(readFileSync(join(userDataDir, 'service', 'policy.json'), 'utf8')) as {
       library_roots: string[];
+      library_names: Record<string, string>;
       disclosure: string;
     };
     expect(policy.library_roots).toEqual([library]);
+    expect(policy.library_names).toEqual({});
     expect(policy.disclosure).toBe(AGENT_SERVICE_DISCLOSURE);
     expect(status.cloudEnabled).toBe(false);
     const connect = JSON.parse(readFileSync(join(userDataDir, 'service', 'connect.json'), 'utf8')) as {
@@ -124,6 +126,22 @@ describe('ServiceManager', () => {
     expect(children[0]?.killed).toBe(true);
     expect(existsSync(join(userDataDir, 'service', 'connect.json'))).toBe(false);
     expect(existsSync(join(userDataDir, 'service', 'policy.json'))).toBe(false);
+  });
+
+  it('restarts when a library name changes and writes it into the policy', async () => {
+    const { manager, userDataDir, library } = createManager();
+    await manager.start();
+    await manager.reconfigure({ libraryNames: { [library]: 'stormwater' } });
+    await vi.waitFor(() => {
+      expect(children).toHaveLength(2);
+      expect(manager.getStatus().state).toBe('running');
+    });
+    expect(children[0]?.killed).toBe(true);
+    expect(manager.getStatus().libraryNames).toEqual({ [library]: 'stormwater' });
+    const policy = JSON.parse(readFileSync(join(userDataDir, 'service', 'policy.json'), 'utf8')) as {
+      library_names: Record<string, string>;
+    };
+    expect(policy.library_names).toEqual({ [library]: 'stormwater' });
   });
 
   it('restarts when the shared libraries change', async () => {

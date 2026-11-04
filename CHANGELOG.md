@@ -8,6 +8,12 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ## [Unreleased]
 
+### Added
+
+- Agent access library names. Each shared folder can have a short name, and
+  Desktop and cloud agents pass `library` plus a relative path. `vera_library_info`
+  returns those names in `libraries`. Unrestricted `vera mcp` is unchanged.
+
 ### Changed
 
 - Desktop **Settings** is reorganized for first-time users. It opens on an
