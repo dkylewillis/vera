@@ -252,17 +252,18 @@ Set it as the default app for `.vera` files to open an archive in Document
 Preview by double-clicking it in Windows File Explorer or on the desktop.
 That shell open (and **File > Open...**) is a standalone document: it reuses
 the running window and clears the saved active library. Use
-**File > Add Library...** when you want the whole folder as the Search/Ask
+**File > Add Library...** when you want the whole folder as the Search/Chat
 scope; **File > Open Folder...** browses a folder of mixed files without
 making it a library.
 Right-click a library and choose **Convert** to convert its new files with
 local MiniLM semantic search (the desktop default) in one step.
 Connect an LLM provider, or a VERA Pro subscription, for grounded questions and answers.
-Drop a document onto Ask to use it as context. Follow-up questions reuse
+Drop a document onto Chat to use it as context. Follow-up questions reuse
 passages already retrieved, and any answer can be saved as Markdown.
 **Settings → Agent access** can share those libraries with local agents through
-one loopback MCP service while the app is open. VERA Pro can also turn on
-**Allow cloud agents** so a signed-in cloud assistant uses the same libraries.
+one loopback MCP service while the app is open. An Agent Access subscription
+can also turn on **Allow cloud agents** so a signed-in cloud assistant uses
+the same libraries.
 `vera mcp` on its own is unchanged.
 The Windows installer checks GitHub Releases for updates.
 [Desktop guide](docs/desktop-app-getting-started.md).

@@ -23,6 +23,7 @@ function host(overrides: Partial<ConversionHost> = {}): ConversionHost {
     ingestPipelineConfigs: {},
     call: async () => null,
     dispatchBackgroundTask: () => undefined,
+    backgroundTasks: [],
     refreshFolder: async () => undefined,
     setBatchDirectory: () => undefined,
     setBatchOverwrite: () => undefined,
@@ -447,6 +448,71 @@ describe('createConversionController', () => {
       expect(syncLibrary).toHaveBeenCalledWith('C:\\library\\new', 'req-quick');
       expect(request).not.toHaveBeenCalled();
       expect(setSideView).not.toHaveBeenCalled();
+    });
+
+    it('attaches to a library sync that is already running instead of starting another', async () => {
+      const { syncLibrary, dispatchBackgroundTask, controller } = setup(
+        batchResult(),
+        { managed: true, ok: true, converted: 0, errors: [] },
+        {
+          backgroundTasks: [{
+            id: 'bg-sync',
+            kind: 'librarySync',
+            label: 'Syncing library',
+            path: 'C:\\library',
+            message: 'Converting 1 of 2',
+          }],
+        },
+      );
+
+      await controller.quickConvert({ directory: 'C:\\library\\new' });
+
+      expect(syncLibrary).toHaveBeenCalledWith('C:\\library\\new', 'bg-sync');
+      expect(dispatchBackgroundTask).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'start' }));
+    });
+
+    it('stops the library sync Convert attached to', async () => {
+      let resolveSync: (report: LibrarySyncReport) => void = () => undefined;
+      const cancelAnswer = vi.fn(async () => ({ cancelled: true }));
+      const syncLibrary = vi.fn(() => new Promise<LibrarySyncReport>((resolve) => {
+        resolveSync = resolve;
+      }));
+      vi.stubGlobal('window', {
+        vera: {
+          syncLibrary,
+          cancelAnswer,
+          onAnswerEvent: () => () => undefined,
+          request: vi.fn(),
+        },
+      });
+      const setConversionError = vi.fn();
+      const dispatchBackgroundTask = vi.fn();
+      const controller = createConversionController(() => host({
+        folders: [library],
+        libraryPaths: ['C:\\library'],
+        backgroundTasks: [{
+          id: 'bg-sync',
+          kind: 'librarySync',
+          label: 'Syncing library',
+          path: 'C:\\library',
+        }],
+        setConversionError,
+        setSideView: vi.fn(),
+        dispatchBackgroundTask,
+      }));
+
+      const pending = controller.quickConvert({ directory: 'C:\\library' });
+      await vi.waitFor(() => expect(syncLibrary).toHaveBeenCalledWith('C:\\library', 'bg-sync'));
+      controller.stopLibrarySync('bg-sync');
+      expect(cancelAnswer).toHaveBeenCalledWith('bg-sync');
+      expect(dispatchBackgroundTask).toHaveBeenCalledWith({
+        type: 'update',
+        id: 'bg-sync',
+        update: { message: 'Stopping…' },
+      });
+      resolveSync({ managed: true, ok: false, cancelled: true, error: 'Library sync cancelled' });
+      await pending;
+      expect(setConversionError.mock.calls.filter(([value]) => value)).toEqual([]);
     });
 
     it('syncs the folder holding selected files, whatever kind of root Explorer shows', async () => {

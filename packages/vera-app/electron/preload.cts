@@ -72,6 +72,8 @@ const IPC_CHANNELS: typeof IpcChannels = {
   readDraft: 'vera:readDraft',
   syncLibrary: 'vera:syncLibrary',
   librarySync: 'vera:librarySync',
+  librarySyncProgress: 'vera:librarySyncProgress',
+  librarySyncStatus: 'vera:librarySyncStatus',
 };
 
 contextBridge.exposeInMainWorld('vera', {
@@ -118,6 +120,7 @@ contextBridge.exposeInMainWorld('vera', {
   trashWorkspaceFile: (filePath: string, folderPath: string) => ipcRenderer.invoke(IPC_CHANNELS.trashWorkspaceFile, filePath, folderPath),
   setWatchedFolders: (paths: string[]) => ipcRenderer.invoke(IPC_CHANNELS.setWatchedFolders, paths),
   syncLibrary: (folderPath: string, requestId?: string) => ipcRenderer.invoke(IPC_CHANNELS.syncLibrary, folderPath, requestId),
+  librarySyncStatus: () => ipcRenderer.invoke(IPC_CHANNELS.librarySyncStatus),
   shareArchive: (archivePath: string) => ipcRenderer.invoke(IPC_CHANNELS.shareArchive, archivePath),
   pathForFile: (file: File) => {
     try {
@@ -147,10 +150,19 @@ contextBridge.exposeInMainWorld('vera', {
     ipcRenderer.on(IPC_CHANNELS.folderChanged, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.folderChanged, listener);
   },
-  onLibrarySync: (callback: (folderPath: string, report: unknown) => void) => {
-    const listener = (_event: unknown, folderPath: string, report: unknown) => callback(folderPath, report);
+  onLibrarySync: (callback: (folderPath: string, report: unknown, requestId?: string) => void) => {
+    const listener = (_event: unknown, folderPath: string, report: unknown, requestId?: string) => (
+      callback(folderPath, report, requestId)
+    );
     ipcRenderer.on(IPC_CHANNELS.librarySync, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.librarySync, listener);
+  },
+  onLibrarySyncProgress: (callback: (folderPath: string, requestId: string, event: StreamEvent) => void) => {
+    const listener = (_event: unknown, folderPath: string, requestId: string, event: StreamEvent) => (
+      callback(folderPath, requestId, event)
+    );
+    ipcRenderer.on(IPC_CHANNELS.librarySyncProgress, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.librarySyncProgress, listener);
   },
   onAnswerEvent: (callback: (data: StreamEvent) => void) => {
     const listener = (_event: unknown, data: StreamEvent) => callback(data);

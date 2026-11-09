@@ -72,10 +72,11 @@ describe('SettingsModal', () => {
     expect(html).not.toContain('huggingface.co/settings/tokens');
   });
 
-  it('groups AI providers by where they run and shows the Ask model picker', () => {
+  it('groups AI providers by where they run and shows the chat model picker', () => {
     const html = renderSettings('providers');
-    expect(html).toContain('Model used for Ask');
-    expect(html).toContain('Ask is not set up yet.');
+    expect(html).toContain('Chat model');
+    expect(html).toContain('Chat is not set up yet.');
+    expect(html).not.toContain('Ask');
     expect(html).toContain('Online services');
     expect(html).toContain('On this computer');
     expect(html).toContain('OpenAI');
@@ -86,12 +87,13 @@ describe('SettingsModal', () => {
     expect(html).not.toContain('Use an external Python environment');
   });
 
-  it('marks a configured provider as ready and used for Ask', () => {
+  it('marks a configured provider as ready and the default', () => {
     const html = renderSettings('providers', [openai]);
-    expect(html).toContain('Used for Ask');
+    expect(html).toContain('>Default<');
     expect(html).toContain('Ready');
     expect(html).toContain('gpt-4o-mini');
-    expect(html).not.toContain('Ask is not set up yet.');
+    expect(html).not.toContain('Chat is not set up yet.');
+    expect(html).not.toContain('Used for Ask');
   });
 
   it('opens Account with sign-in and Get VERA Pro', () => {
@@ -136,18 +138,26 @@ describe('SettingsModal', () => {
     expect(html).not.toContain('huggingface.co/settings/tokens');
   });
 
-  it('opens Agent access with copyable snippets', () => {
+  it('opens Agent access on the cloud assistant path for a first-time user', () => {
     const html = renderSettings('agents');
-    expect(html).toContain('Share libraries with local agents');
-    expect(html).toContain('Shared libraries');
-    expect(html).toContain('Rotate token');
-    expect(html).toContain('HTTP snippet');
-    expect(html).toContain('Stdio snippet');
-    expect(html).toContain('model provider');
-    expect(html).toContain('Allow cloud agents (Agent Access)');
-    expect(html).toContain('Cloud assistants reach your library through VERA');
+    expect(html).toContain('Off. Add a folder to get started.');
+    expect(html).toContain('Choose folders');
+    expect(html).toContain('Add folder');
+    expect(html).toContain('Where does your AI run?');
+    expect(html).toContain('In the cloud');
+    expect(html).toContain('on the web, desktop, or phone');
+    expect(html).not.toContain('web browser');
+    expect(html).toContain('On this computer');
+    expect(html).toContain('Cursor, VS Code, Claude Desktop');
+    expect(html).toContain('Connect a cloud assistant');
+    expect(html).toContain('secure relay');
+    expect(html).toContain('Sign in');
     expect(html).toContain('Get Agent Access');
-    expect(html).toContain('role="switch"');
+    expect(html).toContain('VERA Pro does not include it.');
+    expect(html).toContain('model provider');
+    expect(html).not.toContain('Setup snippet');
+    expect(html).not.toContain('Rotate token');
+    expect(html).not.toContain('Manage computers');
   });
 
   it('opens the Embeddings section with hosted credential fields', () => {
@@ -235,7 +245,7 @@ describe('matchSettingsSections', () => {
 });
 
 describe('settings summaries', () => {
-  it('summarizes the Ask model', () => {
+  it('summarizes the chat model', () => {
     expect(askSummary([], '', '').pill).toBe('Not set up');
     expect(askSummary([openai], 'p1', 'gpt-4o-mini')).toMatchObject({ tone: 'good', pill: 'Ready' });
     expect(askSummary([openai], 'p1', 'gpt-4o-mini').detail).toContain('gpt-4o-mini');

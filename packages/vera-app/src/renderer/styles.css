@@ -932,56 +932,175 @@ button {
   box-shadow: var(--ring);
 }
 
-.indexBadge {
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
+.libraryStatusChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   flex: none;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
+  height: 16px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface-3);
+  color: var(--text-muted);
   font-size: 10px;
-  font-weight: 700;
-}
-
-.indexBadge:disabled {
-  opacity: 1;
-}
-
-.indexBadge:not(:disabled) {
+  font-weight: 650;
+  line-height: 14px;
   cursor: pointer;
 }
 
-.indexBadge svg {
+.libraryStatusChip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.libraryStatusChip svg {
+  flex: none;
   stroke-width: 2.5;
 }
 
-.indexBadge.indexing {
+.libraryStatusChip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.libraryStatusChip:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.libraryStatusChip.working {
   color: var(--accent-text);
   background: var(--accent-soft);
   border-color: var(--accent-soft-border);
 }
 
-.indexBadge.checking {
+.libraryStatusChip.checking,
+.libraryStatusChip.setup {
   color: var(--text-faint);
   background: var(--bg-surface);
   border-color: var(--border);
 }
 
-.indexBadge.fresh {
+.libraryStatusChip.pending {
+  color: var(--text-muted);
+  background: var(--bg-surface-3);
+  border-color: var(--border);
+}
+
+.libraryStatusChip.ready {
   color: var(--good);
   background: var(--good-soft);
   border-color: color-mix(in srgb, var(--good) 30%, transparent);
 }
 
-.indexBadge.stale,
-.indexBadge.missing,
-.indexBadge.warning {
+.libraryStatusChip.attention {
   color: var(--warn);
   background: color-mix(in srgb, var(--warn) 12%, var(--bg-surface));
   border-color: color-mix(in srgb, var(--warn) 28%, transparent);
+}
+
+.libraryHealthPopover {
+  position: fixed;
+  z-index: 101;
+  display: grid;
+  gap: 8px;
+  width: min(320px, calc(100vw - 16px));
+  overflow: auto;
+  padding: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.libraryHealthTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.libraryHealthStatus,
+.libraryHealthEmpty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11.5px;
+}
+
+.libraryHealthSection h3 {
+  margin: 0 0 4px;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.libraryHealthRow + .libraryHealthRow {
+  margin-top: 6px;
+}
+
+.libraryHealthName {
+  display: block;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.libraryHealthDetail {
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.libraryHealthActions,
+.libraryHealthFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.libraryHealthActions {
+  margin-top: 4px;
+}
+
+.libraryHealthFooter {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.libraryHealthActions button,
+.libraryHealthFooter button {
+  padding: 3px 7px;
+  color: var(--text);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.libraryHealthActions button:hover:not(:disabled),
+.libraryHealthFooter button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-border);
+}
+
+.libraryHealthActions button:disabled,
+.libraryHealthFooter button:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.libraryHealthActions button:focus-visible,
+.libraryHealthFooter button:focus-visible,
+.libraryStatusChip:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
 }
 
 @container (max-width: 230px) {
@@ -1001,12 +1120,6 @@ button {
   .folderGroupHead {
     gap: 2px;
     padding-inline: 2px;
-  }
-
-  .indexBadge {
-    width: 14px;
-    height: 14px;
-    font-size: 9px;
   }
 }
 
@@ -5705,17 +5818,175 @@ div.settingRow {
   border-radius: var(--radius-sm);
 }
 
-.agentLibraryList li > svg {
+.agentLibraryList li > svg,
+.agentLibraryList li > .settingsLink,
+.agentLibraryList li > .compactAction {
   flex: none;
+}
+
+.agentLibraryList li > svg {
   color: var(--text-faint);
 }
 
-.agentLibraryList li > span:not(.statusPill):not(.agentLibraryNameError) {
+.agentLibraryList li > span:not(.statusPill):not(.agentLibraryNameError):not(.agentLibraryNameText) {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.agentLibraryNameText {
+  flex: none;
+  max-width: 11rem;
+  overflow: hidden;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentIntro {
+  display: grid;
+  gap: 4px;
+}
+
+.agentStatusLine {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+
+.agentSteps {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agentStep {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.agentStepNumber {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--bg-surface-3);
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.agentStepBody {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agentStepHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.agentStepTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+
+.agentStepHint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.agentAppPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.agentAppPicker .secondaryAction[aria-pressed="true"] {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.agentDestinations {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.agentDestination {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  color: var(--text);
+  text-align: left;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.agentDestination:hover {
+  background: var(--bg-surface-2);
+}
+
+.agentDestination:focus-visible {
+  outline: 0;
+  box-shadow: var(--ring);
+}
+
+.agentDestination > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--text-muted);
+}
+
+.agentDestination[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.agentDestination[aria-pressed="true"] > svg {
+  color: var(--accent-text);
+}
+
+.agentDestinationText {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.agentDestinationTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+
+.agentDestinationDescription {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
 }
 
 .agentLibraryName {

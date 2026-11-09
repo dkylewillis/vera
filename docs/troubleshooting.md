@@ -46,7 +46,7 @@ Try, in order:
 7. add `--context-chunks 1` to interpret a promising hit.
 
 An empty successful result does not prove the topic is absent. See
-[Search documents](searching.md). Desktop Ask additionally filters hits with
+[Search documents](searching.md). Desktop Chat additionally filters hits with
 a relative `quality` cutoff and skips already-cited chunks; try **permissive**
 quality, another mode, or the Search view when Chat returns too little
 evidence.
@@ -97,9 +97,9 @@ environment cannot be searched semantically until that provider is available.
 Indexed directory search still returns keyword hits and reports the omitted
 group in `skipped_semantic_model_groups`.
 
-## Ask returns too little evidence
+## Chat returns too little evidence
 
-Desktop Ask filters search hits with a relative `quality` cutoff (`strict`
+Desktop Chat filters search hits with a relative `quality` cutoff (`strict`
 0.85, `balanced` 0.55, `permissive` keep-all) and skips already-cited chunks.
 Switch the Chat mode, ask the model to retry at `permissive`, or use the
 Search view (no quality filter). Custom modes live in `userData/modes`; use
@@ -143,7 +143,7 @@ summarizes PyMuPDF-shaped keys; Markdown's empty `ocr: {}` and Docling's
 ## Opening a `.vera` file cleared my library
 
 **File > Open...** and a Windows/macOS shell open of a `.vera` are standalone
-document routes. They set Search/Ask to that archive and clear the saved
+document routes. They set Search/Chat to that archive and clear the saved
 active library (`preserveLibrary: false`). Explorer preview and checking
 files in a library do **not** do this. Re-activate the folder with
 **File > Add Library...** or by clicking a library header already listed in
@@ -170,7 +170,7 @@ vera index status "./library" --json
 
 This command exits 1 when stale or missing while still returning a JSON report.
 `vera index status` hashes every indexed archive (`verify_hashes` defaults to
-true; `verified_at` is set). Directory search and the desktop index badge use
+true; `verified_at` is set). Directory search and the desktop library status chip use
 size and mtime only (`verify_hashes=false`; `verified_at` is null), so a
 same-size, same-mtime byte change is not stale until you run `index status` or
 desktop **Inspect** (that library refresh passes `verify_hashes=true`).
@@ -400,7 +400,7 @@ now prefers a sibling `manual.pdf` next to `manual.vera` and reuses a cache
 file on later opens instead of extracting and re-hashing the embedded
 original. If the load still exceeds five minutes, the renderer watchdog reports
 `Opening timed out after 300 seconds`. Cancel it from the viewer close
-control and keep the matching PDF beside the archive. Ask uses
+control and keep the matching PDF beside the archive. Chat uses
 `timeoutMs: 0` (no automatic deadline; use Stop).
 
 ## `--where` returns no hits
@@ -415,7 +415,7 @@ metadata is not an IN clause — IN applies only to the filter value
 (`--where company=GRID,PWRX`). Empty comma tokens exit 2. Convert-owned
 archive headers such as `source_file_name` match indexed directory search
 only; stamp caller tags with `--metadata` if you need the same filter on a
-single file. Desktop Search and Ask have no `--where` control; use the CLI
+single file. Desktop Search and Chat have no `--where` control; use the CLI
 or MCP.
 
 ## Search skips a semantic model group

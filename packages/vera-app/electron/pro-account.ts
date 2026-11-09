@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 
-import type { ProAccount, ProSession } from '../src/shared/pro.js';
+import { PRO_PRESET_KEY, type ProAccount, type ProSession } from '../src/shared/pro.js';
 
 export interface ProCloudConfig {
   siteUrl: string;
@@ -202,6 +202,19 @@ export async function refreshProSession(
   });
   if (!response.ok) throw new Error(await readError(response));
   return sessionFromAuthPayload(await response.json() as Record<string, unknown>, session);
+}
+
+/** The saved VERA Pro key was rejected. A 403 is a permission denial, so it does not qualify. */
+export function proKeyWasRejected(
+  payload: { action?: unknown; llm?: unknown },
+  response: { ok?: boolean; error?: unknown },
+): boolean {
+  if (response.ok !== false) return false;
+  if (payload.action !== 'answer' && payload.action !== 'list_models') return false;
+  const llm = payload.llm;
+  if (!llm || typeof llm !== 'object') return false;
+  if ((llm as { provider_key?: unknown }).provider_key !== PRO_PRESET_KEY) return false;
+  return typeof response.error === 'string' && response.error.includes('(HTTP 401)');
 }
 
 export async function claimProKey(

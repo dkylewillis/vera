@@ -274,15 +274,17 @@ non-obvious caveats for this environment; standard commands live in the sections
   otherwise the sidecar fails to import its deps. In the cloud VM also set `DISPLAY=:1` and
   `ELECTRON_DISABLE_SANDBOX=1`. The dbus/GLib warnings Electron prints in the container are
   harmless.
-- The desktop app's "Ask"/chat feature needs a model provider. The left sidebar
+- The desktop app's Chat feature needs a model provider. The left sidebar
   footer shows the signed-in email and opens **Account**; its gear opens Settings on **Overview**.
   **File > Settings → Account**
   signs in to VERA Pro (browser `vera://` handoff, per-user OpenRouter key in `safeStorage`,
   separate from a personal OpenRouter key) when the build includes `pro-cloud.json` or
-  `VERA_PRO_SITE_URL` / `VERA_PRO_SUPABASE_URL` / `VERA_PRO_SUPABASE_ANON_KEY`. Otherwise add
+  `VERA_PRO_SITE_URL` / `VERA_PRO_SUPABASE_URL` / `VERA_PRO_SUPABASE_ANON_KEY`.
+  `npm run app:dev` loads those variables from the gitignored repo-root `.env`
+  (see `.env.example`); a shell value wins. Otherwise add
   OpenAI, OpenRouter, Ollama, or LM Studio under **AI providers** (model lists load once a key
   is saved or a local server connects). There is no offline answer
-  mode, so Ask offers **Use VERA Pro** and **Add your own provider** when none is configured.
+  mode, so Chat offers **Use VERA Pro** and **Add your own provider** when none is configured.
   For fully offline testing use the left-sidebar **Search**
   view (pure hybrid/semantic/keyword retrieval with grounded citations and highlights) or the
   **Convert** view. Convert lists PyMuPDF (PDF), the bundled `markdown`

@@ -67,8 +67,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: 'providers',
     label: 'AI providers',
-    hint: 'Models that answer in Ask',
-    description: 'Choose the AI service and model that write answers in Ask.',
+    hint: 'Models that answer in Chat',
+    description: 'Choose the AI service and default model that write answers in Chat.',
     group: 'ai',
     icon: MessageSquareText,
     keywords: 'ask chat llm model models answer answers openai openrouter ollama lm studio api key gpt claude gemini custom endpoint temperature context tokens provider providers',
@@ -140,13 +140,13 @@ function embedderDisplayName(descriptor: EmbedderDescriptor): string {
 type Summary = { tone: PillTone; pill: string; detail: string };
 
 export function accountSummary(account: ProAccount | null): Summary {
-  if (!account) return { tone: 'neutral', pill: 'Checking', detail: 'Sign in to VERA Pro for Ask without your own key.' };
+  if (!account) return { tone: 'neutral', pill: 'Checking', detail: 'Sign in to VERA Pro for Chat without your own key.' };
   if (!account.configured) return { tone: 'neutral', pill: 'Unavailable', detail: 'This build is not connected to VERA Pro.' };
   if (account.signedIn && subscriptionActive(account.subscriptionStatus)) {
     return { tone: 'accent', pill: 'Pro', detail: account.email || 'Signed in' };
   }
   if (account.signedIn) return { tone: 'good', pill: 'Signed in', detail: `${account.email || 'Signed in'} · no subscription` };
-  return { tone: 'neutral', pill: 'Signed out', detail: 'Sign in to use VERA Pro for Ask.' };
+  return { tone: 'neutral', pill: 'Signed out', detail: 'Sign in to use VERA Pro for Chat.' };
 }
 
 export function askSummary(list: ProviderProfile[], activeId: string, activeModel: string): Summary {
@@ -158,7 +158,7 @@ export function askSummary(list: ProviderProfile[], activeId: string, activeMode
     return { tone: 'good', pill: 'Ready', detail: `${activeModel} · ${providerDisplayName(active)}` };
   }
   if (list.some((profile) => profile.models.length)) {
-    return { tone: 'warn', pill: 'Choose a model', detail: 'Pick the model that answers in Ask.' };
+    return { tone: 'warn', pill: 'Choose a model', detail: 'Pick the model that answers in Chat.' };
   }
   return { tone: 'neutral', pill: 'Not set up', detail: 'Use VERA Pro, or connect OpenAI, OpenRouter, Ollama, or LM Studio.' };
 }
@@ -501,7 +501,7 @@ export function SettingsModal({
         </Callout>
         <div className="overviewGrid">
           <OverviewCard icon={<UserRound size={18} />} title="Account" summary={accountSummary(account)} onOpen={() => setSection('account')} />
-          <OverviewCard icon={<MessageSquareText size={18} />} title="Ask" summary={askSummary(list, activeId, activeModelLocal)} onOpen={() => setSection('providers')} />
+          <OverviewCard icon={<MessageSquareText size={18} />} title="Chat" summary={askSummary(list, activeId, activeModelLocal)} onOpen={() => setSection('providers')} />
           <OverviewCard icon={<Sparkles size={18} />} title="Embeddings" summary={embeddingsSummary()} onOpen={() => setSection('embeddings')} />
           <OverviewCard icon={<Bot size={18} />} title="Agent access" summary={agentSummary()} onOpen={() => setSection('agents')} />
         </div>

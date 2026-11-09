@@ -14,6 +14,7 @@ import { TraceView } from './activity/TraceView';
 import { ChatComposer } from './ChatComposer';
 import { ChatMarkdown } from './ChatMarkdown';
 import { ChatTurn } from './ChatTurn';
+import { proFirst } from '../../shared/pro';
 import { fileName } from '../lib/formatting';
 import { isModelListStale, MODEL_LIST_MAX_AGE_MS, providerDisplayName, REASONING_EFFORTS, reasoningEffortLabel } from '../lib/providers';
 import type {
@@ -344,7 +345,7 @@ export function CenterChatView({
                     </div>
                     {providers.length === 0 ? (
                       <div className="modelPickerEmpty">
-                        <span>Ask needs a model.</span>
+                        <span>Chat needs a model.</span>
                         <button
                           type="button"
                           className="modelOption"
@@ -367,7 +368,7 @@ export function CenterChatView({
                         </button>
                       </div>
                     ) : null}
-                    {providers.map((profile) => (
+                    {proFirst(providers).map((profile) => (
                       <div className="modelPickerGroup" key={profile.id}>
                         <div className="modelPickerGroupLabel">{providerDisplayName(profile)}</div>
                         {profile.models.length === 0 ? (

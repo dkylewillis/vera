@@ -60,10 +60,10 @@ export function AccountSection({ onChanged }: { onChanged: () => Promise<void> }
 
   const details: string[] = [];
   if (account.signedIn && !subscriptionActive(account.subscriptionStatus)) {
-    details.push('Subscribe to use VERA Pro models in Ask.');
+    details.push('Subscribe to use VERA Pro models in Chat.');
   }
   if (account.hasProKey) details.push('The Pro key is saved on this computer.');
-  if (!account.signedIn && account.configured) details.push('Sign in to use VERA Pro for Ask without your own API key.');
+  if (!account.signedIn && account.configured) details.push('Sign in to use VERA Pro for Chat without your own API key.');
 
   return (
     <div className="settingsStack">
@@ -110,12 +110,12 @@ export function AccountSection({ onChanged }: { onChanged: () => Promise<void> }
       ) : null}
       {loaded && !account.configured ? (
         <Callout tone="warn" title="This build is not connected to VERA Pro.">
-          <p>Set VERA_PRO_SITE_URL, VERA_PRO_SUPABASE_URL, and VERA_PRO_SUPABASE_ANON_KEY, or package pro-cloud.json.</p>
+          <p>Add VERA_PRO_SITE_URL, VERA_PRO_SUPABASE_URL, and VERA_PRO_SUPABASE_ANON_KEY to the repo .env, or package pro-cloud.json.</p>
         </Callout>
       ) : null}
       {message ? <Callout tone="warn">{message}</Callout> : null}
       <p className="settingsNote">
-        VERA Pro sends Ask questions and retrieved passages to OpenRouter and the model provider you pick.
+        VERA Pro sends chat questions and retrieved passages to OpenRouter and the model provider you pick.
         Search stays on this computer. Signing out leaves a saved Pro key in place until you clear it.
       </p>
     </div>

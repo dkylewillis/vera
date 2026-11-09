@@ -7,7 +7,7 @@ describe('AskSetupDialog', () => {
     const html = renderToStaticMarkup(
       <AskSetupDialog onUseVeraPro={() => undefined} onAddOwnProvider={() => undefined} onClose={() => undefined} />,
     );
-    expect(html).toContain('Ask needs a model');
+    expect(html).toContain('Chat needs a model');
     expect(html).toContain('Use VERA Pro');
     expect(html).toContain('Add your own provider');
     const pro = html.indexOf('Use VERA Pro');

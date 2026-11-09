@@ -61,6 +61,7 @@ export type ConversionHost = {
   ingestPipelineConfigs: Record<string, PipelineOptions>;
   call: SidecarCall;
   dispatchBackgroundTask: Dispatch<BackgroundTaskAction>;
+  backgroundTasks: BackgroundTask[];
   refreshFolder: (folderPath: string, options?: { showBusy?: boolean }) => Promise<void>;
   setBatchDirectory: Dispatch<SetStateAction<string>>;
   setBatchOverwrite: Dispatch<SetStateAction<boolean>>;
@@ -350,41 +351,54 @@ export function createConversionController(getHost: () => ConversionHost) {
     return model ? { library: library.path, model } : null;
   }
 
+  /** The library sync already running for `target`, if the status bar is showing it. */
+  function runningLibrarySync(target: string): BackgroundTask | null {
+    const match = getHost().backgroundTasks.find((task) => (
+      task.kind === 'librarySync' && Boolean(task.path) && isPathInsideFolder(target, task.path as string)
+    ));
+    return match ?? null;
+  }
+
   /**
    * Bring a managed library up to date: its `.vera/archives` mirror, the
    * library's own convert settings, and its index. `unmanaged` means the
    * folder has no `.vera/` and the caller should batch convert instead.
+   * A sync that is already running for this library is joined instead of
+   * starting a second task.
    */
   async function syncManagedLibrary(
     target: string,
     sourcePath = '',
   ): Promise<'ok' | 'attention' | 'unmanaged'> {
     const host = getHost();
-    const requestId = crypto.randomUUID();
+    const running = runningLibrarySync(target);
+    const requestId = running?.id ?? crypto.randomUUID();
     conversionCanceledRef.current = false;
     conversionInterruptRef.current = null;
     conversionRequestIdRef.current = requestId;
     host.setConversionError(null);
     host.setBatchConvertResult(null);
-    host.dispatchBackgroundTask({
-      type: 'start',
-      task: {
-        id: requestId,
-        kind: 'conversion',
-        label: 'Converting new files',
-        message: 'Checking library…',
-        path: target,
-      },
-    });
-    const off = window.vera.onAnswerEvent((event) => {
-      if (event.id !== requestId || event.event !== 'library_progress') return;
-      if (conversionInterruptRef.current === 'stop') return;
-      updateConversionTask(librarySyncTaskUpdate(event), requestId);
-    });
-    conversionProgressCleanupRef.current = { requestId, off };
+    if (!running) {
+      host.dispatchBackgroundTask({
+        type: 'start',
+        task: {
+          id: requestId,
+          kind: 'conversion',
+          label: 'Converting new files',
+          message: 'Checking library…',
+          path: target,
+        },
+      });
+      const off = window.vera.onAnswerEvent((event) => {
+        if (event.id !== requestId || event.event !== 'library_progress') return;
+        if (conversionInterruptRef.current === 'stop') return;
+        updateConversionTask(librarySyncTaskUpdate(event), requestId);
+      });
+      conversionProgressCleanupRef.current = { requestId, off };
+    }
     try {
       const report = await window.vera.syncLibrary(target, requestId);
-      if (conversionCanceledRef.current) return 'ok';
+      if (conversionCanceledRef.current || report?.cancelled) return 'ok';
       if (report?.managed === false) return 'unmanaged';
       const problem = librarySyncProblem(report);
       if (!problem) {
@@ -399,7 +413,11 @@ export function createConversionController(getHost: () => ConversionHost) {
       host.setConversionError(error instanceof Error ? error.message : librarySyncProblem(null));
       return 'attention';
     } finally {
-      clearConversionUi(requestId);
+      if (running) {
+        if (conversionRequestIdRef.current === requestId) conversionRequestIdRef.current = null;
+      } else {
+        clearConversionUi(requestId);
+      }
       conversionCanceledRef.current = false;
       conversionInterruptRef.current = null;
     }
@@ -470,6 +488,30 @@ export function createConversionController(getHost: () => ConversionHost) {
   ) {
     if (!requestId) return;
     getHost().dispatchBackgroundTask({ type: 'update', id: requestId, update });
+  }
+
+  function stopLibrarySync(requestId: string) {
+    if (conversionRequestIdRef.current === requestId) {
+      conversionCanceledRef.current = true;
+      conversionInterruptRef.current = 'stop';
+    }
+    const host = getHost();
+    host.dispatchBackgroundTask({ type: 'update', id: requestId, update: { message: 'Stopping…' } });
+    void window.vera.cancelAnswer(requestId).then((result) => {
+      const cancelled = Boolean(result && 'cancelled' in result && result.cancelled);
+      if (cancelled) return;
+      if (conversionRequestIdRef.current === requestId) {
+        conversionCanceledRef.current = false;
+        conversionInterruptRef.current = null;
+      }
+      host.dispatchBackgroundTask({ type: 'update', id: requestId, update: { message: 'Syncing…' } });
+    }).catch(() => {
+      if (conversionRequestIdRef.current === requestId) {
+        conversionCanceledRef.current = false;
+        conversionInterruptRef.current = null;
+      }
+      host.dispatchBackgroundTask({ type: 'update', id: requestId, update: { message: 'Syncing…' } });
+    });
   }
 
   function stopConversion() {
@@ -745,6 +787,7 @@ export function createConversionController(getHost: () => ConversionHost) {
     libraryEmbeddingModel,
     quickConvert,
     stopConversion,
+    stopLibrarySync,
     skipCurrentConversion,
     batchConvertPdfs,
   };

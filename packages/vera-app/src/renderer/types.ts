@@ -97,12 +97,15 @@ export interface VeraApi {
   setWatchedFolders(paths: string[]): Promise<void>;
   /** `requestId` routes `library_progress` events to `onAnswerEvent` and lets `cancelAnswer` stop the sync. */
   syncLibrary(folderPath: string, requestId?: string): Promise<LibrarySyncReport | null>;
+  /** Syncs the main process is running, so a window can attach after it loads. */
+  librarySyncStatus(): Promise<{ folderPath: string; requestId: string }[]>;
   shareArchive(archivePath: string): Promise<string | null>;
   pathForFile(file: File): string;
   saveDroppedFile(name: string, data: ArrayBuffer): Promise<string>;
   saveDraftAs(sourcePath: string, suggestedName: string): Promise<string | null>;
   readDraft(sourcePath: string): Promise<string>;
-  onLibrarySync(callback: (folderPath: string, report: LibrarySyncReport | null) => void): () => void;
+  onLibrarySync(callback: (folderPath: string, report: LibrarySyncReport | null, requestId?: string) => void): () => void;
+  onLibrarySyncProgress(callback: (folderPath: string, requestId: string, event: StreamEvent) => void): () => void;
   pickPdf(): Promise<string[]>;
   saveAny(): Promise<string | null>;
   openTargetReady(): Promise<void>;
@@ -149,6 +152,7 @@ export interface LibrarySyncReport {
   failed?: number;
   errors?: { input: string; error: string }[];
   busy?: boolean;
+  cancelled?: boolean;
   actions?: {
     action?: string;
     source?: string;

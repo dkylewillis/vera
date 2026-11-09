@@ -1,6 +1,7 @@
 const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { loadRepoEnv } = require("./load-dotenv.cjs");
 
 // `uv run` spawns its command via Rust's std::process::Command, which does
 // not consult PATHEXT on Windows: it needs the literal `npm.cmd` shim there,
@@ -9,6 +10,7 @@ const path = require("path");
 const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
 
 const repoRoot = path.resolve(__dirname, "..");
+loadRepoEnv(process.env, repoRoot);
 const minilmDest = path.join(
   repoRoot,
   "packages",

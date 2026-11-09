@@ -109,7 +109,7 @@ providers, sessions, and application state. It depends on `vera-doc`,
 `vera-ingest`, `vera-ingest-pymupdf`, and `vera-embed-openai`
 (including
 viewer helpers), not on the CLI package. Packaged conversions keep one frozen
-sidecar for search, Ask, PyMuPDF, Markdown ingest, and OpenAI embeddings. MiniLM (`all-MiniLM-L6-v2`) runs on
+sidecar for search, chat, PyMuPDF, Markdown ingest, and OpenAI embeddings. MiniLM (`all-MiniLM-L6-v2`) runs on
 ONNX Runtime; `npm run app:dev` vendors that graph before launch. When no
 MiniLM ONNX graph is present, MiniLM falls back to Sentence Transformers
 (`ml` extra), which is how CLI installs run it.

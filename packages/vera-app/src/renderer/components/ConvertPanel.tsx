@@ -51,6 +51,7 @@ export function ConvertPanel({
   libraryModel,
   busy,
   convertLocked,
+  librarySyncing = false,
   conversionInProgress,
   modelsPreparing,
   reconvertBusy,
@@ -92,6 +93,8 @@ export function ConvertPanel({
   libraryModel: { library: string; model: string } | null;
   busy: boolean;
   convertLocked: boolean;
+  /** This Convert target's library is already syncing. */
+  librarySyncing?: boolean;
   conversionInProgress: boolean;
   modelsPreparing?: boolean;
   reconvertBusy: boolean;
@@ -140,7 +143,9 @@ export function ConvertPanel({
 
   const convertLabel = conversionInProgress
     ? 'Converting…'
-    : modelsPreparing
+    : librarySyncing
+      ? 'Syncing…'
+      : modelsPreparing
       ? 'Downloading models…'
       : reconvertBusy
         ? 'Preparing…'

@@ -42,9 +42,9 @@ Download `VERA.Setup.<version>.exe` from the
    **File > Open...** and a Windows shell open of a `.vera` are standalone
    (`preserveLibrary: false`) and clear the saved active library.
 3. Open **Search** for fully local hybrid retrieval.
-4. To use **Ask**, sign in to **VERA Pro** under **File > Settings → Account**
+4. To use **Chat**, sign in to **VERA Pro** under **File > Settings → Account**
    or configure your own provider under **File > Settings → AI providers**.
-   With no provider, Ask offers **Use VERA Pro** and **Add your own provider**.
+   With no provider, Chat offers **Use VERA Pro** and **Add your own provider**.
    Settings opens on **Overview**, has a **Search settings** box, and saves
    changes as you make them. Saving a provider key or connecting a local
    server loads its model list automatically.
@@ -55,21 +55,27 @@ Download `VERA.Setup.<version>.exe` from the
    convert steps.
 6. Optional: **File > Settings → Agent access** shares library folders with
    local agents through one loopback MCP service (`mcp-service` / `mcp-connect`).
-   Each folder can have a short name so a prompt can pass `library` instead of a path.
-   **Allow cloud agents (VERA Pro)** publishes a connector URL for cloud
-   assistants. They sign in with the VERA account. The desktop must stay open.
-   Several signed-in computers can stay connected. **Automatic** keeps using
-   the current computer, and **Use this computer** pins this one. The status
-   bar names the computer cloud agents are using.
+   Adding the first folder turns access on. **Where does your AI run?** opens
+   on **In the cloud**. There, **Allow cloud agents** needs an Agent Access
+   subscription, also starts local sharing, and publishes a connector URL for
+   cloud assistants. They sign in with the VERA account. **On this computer**
+   asks for **Claude Desktop**, **Cursor**, **VS Code**, or **Other** and shows
+   that app's snippet. **Advanced** keeps the HTTP and stdio snippets, and
+   **Reset connection key** replaces the token. Each folder can have a short
+   name so a prompt can pass `library` instead of a path. The desktop must stay open. Several signed-in computers
+   can stay connected. **Manage computers** appears when more than one has
+   connected. **Automatic** keeps using the current computer, and **Use this
+   computer** pins this one. The status bar names the computer cloud agents are
+   using.
 7. Select a citation in an answer to inspect the highlighted source passage.
    The PDF viewer uses Mozilla-style dark chrome with a page thumbnail rail,
    rotate counterclockwise, download, and print. Citation highlights stay
    aligned after rotate because they turn with the page.
-   Ask answers render GitHub-flavored Markdown and LaTeX (KaTeX).
+   Chat answers render GitHub-flavored Markdown and LaTeX (KaTeX).
 
 Search and conversion do not require a model-provider account unless you
 choose a hosted embedder such as OpenAI. A Chat provider is only required
-for generated Ask responses.
+for generated chat responses.
 
 Source-run and packaged conversions use one sidecar interpreter with PyMuPDF,
 hashing, ONNX MiniLM, and OpenAI embeddings. Extra ingest and embedding

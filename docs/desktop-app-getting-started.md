@@ -22,7 +22,7 @@ second app instance. **File > Open...** (`Ctrl/Cmd+O`) does the same thing: it
 picks a `.vera` only.
 
 Those routes open the archive as a **standalone document**. The file becomes
-the Search/Ask scope, its parent folder is not added to Explorer, and the
+the Search/Chat scope, its parent folder is not added to Explorer, and the
 saved active library is cleared (`preserveLibrary: false`, including
 `localStorage` key `vera.activeLibraryPath`). A later Explorer click or
 preview of a `.vera` does **not** replace the library — only File/shell open
@@ -32,7 +32,7 @@ or by activating a library already listed in Explorer.
 ## Libraries and folders
 
 Explorer has two sections. **Libraries** are folders you search as a whole:
-clicking a library header makes it the Search/Ask scope, its badge tracks the
+clicking a library header makes it the Search/Chat scope, its badge tracks the
 collection index, and the last active library is restored on startup. Add one
 with **File > Add Library...**, the library button in the Explorer header, or
 the **+** beside **Libraries**. **Folders** are places you only browse —
@@ -51,7 +51,10 @@ offers **Use “…”**, which closes the inner libraries and shows them inside
 new one, or **Keep both**.
 Adding or converting a library creates a managed library: a hidden `.vera/`
 folder holds mirrored archives, the collection index, and trash. VERA syncs
-it when files change, when the library is opened, and about every 10 minutes.
+it when the library is added, when files change, and about every 10 minutes.
+A sync that has files to check or convert shows in the footer status bar,
+where Stop cancels it. **Checking library N of M** means VERA is hashing
+files to see what changed.
 A large disappearance asks before archives are moved to trash. Right-click a
 library for **Library trash…**, and a converted document for **Share
 archive…**, which copies that one `.vera` file out. Sibling `.vera` files
@@ -65,12 +68,13 @@ expanded them; a chain of folders that only contain one subfolder is shown as
 one row (for example `reports/2024`). A PDF, Markdown, Word, PowerPoint, or Excel file and its archive appear as one document row. The row icon matches the source type. A `.vera` file with no source beside it keeps the VERA mark. In a managed library the archive lives under `.vera/archives/` and
 pairs by the full source name (`Site Plan.pdf` with `Site Plan.pdf.vera`).
 A loose `.vera` beside its source still pairs by file-name stem. A converted document shows a green dot. Sources that are not converted yet show their file
-name in a muted style with a grey dot. A library, folder, or subfolder that
+name in a muted style with a grey dot. A plain folder or subfolder that
 holds unconverted sources shows a grey sync-arrow badge with the count of files not
 searchable yet; select it to convert those files with your default settings.
-The badge turns blue and its arrows spin while that folder is converting. Right-click a subfolder to convert it or show it
+The badge turns blue and its arrows spin while that folder is converting. A library
+header shows a status chip instead of that badge. Right-click a subfolder to convert it or show it
 in the system file manager. Inside a library, select a subfolder to limit
-Search and Ask to that folder and its subfolders, using the library's index.
+Search and Chat to that folder and its subfolders, using the library's index.
 The arrow beside the name only expands or collapses the row. The selected
 folder is highlighted and the scope line under the search box reads
 **Folder “…” in “…”**. Select the library name, or **Whole library** under
@@ -87,14 +91,15 @@ Convert need nothing there. Type in **Search settings** to find a section by
 everyday words such as `api key`, `ollama`, or `log`. Changes save as you
 make them, and **Done** closes the dialog.
 
-**AI providers** chooses the model that answers in Ask. **Model used for Ask**
-lists every enabled model. Providers are grouped as **Online services**
+**AI providers** chooses the model that answers in Chat. **Chat model** lists
+every enabled model and sets the default for every chat mode; the provider
+behind it shows a **Default** pill. Providers are grouped as **Online services**
 (VERA Pro, OpenAI, OpenRouter) and **On this computer** (Ollama, LM Studio).
 Open one to set it up. For an online service, paste its key; **Get a key**
 opens the provider's key page in your browser. For a local server, select
 **Connect**. VERA loads the model list as soon as a key is saved or a local
-server answers, and turns the first model on for Ask when none is chosen
-yet. Lists more than an hour old are checked again when Settings or the
+server answers, and makes the first model the chat default when none is
+chosen yet. Lists more than an hour old are checked again when Settings or the
 model list opens, and after five minutes when you open that provider. The
 refresh icon beside **Models** checks right away. **Advanced options** holds
 the base URL, temperature, **Context tokens**, and **Remove provider**.
@@ -120,44 +125,67 @@ account has no current subscription. **Manage subscription** opens the account
 page instead.
 
 Search does not need Pro. Without a subscription, add your own provider
-(OpenAI, OpenRouter, Ollama, or LM Studio). If Ask is opened with no provider,
+(OpenAI, OpenRouter, Ollama, or LM Studio). If Chat is opened with no provider,
 VERA offers **Use VERA Pro** and **Add your own provider**.
 
-A packaged build with empty `pro-cloud.json` shows Account as not connected.
-Release builds fill that file from `VERA_PRO_SITE_URL`,
-`VERA_PRO_SUPABASE_URL`, `VERA_PRO_SUPABASE_ANON_KEY`, and
-`VERA_PRO_RELAY_URL`. Those values are the public site URL, the Supabase anon
-key, and the cloud relay origin, not the service role key.
+Account sign-in needs `VERA_PRO_SITE_URL`, `VERA_PRO_SUPABASE_URL`,
+`VERA_PRO_SUPABASE_ANON_KEY`, and `VERA_PRO_RELAY_URL`. Those values are the
+public site URL, the Supabase anon key, and the cloud relay origin, not the
+service role key. A source run reads them from the repo-root `.env` (copy
+`.env.example`). `npm run app:dev` loads that file before Electron starts, and
+the desktop process loads it again when it is not packaged. Values already
+set in the shell win. A packaged build with empty `pro-cloud.json` shows
+Account as not connected. Release builds fill that file from the same variables.
 
-Pro Ask sends the question and retrieved passages to OpenRouter and the
-selected model provider. Canceling the subscription disables the key. Signing
-out of Account leaves a saved key on disk until you clear it.
+Chat through VERA Pro sends the question and retrieved passages to OpenRouter and the
+selected model provider. When OpenRouter rejects the saved key, VERA asks the
+account for a new one and retries that question once. Canceling the subscription
+disables the key. Signing out of Account leaves a saved key on disk until you clear it.
 
 ## Agent access
 
-**File > Settings → Agent access** shares one or more library folders with
-local AI agents while VERA Desktop is open. Each folder can have a short name.
-Agents pass that name as `library` instead of the full path. A blank name uses
-the folder name. The app runs one loopback MCP
-service for every agent, so they share one loaded embedder and one access
-policy. Copy the HTTP snippet or the stdio snippet into the agent's MCP
-config. The stdio snippet runs `mcp-connect`, which fails if Desktop is not
-running. `vera mcp` from a Python install is unchanged and does not use this
-service.
+**File > Settings → Agent access** lets AI assistants search one or more
+folders while VERA Desktop is open. It has three steps.
+
+1. **Choose folders.** Add the folder that holds your documents. Adding the
+   first folder starts sharing, and removing the last folder stops it.
+   **Rename** sets a short name. Agents pass that name as `library` instead of
+   the full path. Leave the folder name when you do not need a shorter one.
+2. **Where does your AI run?** Choose **In the cloud** for ChatGPT, Claude,
+   Grok, and other assistants you sign in to, whether you use them on the
+   web, in a desktop app, or on a phone. This is the default. Choose
+   **On this computer** for Cursor, VS Code, Claude Desktop, and other apps
+   that connect to VERA directly.
+3. **Connect.** The steps depend on your choice.
+
+**In the cloud.** Cloud assistants reach this computer through VERA's relay.
+**Allow cloud agents** needs a VERA account with an Agent Access subscription.
+VERA Pro does not include it. Signed out, the step shows **Sign in** and
+**Get Agent Access**. Turning **Allow cloud agents** on also starts local
+sharing, because the relay forwards each request to that local service. The
+desktop app opens an outbound connection to the relay in `VERA_PRO_RELAY_URL`.
+Add the **Connector URL** as a custom connector in the assistant. The
+assistant signs in with the VERA account. Search works only while this app is
+open. Closing the app makes the assistant report that VERA Desktop is not
+connected. **Manage computers** appears when more than one computer is
+signed in. **Cloud agents use** stays on **Automatic** or the computer you
+pin. **Use this computer** chooses this one. The others stay connected in
+standby. The status bar names the computer cloud agents are using. Select it
+to open Agent access.
+
+**On this computer.** **Let apps on this computer search these folders**
+shares the folders through one loopback MCP service, so every local agent
+uses the same loaded embedder and the same access policy. Turning it off
+also pauses cloud assistants. Pick **Claude Desktop**, **Cursor**, **VS Code**,
+or **Other**, then copy that one snippet. Claude Desktop uses a command that
+runs `mcp-connect`, which fails if Desktop is not running. Cursor and VS Code
+use the local web address. **Advanced** has the **HTTP snippet** and the
+**Stdio snippet**. **Reset connection key** replaces the token, and snippets
+you already copied stop working. `vera mcp` from a Python install is
+unchanged and does not use this service.
 
 Excerpts a connected agent retrieves are sent to that agent's model provider.
-The `.vera` files stay on this computer. **Rotate token** invalidates snippets
-you already copied.
-
-**Allow cloud agents (VERA Pro)** is available with an active subscription.
-The desktop app opens an outbound connection to the relay in `VERA_PRO_RELAY_URL`.
-Copy the connector URL into a cloud assistant. That assistant signs in with
-the VERA account. Search works only while this app is open. Closing the app
-makes the assistant report that VERA Desktop is not connected. If several
-computers are signed in, **Cloud agents use** stays on **Automatic** or the
-computer you pin. **Use this computer** chooses this one. The others stay
-connected in standby. The status bar names the computer cloud agents are
-using. Select it to open Agent access.
+The `.vera` files stay on this computer.
 
 ## Requirements
 
@@ -210,9 +238,10 @@ which also has a Stop button. Inside a managed library (one with a hidden
 sync the library: new and changed files convert into `.vera/archives` with the
 library's own settings, and the library index updates afterward. Office lock
 files (`~$…`) that Excel, Word, or PowerPoint leave beside an open document
-are ignored. When a
-background sync is already running, Convert waits for it and then reports
-anything still pending. In other folders that already have archives,
+are ignored. While that library is already syncing, Convert stays locked
+and reads **Syncing…** instead of starting a second pass. Stop in the status
+bar cancels the sync. After it finishes, Convert reports anything still
+pending. In other folders that already have archives,
 Explorer's Convert uses their embedding model so the folder stays searchable
 as one corpus. The Convert view opens on its own only
 when something needs attention, such as a failed file or a missing API key.
@@ -293,7 +322,7 @@ Shift+click to select a range. Hovering a file replaces its icon with a
 checkbox that adds or removes that row from the same list — unchecking it
 deselects it, and the highlight and the Chat/Search “selected document” count
 stay in sync. Once two or more files are selected, every file shows its
-checkbox and the bottom of Explorer reads **N selected** with **Clear**. Selected converted documents become the Search/Ask
+checkbox and the bottom of Explorer reads **N selected** with **Clear**. Selected converted documents become the Search/Chat
 scope and selected unconverted PDFs, Markdown, or Office files become the Convert list. Shift+click ranges
 follow the rows currently visible in the tree.
 
@@ -318,9 +347,9 @@ and keyword modes from its composer options. Its ranked passage cards open and
 highlight the matching source in the document viewer (Mozilla-style PDF chrome
 with a page thumbnail rail and rotate counterclockwise) without adding the query
 to chat history. CLI and MCP search return the full ranked list; they do not
-apply Ask's relative `quality` filter.
+apply Chat's relative `quality` filter.
 
-### Customize Ask modes
+### Customize chat modes
 
 Built-in Chat modes are **Ask**, **Research**, and **Summarize**. Each is a
 Markdown file: YAML-ish frontmatter sets retrieval defaults, and the body is
@@ -355,7 +384,7 @@ on every turn while the search budget remains. `tools` limits which tools
 that mode may call. Omit it, or leave it empty, to allow `search`,
 `search_attachments`, `view_figure`, and `write_markdown`.
 
-Ask's LLM `search` tool also accepts `quality`: `strict` (keep hits at least
+Chat's LLM `search` tool also accepts `quality`: `strict` (keep hits at least
 0.85 of the top score), `balanced` (0.55, default), or `permissive` (keep
 all). Scores are RRF-based, not 0–1 cosine. If the cutoff would drop every
 hit, the single best result is kept. Re-searches skip chunks already cited
@@ -379,12 +408,12 @@ sidecar connection.
 
 Collection indexes are persistent: the app checks their freshness when a
 library is activated but does not rebuild them automatically. Activating a
-folder only sets the Search and Ask scope; the corpus opens on the first
+folder only sets the Search and Chat scope; the corpus opens on the first
 query. A fresh index makes that first search fast. If an index is missing or
-stale, the first Search or Ask prompts you to build or update it; choose
+stale, the first Search or Chat prompts you to build or update it; choose
 **Don&apos;t ask again** to keep using recursive search without future prompts for
 that library. Right-click a folder and choose **Build index** or **Update
-index** to start immediately without that dialog; the badge and footer show
+index** to start immediately without that dialog; the status chip and footer show
 progress. Use **Inspect** in the Info view only when you need library
 metrics or to revalidate every archive; that operation can take substantially
 longer for large libraries. Inspection runs on a sidecar worker and the footer
@@ -393,18 +422,25 @@ and skipped files. Its request-scoped status clears on either success or
 failure, independently of simultaneous indexing or conversion activity.
 
 After a build or update starts, indexing runs in the background. The
-folder's index badge spins. The footer shows completed archives, total archives,
+library status chip spins and reads the current step, such as **Converting 3 of 10**
+or **Updating index**. The footer shows completed archives, total archives,
 the current phase and filename, indexed chunks, and skipped-file count. It
 switches to a finalizing phase while the validated generation is published. You
-can continue browsing and using Search or Ask while the existing index, or
-recursive fallback search, remains available. A completed warning badge means
-some archives were skipped; select it to review the latest indexing report.
+can continue browsing and using Search or Chat while the existing index, or
+recursive fallback search, remains available. Select the chip to open
+**Library health**. Orange **Needs attention** means a sync failed, archives
+were skipped, or VERA needs confirmation before removing archives. The popover
+lists each problem and the action that fixes it: **Retry**, **Convert now**,
+**Update index**, **Build index**, or **Check for changes now**. A missing or
+out-of-date index stays neutral (**Not indexed**, **N new**, or **Out of date**)
+because the next sync or **Update index** fixes it. Green **Ready** means the
+library is searchable.
 
 On startup, Explorer collapses inactive libraries immediately so every library
 header stays visible and the last active library stays expanded. Plain folders
-keep the expanded or collapsed state you left them in. Folders show
-their last verified badge state while VERA checks the current filesystem in
-the background. A neutral spinner is shown when there is no saved status yet,
+keep the expanded or collapsed state you left them in. Libraries show
+their last verified chip state while VERA checks the current filesystem in
+the background. A neutral **Checking…** chip is shown when there is no saved status yet,
 rather than treating the folder as unindexed.
 
 Parent and empty folders can also be added as libraries. Nested `.vera`
@@ -415,7 +451,7 @@ tree. The listing payload sets `truncated: true` when that cap is hit;
 Explorer does not show a banner for it. Office and HTML
 sources are not listed in Explorer — convert them with `vera[docling]`.
 A folder with no `.vera` files remains active and watched; Search and
-Ask report that nothing is searchable until archives are present.
+Chat report that nothing is searchable until archives are present.
 
 ## Check or build the app
 
@@ -458,7 +494,7 @@ Sentence Transformers are excluded from the freeze.
 ## Plugins in the same environment
 
 Source-run (`npm run app:dev`) and packaged builds use **one interpreter**.
-Search, Ask, indexing, and PyMuPDF conversion all run in
+Search, Chat, indexing, and PyMuPDF conversion all run in
 the sidecar. Extra converters are pip packages in that environment, not a
 second interpreter. The sidecar converts Word, PowerPoint, and Excel with
 `ooxml` and does not run Docling conversion.
@@ -539,12 +575,12 @@ Convert and embed always run in-process in the sidecar; see
 ## Files, earlier evidence, and Markdown reports
 
 Drop PDF, Word, PowerPoint, Excel, Markdown, HTML, plain text, or `.vera`
-files onto Ask, or use the attach button. The hint reads
+files onto Chat, or use the attach button. The hint reads
 **Drop files to attach**. Each document is converted once for that chat. Files that fit the
 model's context are read in full; the rest stay searchable with
 `search_attachments`. The chip shows progress while a file is preparing, then
 **Read in full**, **Searched N×**, or **Not used** after the answer. Send
-stays unavailable until every attached file is ready. Ask works with attached
+stays unavailable until every attached file is ready. Chat works with attached
 files alone, before a library is selected.
 
 Passages from attached files are cited as `[A#]`, beside `[C#]` for library
@@ -557,7 +593,7 @@ cited archive has nothing the viewer can open, the viewer shows the passage
 text instead.
 
 Follow-up questions include passages retrieved earlier. When those passages
-cover the question, Ask answers without a new search and shows
+cover the question, Chat answers without a new search and shows
 **From earlier evidence**. A search still runs when the question needs
 something that is not already in the chat, or when the mode's `search_policy`
 requires one.
@@ -570,12 +606,12 @@ VERA Pro. Attached documents use about 40% of that window, up to 40,000
 tokens. Earlier evidence uses about 10%, or about 2,000 tokens on the local
 default.
 
-Figures inside a file that was read in full are listed in the prompt. Ask
+Figures inside a file that was read in full are listed in the prompt. Chat
 fetches the ones it needs with `view_figure` when the model accepts images.
 Images dropped into the composer stay with the chat and can be viewed again
 on a later turn.
 
-When you ask for a report or a Markdown file, Ask writes one under the chat's
+When you ask for a report or a Markdown file, Chat writes one under the chat's
 drafts folder. The reply shows the filename with a preview, **Copy Markdown**,
 **Save as**, and **Show in folder**. **Save as Markdown** on any assistant
 reply writes that answer with citation footnotes.

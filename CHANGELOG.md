@@ -16,20 +16,41 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Changed
 
+- Desktop **Agent access** is three steps: choose folders, answer
+  **Where does your AI run?**, and connect. **In the cloud** (ChatGPT, Claude, Grok on
+  the web, desktop, or phone) is the default and shows **Sign in**, **Get Agent Access**, or **Allow cloud
+  agents** with the connector URL. **On this computer** asks for **Claude
+  Desktop**, **Cursor**, **VS Code**, or **Other** and shows one snippet.
+  Adding the first folder turns local access on, and removing the last folder
+  turns it off. Turning on **Allow cloud agents** also starts local sharing,
+  which the relay needs. The HTTP and stdio snippets and
+  **Reset connection key** (formerly **Rotate token**) sit under **Advanced**.
+  **Manage computers** appears when more than one computer is connected.
 - Desktop **Settings** is reorganized for first-time users. It opens on an
   **Overview** of what is ready, groups sections in a sidebar with a
   **Search settings** box, and saves changes as you make them (**Done**
   replaces **Save & Close** and **Cancel**). **LLM Providers** is now
-  **AI providers**, with a **Model used for Ask** picker, providers grouped by
+  **AI providers**, with a **Chat model** picker, providers grouped by
   where they run, **Get a key** and download links, and temperature,
   **Context tokens**, and base URL under **Advanced options**. Diagnostics
   adds **Check for updates**.
+- Desktop settings and setup text call the LLM feature **Chat** instead of
+  **Ask**, so it is not confused with the **Ask** chat mode. The provider
+  that every chat mode uses shows **Default** instead of **Used for Ask**,
+  and its picker is **Chat model**. VERA Pro is listed first in the composer
+  model menu and the **Chat model** picker. When OpenRouter rejects the saved
+  VERA Pro key, VERA asks the account for a new one and retries that chat or
+  model list once.
 - **File → Chat Modes Folder…** replaces **Answer Modes Folder…**. The mode
   picker heading is **Chat mode**.
 - Desktop model lists load on their own. Saving a provider key or connecting
-  to Ollama or LM Studio fetches the models and picks one for Ask when none is
+  to Ollama or LM Studio fetches the models and makes one the chat default when none is
   chosen. Lists older than an hour are checked again when Settings or the
   model list opens. The refresh button stays for an immediate check.
+- Desktop library headers use one status chip. Orange **Needs attention**
+  opens **Library health** with the files that failed and the action that
+  fixes each one. A missing or out-of-date index stays neutral instead of
+  looking like an error.
 
 ### Fixed
 

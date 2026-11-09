@@ -11,6 +11,8 @@ interface AppStatusBarProps {
   busyFolderPath?: string;
   /** Conversions can start from Explorer, so Stop must not require the Convert view. */
   onStopConversion?: () => void;
+  /** Stop the library sync shown in the status bar. */
+  onStopLibrarySync?: (requestId: string) => void;
   /** Live agent-service status. Cloud routing is shown only while cloud agents are on. */
   agentStatus?: AgentServiceStatus | null;
   onOpenCloudAgents?: () => void;
@@ -67,6 +69,7 @@ export function AppStatusBar({
   tasks,
   busyFolderPath = '',
   onStopConversion,
+  onStopLibrarySync,
   agentStatus = null,
   onOpenCloudAgents,
 }: AppStatusBarProps) {
@@ -116,6 +119,18 @@ export function AppStatusBar({
                 disabled={task.message === 'Stopping…'}
                 title="Stop conversion"
                 aria-label="Stop conversion"
+              >
+                <Square size={9} fill="currentColor" aria-hidden="true" />
+              </button>
+            ) : null}
+            {task.kind === 'librarySync' && onStopLibrarySync ? (
+              <button
+                type="button"
+                className="appStatusAction"
+                onClick={() => onStopLibrarySync(task.id)}
+                disabled={task.message === 'Stopping…'}
+                title="Stop library sync"
+                aria-label="Stop library sync"
               >
                 <Square size={9} fill="currentColor" aria-hidden="true" />
               </button>

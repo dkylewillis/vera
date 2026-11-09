@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, powerMonitor, protocol, safeStorage, shell } from 'electron';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -13,7 +14,13 @@ import type {
   Session,
 } from '../src/shared/contracts.js';
 import { IPC_CHANNELS, SIDECAR_ACTIONS, type FolderPickPurpose } from '../src/shared/protocol.js';
-import { LIBRARY_SYNC_INTERVAL_MS, isManagedLibraryEvent, librarySyncDecision } from './folder-watch.js';
+import {
+  LIBRARY_SYNC_INTERVAL_MS,
+  claimLibrarySync,
+  isManagedLibraryEvent,
+  librarySyncDecision,
+  type LibrarySyncAbort,
+} from './folder-watch.js';
 import { DEFAULT_AGENT_SERVICE_PORT } from '../src/shared/agent-snippets.js';
 import { namesForRoots } from '../src/shared/library-names.js';
 import { DESKTOP_DEFAULT_EMBEDDING_MODEL } from '../src/shared/desktop-defaults.js';
@@ -38,6 +45,7 @@ import { veraArchivePathFromArgs } from './file-open.js';
 import { type JsonLineEvent } from './json-line-process.js';
 import {
   claimProKey,
+  proKeyWasRejected,
   createPkcePair,
   emptyProAccount,
   exchangeDesktopCode,
@@ -69,6 +77,21 @@ import {
   logSidecarStderr,
   sidecarLogFilePath,
 } from './sidecar-log.js';
+
+/** Source runs read the repo-root `.env`. Packaged builds use pro-cloud.json. */
+function loadDevDotenv(): void {
+  if (app.isPackaged) return;
+  const moduleDir = dirname(fileURLToPath(import.meta.url));
+  const repoRoot = resolve(moduleDir, '..', '..', '..', '..');
+  const loaderPath = join(repoRoot, 'scripts', 'load-dotenv.cjs');
+  if (!existsSync(loaderPath)) return;
+  const { loadRepoEnv } = createRequire(import.meta.url)(loaderPath) as {
+    loadRepoEnv: (env: NodeJS.ProcessEnv, root: string) => void;
+  };
+  loadRepoEnv(process.env, repoRoot);
+}
+
+loadDevDotenv();
 
 /** Prefer the workspace uv venv so bundled sidecar packages resolve in source-run. */
 function resolveDevPython(): string {
@@ -127,6 +150,7 @@ interface SidecarResponse {
   error?: string;
   traceback?: string;
   provider_error_detail?: string;
+  cancelled?: boolean;
 }
 
 interface SidecarEvent {
@@ -1181,7 +1205,7 @@ async function signInToPro(): Promise<ProActionResult> {
   if (!proCloudConfigured(config)) {
     return {
       ok: false,
-      error: 'This build is not connected to VERA Pro. Set VERA_PRO_SITE_URL, VERA_PRO_SUPABASE_URL, and VERA_PRO_SUPABASE_ANON_KEY.',
+      error: 'This build is not connected to VERA Pro. Add VERA_PRO_SITE_URL, VERA_PRO_SUPABASE_URL, and VERA_PRO_SUPABASE_ANON_KEY to the repo .env, or package pro-cloud.json.',
       account: await currentProAccount(),
     };
   }
@@ -1227,10 +1251,10 @@ async function completeProAuthCallback(rawUrl: string): Promise<void> {
       title: 'VERA Pro',
       message: session.email ? `Signed in as ${session.email}.` : 'Signed in to VERA Pro.',
       detail: ready
-        ? 'VERA Pro is ready for Ask.'
+        ? 'VERA Pro is ready for Chat.'
         : subscribed
           ? (account.error || 'Signed in, but the Pro key could not be saved.')
-          : 'Subscribe to use Ask with VERA Pro.',
+          : 'Subscribe to use Chat with VERA Pro.',
     });
   } catch (error) {
     await dialog.showMessageBox({
@@ -1280,6 +1304,33 @@ async function activatePro(): Promise<ProActionResult> {
       ok: false,
       error: error instanceof Error ? error.message : 'Unable to activate VERA Pro.',
       account: await currentProAccount(),
+    };
+  }
+}
+
+/** Ask the signed-in account for a different key after OpenRouter rejected the saved one. */
+async function replaceRejectedProKey(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const config = proCloudConfig();
+  const session = readProSession();
+  if (!session || !proCloudConfigured(config)) {
+    return { ok: false, error: 'VERA Pro rejected the saved key. Sign in under Settings → Account.' };
+  }
+  try {
+    const fresh = await ensureFreshProSession(config, session);
+    const claimed = await claimProKey(config, fresh.access_token, fetch);
+    if (claimed.apiKey.trim() === readSecretJson(PRO_KEY_SECRET).trim()) {
+      return {
+        ok: false,
+        error: 'VERA Pro rejected the saved key, and the account returned that same key. Remove the Pro key under Settings → AI providers → VERA Pro, then open Account again.',
+      };
+    }
+    writeSecretJson(PRO_KEY_SECRET, claimed.apiKey);
+    void refreshProAccount().catch(() => undefined);
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'VERA Pro could not replace the rejected key.',
     };
   }
 }
@@ -1428,7 +1479,20 @@ async function trashWorkspaceFile(filePath: string, folderPath: string): Promise
 const folderWatchers = new Map<string, FolderWatcher>();
 const folderChangeTimers = new Map<string, NodeJS.Timeout>();
 const librarySyncTimers = new Map<string, NodeJS.Timeout>();
-const librarySyncing = new Map<string, Promise<LibrarySyncReport | null>>();
+const librarySyncing = new Map<string, LibrarySyncRun>();
+/** User request ids waiting on a library sync that has not reached the sidecar yet. */
+const librarySyncWaiters = new Map<string, Set<string>>();
+const librarySyncAbort: LibrarySyncAbort = {
+  aborted: new Set<string>(),
+  onWait(activeRequestId, waiterId) {
+    const waiters = librarySyncWaiters.get(activeRequestId) ?? new Set<string>();
+    waiters.add(waiterId);
+    librarySyncWaiters.set(activeRequestId, waiters);
+  },
+  onWaitEnd(activeRequestId, waiterId) {
+    librarySyncWaiters.get(activeRequestId)?.delete(waiterId);
+  },
+};
 let librarySyncTimer: NodeJS.Timeout | null = null;
 /** Another process holds the library's sync lock; try again once it has likely finished. */
 const LIBRARY_BUSY_RETRY_MS = 30_000;
@@ -1443,12 +1507,26 @@ interface LibrarySyncReport {
   trashed?: number;
   pending_trash?: number;
   failed?: number;
+  errors?: { input: string; error: string }[];
   busy?: boolean;
+  cancelled?: boolean;
 }
 
-function publishLibrarySync(folderPath: string, report: LibrarySyncReport | null): void {
+interface LibrarySyncRun {
+  folderPath: string;
+  requestId: string;
+  run: Promise<LibrarySyncReport | null>;
+}
+
+function publishLibrarySync(folderPath: string, report: LibrarySyncReport | null, requestId: string): void {
   for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.librarySync, folderPath, report);
+    if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.librarySync, folderPath, report, requestId);
+  }
+}
+
+function publishLibrarySyncProgress(folderPath: string, requestId: string, event: JsonLineEvent): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.librarySyncProgress, folderPath, requestId, event);
   }
 }
 
@@ -1456,26 +1534,43 @@ type LibrarySyncOptions = { onEvent?: (event: JsonLineEvent) => void; requestId?
 
 /**
  * Background syncs skip a library that is already syncing. A sync the user
- * asked for (it has a `requestId`) waits for running syncs, then runs its own
- * pass so it reports what is still pending.
+ * asked for (it has a `requestId`) waits for that library's running sync, then
+ * runs its own pass so it reports what is still pending.
  */
 async function runLibrarySync(folderPath: string, options: LibrarySyncOptions = {}): Promise<LibrarySyncReport | null> {
   const key = folderWatcherKey(folderPath);
-  if (options.requestId) {
-    await Promise.allSettled([...librarySyncing.values()]);
-  } else if (librarySyncing.has(key)) {
-    return null;
-  }
-  const run = syncLibraryOnce(folderPath, options);
-  librarySyncing.set(key, run);
-  try {
-    return await run;
-  } finally {
-    if (librarySyncing.get(key) === run) librarySyncing.delete(key);
-  }
+  return claimLibrarySync(
+    librarySyncing,
+    key,
+    options.requestId,
+    (requestId) => ({
+      folderPath,
+      requestId,
+      run: syncLibraryOnce(folderPath, { ...options, requestId }),
+    }),
+    () => randomUUID(),
+    librarySyncAbort,
+  );
 }
 
-async function syncLibraryOnce(folderPath: string, options: LibrarySyncOptions): Promise<LibrarySyncReport | null> {
+/** Stop a library sync, including one Convert is still waiting to start. */
+function abortLibrarySync(requestId: string): boolean {
+  let found = false;
+  for (const run of librarySyncing.values()) {
+    const waiters = librarySyncWaiters.get(run.requestId);
+    if (run.requestId !== requestId && !waiters?.has(requestId)) continue;
+    found = true;
+    librarySyncAbort.aborted.add(requestId);
+    if (run.requestId !== requestId) void sidecar.cancelAnswer(run.requestId);
+  }
+  return found;
+}
+
+async function syncLibraryOnce(
+  folderPath: string,
+  options: LibrarySyncOptions & { requestId: string },
+): Promise<LibrarySyncReport | null> {
+  const requestId = options.requestId;
   try {
     let confirmed = false;
     let report: LibrarySyncReport | null = null;
@@ -1485,10 +1580,14 @@ async function syncLibraryOnce(folderPath: string, options: LibrarySyncOptions):
         path: folderPath,
         confirm_deletes: confirmed,
         require: false,
-      }, options.onEvent, options.requestId);
+      }, (event) => {
+        options.onEvent?.(event);
+        if (event.event === 'library_progress') publishLibrarySyncProgress(folderPath, requestId, event);
+      }, requestId);
       report = response.ok && response.result && typeof response.result === 'object'
         ? response.result as LibrarySyncReport
         : { ok: false, error: response.error || 'Library sync failed' };
+      if (response.cancelled) report = { ...report, cancelled: true };
       if (librarySyncDecision(report, confirmed) !== 'confirm') break;
       const choice = await dialog.showMessageBox({
         type: 'warning',
@@ -1502,12 +1601,14 @@ async function syncLibraryOnce(folderPath: string, options: LibrarySyncOptions):
       if (choice.response !== 1) break;
       confirmed = true;
     }
-    publishLibrarySync(folderPath, report);
+    publishLibrarySync(folderPath, report, requestId);
     if (report?.busy) scheduleLibrarySync(folderPath, LIBRARY_BUSY_RETRY_MS);
     else if (report && report.managed !== false) scheduleFolderChanged(folderPath);
     return report;
   } catch {
-    return null;
+    const report = { ok: false, error: 'Library sync failed' };
+    publishLibrarySync(folderPath, report, requestId);
+    return report;
   }
 }
 
@@ -1875,7 +1976,9 @@ if (singleInstanceLock) app.whenReady().then(() => {
   });
   ipcMain.handle(IPC_CHANNELS.request, async (event, payload: SidecarPayload, requestId?: string) => {
     const sender = event.sender;
+    let streamed = false;
     const onEvent = (e: JsonLineEvent) => {
+      streamed = true;
       if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.answerEvent, e);
     };
     const prepared = withModesDir(withStoredApiKey(payload));
@@ -1886,7 +1989,13 @@ if (singleInstanceLock) app.whenReady().then(() => {
         : prepared.action === 'answer' || prepared.action === 'render_markdown'
           ? { ...prepared, attachments_dir: chatAttachmentsDir(), drafts_dir: chatDraftsDir() }
           : prepared;
-    const response = await sidecar.request(request, onEvent, requestId);
+    let response = await sidecar.request(request, onEvent, requestId);
+    if (proKeyWasRejected(request, response) && !streamed) {
+      const replaced = await replaceRejectedProKey();
+      response = replaced.ok
+        ? await sidecar.request(withStoredApiKey(request), onEvent, requestId)
+        : { ...response, error: replaced.error };
+    }
     if (
       response.ok
       && request.action === 'source'
@@ -1909,7 +2018,12 @@ if (singleInstanceLock) app.whenReady().then(() => {
     }
     return response;
   });
-  ipcMain.handle(IPC_CHANNELS.cancelAnswer, (_event, requestId: string) => sidecar.cancelAnswer(requestId));
+  ipcMain.handle(IPC_CHANNELS.cancelAnswer, async (_event, requestId: string) => {
+    const stoppedPending = abortLibrarySync(requestId);
+    const result = await sidecar.cancelAnswer(requestId);
+    if (result.cancelled || stoppedPending) return { cancelled: true };
+    return result;
+  });
   ipcMain.handle(IPC_CHANNELS.cancelRequest, (_event, requestId: string) => sidecar.cancelRequest(requestId));
   ipcMain.handle(IPC_CHANNELS.skipConversion, (_event, requestId: string) => sidecar.skipConversion(requestId));
   ipcMain.handle(IPC_CHANNELS.listModes, async () => sidecar.request({ action: SIDECAR_ACTIONS.listModes, modes_dir: modesDir() }));
@@ -2037,6 +2151,9 @@ if (singleInstanceLock) app.whenReady().then(() => {
       },
     });
   });
+  ipcMain.handle(IPC_CHANNELS.librarySyncStatus, () => (
+    [...librarySyncing.values()].map(({ folderPath, requestId }) => ({ folderPath, requestId }))
+  ));
   ipcMain.handle(IPC_CHANNELS.shareArchive, async (_event, archivePath: string) => {
     if (typeof archivePath !== 'string' || !archivePath.toLowerCase().endsWith('.vera') || !existsSync(archivePath)) {
       throw new Error('Archive was not found.');

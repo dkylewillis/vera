@@ -1068,6 +1068,12 @@ def test_desktop_explorer_libraries_folders_and_tree():
         assert "Make this a library" in text
     assert "## Libraries and folders" in desktop
     assert "sync-arrow badge" in desktop
+    assert "Library health" in desktop
+    assert "Needs attention" in desktop
+    assert "Library health" in architecture
+    assert "Needs attention" in architecture
+    assert "libraryHealth" in architecture
+    assert "lastSyncReports" in architecture
     assert "**To convert**" not in desktop
     assert "Remove from Libraries" in desktop
     assert "buildExplorerTree" in architecture
@@ -1179,7 +1185,8 @@ def test_desktop_settings_layout_is_documented():
         "Changes save as you",
         "**Done**",
         "**AI providers**",
-        "**Model used for Ask**",
+        "**Chat model**",
+        "**Default** pill",
         "**Online services**",
         "**On this computer**",
         "**Get a key**",
@@ -1190,12 +1197,14 @@ def test_desktop_settings_layout_is_documented():
     ):
         assert phrase in desktop, phrase
     assert "LLM Providers" not in desktop
+    assert "Model used for Ask" not in desktop
     assert "Settings → AI providers" in app_pkg
     assert "**Search settings**" in app_pkg
     assert "LLM Providers" not in app_pkg
     assert "**AI providers**" in agents
     assert "LLM Providers" not in agents
-    assert "**Model used for Ask**" in changelog
+    assert "**Chat model**" in changelog
+    assert "Used for Ask" in changelog
     assert "Desktop model lists load on their own" in changelog
 
 
@@ -1220,6 +1229,16 @@ def test_desktop_agent_service_is_documented():
     assert "`library`" in mcp
     assert "VERA_SERVICE_TOKEN" in mcp
     assert "Agent access" in getting_started
+    assert "Claude Desktop" in getting_started
+    assert "Where does your AI run?" in getting_started
+    assert "In the cloud" in getting_started
+    assert "web browser" not in getting_started
+    assert "Where does your AI run?" in changelog
+    assert "Reset connection key" in getting_started
+    assert "first folder" in getting_started
+    assert "Rotate token" not in getting_started
+    assert "Reset connection key" in mcp
+    assert "Reset connection key" in changelog
     assert "Agent access" in overview
     assert "mcp-connect" in app_pkg
     assert "mcp-service" in mcp_pkg

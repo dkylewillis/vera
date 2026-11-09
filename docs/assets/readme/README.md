@@ -10,8 +10,8 @@ paths, or confidential source documents in any capture.
 
 | File | Capture | README use |
 | --- | --- | --- |
-| `hero-grounded-answer.png` | An Ask answer beside its source PDF, with an opened citation and highlight. | Product proof immediately below the introduction. |
-| `provider-setup.png` | The **Settings** dialog on the **AI providers** section, with the **Model used for Ask** picker and one provider card open showing a saved (masked) **API key** and its enabled models. | Step 2–4 of desktop quick start. |
+| `hero-grounded-answer.png` | A chat answer beside its source PDF, with an opened citation and highlight. | Product proof immediately below the introduction. |
+| `provider-setup.png` | The **Settings** dialog on the **AI providers** section, with the **Chat model** picker and one provider card open showing a saved (masked) **API key** and its enabled models. | Step 2–4 of desktop quick start. |
 | `convert-single-pdf.png` | The **Convert** view with a PDF or Markdown selection / directory conversion. | Conversion feature card and quick start. |
 | `library-indexing.png` | A selected library with its index status, build/update prompt, or completed index. | Library indexing feature card. |
 | `citation-in-source.png` | An answer citation selected in the source document viewer. | Grounded answer feature card. |

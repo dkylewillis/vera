@@ -84,7 +84,7 @@ Initial actions:
 
 `list_modes` and `answer` accept `modes_dir` (Electron `userData/modes`). User
 `.md` files there override built-in Ask/Research/Summarize modes by `id`.
-Ask's search tool applies a relative `quality` cutoff (`strict` 0.85,
+Chat's search tool applies a relative `quality` cutoff (`strict` 0.85,
 `balanced` 0.55, `permissive` 0.0) against the top hit and skips already-cited
 chunks; CLI/MCP search does not.
 
@@ -142,19 +142,19 @@ Workspace folders are either libraries or plain folders. `useWorkspaceFolders`
 keeps the open folder list in `vera.folders` and the subset that are libraries
 in `vera.libraryPaths`; when that key is absent, every saved folder is a
 library, which is how workspaces from earlier releases migrate. Only libraries
-get index-status checks, an index badge, the active-library highlight, and
+get index-status checks, a status chip, the active-library highlight, and
 startup restore (`workspaceRestorePlan`). A plain folder's header only expands
 or collapses it, and `syncCollapsedFolders` leaves plain folders in their
 current state when a library activates. **Make this a library** and **Remove
 from Libraries** move a folder between the sets; removing the active library
 clears `activeLibraryPath`.
 
-Adding a library activates it as the default Search and Ask scope
+Adding a library activates it as the default Search and Chat scope
 without opening the corpus. Activation is instantaneous: it sets the active
-library path, clears file-selection overrides, and refreshes the index badge
-in the background. The corpus is opened on the first Search or Ask request.
+library path, clears file-selection overrides, and refreshes the status chip
+in the background. The corpus is opened on the first Search or Chat request.
 Cached library summaries from an earlier Inspect are restored when
-available. Selecting a library folder activates its Search/Ask scope and resets
+available. Selecting a library folder activates its Search/Chat scope and resets
 the viewer to an empty document view; selecting an individual `.vera` scope
 does not replace an open preview. Explorer preview of an archive keeps the
 library scope (`preserveLibrary` defaults to `true`). **File > Open...** and
@@ -186,7 +186,7 @@ library); a `.vera` goes to `previewSourceDocument` with
 `IPC_CHANNELS.openTarget` argument. Opening an existing library as a folder
 leaves it a library. Explorer
 double-click / **View in document viewer** omits `preserveLibrary` so the
-library stays the Search/Ask scope.
+library stays the Search/Chat scope.
 
 The center workspace has **Chat** and **Search** modes. Chat keeps LLM-backed
 conversations and their history, while Search runs direct hybrid, semantic, or
@@ -196,14 +196,14 @@ ranked passage results as selectable response cards; selecting a result opens
 and highlights its source in the document viewer. Retrieval controls remain
 available beneath the Search composer. Explorer, chat history, and conversion
 remain sidebar views. Customize Chat behavior with Markdown files in
-`userData/modes`; see [Customize Ask modes](desktop-app-getting-started.md#customize-ask-modes).
+`userData/modes`; see [Customize chat modes](desktop-app-getting-started.md#customize-chat-modes).
 
 Figure-aware searches return metadata without image bytes. The renderer calls
 `figure_data` only after selecting a result and caches the returned image data
 by archive path and attachment ID. `vera_ingest.viewer.figures_for` queries the
 result's linked figure attachment IDs directly; metadata queries omit the
 attachment `data` column, and byte reads are limited to explicitly requested
-IDs. Figure-enabled Ask modes use the same targeted reads for the bounded set
+IDs. Figure-enabled chat modes use the same targeted reads for the bounded set
 of images offered to a vision-capable model, then remove image data from stored
 citations.
 
@@ -221,13 +221,13 @@ own writes do not loop. Source changes debounce into `library_sync`, and the
 same sync runs when a watch starts and every 10 minutes. A mass-delete report
 asks in the main process before archives move to `.vera/trash/`.
 
-A fresh persistent index is used automatically for Search and Ask. The document
+A fresh persistent index is used automatically for Search and Chat. The document
 viewer's **Info** tab keeps **Inspect** available for an explicit validation
 scan of a library and shows document inspection, validation, export, and page
 text details beside the source they describe. Individual archive metadata is
 inspected automatically when Document Info opens, so only Library Info exposes
 the explicit **Inspect** action. Double-clicking a library opens a dedicated
-**Library Info** state; single-clicking only changes the active Search/Ask
+**Library Info** state; single-clicking only changes the active Search/Chat
 scope and leaves the viewer on its document view, empty when no document is
 loaded. Library Info does not expose a Document tab or pass the directory to
 the source-document loader, and its **Models**
@@ -238,7 +238,7 @@ generation/build/check timestamps, and per-model dimensions and counts. Its
 close action clears the viewer in the same way as closing a document preview.
 Libraries with at least 100
 discovered archives prompt to build or update an unavailable index on Search or
-Ask. Library context menus expose **Convert**, **Convert with options…**,
+Chat. Library context menus expose **Convert**, **Convert with options…**,
 **Build index**, **Update index**, rescan, show-in-system-folder, **Remove
 from Libraries**, and close; plain folders offer **Make this a library**
 instead of the index actions.
@@ -258,7 +258,7 @@ quick convert, and its icon spins when the running conversion's
 folder. Shift+click ranges use the visible rows in tree order
 (`visibleExplorerDocuments`). Subfolder context menus offer the same
 two convert actions and show-in-system-folder. Inside a library, selecting
-a subfolder (`onSearchFolder`) limits Search and Ask to that folder and its
+a subfolder (`onSearchFolder`) limits Search and Chat to that folder and its
 subfolders; the disclosure arrow only expands or collapses the row. Clicking
 the library name clears that scope. The nested-library prompt still offers
 **Search this folder** so the folder can be searched inside the existing
@@ -302,18 +302,18 @@ default model is `DEFAULT_EMBEDDING_MODEL`
 renderer; saved settings keep their model. **Build index**
 and **Update index** from that menu start immediately: the folder badge spins
 and the footer reports progress.
-The Search/Ask dialog (with **Search anyway** and **Don't ask again**) is only
+The Search/Chat dialog (with **Search anyway** and **Don't ask again**) is only
 for query-time prompts, not for an explicit menu action. File rows offer show-in-system-
 folder (and preview/trash where applicable). File rows use ordinary list
 selection: click selects one file, Ctrl/Cmd+click adds or removes it, Shift+click
 selects the range from the last anchor, and the checkbox sets that row's membership
 (check adds, uncheck removes). The checkbox overlays the file icon and is hidden
 until the row is hovered or two or more files are selected; in that state a
-**N selected** line with **Clear** sits at the bottom of Explorer. The row highlight and the Search/Ask selected-document
+**N selected** line with **Clear** sits at the bottom of Explorer. The row highlight and the Search/Chat selected-document
 count follow that same list (a previewed document uses a
-distinct marker, not the selected background). Selected `.vera` files become the Search/Ask scope; selected PDFs and Markdown files become
+distinct marker, not the selected background). Selected `.vera` files become the Search/Chat scope; selected PDFs and Markdown files become
 the Convert selection. Clicking a folder name clears the file selection and
-returns Search/Ask to the whole library. Ctrl/Cmd+click on a library name adds
+returns Search/Chat to the whole library. Ctrl/Cmd+click on a library name adds
 it to (or removes it from) a multi-library scope next to the active library.
 The renderer then sends `libraries: [{path, recursive, excludes}]` with each
 library's own index settings, and the sidecar's `LibrarySet` opens one corpus
@@ -349,11 +349,15 @@ and the other libraries stay collapsed, so every folder header remains visible w
 flashing every tree open. Restoring the saved library does not wait for other folders'
 index-status checks; those badges still refresh in the background. Explorer keeps
 the active-folder highlight without an Active text label, including when
-selected files override the library, and represents index state with a compact
-database badge: green for a fresh index and orange when an index is missing or
-stale. A blue spinning badge means a build or update is running in the
-background; after completion, a warning badge opens the report when archives
-were skipped. Choosing **Search anyway** never blocks retrieval: the sidecar
+selected files override the library. Each library header shows one status chip
+from `libraryHealth`, using the last finished sync in `lastSyncReports` (busy
+and cancelled reports do not replace it). The chip is green **Ready** when the
+index is fresh and nothing failed, neutral **Not indexed**, **N new**, or
+**Out of date** when files or the index still need work, and orange
+**Needs attention** only when a sync failed, archives were skipped, or deletes
+need confirmation. A blue spinning chip means a sync, conversion, or index
+build is running. Select the chip to open **Library health**, which lists each
+problem and the action that fixes it. Choosing **Search anyway** never blocks retrieval: the sidecar
 performs recursive fan-out search and the app keeps a slower-search banner
 visible. Watcher events and completed directory conversions update badges but
 never start a build automatically. Explorer walks 32 directory levels below a
@@ -362,10 +366,10 @@ deeper `.vera` / `.pdf` / `.md` files from the listing. The folder-listing paylo
 sets `truncated: true` when that cap is hit; Explorer currently does not display the flag.
 Double-clicking a library folder activates
 it and opens its Library Info view, clearing any document preview while leaving
-the library available as the Search/Ask scope.
+the library available as the Search/Chat scope.
 
 Any readable folder can remain active even before it contains a `.vera`
-archive. Search and Ask open the corpus on demand; an empty library returns a
+archive. Search and Chat open the corpus on demand; an empty library returns a
 clear error instead of leaving the folder inactive. Other `VeraCorpus.open`
 callers retain the strict non-empty default unless they pass `allow_empty`.
 
@@ -401,7 +405,7 @@ events update the streamed answer but are omitted from the diagnostic trace.
 Completed traces retain the real search events shown during generation.
 
 Builds and updates run on a sidecar worker thread without using the app's global
-busy state, so document browsing, Search, and Ask remain available. Index status
+busy state, so document browsing, Search, and Chat remain available. Index status
 checks, managed-library sync and init, library status, and validation also run
 on worker threads, so a long sync on a slow USB or network drive never queues
 other requests, and Stop reaches a running sync. The folder
@@ -570,7 +574,7 @@ stays readable in a narrow pane. The viewer chrome
 can hide the pane (keeping a right-edge toggle) or expand it by hiding chat so
 the document fills from the left sidebar to the window edge. Closing the open
 document clears its preview, selection, and highlights while leaving the viewer
-pane, active library, and Search/Ask scope intact. When the displayed source
+pane, active library, and Search/Chat scope intact. When the displayed source
 was extracted from a `.vera` archive, the viewer's **Info** tab
 that inspects that archive and shows its format, source, page and chunk counts,
 embedding model and dimensions, creation time, archive size, parser and

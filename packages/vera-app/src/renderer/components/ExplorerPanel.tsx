@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  AlertTriangle,
   ChevronDown,
   ChevronRight,
-  Database,
   Folder,
   FolderOpen,
   Library,
   Plus,
   RefreshCw,
 } from 'lucide-react';
+import { LibraryHealthPopover, LibraryStatusChip } from './LibraryHealthPopover';
 import { FileTypeIcon } from './FileTypeIcon';
 import {
   applyFileListCheckbox,
@@ -27,10 +26,12 @@ import {
   type ExplorerTreeFolder,
 } from '../lib/explorer';
 import { fileName, isPathInsideFolder, showInFolderLabel, type ExplorerSelection } from '../lib/formatting';
+import { libraryHealth, type LibraryHealthAction, type LibraryHealthItem } from '../lib/libraryHealth';
 import type {
   FolderEntry,
   LibraryIndexBuildReport,
   LibraryIndexStatus,
+  LibrarySyncReport,
   WorkspaceFolderResult,
 } from '../types';
 
@@ -71,6 +72,7 @@ export function ExplorerPanel({
   busyFolderPath,
   busyAction,
   convertLocked,
+  syncingLibraryPaths = [],
   convertingTargets,
   escapeBlocked,
   onClearFileSelection,
@@ -100,7 +102,10 @@ export function ExplorerPanel({
   onTrashEntry,
   onOpenLibraryTrash,
   onShareArchive,
-  librarySyncNotices,
+  lastSyncReports,
+  libraryWorkMessages,
+  onSyncLibraryNow,
+  onOpenConvertLog,
 }: {
   folders: WorkspaceFolderResult[];
   libraryPaths: string[];
@@ -124,6 +129,8 @@ export function ExplorerPanel({
   busyFolderPath: string;
   busyAction: string | null;
   convertLocked: boolean;
+  /** Library roots whose sync is already running. Convert stays locked inside them. */
+  syncingLibraryPaths?: string[];
   /** Folder or file paths the running conversion is working on. */
   convertingTargets: string[];
   escapeBlocked: boolean;
@@ -156,10 +163,16 @@ export function ExplorerPanel({
   onTrashEntry: (entry: FolderEntry, folderPath: string) => void;
   onOpenLibraryTrash?: (folderPath: string) => void;
   onShareArchive?: (archivePath: string) => void;
-  librarySyncNotices?: Record<string, string>;
+  lastSyncReports?: Record<string, LibrarySyncReport | null>;
+  /** Progress phrase for a library path, such as "Converting 2 of 3". */
+  libraryWorkMessages?: Record<string, string>;
+  onSyncLibraryNow: (folderPath: string) => void;
+  onOpenConvertLog: () => void;
 }) {
   const [menu, setMenu] = useState<ExplorerMenu | null>(null);
   const menuTriggerRef = useRef<HTMLElement | null>(null);
+  const [healthMenu, setHealthMenu] = useState<{ path: string; left: number; top: number; bottom: number } | null>(null);
+  const healthTriggerRef = useRef<HTMLElement | null>(null);
   const [expandedSubfolders, setExpandedSubfolders] = useState(readExpandedSubfolders);
 
   const trees = useMemo(
@@ -247,7 +260,7 @@ export function ExplorerPanel({
   // Windows Explorer-style: Escape clears file selection while Explorer has focus,
   // but only after menus/modals have already had a chance to consume Escape.
   useEffect(() => {
-    if (menu || escapeBlocked) return;
+    if (menu || healthMenu || escapeBlocked) return;
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
@@ -263,7 +276,7 @@ export function ExplorerPanel({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [menu, escapeBlocked, onClearFileSelection, onClearScope]);
+  }, [menu, healthMenu, escapeBlocked, onClearFileSelection, onClearScope]);
 
   function commitFromFileList(doc: TreeDocument, next: { selected: string[]; anchor: string | null }) {
     const partitioned = partitionExplorerSelection(next.selected);
@@ -333,6 +346,7 @@ export function ExplorerPanel({
   }
 
   function showMenu(next: ExplorerMenu) {
+    setHealthMenu(null);
     menuTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setMenu({
       ...next,
@@ -346,23 +360,98 @@ export function ExplorerPanel({
     action();
   }
 
+  function pathIsSyncing(targetPath: string): boolean {
+    return syncingLibraryPaths.some((root) => isPathInsideFolder(targetPath, root));
+  }
+
+  function workMessageFor(folderPath: string): string | undefined {
+    if (!libraryWorkMessages) return undefined;
+    if (libraryWorkMessages[folderPath]) return libraryWorkMessages[folderPath];
+    for (const [path, message] of Object.entries(libraryWorkMessages)) {
+      if (isPathInsideFolder(path, folderPath)) return message;
+    }
+    return undefined;
+  }
+
+  function closeHealthMenu() {
+    setHealthMenu(null);
+    healthTriggerRef.current?.focus();
+  }
+
+  function openHealthMenu(
+    folderPath: string,
+    anchor: { left: number; top: number; bottom: number },
+    trigger: HTMLButtonElement,
+  ) {
+    setMenu(null);
+    if (healthMenu?.path === folderPath) {
+      closeHealthMenu();
+      return;
+    }
+    healthTriggerRef.current = trigger;
+    setHealthMenu({ path: folderPath, ...anchor });
+  }
+
+  function runHealthAction(folderPath: string, action: LibraryHealthAction, item: LibraryHealthItem | null) {
+    setHealthMenu(null);
+    switch (action) {
+      case 'retry':
+        if (item?.path) onConvertSelected([item.path]);
+        return;
+      case 'convertWithOptions':
+        if (item?.path) onConvertSelectedWithOptions([item.path]);
+        return;
+      case 'showInFolder':
+        if (item?.path) onRevealInFolder(item.path);
+        return;
+      case 'tryAgain':
+      case 'review':
+      case 'checkNow':
+        onSyncLibraryNow(folderPath);
+        return;
+      case 'openConvertLog':
+        onOpenConvertLog();
+        return;
+      case 'viewReport': {
+        const report = indexReports[folderPath];
+        if (report) onShowIndexReport(report);
+        return;
+      }
+      case 'convertNow':
+        onConvertFolder(folderPath);
+        return;
+      case 'updateIndex':
+      case 'buildIndex':
+        onManageIndex(folderPath);
+        return;
+      case 'libraryInfo':
+        onOpenLibraryInfo(folderPath);
+        return;
+      default:
+        return;
+    }
+  }
+
   function renderPendingBadge(folderPath: string, pending: number) {
     if (pending === 0) return null;
     const files = `${pending} file${pending === 1 ? '' : 's'}`;
-    const converting = convertingTargets.some((target) => (
+    const syncing = pathIsSyncing(folderPath);
+    const converting = syncing || convertingTargets.some((target) => (
       isPathInsideFolder(target, folderPath) || isPathInsideFolder(folderPath, target)
     ));
     return (
       <button
         type="button"
         className={converting ? 'pendingBadge converting' : 'pendingBadge'}
-        disabled={convertLocked}
-        title={converting
-          ? `Converting · ${files} left`
-          : convertLocked
-            ? `${files} not converted yet · wait for conversion to finish`
-            : `${files} not searchable yet · click to convert with your default settings`}
-        aria-label={converting ? `Converting, ${files} left` : `Convert ${files}`}
+        disabled={convertLocked || syncing}
+        title={syncing
+          ? `Syncing · ${files} left`
+          : converting
+            ? `Converting · ${files} left`
+            : convertLocked
+              ? `${files} not converted yet · wait for conversion to finish`
+              : `${files} not searchable yet · click to convert with your default settings`}
+        aria-label={syncing ? `Syncing, ${files} left` : converting ? `Converting, ${files} left` : `Convert ${files}`}
         onClick={(event) => {
           event.stopPropagation();
           onConvertFolder(folderPath);
@@ -375,20 +464,26 @@ export function ExplorerPanel({
   }
 
   function convertMenuItems(folderPath: string, sourceCount: number, pending: number) {
-    const lockedTitle = convertLocked ? 'Wait for conversion to finish' : undefined;
+    const syncing = pathIsSyncing(folderPath);
+    const locked = convertLocked || syncing;
+    const lockedTitle = syncing
+      ? 'This library is already syncing'
+      : convertLocked
+        ? 'Wait for conversion to finish'
+        : undefined;
     return (
       <>
         <button
           role="menuitem"
-          disabled={convertLocked || pending === 0}
+          disabled={locked || pending === 0}
           title={lockedTitle ?? (pending === 0 ? 'Everything here is converted' : 'Convert new files now with your default settings')}
           onClick={() => runMenuAction(() => onConvertFolder(folderPath))}
         >
-          {pending > 0 ? `Convert ${pending} new file${pending === 1 ? '' : 's'}` : 'Convert'}
+          {syncing ? 'Syncing…' : pending > 0 ? `Convert ${pending} new file${pending === 1 ? '' : 's'}` : 'Convert'}
         </button>
         <button
           role="menuitem"
-          disabled={convertLocked || sourceCount === 0}
+          disabled={locked || sourceCount === 0}
           title={lockedTitle ?? 'Open Convert for this folder to change settings or replace existing archives'}
           onClick={() => runMenuAction(() => onConvertFolderWithOptions(folderPath))}
         >
@@ -469,6 +564,9 @@ export function ExplorerPanel({
     const { doc, folderPath } = current;
     const primary = (doc.archive ?? doc.source) as FolderEntry;
     const convertPaths = selectedPdfs.includes(doc.path) && selectedPdfs.length > 0 ? selectedPdfs : [doc.path];
+    const syncing = pathIsSyncing(doc.path);
+    const locked = convertLocked || syncing;
+    const lockedTitle = syncing ? 'This library is already syncing' : convertLocked ? 'Wait for conversion to finish' : undefined;
     return (
       <>
         <button
@@ -482,8 +580,8 @@ export function ExplorerPanel({
         {doc.archive ? (
           <button
             role="menuitem"
-            disabled={convertLocked}
-            title={convertLocked ? 'Wait for reconvert preparation or conversion to finish' : 'Open Convert to replace this archive with a different parser or embedding'}
+            disabled={locked}
+            title={lockedTitle ?? 'Open Convert to replace this archive with a different parser or embedding'}
             onClick={() => runMenuAction(() => onReconvert(doc.archive as FolderEntry, folderPath))}
           >
             Reconvert…
@@ -492,15 +590,15 @@ export function ExplorerPanel({
           <>
             <button
               role="menuitem"
-              disabled={convertLocked}
-              title={convertLocked ? 'Wait for conversion to finish' : 'Convert now with your default settings'}
+              disabled={locked}
+              title={lockedTitle ?? 'Convert now with your default settings'}
               onClick={() => runMenuAction(() => onConvertSelected(convertPaths))}
             >
-              Convert {convertPaths.length > 1 ? `${convertPaths.length} files` : 'file'}
+              {syncing ? 'Syncing…' : `Convert ${convertPaths.length > 1 ? `${convertPaths.length} files` : 'file'}`}
             </button>
             <button
               role="menuitem"
-              disabled={convertLocked}
+              disabled={locked}
               onClick={() => runMenuAction(() => onConvertSelectedWithOptions(convertPaths))}
             >
               Convert with options…
@@ -741,11 +839,13 @@ export function ExplorerPanel({
           >
             <span className="folderGroupName">{folder.name}</span>
           </button>
-          {folderBusy ? null : renderPendingBadge(folder.path, full.pendingCount)}
-          {isLibrary ? renderIndexBadge(folder.path) : null}
-          {librarySyncNotices?.[folder.path] ? (
-            <span className="sideMuted">{librarySyncNotices[folder.path]}</span>
-          ) : null}
+          {isLibrary ? (
+            <LibraryStatusChip
+              health={libraryHealthFor(folder.path, full.pendingCount)}
+              expanded={healthMenu?.path === folder.path}
+              onClick={(anchor, trigger) => openHealthMenu(folder.path, anchor, trigger)}
+            />
+          ) : folderBusy ? null : renderPendingBadge(folder.path, full.pendingCount)}
         </div>
         {collapsed ? null : empty ? (
           <p className="folderEmpty">No .vera, PDF, Markdown, or Office files</p>
@@ -754,51 +854,37 @@ export function ExplorerPanel({
     );
   }
 
-  function renderIndexBadge(folderPath: string) {
-    const folderIndex = indexStatuses[folderPath];
-    const folderIndexChecking = Boolean(indexStatusChecking[folderPath]);
-    const folderIndexing = indexingFolders[folderPath];
-    const folderIndexReport = indexReports[folderPath];
-    const indexBadgeClass = folderIndexing
-      ? 'indexing'
-      : folderIndexChecking && !folderIndex
-        ? 'checking'
-        : folderIndexReport?.skipped
-          ? 'warning'
-          : folderIndex?.fresh
-            ? 'fresh'
-            : folderIndex?.exists ? 'stale' : 'missing';
-    const indexBadgeTitle = folderIndexing
-      ? `${folderIndexing === 'build' ? 'Building' : 'Updating'} library index in the background`
-      : folderIndexChecking && !folderIndex
-        ? 'Checking index status…'
-        : folderIndexReport?.skipped
-          ? `Indexed with ${folderIndexReport.skipped} skipped archive(s). Select for details.`
-          : folderIndex?.fresh
-            ? `${folderIndexReport ? 'Indexed. Select for the latest build report.' : 'Indexed'}${folderIndexChecking ? ' Verifying current folder state…' : ''}`
-            : folderIndex?.exists
-              ? `Index needs updating: ${folderIndex.reasons.join('; ')}${folderIndexChecking ? ' Verifying current folder state…' : ''}`
-              : 'No index';
-    return (
-      <button
-        type="button"
-        className={`indexBadge ${indexBadgeClass}`}
-        title={indexBadgeTitle}
-        aria-label={`Index status: ${folderIndexing ? 'indexing' : folderIndexChecking && !folderIndex ? 'checking' : folderIndexReport?.skipped ? `indexed with ${folderIndexReport.skipped} skipped` : folderIndex?.fresh ? 'indexed' : folderIndex?.exists ? 'needs updating' : 'no index'}`}
-        disabled={Boolean(folderIndexing) || !folderIndexReport}
-        onClick={() => {
-          if (!folderIndexReport) return;
-          onShowIndexReport(folderIndexReport);
-        }}
-      >
-        {folderIndexing || (folderIndexChecking && !folderIndex)
-          ? <RefreshCw size={11} className="spinning" aria-hidden="true" />
-          : folderIndexReport?.skipped
-            ? <AlertTriangle size={11} aria-hidden="true" />
-            : <Database size={11} aria-hidden="true" />}
-      </button>
-    );
+  function libraryHealthFor(folderPath: string, pendingCount: number) {
+    const converting = convertingTargets.some((target) => (
+      isPathInsideFolder(target, folderPath) || isPathInsideFolder(folderPath, target)
+    ));
+    return libraryHealth({
+      libraryPath: folderPath,
+      pendingCount,
+      index: indexStatuses[folderPath],
+      indexChecking: Boolean(indexStatusChecking[folderPath]),
+      indexReport: indexReports[folderPath],
+      syncReport: lastSyncReports?.[folderPath],
+      indexing: indexingFolders[folderPath],
+      syncing: pathIsSyncing(folderPath),
+      converting,
+      workMessage: workMessageFor(folderPath),
+    });
   }
+
+  const openHealth = healthMenu
+    ? trees.find((tree) => tree.folder.path === healthMenu.path)
+    : null;
+  const healthPopover = healthMenu && openHealth ? (
+    <LibraryHealthPopover
+      health={libraryHealthFor(healthMenu.path, openHealth.full.pendingCount)}
+      anchor={healthMenu}
+      actionsLocked={convertLocked || pathIsSyncing(healthMenu.path) || Boolean(indexingFolders[healthMenu.path])}
+      revealLabel={showInFolderLabel(window.vera.platform)}
+      onClose={closeHealthMenu}
+      onAction={(action, item) => runHealthAction(healthMenu.path, action, item)}
+    />
+  ) : null;
 
   return (
     <>
@@ -846,7 +932,13 @@ export function ExplorerPanel({
           ) : null}
         </>
       )}
-      {createPortal(menus, document.body)}
+      {createPortal(
+        <>
+          {menus}
+          {healthPopover}
+        </>,
+        document.body,
+      )}
     </>
   );
 }

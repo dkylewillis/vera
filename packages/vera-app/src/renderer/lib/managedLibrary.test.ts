@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import type { VeraResponse } from '../types';
 
 import {
   convertedArchivePath,
   librarySyncProblem,
-  librarySyncSummary,
   librarySyncTaskUpdate,
   prepareManagedLibrary,
 } from './managedLibrary';
@@ -27,6 +27,8 @@ describe('convertedArchivePath', () => {
 
 describe('librarySyncTaskUpdate', () => {
   it('describes sync steps and the index refresh that follows', () => {
+    expect(librarySyncTaskUpdate({ phase: 'scanning', completed: 39, total: 106, input: 'a.pdf' }).message)
+      .toBe('Checking library 40 of 106');
     expect(librarySyncTaskUpdate({ phase: 'convert', completed: 1, total: 3, input: 'b.docx' }))
       .toMatchObject({ message: 'Converting 2 of 3', currentItem: 'b.docx', completed: 1, total: 3 });
     expect(librarySyncTaskUpdate({ phase: 'move', completed: 0, total: 1 }).message).toBe('Moving archives 1 of 1');
@@ -44,16 +46,6 @@ describe('librarySyncProblem', () => {
     expect(librarySyncProblem({ managed: true, ok: false, errors })).toBe(
       'Some files did not convert:\nf0.pdf: bad\nf1.pdf: bad\nf2.pdf: bad\n…and 1 more',
     );
-  });
-});
-import type { VeraResponse } from '../types';
-
-describe('librarySyncSummary', () => {
-  it('describes confirmation and completed syncs, and stays quiet while another process syncs', () => {
-    expect(librarySyncSummary({ managed: false })).toBe('');
-    expect(librarySyncSummary({ managed: true, needs_confirmation: true })).toBe('Confirm before removing archives');
-    expect(librarySyncSummary({ managed: true, busy: true })).toBe('');
-    expect(librarySyncSummary({ managed: true, converted: 2, moved: 1 })).toBe('2 converted, 1 moved');
   });
 });
 

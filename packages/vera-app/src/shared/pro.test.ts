@@ -6,6 +6,7 @@ import {
   PRO_OPENROUTER_BASE_URL,
   PRO_PRESET_KEY,
   parseVeraAuthCallback,
+  proFirst,
   providerCredentialKey,
   includedUsagePercent,
   onDemandLabel,
@@ -15,6 +16,19 @@ import {
   withProProvider,
 } from './pro.js';
 import type { AppSettings } from './contracts.js';
+
+describe('proFirst', () => {
+  it('moves VERA Pro to the top and keeps the rest in order', () => {
+    const providers = [
+      { id: 'openai', preset_key: 'openai' },
+      { id: 'ollama', preset_key: 'ollama' },
+      { id: 'pro', preset_key: PRO_PRESET_KEY },
+      { id: 'custom' },
+    ];
+    expect(proFirst(providers).map((profile) => profile.id)).toEqual(['pro', 'openai', 'ollama', 'custom']);
+    expect(providers[0].id).toBe('openai');
+  });
+});
 
 describe('desktop embedding default', () => {
   it('is the local MiniLM model', () => {

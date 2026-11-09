@@ -1,4 +1,4 @@
-export type BackgroundTaskKind = 'conversion' | 'index' | 'inspection' | 'operation';
+export type BackgroundTaskKind = 'conversion' | 'librarySync' | 'index' | 'inspection' | 'operation';
 export type IndexTaskOperation = 'build' | 'update';
 
 export interface BackgroundTask {

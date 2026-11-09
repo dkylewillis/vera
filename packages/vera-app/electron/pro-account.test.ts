@@ -9,6 +9,7 @@ import { DESKTOP_DEFAULT_EMBEDDING_MODEL } from '../src/shared/desktop-defaults.
 import {
   createPkcePair,
   exchangeDesktopCode,
+  proKeyWasRejected,
   mergeProCloudConfig,
   proCloudConfigFromEnv,
   proCloudConfigFromFile,
@@ -62,6 +63,27 @@ describe('pro cloud config', () => {
     expect(url.pathname).toBe('/login.html');
     expect(url.searchParams.get('code_challenge')).toBe(pair.challenge);
     expect(url.searchParams.get('state')).toBe(pair.state);
+  });
+});
+
+describe('rejected VERA Pro key', () => {
+  const rejected = { ok: false, error: 'LLM provider request failed (HTTP 401): User not found.' };
+
+  it('matches a VERA Pro chat or model list that OpenRouter rejected', () => {
+    const llm = { provider_key: 'vera_pro' };
+    expect(proKeyWasRejected({ action: 'answer', llm }, rejected)).toBe(true);
+    expect(proKeyWasRejected({ action: 'list_models', llm }, rejected)).toBe(true);
+  });
+
+  it('leaves other providers, successes, and permission denials alone', () => {
+    const llm = { provider_key: 'vera_pro' };
+    expect(proKeyWasRejected({ action: 'answer', llm: { provider_key: 'openai' } }, rejected)).toBe(false);
+    expect(proKeyWasRejected({ action: 'search', llm }, rejected)).toBe(false);
+    expect(proKeyWasRejected({ action: 'answer', llm }, { ok: true, error: rejected.error })).toBe(false);
+    expect(proKeyWasRejected(
+      { action: 'answer', llm },
+      { ok: false, error: 'LLM provider request failed (HTTP 403): forbidden' },
+    )).toBe(false);
   });
 });
 

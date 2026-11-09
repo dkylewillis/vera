@@ -1,8 +1,10 @@
 ﻿const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { loadRepoEnv } = require("./load-dotenv.cjs");
 
 const repoRoot = path.resolve(__dirname, "..");
+loadRepoEnv(process.env, repoRoot);
 const appDir = path.join(repoRoot, "packages", "vera-app");
 const args = process.argv.slice(2);
 const wantDir = args.includes("--dir");

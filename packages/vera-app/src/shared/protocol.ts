@@ -63,6 +63,8 @@ export const IPC_CHANNELS = {
   readDraft: 'vera:readDraft',
   syncLibrary: 'vera:syncLibrary',
   librarySync: 'vera:librarySync',
+  librarySyncProgress: 'vera:librarySyncProgress',
+  librarySyncStatus: 'vera:librarySyncStatus',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];

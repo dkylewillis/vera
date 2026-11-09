@@ -375,7 +375,7 @@ Options:
   are an error (exit 2). Convert `--metadata` tags match on single-file
   and corpus search. Convert-owned archive headers such as
   `source_file_name` match indexed directory search only. Do not
-  post-filter the JSON `results` array. Desktop Search and Ask have no
+  post-filter the JSON `results` array. Desktop Search and Chat have no
   `--where` control.
 - `--json` emits one JSON object.
 

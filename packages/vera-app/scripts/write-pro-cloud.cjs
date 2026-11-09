@@ -1,7 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const { loadRepoEnv } = require('../../../scripts/load-dotenv.cjs');
 
 function writeProCloud() {
+  loadRepoEnv(process.env, path.join(__dirname, '..', '..', '..'));
   const out = path.join(__dirname, '..', 'build', 'pro-cloud.json');
   const config = {
     siteUrl: process.env.VERA_PRO_SITE_URL || '',

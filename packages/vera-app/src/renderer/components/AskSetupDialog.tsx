@@ -11,11 +11,11 @@ export function AskSetupDialog({
     <div className="modalBackdrop" onClick={onClose}>
       <div className="modal askSetupDialog" role="dialog" aria-modal="true" aria-labelledby="ask-setup-title" onClick={(event) => event.stopPropagation()}>
         <header className="modalHeader">
-          <h2 id="ask-setup-title">Ask needs a model</h2>
+          <h2 id="ask-setup-title">Chat needs a model</h2>
         </header>
         <div className="settingsForm">
           <p className="providerItemDescription">
-            Search works without an account. Ask needs either a VERA Pro subscription or a provider you configure yourself.
+            Search works without an account. Chat needs either a VERA Pro subscription or a provider you configure yourself.
           </p>
           <div className="editorActions askSetupActions">
             <button type="button" className="primaryAction" onClick={onUseVeraPro}>Use VERA Pro</button>

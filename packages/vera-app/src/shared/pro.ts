@@ -113,6 +113,14 @@ export function isProPreset(presetKey: string | undefined): boolean {
   return presetKey === PRO_PRESET_KEY;
 }
 
+/** VERA Pro first, then the other providers in their saved order. */
+export function proFirst<T extends { preset_key?: string }>(providers: readonly T[]): T[] {
+  return [
+    ...providers.filter((profile) => isProPreset(profile.preset_key)),
+    ...providers.filter((profile) => !isProPreset(profile.preset_key)),
+  ];
+}
+
 /** Parse `vera://auth/callback?code=&state=` from a protocol launch argument. */
 export function parseVeraAuthCallback(raw: string): VeraAuthCallback | null {
   const trimmed = raw.trim().replace(/^"(.*)"$/, '$1');
@@ -157,7 +165,7 @@ export function proProviderProfile(existingId?: string): ProviderProfile {
   };
 }
 
-/** Ensure the VERA Pro provider exists and is the active Ask provider. */
+/** Ensure the VERA Pro provider exists and is the default chat provider. */
 export function withProProvider(settings: AppSettings): AppSettings {
   const existing = settings.providers.find((profile) => profile.preset_key === PRO_PRESET_KEY);
   const profile = proProviderProfile(existing?.id);

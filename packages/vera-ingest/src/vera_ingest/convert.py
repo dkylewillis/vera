@@ -146,6 +146,19 @@ def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _sha256_file(path: Path, cancel: Any | None = None) -> str:
+    """Hash a source in 1 MiB blocks so Stop is noticed before the file ends."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            raise_if_cancelled(cancel)
+            block = handle.read(1024 * 1024)
+            if not block:
+                break
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def _validate_output(path: Path) -> dict[str, Any]:
     try:
         conn = sqlite3.connect(path)
@@ -591,17 +604,25 @@ def convert(
             archive_metadata["ingest_warnings"] = list(ingest_result.warnings)
         if ingest_result.notes:
             archive_metadata["ingest_notes"] = list(ingest_result.notes)
-        contextualized_indices = [
-            index for index, chunk in enumerate(chunks) if chunk.embedding_text is not None
+        # PyMuPDF chunks leave embedding_text empty and use chunk text. Docling
+        # sets embedding_text when the vector should differ from the readable
+        # text. Embed both here so the timing line counts every chunk; records
+        # then carry vectors and the archive write does not embed them again.
+        embed_texts = [
+            chunk.embedding_text if chunk.embedding_text is not None else chunk.text
+            for chunk in chunks
         ]
-        contextualized_vectors: dict[int, Any] = {}
-        with timed_step("embed", model=settings.model, chunks=len(contextualized_indices)):
-            if contextualized_indices:
-                vectors = embedder.embed(
-                    [chunks[index].embedding_text or "" for index in contextualized_indices]
-                )
-                contextualized_vectors = dict(zip(contextualized_indices, vectors))
+        vectors_by_index: dict[int, Any] = {}
+        with timed_step("embed", model=settings.model, chunks=len(embed_texts)):
+            # One embedder call can cover a whole document. Stop between batches
+            # instead of waiting for every chunk.
+            batch_size = 32
+            for offset in range(0, len(embed_texts), batch_size):
                 raise_if_cancelled(settings.cancel)
+                batch = embed_texts[offset : offset + batch_size]
+                vectors = embedder.embed(batch)
+                for index, vector in enumerate(vectors, start=offset):
+                    vectors_by_index[index] = vector
         records: list[ChunkRecord] = []
         for index, chunk in enumerate(chunks):
             regions = []
@@ -632,7 +653,7 @@ def convert(
                         **caller_metadata,
                     },
                     attachments=tuple(references),
-                    vector=contextualized_vectors.get(index),
+                    vector=vectors_by_index.get(index),
                 )
             )
 
@@ -906,7 +927,7 @@ def batch_convert(
                     )
                     continue
                 stored_hash = _stored_source_file_hash(output)
-                current_hash = _sha256_bytes(source_file.read_bytes())
+                current_hash = _sha256_file(source_file, settings.cancel)
                 raise_if_cancelled(settings.cancel)
                 if stored_hash is not None and stored_hash == current_hash:
                     clear_user_skip(settings.cancel)

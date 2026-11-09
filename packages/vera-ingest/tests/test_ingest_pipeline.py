@@ -419,6 +419,50 @@ def test_custom_pipeline_keeps_readable_text_and_embeds_context(tmp_path):
         assert metadata["parser_version"] == "1.2.3"
 
 
+def test_embed_step_includes_chunks_without_contextualized_text(tmp_path):
+    pdf = tmp_path / "source.pdf"
+    out = tmp_path / "source.vera"
+    pdf.write_bytes(b"%PDF body")
+
+    class Pipeline:
+        def ingest(self, source_path: str, options: IngestOptions) -> IngestResult:
+            del source_path, options
+            return IngestResult(
+                pages=[ParsedPage(1, 612.0, 792.0, "Plain body")],
+                blocks=[],
+                chunks=[
+                    IngestChunk(
+                        chunk_id="plain",
+                        text="Plain body",
+                        page_start=1,
+                        page_end=1,
+                        heading_path="",
+                        token_count=2,
+                    )
+                ],
+                parser_name="plain",
+                parser_version="1",
+                chunking_strategy="plain",
+            )
+
+    class RecordingEmbedder:
+        model_name = "recording"
+        dimension = 2
+        normalization = "l2"
+
+        def __init__(self):
+            self.calls: list[list[str]] = []
+
+        def embed(self, texts):
+            self.calls.append(list(texts))
+            return np.asarray([[1.0, 0.0] for _ in texts], dtype=np.float32)
+
+    register_ingest_pipeline("plain-body", lambda variant: Pipeline())
+    embedder = RecordingEmbedder()
+    convert(str(pdf), str(out), parser="plain-body", embedding_function=embedder)
+    assert embedder.calls == [["Plain body"]]
+
+
 def test_pipeline_result_rejects_unknown_block_references(tmp_path):
     pdf = tmp_path / "source.pdf"
     pdf.write_bytes(b"source")

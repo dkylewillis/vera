@@ -40,6 +40,7 @@ import { mergePipelineFieldValues } from './components/PipelineConfigForm';
 import { VeraIcon } from './components/VeraIcon';
 import { useAppBootstrap } from './hooks/useAppBootstrap';
 import { useConversion } from './hooks/useConversion';
+import { useLibrarySyncTasks } from './hooks/useLibrarySyncTasks';
 import { useSearch } from './hooks/useSearch';
 import { useSidecarCall } from './hooks/useSidecarCall';
 import { useSourceDocument, type ViewerMode } from './hooks/useSourceDocument';
@@ -77,12 +78,13 @@ import {
   type OpenTargetKind,
 } from './lib/explorer';
 import { DEFAULT_EMBEDDING_MODEL, embeddingProviderFromSpec } from './lib/convertPresets';
-import { librarySyncSummary, prepareManagedLibrary } from './lib/managedLibrary';
+import { libraryActivityLabel, nextSyncReport } from './lib/libraryHealth';
+import { prepareManagedLibrary } from './lib/managedLibrary';
 import { folderScopeInclude, libraryQueryScope, multiLibraryScope, multiLibraryScopeLabel } from './lib/search';
 import { hydrateSessionTurns, stripTrace, traceKey } from './lib/sessions';
 import { filterDiscoveredModels, listModelsLlm, providerDisplayName, REASONING_EFFORTS, withDiscoveredModels } from './lib/providers';
 import { SIDECAR_ACTIONS } from '../shared/protocol';
-import type { AgentServiceStatus, AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatFileAttachment, ChatCitationResult, EmbedderDescriptor, ExportResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, SkippedSemanticModelGroup, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
+import type { AgentServiceStatus, AppSettings, BatchConvertResult, ChatAnswerResult, ChatAttachment, ChatFileAttachment, ChatCitationResult, EmbedderDescriptor, ExportResult, FolderEntry, InspectResult, LibraryIndexBuildReport, LibraryIndexStatus, LibrarySyncReport, Mode, PageResult, PipelineDescriptor, PipelineOptions, ProviderProfile, SearchResult, Session, SessionTurn, SkippedSemanticModelGroup, StreamEvent, SourceDocumentResult, ValidateResult } from './types';
 import 'katex/dist/katex.min.css';
 import './styles.css';
 
@@ -96,6 +98,7 @@ function App() {
   const customTitlebar = Boolean(window.vera.platform && window.vera.platform !== 'darwin');
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [backgroundTasks, dispatchBackgroundTask] = useReducer(backgroundTasksReducer, []);
+  useLibrarySyncTasks(backgroundTasks, dispatchBackgroundTask);
   const [sideView, setSideView] = useState<SideView>('explorer');
   const [centerView, setCenterView] = useState<CenterView>('chat');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -204,7 +207,7 @@ function App() {
   const [nestedLibraryPrompt, setNestedLibraryPrompt] = useState<NestedLibraryConflict | null>(null);
   const [adoptPrompt, setAdoptPrompt] = useState<{ path: string; count: number; resolve: (adopt: boolean) => void } | null>(null);
   const [trashFolderPath, setTrashFolderPath] = useState<string | null>(null);
-  const [librarySyncNotices, setLibrarySyncNotices] = useState<Record<string, string>>({});
+  const [lastSyncReports, setLastSyncReports] = useState<Record<string, LibrarySyncReport>>({});
   const [collapsedFolders, setCollapsedFolders] = useState(() => (
     syncCollapsedFolders(readSavedFolderPaths(), readSavedActiveLibraryPath(), [], readSavedLibraryPaths())
   ));
@@ -519,6 +522,7 @@ function App() {
     ingestPipelineConfigs,
     call,
     dispatchBackgroundTask,
+    backgroundTasks,
     refreshFolder,
     setBatchDirectory,
     setBatchOverwrite,
@@ -603,19 +607,55 @@ function App() {
     libraryEmbeddingModel,
     quickConvert,
     stopConversion,
+    stopLibrarySync,
     skipCurrentConversion,
     batchConvertPdfs,
   } = conversion;
   const [convertLibraryModel, setConvertLibraryModel] = useState<{ library: string; model: string } | null>(null);
   const convertTarget = convertMode === 'batch' ? batchDirectory.trim() : (selectedPdfs[0] ?? '');
+  const libraryWorkMessages = useMemo(() => {
+    const ranked: { path: string; rank: number; message: string }[] = [];
+    for (const task of backgroundTasks) {
+      if (!task.path) continue;
+      const rank = task.kind === 'index' ? 3 : task.kind === 'conversion' ? 2 : task.kind === 'librarySync' ? 1 : 0;
+      if (!rank) continue;
+      ranked.push({ path: task.path, rank, message: libraryActivityLabel(task) });
+    }
+    const messages: Record<string, string> = {};
+    for (const item of ranked.sort((a, b) => a.rank - b.rank)) messages[item.path] = item.message;
+    return messages;
+  }, [backgroundTasks]);
+  const syncingLibraryPaths = backgroundTasks.flatMap((task) => (
+    task.kind === 'librarySync' && task.path ? [task.path] : []
+  ));
+  const targetLibrarySyncing = Boolean(convertTarget) && syncingLibraryPaths.some((root) => (
+    isPathInsideFolder(convertTarget, root)
+  ));
   const libraryArchiveKey = folders
     .filter((folder) => libraryPaths.includes(folder.path) && isPathInsideFolder(convertTarget, folder.path))
     .map((folder) => `${folder.path}:${folder.entries.filter((entry) => entry.type === 'vera').length}`)
     .join('|');
   useEffect(() => window.vera.onLibrarySync((folderPath, report) => {
-    const summary = librarySyncSummary(report);
-    setLibrarySyncNotices((prev) => ({ ...prev, [folderPath]: summary }));
+    setLastSyncReports((prev) => {
+      const next = nextSyncReport(prev[folderPath], report);
+      if (next === (prev[folderPath] ?? null)) return prev;
+      if (!next) {
+        if (!(folderPath in prev)) return prev;
+        const copy = { ...prev };
+        delete copy[folderPath];
+        return copy;
+      }
+      return { ...prev, [folderPath]: next };
+    });
   }), []);
+  async function syncLibraryNow(folderPath: string) {
+    try {
+      await window.vera.syncLibrary(folderPath);
+    } finally {
+      await refreshFolder(folderPath);
+      await refreshIndexStatus(folderPath);
+    }
+  }
   useEffect(() => {
     if (sideView !== 'convert' || !convertTarget || !libraryArchiveKey) {
       setConvertLibraryModel(null);
@@ -2198,11 +2238,15 @@ function App() {
                   busyFolderPath={busyFolderPath}
                   busyAction={busyAction}
                   convertLocked={convertLocked}
+                  syncingLibraryPaths={syncingLibraryPaths}
                   convertingTargets={conversionInProgress
                     ? (convertMode === 'batch' ? [batchDirectory] : selectedPdfs).filter(Boolean)
                     : []}
                   escapeBlocked={Boolean(settingsOpen || indexPrompt || indexReport || nestedLibraryPrompt || adoptPrompt || trashFolderPath)}
-                  librarySyncNotices={librarySyncNotices}
+                  lastSyncReports={lastSyncReports}
+                  libraryWorkMessages={libraryWorkMessages}
+                  onSyncLibraryNow={(folderPath) => { void syncLibraryNow(folderPath); }}
+                  onOpenConvertLog={() => { void window.vera.openConvertLog(); }}
                   onClearFileSelection={clearExplorerFileSelection}
                   onClearScope={clearExplorerScope}
                   onAddLibrary={() => { void addFolder('library'); }}
@@ -2266,7 +2310,8 @@ function App() {
                   pipelineOptions={pipelineOptions}
                   libraryModel={convertLibraryModel}
                   busy={busy}
-                  convertLocked={convertLocked}
+                  convertLocked={convertLocked || targetLibrarySyncing}
+                  librarySyncing={targetLibrarySyncing}
                   conversionInProgress={conversionInProgress}
                   modelsPreparing={modelsPreparing}
                   reconvertBusy={reconvertBusy}
@@ -2747,6 +2792,7 @@ function App() {
         tasks={backgroundTasks}
         busyFolderPath={busyFolderPath}
         onStopConversion={stopConversion}
+        onStopLibrarySync={stopLibrarySync}
         agentStatus={agentStatus}
         onOpenCloudAgents={() => { setSettingsSection('agents'); setSettingsOpen(true); }}
       />

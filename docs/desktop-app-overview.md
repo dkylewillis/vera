@@ -32,7 +32,7 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 - View original document pages in a Mozilla-style PDF chrome (thumbnail rail, page and zoom toolbar, rotate counterclockwise)
 - Navigate by page and section
 - Jump from answer citations directly to source location
-- Work in a two-pane layout with Ask on the left and Source Document on the right
+- Work in a two-pane layout with Chat on the left and Source Document on the right
 - Open documents from the native File menu and show file metrics in the bottom status bar
 - On Windows, double-click a `.vera` file (or **File > Open...**) to open it as a standalone document in the running window; **File > Add Library...** adds and activates a library, and **File > Open Folder...** browses a folder without making it a library
 - Drag the Source Document divider to resize the grounded PDF review area
@@ -57,14 +57,16 @@ In short: it turns document Q&A into a transparent, source-backed workflow.
 - Configurable augmentation that combines system/app instructions, retrieved context, and user prompt
 - Optional domain-specific response templates
 
-### 6. LLM Ask
+### 6. LLM Chat
 - Connect to one or more LLM providers under **File > Settings → AI providers**, or sign in
-  to **VERA Pro** under **File > Settings → Account** for Ask without your own key
+  to **VERA Pro** under **File > Settings → Account** for Chat without your own key
 - Optionally share libraries with local agents under **File > Settings →
-  Agent access**. One loopback MCP service stays up while Desktop is open.
-  **Allow cloud agents** lets a VERA Pro account reach that service from a
-  cloud assistant through the relay. Several computers can stay connected;
-  **Automatic** keeps the current one, and **Use this computer** pins this one.
+  Agent access**. Adding the first folder turns that on. One loopback MCP
+  service stays up while Desktop is open. **Allow cloud agents**, under
+  **In the cloud**, lets an Agent Access subscription reach that service
+  from a cloud assistant through the relay. Several computers can stay
+  connected; **Automatic** keeps the current one, and **Use this computer**
+  pins this one.
 - Select model by task profile (speed, quality, cost)
 - Stream grounded answers with citation links, Markdown, and rendered LaTeX
 - Search remains fully local when no provider is configured
@@ -119,8 +121,8 @@ This lets the app deliver faster, more consistent, and more explainable answers 
 
 ## Future Enhancements
 
-Libraries (folder-scoped Search/Ask with persistent collection indexes) and
-LLM Ask are already shipped. Remaining product follow-ups:
+Libraries (folder-scoped Search/Chat with persistent collection indexes) and
+LLM Chat are already shipped. Remaining product follow-ups:
 
 - Voyage and Ollama embeddings after an optional query/document hint on
   `EmbeddingFunction`. OpenAI already ships as `vera-embed-openai`.

@@ -281,7 +281,10 @@ The service listens on `127.0.0.1` only (default port 47821). `/mcp` requires
 unauthenticated and returns `{"ok": true, "version": "..."}`. Requests with a
 browser `Origin` header or a non-loopback `Host` are rejected.
 
-Copy a config from Agent access:
+Copy a config from Agent access under **On this computer**. The screen asks
+which app you use and shows one snippet. Claude Desktop gets the command form. Cursor and VS Code get the
+web address. **Advanced** has both, and **Reset connection key** issues a new
+token so snippets already copied stop working:
 
 - **HTTP:** the service URL plus the bearer token, for clients that speak
   remote MCP on localhost.
@@ -300,9 +303,10 @@ archives stay on this computer.
 
 ## Cloud agents (VERA Pro)
 
-**Allow cloud agents** under **Settings → Agent access** connects that same
-loopback service to VERA's relay while Desktop is open and the VERA Pro
-subscription is active. Add the connector URL (`https://<relay>/mcp`) in
+**Allow cloud agents** under **Settings → Agent access → In the cloud**
+connects that same loopback service to VERA's relay while Desktop is open and
+the Agent Access subscription is active. Turning it on also starts the
+loopback service. Add the connector URL (`https://<relay>/mcp`) in
 Grok, Claude, or ChatGPT. The assistant opens VERA's sign-in page. Supabase
 issues a token for that account, and the relay forwards each call to the
 signed-in desktop.

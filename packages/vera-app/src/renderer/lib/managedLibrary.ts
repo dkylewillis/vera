@@ -20,18 +20,6 @@ export function convertedArchivePath(
 
 type Request = <T>(payload: Record<string, unknown>) => Promise<VeraResponse<T>>;
 
-export function librarySyncSummary(report: LibrarySyncReport | null | undefined): string {
-  if (!report || report.managed === false) return '';
-  if (report.busy) return '';
-  if (report.needs_confirmation) return 'Confirm before removing archives';
-  if (report.failed) return 'Library sync had errors';
-  const parts: string[] = [];
-  if (report.converted) parts.push(`${report.converted} converted`);
-  if (report.moved) parts.push(`${report.moved} moved`);
-  if (report.trashed) parts.push(`${report.trashed} trashed`);
-  return parts.join(', ');
-}
-
 /** Status-bar text for one `library_progress` event (sync steps, then the index refresh). */
 export function librarySyncTaskUpdate(
   event: Pick<StreamEvent, 'phase' | 'total' | 'completed' | 'input'>,
@@ -42,6 +30,8 @@ export function librarySyncTaskUpdate(
   const base = { phase: event.phase, completed, total, currentItem };
   const step = total ? ` ${Math.min(completed + 1, total)} of ${total}` : '';
   switch (event.phase) {
+    case 'scanning':
+      return { ...base, message: total ? `Checking library${step}` : 'Checking library…' };
     case 'convert':
       return { ...base, message: `Converting${step}` };
     case 'move':

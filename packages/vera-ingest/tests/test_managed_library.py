@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from vera_doc.library import (
     LIBRARY_DIRECTORY,
     LibraryBusyError,
     extended_path,
+    read_state,
     sync_lock,
 )
 from vera_ingest.library import (
@@ -174,6 +176,63 @@ def test_refuses_nested_library_and_lock(tmp_path: Path):
         with pytest.raises(LibraryBusyError):
             with sync_lock(tmp_path):
                 pass
+
+
+def test_first_sync_skips_hashing_and_scanning_reports_only_files_that_need_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    init_library(str(tmp_path), model="hashing")
+    _write(tmp_path / "a.md", NOTE)
+    _write(tmp_path / "b.md", OTHER)
+    hashed: list[str] = []
+    real_hash = __import__("vera_ingest.library", fromlist=["_hash_file"])._hash_file
+
+    def counting_hash(path: Path, cancel: object = None) -> str:
+        hashed.append(str(path))
+        return real_hash(path, cancel)
+
+    monkeypatch.setattr("vera_ingest.library._hash_file", counting_hash)
+    events: list[dict] = []
+    first = sync_library(str(tmp_path), progress=events.append)
+    assert first["converted"] == 2
+    assert hashed == []
+    assert [event for event in events if event["phase"] == "scanning"] == []
+    state = read_state(tmp_path)
+    assert state["a.md"]["hash"] == hashlib.sha256((tmp_path / "a.md").read_bytes()).hexdigest()
+    assert state["b.md"]["hash"] == hashlib.sha256((tmp_path / "b.md").read_bytes()).hexdigest()
+
+    hashed.clear()
+    events.clear()
+    _write(tmp_path / "b.md", OTHER + "\nEdited.\n")
+    _write(tmp_path / "c.md", NOTE)
+    second = sync_library(str(tmp_path), progress=events.append)
+    assert second["converted"] == 2
+    scanning = [event for event in events if event["phase"] == "scanning"]
+    assert len(scanning) == 1
+    assert scanning[0]["input"] == "b.md"
+    assert scanning[0]["completed"] == 0
+    assert scanning[0]["total"] == 1
+    assert len(hashed) == 1
+    assert hashed[0].endswith("b.md")
+
+
+def test_hash_stops_on_the_next_block(tmp_path: Path):
+    path = tmp_path / "large.bin"
+    path.write_bytes(b"x" * (2 * 1024 * 1024))
+
+    class StopAfterFirstBlock:
+        def __init__(self) -> None:
+            self.checks = 0
+
+        def raise_if_cancelled(self) -> None:
+            self.checks += 1
+            if self.checks > 1:
+                raise RuntimeError("stopped")
+
+    from vera_ingest.library import _hash_file
+
+    with pytest.raises(RuntimeError, match="stopped"):
+        _hash_file(path, StopAfterFirstBlock())
 
 
 def test_status_reports_pending_work_without_converting(tmp_path: Path):

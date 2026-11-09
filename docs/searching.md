@@ -137,7 +137,7 @@ desktop JSON flatten the same keys onto the result object — there is no nested
 
 Scores rank results within a search. They are not probabilities or confidence
 values, and scores from different queries or modes should not be compared as
-though they share one scale. Desktop Ask additionally drops weak hits with a
+though they share one scale. Desktop Chat additionally drops weak hits with a
 relative `quality` cutoff against the top score; CLI, MCP, and the Search view
 return the unfiltered ranked list.
 
@@ -175,7 +175,7 @@ vera convert filing.md archives/src_aaa.vera --metadata company=GRID --json
 metadata. `--include` on a single-file search exits 2. Convert `--metadata`
 tags match everywhere. Convert-owned archive headers such as
 `source_file_name` match indexed directory search; single-file and fallback
-search evaluate chunk metadata only. Desktop Search and Ask do not expose
+search evaluate chunk metadata only. Desktop Search and Chat do not expose
 `--where`; use the CLI or MCP.
 
 To reload one stored chunk by id — for example to verify that a quoted span is

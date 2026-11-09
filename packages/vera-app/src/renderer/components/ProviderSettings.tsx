@@ -10,7 +10,7 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react';
-import { PRO_PRESET_KEY } from '../../shared/pro';
+import { PRO_PRESET_KEY, proFirst } from '../../shared/pro';
 import { SIDECAR_ACTIONS } from '../../shared/protocol';
 import { formatTimeAgo } from '../lib/formatting';
 import {
@@ -124,7 +124,7 @@ export function ProvidersSection({
   activeProviderId: string;
   activeModel: string;
   busy: boolean;
-  /** Latest provider list and Ask selection, including changes not rendered yet. */
+  /** Latest provider list and default chat selection, including changes not rendered yet. */
   getDraft: () => Draft;
   onProvidersChange: (updater: (prev: ProviderProfile[]) => ProviderProfile[]) => void;
   onActiveChange: (providerId: string, model: string) => void;
@@ -228,7 +228,7 @@ export function ProvidersSection({
     onProvidersChange((prev) => prev.map((entry) => (entry.id === target.id ? withDiscoveredModels(entry, raw) : entry)));
     if (!hasUsableAskModel() && refreshed.models.length) {
       onActiveChange(target.id, refreshed.models[0]);
-      onMessage(`${row.label} is now used for Ask`);
+      onMessage(`${row.label} is now the default chat provider`);
     }
   }
 
@@ -318,20 +318,20 @@ export function ProvidersSection({
   }
 
   function renderAskPicker() {
-    const groups = providers.filter((profile) => profile.models.length > 0);
+    const groups = proFirst(providers).filter((profile) => profile.models.length > 0);
     const active = providers.find((profile) => profile.id === activeProviderId);
     const activeValid = Boolean(active?.models.includes(activeModel));
     const value = activeValid ? `${activeProviderId}${ASK_OPTION_SEPARATOR}${activeModel}` : '';
     return (
       <SettingsCard
         icon={<MessageSquareText size={16} />}
-        title="Model used for Ask"
-        description="Ask sends your question and the passages it finds to this model. You can also switch models from the Ask composer."
+        title="Chat model"
+        description="Chat sends your question and the passages it finds to this model in every chat mode. You can also switch models from the chat composer."
         className="askModelCard"
       >
         {groups.length ? (
           <select
-            aria-label="Model used for Ask"
+            aria-label="Chat model"
             value={value}
             onChange={(event) => {
               const raw = event.target.value;
@@ -350,7 +350,7 @@ export function ProvidersSection({
             ))}
           </select>
         ) : (
-          <Callout title="Ask is not set up yet.">
+          <Callout title="Chat is not set up yet.">
             <p>Sign in to VERA Pro, or connect one of the services below. Search works either way.</p>
             <div className="editorActions">
               <button type="button" className="primaryAction compactAction" onClick={onOpenAccount}>Use VERA Pro</button>
@@ -467,7 +467,7 @@ export function ProvidersSection({
         </Callout>
       );
     } else if (!profile && found.length) {
-      status = <Callout tone="good" title={`${row.label} is running.`}><p>It has {found.length} {found.length === 1 ? 'model' : 'models'}. Select Connect to use {found.length === 1 ? 'it' : 'them'} in Ask.</p></Callout>;
+      status = <Callout tone="good" title={`${row.label} is running.`}><p>It has {found.length} {found.length === 1 ? 'model' : 'models'}. Select Connect to use {found.length === 1 ? 'it' : 'them'} in Chat.</p></Callout>;
     } else if (!profile) {
       status = (
         <p className="providerHint">
@@ -612,7 +612,7 @@ export function ProvidersSection({
           </label>
         </div>
         <p className="providerHint">
-          Lower temperature gives steadier answers. Context tokens sets how much text Ask sends at once; leave it empty to use the provider default.
+          Lower temperature gives steadier answers. Context tokens sets how much text Chat sends at once; leave it empty to use the provider default.
         </p>
         <div className="editorActions">
           {pro && profile.has_api_key ? (
@@ -635,7 +635,7 @@ export function ProvidersSection({
         {pro ? (
           <div className="providerStep">
             <p className="providerHint">
-              VERA Pro is managed from your account. Signing in with an active subscription saves its key and turns it on for Ask.
+              VERA Pro is managed from your account. Signing in with an active subscription saves its key and makes it the default for Chat.
             </p>
             <div className="editorActions">
               <button type="button" className="secondaryAction compactAction" onClick={onOpenAccount}>Open Account</button>
@@ -665,7 +665,7 @@ export function ProvidersSection({
               onClick={() => onActiveChange(profile.id, profile.models[0])}
               disabled={busy}
             >
-              Use {row.label} for Ask
+              Make {row.label} the default
             </button>
           </div>
         ) : null}
@@ -699,7 +699,7 @@ export function ProvidersSection({
             <span className="providerCardDescription">{row.description}</span>
           </span>
           <span className="providerCardStatus">
-            {isActive ? <StatusPill tone="accent">Used for Ask</StatusPill> : null}
+            {isActive ? <StatusPill tone="accent">Default</StatusPill> : null}
             <StatusPill tone={status.tone}>{status.label}</StatusPill>
           </span>
           <ChevronDown size={16} className="providerCardChevron" aria-hidden="true" />
@@ -725,7 +725,7 @@ export function ProvidersSection({
   return (
     <div className="settingsStack">
       {renderAskPicker()}
-      {renderGroup('Online services', 'Your question and the passages Ask finds are sent to the service.', rows.filter((row) => row.kind === 'hosted'))}
+      {renderGroup('Online services', 'Your question and the passages Chat finds are sent to the service.', rows.filter((row) => row.kind === 'hosted'))}
       {renderGroup('On this computer', 'Free and private; needs a capable computer.', rows.filter((row) => row.kind === 'local'))}
       {renderGroup('Custom endpoints', 'Your own OpenAI-compatible servers.', rows.filter((row) => row.kind === 'custom'))}
       <button type="button" className="providerAddCustom" onClick={addCustomProvider} disabled={busy}>

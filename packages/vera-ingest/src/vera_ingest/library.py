@@ -56,10 +56,14 @@ TRASH_STAMP_FORMAT = "%Y%m%dT%H%M%S%fZ"
 Progress = Callable[[dict[str, Any]], None]
 
 
-def _hash_file(path: Path) -> str:
+def _hash_file(path: Path, cancel: Any | None = None) -> str:
     digest = hashlib.sha256()
     with open(extended_path(path), "rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
+        while True:
+            raise_if_cancelled(cancel)
+            block = handle.read(1024 * 1024)
+            if not block:
+                break
             digest.update(block)
     return digest.hexdigest()
 
@@ -91,12 +95,17 @@ def _walk_root(root: Path) -> str:
     return extended_path(root) if os.name == "nt" else str(root)
 
 
-def discover_sources(root: Path, suffixes: set[str]) -> list[tuple[str, Path]]:
+def discover_sources(
+    root: Path,
+    suffixes: set[str],
+    cancel: Any | None = None,
+) -> list[tuple[str, Path]]:
     """Return ``(relative source path, absolute path)`` pairs, skipping ``.vera``."""
     found: list[tuple[str, Path]] = []
     root_plain = Path(strip_extended_path(root.resolve()))
     try:
         for current, directories, filenames in os.walk(_walk_root(root), followlinks=False):
+            raise_if_cancelled(cancel)
             current_plain = Path(strip_extended_path(current))
             kept: list[str] = []
             for name in directories:
@@ -241,11 +250,15 @@ def init_library(
     }
 
 
-def _adopt_siblings(root: Path, suffixes: set[str]) -> tuple[list[str], list[dict[str, str]]]:
+def _adopt_siblings(
+    root: Path,
+    suffixes: set[str],
+    cancel: Any | None = None,
+) -> tuple[list[str], list[dict[str, str]]]:
     adopted: list[str] = []
     errors: list[dict[str, str]] = []
     try:
-        sources = discover_sources(root, suffixes)
+        sources = discover_sources(root, suffixes, cancel)
     except LibraryUnreachableError as exc:
         return [], [{"input": str(root), "error": str(exc)}]
     for source_rel, source in sources:
@@ -255,7 +268,7 @@ def _adopt_siblings(root: Path, suffixes: set[str]) -> tuple[list[str], list[dic
             continue
         stored = _stored_source_file_hash(sibling)
         try:
-            current = _hash_file(source)
+            current = _hash_file(source, cancel)
         except OSError as exc:
             errors.append({"input": source_rel, "error": str(exc)})
             continue
@@ -295,11 +308,17 @@ def _purge_trash(root: Path, retention_days: int) -> list[str]:
     return purged
 
 
-def _plan(root: Path, *, reconvert: bool) -> dict[str, Any]:
+def _plan(
+    root: Path,
+    *,
+    reconvert: bool,
+    progress: Progress | None = None,
+    cancel: Any | None = None,
+) -> dict[str, Any]:
     manifest = read_manifest(root)
     parser = manifest.get("convert", {}).get("parser")
     suffixes = _source_suffixes(parser if isinstance(parser, str) else None)
-    sources = discover_sources(root, suffixes)
+    sources = discover_sources(root, suffixes, cancel)
     source_map = dict(sources)
     archives = _list_archives(root)
     archive_map = dict(archives)
@@ -314,6 +333,8 @@ def _plan(root: Path, *, reconvert: bool) -> dict[str, Any]:
     unchanged: list[dict[str, Any]] = []
     converts: list[dict[str, Any]] = []
     unmatched_sources: list[tuple[str, Path]] = []
+    # Sources whose bytes have to be read before the plan can decide.
+    pending_hash: list[dict[str, Any]] = []
 
     for source_rel, source in sources:
         archive = archive_map.get(source_rel)
@@ -342,29 +363,14 @@ def _plan(root: Path, *, reconvert: bool) -> dict[str, Any]:
                 }
             )
             continue
-        try:
-            digest = _hash_file(source)
-        except OSError as exc:
-            converts.append({"action": "convert", "source": source_rel, "error": str(exc)})
-            continue
-        if stored_hash(archive) == digest and not reconvert:
-            unchanged.append(
-                {
-                    "action": "unchanged",
-                    "source": source_rel,
-                    "size": stat.st_size,
-                    "mtime_ns": stat.st_mtime_ns,
-                    "hash": digest,
-                }
-            )
-            continue
-        converts.append(
+        pending_hash.append(
             {
-                "action": "convert",
+                "kind": "compare",
                 "source": source_rel,
+                "path": source,
+                "archive": archive,
                 "size": stat.st_size,
                 "mtime_ns": stat.st_mtime_ns,
-                "hash": digest,
             }
         )
 
@@ -373,6 +379,41 @@ def _plan(root: Path, *, reconvert: bool) -> dict[str, Any]:
         for source_rel, path in archives
         if source_rel not in source_map
     }
+    # A file with no archive can only be a rename when some archive was left behind.
+    # Otherwise convert reads the file once and records the hash it already computed.
+    rename_sources = unmatched_sources if unmatched_archives else []
+    fresh_sources = [] if unmatched_archives else unmatched_sources
+    for source_rel, source in fresh_sources:
+        try:
+            stat = _stat(source)
+        except OSError as exc:
+            converts.append({"action": "convert", "source": source_rel, "error": str(exc)})
+            continue
+        converts.append(
+            {
+                "action": "convert",
+                "source": source_rel,
+                "size": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+                "hash": None,
+            }
+        )
+    for source_rel, source in rename_sources:
+        try:
+            stat = _stat(source)
+        except OSError as exc:
+            converts.append({"action": "convert", "source": source_rel, "error": str(exc)})
+            continue
+        pending_hash.append(
+            {
+                "kind": "rename",
+                "source": source_rel,
+                "path": source,
+                "size": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+            }
+        )
+
     by_hash: dict[str, list[str]] = {}
     for source_rel, path in unmatched_archives.items():
         digest = stored_hash(path)
@@ -381,19 +422,52 @@ def _plan(root: Path, *, reconvert: bool) -> dict[str, Any]:
 
     moves: list[dict[str, Any]] = []
     claimed: set[str] = set()
-    for source_rel, source in unmatched_sources:
+    total = len(pending_hash)
+    for index, job in enumerate(pending_hash):
+        raise_if_cancelled(cancel)
+        source_rel = str(job["source"])
+        if progress:
+            progress(
+                {
+                    "phase": "scanning",
+                    "completed": index,
+                    "total": total,
+                    "input": source_rel,
+                }
+            )
         try:
-            stat = _stat(source)
-            digest = _hash_file(source)
+            digest = _hash_file(job["path"], cancel)
         except OSError as exc:
             converts.append({"action": "convert", "source": source_rel, "error": str(exc)})
+            continue
+        if job["kind"] == "compare":
+            if stored_hash(job["archive"]) == digest and not reconvert:
+                unchanged.append(
+                    {
+                        "action": "unchanged",
+                        "source": source_rel,
+                        "size": job["size"],
+                        "mtime_ns": job["mtime_ns"],
+                        "hash": digest,
+                    }
+                )
+            else:
+                converts.append(
+                    {
+                        "action": "convert",
+                        "source": source_rel,
+                        "size": job["size"],
+                        "mtime_ns": job["mtime_ns"],
+                        "hash": digest,
+                    }
+                )
             continue
         candidates = []
         for old_rel in by_hash.get(digest, []):
             if old_rel in claimed:
                 continue
             recorded = state.get(old_rel) or {}
-            if recorded.get("size") not in (None, stat.st_size):
+            if recorded.get("size") not in (None, job["size"]):
                 continue
             candidates.append(old_rel)
         if len(candidates) > 1:
@@ -411,8 +485,8 @@ def _plan(root: Path, *, reconvert: bool) -> dict[str, Any]:
                     "action": "move",
                     "source": source_rel,
                     "from": old_rel,
-                    "size": stat.st_size,
-                    "mtime_ns": stat.st_mtime_ns,
+                    "size": job["size"],
+                    "mtime_ns": job["mtime_ns"],
                     "hash": digest,
                 }
             )
@@ -421,8 +495,8 @@ def _plan(root: Path, *, reconvert: bool) -> dict[str, Any]:
                 {
                     "action": "convert",
                     "source": source_rel,
-                    "size": stat.st_size,
-                    "mtime_ns": stat.st_mtime_ns,
+                    "size": job["size"],
+                    "mtime_ns": job["mtime_ns"],
                     "hash": digest,
                 }
             )
@@ -529,6 +603,9 @@ def _apply_plan(
             recorded["output"] = str(destination)
             recorded["warnings"] = read_ingest_warnings(destination)
             recorded["notes"] = read_ingest_notes(destination)
+            if not step.get("hash"):
+                step["hash"] = _stored_source_file_hash(destination)
+                recorded["hash"] = step["hash"]
         actions.append(recorded)
         if step["action"] in {"move", "convert", "unchanged"} and step.get("size") is not None:
             state_files[source_rel] = {
@@ -721,7 +798,7 @@ def sync_library(
         }
     if dry_run:
         try:
-            plan = _plan(root, reconvert=reconvert)
+            plan = _plan(root, reconvert=reconvert, progress=progress, cancel=cancel)
         except LibraryUnreachableError as exc:
             report = _empty_report(root, dry_run=True)
             report["ok"] = False
@@ -754,9 +831,9 @@ def sync_library(
             "errors": [],
         }
     try:
-        adopted, adopt_errors = _adopt_siblings(root, _source_suffixes(_parser_from_manifest(root)))
+        adopted, adopt_errors = _adopt_siblings(root, _source_suffixes(_parser_from_manifest(root)), cancel)
         try:
-            plan = _plan(root, reconvert=reconvert)
+            plan = _plan(root, reconvert=reconvert, progress=progress, cancel=cancel)
         except LibraryUnreachableError as exc:
             report = _empty_report(root, dry_run=False)
             report["ok"] = False
