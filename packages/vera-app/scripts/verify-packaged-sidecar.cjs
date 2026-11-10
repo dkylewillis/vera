@@ -317,11 +317,13 @@ async function smokeAgentService(sidecarPath) {
       },
       initBody,
     );
-    if (init.status !== 200) {
+    if (init.status !== 200 || !init.body.includes("protocolVersion")) {
       throw new Error(`initialize returned ${init.status}: ${init.body.slice(0, 300)}`);
     }
-    const sessionId = init.headers["mcp-session-id"];
-    if (!sessionId) throw new Error("initialize did not return mcp-session-id");
+    // Desktop mcp-service is stateless, so initialize often has no session id.
+    const sessionHeader = init.headers["mcp-session-id"];
+    const sessionId = Array.isArray(sessionHeader) ? sessionHeader[0] : sessionHeader;
+    const sessionHeaders = sessionId ? { "mcp-session-id": sessionId } : {};
 
     const noteBody = JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" });
     await httpRequest(
@@ -335,7 +337,7 @@ async function smokeAgentService(sidecarPath) {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
           Accept: "application/json, text/event-stream",
-          "mcp-session-id": Array.isArray(sessionId) ? sessionId[0] : sessionId,
+          ...sessionHeaders,
           "Content-Length": Buffer.byteLength(noteBody),
         },
       },
@@ -359,7 +361,7 @@ async function smokeAgentService(sidecarPath) {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
           Accept: "application/json, text/event-stream",
-          "mcp-session-id": Array.isArray(sessionId) ? sessionId[0] : sessionId,
+          ...sessionHeaders,
           "Content-Length": Buffer.byteLength(listBody),
         },
       },

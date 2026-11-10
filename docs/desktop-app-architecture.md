@@ -499,7 +499,8 @@ frozen builds where `importlib.metadata` entry points are otherwise empty.
 After a freeze, `node packages/vera-app/scripts/verify-packaged-sidecar.cjs`
 asserts `describe_ingest_pipelines` reports `pymupdf` (and not Docling), that
 `describe_embedding_providers` includes `openai`, that MiniLM
-weights are present, and that Torch is absent.
+weights are present, that Torch is absent, and that the frozen `mcp-service`
+lists `vera_library_info` without requiring a session id.
 
 From the repo root:
 
