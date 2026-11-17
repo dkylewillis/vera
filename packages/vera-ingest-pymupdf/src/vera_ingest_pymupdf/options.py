@@ -107,11 +107,68 @@ class PyMuPDFOptions(PipelineOptions):
     )
 
 
+@dataclass(frozen=True)
+class PyMuPDFPlansOptions(PyMuPDFOptions):
+    """Settings for ``pymupdf:plans``: the default options plus drawn-text OCR."""
+
+    options_label = "PyMuPDF plans"
+
+    ocr_drawn_text: str = field(
+        default="auto",
+        metadata={
+            "label": "Drawn-text OCR",
+            "type": "enum",
+            "description": (
+                "OCR low-text sheets whose lettering is drawn as vectors or "
+                "pasted as several images. Auto keeps the real text and adds "
+                "the new words. Off leaves those sheets on the text layer. "
+                "Scanned-page OCR stays under OCR mode."
+            ),
+            "choices": (("auto", "Auto"), ("off", "Off")),
+        },
+    )
+
+
+PLANS_VARIANT = "plans"
+_VARIANTS = (PLANS_VARIANT,)
+_VARIANT_HINT = "use 'pymupdf' or 'pymupdf:plans'"
+
+
+def normalize_variant(variant: str | None) -> str:
+    """Return ``""`` for the default pipeline or a known variant name."""
+    normalized = (variant or "default").strip().lower()
+    if normalized in {"", "default"}:
+        return ""
+    if normalized in _VARIANTS:
+        return normalized
+    raise ValueError(f"Unknown PyMuPDF pipeline variant {variant!r}; {_VARIANT_HINT}.")
+
+
 def describe_pipeline(variant: str = "default") -> PipelineDescriptor:
     """Return GUI/CLI metadata without loading PyMuPDF models."""
-    normalized = (variant or "default").strip().lower()
-    if normalized not in {"", "default"}:
-        raise ValueError(f"Unknown PyMuPDF pipeline variant {variant!r}")
+    normalized = normalize_variant(variant)
+    capabilities = PipelineCapabilities(
+        chunk_unit="words",
+        overlap_supported=True,
+        ocr_supported=True,
+        ocr_engine="tesseract",
+        ocr_dpi_supported=True,
+        source_formats=("pdf",),
+    )
+    if normalized == PLANS_VARIANT:
+        return PipelineDescriptor(
+            provider="pymupdf",
+            variant=PLANS_VARIANT,
+            spec="pymupdf:plans",
+            label="pymupdf:plans — construction plan sheets",
+            description=(
+                "PyMuPDF pipeline for drawing sets. Also OCRs sheets whose "
+                "lettering is drawn linework, and keeps detail titles in the "
+                "searchable text."
+            ),
+            capabilities=capabilities,
+            fields=fields_from_dataclass(PyMuPDFPlansOptions),
+        )
     return PipelineDescriptor(
         provider="pymupdf",
         variant="",
@@ -121,13 +178,7 @@ def describe_pipeline(variant: str = "default") -> PipelineDescriptor:
             "PDF ingest pipeline using PyMuPDF parsing and optional "
             "Tesseract OCR with sliding-window chunking."
         ),
-        capabilities=PipelineCapabilities(
-            chunk_unit="words",
-            overlap_supported=True,
-            ocr_supported=True,
-            ocr_engine="tesseract",
-            ocr_dpi_supported=True,
-            source_formats=("pdf",),
-        ),
+        capabilities=capabilities,
         fields=fields_from_dataclass(PyMuPDFOptions),
+        variants=_VARIANTS,
     )

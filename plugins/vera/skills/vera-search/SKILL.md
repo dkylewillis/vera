@@ -87,6 +87,9 @@ A managed library is a folder of source documents with a hidden `.vera/`
 directory. Search it like any other directory. Hits include `source_path`.
 Use `vera library status` or MCP `vera_library_status` to see pending
 changes. Do not sync from MCP; sync can move archives to trash.
+Folders can use different ingest pipelines, for example `pymupdf:plans` for
+drawing sets: `vera library pipeline DIR --folder Plans --parser pymupdf:plans`,
+then `vera library sync DIR`. `vera library pipeline DIR --json` lists the rules.
 
 1. Identify the `.vera` file or directory and the question.
 2. Run a high-recall first search:
@@ -203,7 +206,7 @@ vera inspect "manual.vera" --json
 Inspection includes `default_embedding_normalization`: `l2`, `none`, or
 `unknown`. Older archives without the field are reported as `unknown`.
 Prefer `--json`: text mode omits the pipeline `ocr` diagnostics bag
-(PyMuPDF `ocr_pages`, Docling `recovered_pages` / fallback fields, or `{}`
+(PyMuPDF `ocr_pages`, plus `ocr_drawn_text_pages` from `pymupdf:plans`, Docling `recovered_pages` / fallback fields, or `{}`
 for Markdown). Package release 0.3.x versions the CLI and APIs;
 `format_version` remains `0.2` and existing archives stay compatible.
 
@@ -271,10 +274,12 @@ request that only asks to search or explain a document.
   unknown `--parser` / `--model`.
 - Most other missing-path and runtime failures are unstructured tracebacks on
   stderr. Do not parse stderr as JSON.
-- Directory conversion skips an existing `.vera` only when it validates and
-  its stored `source_file_hash` matches the current source file, reports
-  same-stem sources that would share one `.vera` path as failures instead of
-  overwriting, and exits 1 when `malformed_existing` is nonempty.
+- Directory conversion writes `<filename>.vera` beside each source
+  (`manual.pdf` becomes `manual.pdf.vera`). It skips an existing `.vera` only
+  when it validates and its stored `source_file_hash` matches the current source file.
+  An older `manual.vera` that belongs to that source is renamed onto the new
+  name and listed in `renamed_existing`. The command exits 1 when
+  `malformed_existing` is nonempty.
 - `vera mcp` is a long-running stdio server and does not accept `--json`.
 - If no direct answer is found, report the queries and modes tried and describe
   the closest evidence without inventing an answer.

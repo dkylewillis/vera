@@ -4470,7 +4470,11 @@ input.viewerPageInput:focus {
   justify-items: safe center;
   gap: 16px;
   min-height: 0;
-  overflow-x: hidden;
+  /* Fit modes size the page to this well, so they do not overflow.
+     Manual zoom and the rotate button can make a sheet wider than the
+     well; scroll sideways instead of clipping it. `scrollbar-gutter`
+     below keeps the vertical bar from changing the fit width. */
+  overflow-x: auto;
   overflow-y: auto;
   padding: 16px;
   /* Keep width stable when zoom toggles the vertical scrollbar. */
@@ -4606,6 +4610,20 @@ input.viewerPageInput:focus {
   --scale-round-x: 1px;
   --scale-round-y: 1px;
   z-index: 2;
+}
+
+/* PDF.js positions each run on the unrotated page and sets
+   data-main-rotation. Turn the layer to match the canvas. */
+.textLayer[data-main-rotation='90'] {
+  transform: rotate(90deg) translateY(-100%);
+}
+
+.textLayer[data-main-rotation='180'] {
+  transform: rotate(180deg) translate(-100%, -100%);
+}
+
+.textLayer[data-main-rotation='270'] {
+  transform: rotate(270deg) translateX(-100%);
 }
 
 .textLayer span,
@@ -6619,6 +6637,54 @@ div.settingRow {
 .libraryIndexModalBody textarea {
   min-height: 86px;
   resize: vertical;
+}
+
+.libraryIndexModalBody > p.folderPipelineSubtitle {
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.folderPipelineChoices {
+  display: grid;
+  gap: 8px;
+}
+
+.folderPipelineChoice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.folderPipelineChoice.selected {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft);
+}
+
+.folderPipelineChoice input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.folderPipelineChoice span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.folderPipelineChoice strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.folderPipelineChoice small {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .indexReasons {

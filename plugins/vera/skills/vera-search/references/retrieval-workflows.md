@@ -252,13 +252,16 @@ vera index build "./proposals" --recursive --json
 vera search "./proposals" "termination clause" --top-k 10 --json
 ```
 
-Batch conversion skips an existing `.vera` only when it validates and its
-stored `source_file_hash` matches the current source file. Changed sources and
-archives with a missing or unreadable hash are reconverted. Same-stem sources
-that would write the same `.vera` path fail instead of overwriting each other. Check
-`malformed_existing` and replace those archives intentionally with
-`--overwrite`. Automatic conversion selectively OCRs image-based low-text
-pages via `vera-ingest-pymupdf` with bundled English language data. Other
+Batch conversion writes `<filename>.vera` beside each source (`manual.pdf`
+becomes `manual.pdf.vera`). It skips an existing `.vera` only when it validates
+and its stored `source_file_hash` matches the current source file. Changed
+sources and archives with a missing or unreadable hash are reconverted. An
+older `manual.vera` that belongs to that source is renamed onto the new name
+and listed in `renamed_existing`. Check `malformed_existing` and replace those
+archives intentionally with `--overwrite`. Automatic conversion selectively OCRs image-based low-text
+pages via `vera-ingest-pymupdf` with bundled English language data. For construction
+drawing sets pass `--parser pymupdf:plans`, which also OCRs low-text drawing sheets and
+keeps detail titles in chunk text. Other
 languages require external
 Tesseract data. A PDF with no searchable chunks after OCR fails with a message
 that it may require OCR; conversion preserves any existing destination.

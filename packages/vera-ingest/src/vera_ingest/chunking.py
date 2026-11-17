@@ -141,19 +141,30 @@ def build_chunks_from_blocks(
     blocks: list[tuple[str, ParsedBlock | IngestBlock]],
     chunk_size: int = 500,
     overlap: int = 75,
+    *,
+    headings_in_text: bool = False,
 ) -> list[Chunk]:
     """Heading-aware chunking over structured layout blocks.
 
     Accepts ``(block_id, block)`` pairs of either :class:`ParsedBlock` or
     :class:`IngestBlock`. First-party PyMuPDF uses this path; custom pipelines
     that only have page text should use :func:`chunk_pages` instead.
+
+    By default a heading only sets ``heading_path``; its text is not in any
+    chunk. With ``headings_in_text`` the first chunk under a heading includes
+    that heading's text, and a heading that never labels a body chunk
+    (including a parent whose only text is a child title) is stored on its
+    own. Drawing sheets use this so a detail title is searchable.
     """
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
     overlap = max(0, min(overlap, chunk_size - 1))
 
     chunks: list[Chunk] = []
-    heading_stack: list[tuple[int, str]] = []
+    # level, text, block id, page number
+    heading_stack: list[tuple[int, str, str, int]] = []
+    # Heading block ids already written into some chunk.
+    covered_heading_ids: set[str] = set()
     buffer_words: list[str] = []
     buffer_blocks: list[str] = []
     buffer_pages: list[int] = []
@@ -162,21 +173,56 @@ def build_chunks_from_blocks(
     pending_images: list[tuple[int, str]] = []
 
     def heading_path() -> str:
-        return " > ".join(text for _, text in heading_stack)
+        return " > ".join(text for _, text, _, _ in heading_stack)
+
+    def append_chunk(
+        text: str,
+        page_start: int,
+        page_end: int,
+        block_ids: list[str],
+    ) -> None:
+        """Store one chunk, folding an unused leaf heading into the first body."""
+        ids = list(dict.fromkeys(block_ids))
+        if (
+            headings_in_text
+            and heading_stack
+            and heading_stack[-1][2] not in covered_heading_ids
+        ):
+            heading_text = heading_stack[-1][1]
+            heading_id = heading_stack[-1][2]
+            covered_heading_ids.add(heading_id)
+            if heading_text and heading_text not in text:
+                text = f"{heading_text}\n{text}"
+            if heading_id not in ids:
+                ids.insert(0, heading_id)
+        word_count = len(tokens(text))
+        if word_count == 0:
+            return
+        chunks.append(
+            Chunk(text, page_start, page_end, heading_path(), word_count, ids)
+        )
+
+    def emit_uncovered_heading(entry: tuple[int, str, str, int]) -> None:
+        """Store a heading that labels no body chunk."""
+        _, text, block_id, page = entry
+        if not headings_in_text or not text or block_id in covered_heading_ids:
+            return
+        covered_heading_ids.add(block_id)
+        word_count = len(tokens(text))
+        if word_count == 0:
+            return
+        chunks.append(
+            Chunk(text, page, page, heading_path(), word_count, [block_id])
+        )
 
     def flush() -> None:
         nonlocal buffer_words, buffer_blocks, buffer_pages
         if buffer_words:
-            text = " ".join(buffer_words)
-            chunks.append(
-                Chunk(
-                    text,
-                    min(buffer_pages),
-                    max(buffer_pages),
-                    heading_path(),
-                    len(buffer_words),
-                    list(dict.fromkeys(buffer_blocks)),
-                )
+            append_chunk(
+                " ".join(buffer_words),
+                min(buffer_pages),
+                max(buffer_pages),
+                buffer_blocks,
             )
         buffer_words = []
         buffer_blocks = []
@@ -212,8 +258,9 @@ def build_chunks_from_blocks(
             flush()
             level = block.heading_level or 6
             while heading_stack and heading_stack[-1][0] >= level:
+                emit_uncovered_heading(heading_stack[-1])
                 heading_stack.pop()
-            heading_stack.append((level, block.text))
+            heading_stack.append((level, block.text, block_id, block.page_number))
             continue
         if block.block_type == "table":
             flush()
@@ -231,15 +278,11 @@ def build_chunks_from_blocks(
                     if first_part:
                         attach_pending_images(block.page_number, part_block_ids)
                         first_part = False
-                    chunks.append(
-                        Chunk(
-                            " ".join(part),
-                            block.page_number,
-                            block.page_number,
-                            heading_path(),
-                            len(part),
-                            part_block_ids,
-                        )
+                    append_chunk(
+                        " ".join(part),
+                        block.page_number,
+                        block.page_number,
+                        part_block_ids,
                     )
                 if start + chunk_size >= len(words):
                     break
@@ -256,17 +299,18 @@ def build_chunks_from_blocks(
             attach_pending_images(block.page_number, buffer_blocks)
         overflow, buffer_words = _take_overflow_windows(buffer_words, chunk_size, overlap)
         for window in overflow:
-            chunks.append(
-                Chunk(
-                    " ".join(window),
-                    min(buffer_pages),
-                    max(buffer_pages),
-                    heading_path(),
-                    len(window),
-                    list(dict.fromkeys(buffer_blocks)),
-                )
+            append_chunk(
+                " ".join(window),
+                min(buffer_pages),
+                max(buffer_pages),
+                list(buffer_blocks),
             )
     flush()
+    while heading_stack:
+        entry = heading_stack[-1]
+        if entry[2] not in covered_heading_ids:
+            emit_uncovered_heading(entry)
+        heading_stack.pop()
     if pending_images:
         # Trailing images with no following text on their page: attach to the
         # last chunk that already covers that page, if any.

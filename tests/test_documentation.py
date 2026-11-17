@@ -231,6 +231,19 @@ def test_documented_cli_examples_parse():
         ],
         ["index", "update", "library", "--json"],
         ["index", "status", "library", "--json"],
+        ["library", "pipeline", "./library/Plans", "--parser", "pymupdf:plans", "--json"],
+        [
+            "library",
+            "pipeline",
+            "./library",
+            "--folder",
+            "Projects/*/Plans",
+            "--parser",
+            "pymupdf:plans",
+            "--json",
+        ],
+        ["library", "pipeline", "./library/Plans", "--clear", "--json"],
+        ["library", "pipeline", "./library", "--json"],
         ["validate", "output.vera", "--json"],
         ["export", "output.vera", "exports", "--json"],
         [
@@ -276,7 +289,8 @@ def test_hardening_json_contracts_are_documented():
     assert "malformed_existing" in conversion
     assert "source_file_hash" in conversion
     assert "skipped_existing" in conversion
-    assert "Same-stem sources that would" in conversion
+    assert "manual.pdf.vera" in conversion
+    assert "renamed_existing" in conversion
     assert "~$budget.xlsx" in conversion
     assert "~$budget.xlsx" in libraries
     assert "source_file_hash" in cli_reference
@@ -1327,7 +1341,7 @@ def test_readme_walkthrough_and_embedding_setup():
     first = blocks[0]
     assert 'python -m pip install "vera>=0.3.2"' in first
     assert "vera convert manual.pdf" in first
-    assert first.index("vera convert manual.pdf") < first.index("vera search manual.vera")
+    assert first.index("vera convert manual.pdf") < first.index("vera search manual.pdf.vera")
     assert "--pretty" in first
 
     library = next(block for block in blocks if "vera index build ./library --recursive" in block)

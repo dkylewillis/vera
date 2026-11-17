@@ -215,7 +215,7 @@ def test_convert_builds_in_scratch_and_copies_across_drives(tmp_path, monkeypatc
 
 def test_batch_convert_reports_malformed_existing_output(tmp_path):
     pdf = tmp_path / "manual.pdf"
-    out = tmp_path / "manual.vera"
+    out = tmp_path / "manual.pdf.vera"
     make_pdf(pdf)
     sqlite3.connect(out).close()
 
@@ -246,14 +246,14 @@ def test_batch_convert_accepts_explicit_pdf_paths(tmp_path):
     assert report["converted"] == 2
     assert report["recursive"] is False
     assert report["directory"] == str(tmp_path.resolve())
-    assert (tmp_path / "keep.vera").is_file()
-    assert (nested.parent / "nested.vera").is_file()
-    assert not (tmp_path / "sibling.vera").exists()
+    assert (tmp_path / "keep.pdf.vera").is_file()
+    assert (nested.parent / "nested.pdf.vera").is_file()
+    assert not (tmp_path / "sibling.pdf.vera").exists()
 
 
 def test_batch_convert_skips_valid_output_without_original_asset(tmp_path):
     pdf = tmp_path / "manual.pdf"
-    out = tmp_path / "manual.vera"
+    out = tmp_path / "manual.pdf.vera"
     make_pdf(pdf)
     convert(str(pdf), str(out), model="hashing", store_original=False)
 
@@ -266,8 +266,8 @@ def test_batch_convert_skips_valid_output_without_original_asset(tmp_path):
 def test_batch_convert_skips_unchanged_pdf_and_reconverts_changed_source(tmp_path):
     unchanged_pdf = tmp_path / "unchanged.pdf"
     changed_pdf = tmp_path / "changed.pdf"
-    unchanged_out = tmp_path / "unchanged.vera"
-    changed_out = tmp_path / "changed.vera"
+    unchanged_out = tmp_path / "unchanged.pdf.vera"
+    changed_out = tmp_path / "changed.pdf.vera"
     make_pdf(unchanged_pdf)
     make_pdf(changed_pdf)
     convert(str(unchanged_pdf), str(unchanged_out), model="hashing")
@@ -302,7 +302,7 @@ def test_batch_convert_skips_unchanged_pdf_and_reconverts_changed_source(tmp_pat
 
 def test_batch_convert_reconverts_when_source_hash_is_missing(tmp_path):
     pdf = tmp_path / "manual.pdf"
-    out = tmp_path / "manual.vera"
+    out = tmp_path / "manual.pdf.vera"
     make_pdf(pdf)
     convert(str(pdf), str(out), model="hashing")
     document = VeraDocument.open(str(out), mode="write")
@@ -380,8 +380,8 @@ def test_batch_convert_stops_when_cancelled(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="Conversion cancelled"):
         batch_convert(str(tmp_path), model="hashing", cancel=cancel)
 
-    assert (tmp_path / "first.vera").is_file()
-    assert not (tmp_path / "second.vera").exists()
+    assert (tmp_path / "first.pdf.vera").is_file()
+    assert not (tmp_path / "second.pdf.vera").exists()
 
 
 def test_batch_convert_skips_current_file_and_continues(tmp_path, monkeypatch):
@@ -432,8 +432,8 @@ def test_batch_convert_skips_current_file_and_continues(tmp_path, monkeypatch):
     assert report["user_skipped"] == 1
     assert report["skipped_by_user"] == [str(first_pdf)]
     assert report["failed"] == 0
-    assert not (tmp_path / "first.vera").exists()
-    assert (tmp_path / "second.vera").is_file()
+    assert not (tmp_path / "first.pdf.vera").exists()
+    assert (tmp_path / "second.pdf.vera").is_file()
 
 
 def test_batch_convert_leftover_skip_flag_does_not_classify_errors_as_user_skip(
@@ -488,7 +488,7 @@ def test_batch_convert_hash_skip_checks_interrupt_and_does_not_poison_next_file(
     second_pdf = tmp_path / "second.pdf"
     make_pdf(first_pdf)
     make_pdf(second_pdf)
-    convert(str(first_pdf), str(tmp_path / "first.vera"), model="hashing")
+    convert(str(first_pdf), str(tmp_path / "first.pdf.vera"), model="hashing")
 
     class SkipCurrentError(RuntimeError):
         pass
@@ -512,16 +512,16 @@ def test_batch_convert_hash_skip_checks_interrupt_and_does_not_poison_next_file(
 
     cancel = Token()
     convert_mod = importlib.import_module("vera_ingest.convert")
-    real_hash = convert_mod._sha256_bytes
+    real_hash = convert_mod._sha256_file
     hashes = {"n": 0}
 
-    def hash_and_request_skip(data):
+    def hash_and_request_skip(path, cancel_token=None):
         hashes["n"] += 1
         if hashes["n"] == 1:
             cancel.skip_requested = True
-        return real_hash(data)
+        return real_hash(path, cancel_token)
 
-    monkeypatch.setattr(convert_mod, "_sha256_bytes", hash_and_request_skip)
+    monkeypatch.setattr(convert_mod, "_sha256_file", hash_and_request_skip)
 
     report = batch_convert(str(tmp_path), model="hashing", cancel=cancel)
 
@@ -530,7 +530,7 @@ def test_batch_convert_hash_skip_checks_interrupt_and_does_not_poison_next_file(
     assert report["converted"] == 1
     assert report["failed"] == 0
     assert not cancel.skip_requested
-    assert (tmp_path / "second.vera").is_file()
+    assert (tmp_path / "second.pdf.vera").is_file()
 
 
 def test_batch_convert_hash_skip_clears_leftover_skip_flag(tmp_path, monkeypatch):
@@ -538,7 +538,7 @@ def test_batch_convert_hash_skip_clears_leftover_skip_flag(tmp_path, monkeypatch
     second_pdf = tmp_path / "second.pdf"
     make_pdf(first_pdf)
     make_pdf(second_pdf)
-    convert(str(first_pdf), str(tmp_path / "first.vera"), model="hashing")
+    convert(str(first_pdf), str(tmp_path / "first.pdf.vera"), model="hashing")
 
     class Token:
         def __init__(self):
@@ -557,15 +557,16 @@ def test_batch_convert_hash_skip_clears_leftover_skip_flag(tmp_path, monkeypatch
 
     cancel = Token()
     convert_mod = importlib.import_module("vera_ingest.convert")
-    real_hash = convert_mod._sha256_bytes
+    real_hash = convert_mod._sha256_file
     real_convert = convert_mod.convert
     hashes = {"n": 0}
 
-    def hash_and_leave_skip(data):
+    def hash_and_leave_skip(path, cancel_token=None):
+        result = real_hash(path, cancel_token)
         hashes["n"] += 1
         if hashes["n"] == 1:
             cancel.skip_requested = True
-        return real_hash(data)
+        return result
 
     def convert_rejects_leftover_skip(input_path, output_path, **kwargs):
         kwargs = dict(kwargs)
@@ -574,52 +575,169 @@ def test_batch_convert_hash_skip_clears_leftover_skip_flag(tmp_path, monkeypatch
             raise AssertionError("hash-skip left skip_requested set for the next file")
         return real_convert(input_path, output_path, **kwargs)
 
-    monkeypatch.setattr(convert_mod, "_sha256_bytes", hash_and_leave_skip)
+    monkeypatch.setattr(convert_mod, "_sha256_file", hash_and_leave_skip)
     monkeypatch.setattr(convert_mod, "convert", convert_rejects_leftover_skip)
 
     report = batch_convert(str(tmp_path), model="hashing", cancel=cancel)
 
-    assert report["skipped_existing"] == [str(tmp_path / "first.vera")]
+    assert report["skipped_existing"] == [str(tmp_path / "first.pdf.vera")]
     assert report["user_skipped"] == 0
     assert report["converted"] == 1
     assert not cancel.skip_requested
 
 
-def test_batch_convert_refuses_same_stem_sources_that_share_an_output(tmp_path):
+def test_batch_convert_keeps_the_source_extension(tmp_path):
     pdf = tmp_path / "manual.pdf"
     notes = tmp_path / "manual.md"
-    other = tmp_path / "other.md"
     make_pdf(pdf)
     notes.write_text("# Notes\n\nDetention pond sizing notes.\n", encoding="utf-8")
-    other.write_text("# Other\n\nUnrelated notes stay unique.\n", encoding="utf-8")
 
     report = batch_convert(str(tmp_path), model="hashing")
 
-    assert report["converted"] == 1
-    assert report["failed"] == 2
-    assert report["outputs"] == [str(tmp_path / "other.vera")]
-    assert (tmp_path / "other.vera").is_file()
-    assert not (tmp_path / "manual.vera").exists()
-    errors = {item["input"]: item["error"] for item in report["errors"]}
-    assert str(pdf) in errors
-    assert str(notes) in errors
-    assert str(tmp_path / "manual.vera") in errors[str(pdf)]
-    assert str(notes) in errors[str(pdf)]
-    assert str(pdf) in errors[str(notes)]
+    assert report["converted"] == 2
+    assert report["failed"] == 0
+    assert report["renamed"] == 0
+    assert (tmp_path / "manual.pdf.vera").is_file()
+    assert (tmp_path / "manual.md.vera").is_file()
+    assert set(report["outputs"]) == {
+        str(tmp_path / "manual.pdf.vera"),
+        str(tmp_path / "manual.md.vera"),
+    }
 
 
-def test_batch_convert_refuses_same_stem_collisions_even_with_overwrite(tmp_path):
+def _drop_source_file_name(archive):
+    document = VeraDocument.open(str(archive), mode="write")
+    try:
+        metadata = dict(document.metadata)
+        metadata.pop("source_file_name", None)
+        document.set_metadata(metadata)
+    finally:
+        document.close()
+
+
+def test_batch_convert_renames_legacy_sibling_that_matches_the_source(tmp_path):
     pdf = tmp_path / "manual.pdf"
-    notes = tmp_path / "manual.md"
+    legacy = tmp_path / "manual.vera"
+    current = tmp_path / "manual.pdf.vera"
+    make_pdf(pdf)
+    convert(str(pdf), str(legacy), model="hashing")
+
+    report = batch_convert(str(tmp_path), model="hashing")
+
+    assert report["renamed"] == 1
+    assert report["renamed_existing"] == [
+        {"input": str(pdf), "from": str(legacy), "to": str(current)}
+    ]
+    assert report["skipped"] == 1
+    assert report["converted"] == 0
+    assert report["failed"] == 0
+    assert current.is_file()
+    assert not legacy.exists()
+
+
+def test_batch_convert_renames_legacy_sibling_by_hash_when_name_is_missing(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    legacy = tmp_path / "manual.vera"
+    current = tmp_path / "manual.pdf.vera"
+    make_pdf(pdf)
+    convert(str(pdf), str(legacy), model="hashing")
+    _drop_source_file_name(legacy)
+
+    report = batch_convert(str(tmp_path), model="hashing")
+
+    assert report["renamed"] == 1
+    assert report["skipped"] == 1
+    assert report["converted"] == 0
+    assert current.is_file()
+    assert not legacy.exists()
+
+
+def test_batch_convert_renames_stale_legacy_sibling_then_reconverts(tmp_path):
+    import fitz
+
+    pdf = tmp_path / "manual.pdf"
+    legacy = tmp_path / "manual.vera"
+    current = tmp_path / "manual.pdf.vera"
+    make_pdf(pdf)
+    convert(str(pdf), str(legacy), model="hashing")
+    previous = VeraDocument.open(str(legacy))
+    try:
+        previous_hash = previous.inspect()["source_file_hash"]
+    finally:
+        previous.close()
+    rewritten = fitz.open()
+    page = rewritten.new_page()
+    page.insert_text((72, 72), "Revised zoning text about loading docks and aisle width.")
+    rewritten.save(pdf)
+    rewritten.close()
+
+    report = batch_convert(str(tmp_path), model="hashing")
+
+    assert report["renamed"] == 1
+    assert report["converted"] == 1
+    assert report["outputs"] == [str(current)]
+    assert report["skipped"] == 0
+    assert not legacy.exists()
+    updated = VeraDocument.open(str(current))
+    try:
+        assert updated.inspect()["source_file_hash"] != previous_hash
+    finally:
+        updated.close()
+
+
+def test_batch_convert_leaves_a_legacy_archive_that_belongs_to_another_source(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    notes = tmp_path / "other.md"
+    legacy = tmp_path / "manual.vera"
     make_pdf(pdf)
     notes.write_text("# Notes\n\nDetention pond sizing notes.\n", encoding="utf-8")
+    convert(str(notes), str(legacy), model="hashing")
+
+    report = batch_convert(str(tmp_path), model="hashing")
+
+    assert report["renamed"] == 0
+    assert report["failed"] == 0
+    assert report["converted"] == 2
+    assert legacy.is_file()
+    assert (tmp_path / "manual.pdf.vera").is_file()
+    assert (tmp_path / "other.md.vera").is_file()
+
+
+def test_batch_convert_claims_only_the_source_named_in_a_shared_legacy_archive(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    notes = tmp_path / "manual.md"
+    legacy = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    notes.write_text("# Notes\n\nDetention pond sizing notes.\n", encoding="utf-8")
+    convert(str(notes), str(legacy), model="hashing")
+
+    report = batch_convert(str(tmp_path), model="hashing")
+
+    assert report["failed"] == 0
+    assert report["renamed"] == 1
+    assert report["renamed_existing"][0]["input"] == str(notes)
+    assert report["renamed_existing"][0]["to"] == str(tmp_path / "manual.md.vera")
+    assert report["converted"] == 1
+    assert (tmp_path / "manual.md.vera").is_file()
+    assert (tmp_path / "manual.pdf.vera").is_file()
+    assert not legacy.exists()
+
+
+def test_batch_convert_claims_legacy_sibling_before_overwrite(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    legacy = tmp_path / "manual.vera"
+    current = tmp_path / "manual.pdf.vera"
+    make_pdf(pdf)
+    convert(str(pdf), str(legacy), model="hashing")
 
     report = batch_convert(str(tmp_path), model="hashing", overwrite=True)
 
-    assert report["converted"] == 0
-    assert report["failed"] == 2
-    assert report["outputs"] == []
-    assert not (tmp_path / "manual.vera").exists()
+    assert report["renamed"] == 1
+    assert report["converted"] == 1
+    assert report["skipped"] == 0
+    assert report["outputs"] == [str(current)]
+    assert current.is_file()
+    assert not legacy.exists()
 
 
 def test_hybrid_keeps_chunk_that_tops_both_modes(tmp_path):

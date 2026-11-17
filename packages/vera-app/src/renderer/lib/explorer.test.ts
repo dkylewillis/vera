@@ -98,6 +98,18 @@ describe('pairExplorerDocuments', () => {
     ]);
   });
 
+  it('prefers an extension-keeping archive over an older stem archive', () => {
+    const docs = pairExplorerDocuments([
+      entry('/lib', 'budget.pdf'),
+      entry('/lib', 'budget.vera'),
+      entry('/lib', 'budget.pdf.vera'),
+    ]);
+    expect(docs.map((doc) => [doc.label, doc.archive?.name, doc.source?.name])).toEqual([
+      ['budget', 'budget.pdf.vera', 'budget.pdf'],
+      ['budget', 'budget.vera', undefined],
+    ]);
+  });
+
   it('pairs a managed archive that keeps the source extension', () => {
     const docs = pairExplorerDocuments([
       entry('/lib', 'Plans/Site Plan.pdf'),

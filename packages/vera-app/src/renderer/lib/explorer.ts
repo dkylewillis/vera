@@ -123,7 +123,8 @@ export type ExplorerTreeEntry = ExplorerListEntry & {
 
 /**
  * One Explorer row per document: a source and the `.vera` converted from it
- * (same folder, same file stem) share a row. `path` / `type` are what the row
+ * share a row. `Report.pdf.vera` pairs with `Report.pdf`. An older
+ * `Report.vera` still pairs by file stem. `path` / `type` are what the row
  * selects — the archive once converted, otherwise the source.
  */
 export type ExplorerDocument<E extends ExplorerTreeEntry = ExplorerTreeEntry> = {
@@ -169,8 +170,9 @@ export function pairExplorerDocuments<E extends ExplorerTreeEntry>(entries: E[])
     if (managed) bySourceName.set(managed.toLowerCase(), entry);
     else byStem.set(fileStem(entry.name).toLowerCase(), entry);
   }
-  // A PDF and a Markdown file with the same stem convert to the same archive;
-  // pair the PDF, matching batch conversion's discovery order.
+  // An older stem archive (Report.vera) can sit beside both a PDF and a
+  // Markdown file. Pair the PDF with it. Report.pdf.vera wins over that
+  // older name when both archives exist.
   const sources = entries
     .filter((entry) => entry.type !== 'vera')
     .sort((a, b) => {

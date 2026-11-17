@@ -62,10 +62,10 @@ print("failed:", report["failed"])
 print("malformed existing:", report["malformed_existing"])
 ```
 
-Batch conversion continues after per-file failures. `skipped_existing` lists
+Batch conversion continues after per-file failures. Each source writes
+`<filename>.vera` (`manual.pdf` becomes `manual.pdf.vera`). `skipped_existing` lists
 valid archives whose stored `source_file_hash` still matches the current source file.
-Same-stem sources that would write the same `.vera` path appear in `errors`
-instead of overwriting each other. Check
+`renamed_existing` lists older stem archives renamed onto that name. Check
 both `failed` and `malformed_existing` before treating the batch as successful.
 
 See [Convert documents](../conversion.md) for every supported option and its

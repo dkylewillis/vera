@@ -134,7 +134,8 @@ and export the original once the archive is readable.
 ## Inspect text mode hides OCR or Docling recovery
 
 `vera inspect` without `--json` prints identity fields only. Pipeline
-diagnostics live in the JSON `ocr` object (PyMuPDF `ocr_pages`, Docling
+diagnostics live in the JSON `ocr` object (PyMuPDF `ocr_pages`, plus
+`ocr_drawn_text_pages` from `pymupdf:plans`, Docling
 `recovered_pages` / `whole_document_fallback_*`). Desktop **Document Info**
 summarizes PyMuPDF-shaped keys; Markdown's empty `ocr: {}` and Docling's
 `engine` field do not produce a complete Info line. Use
@@ -231,13 +232,14 @@ vera index build "./library" --recursive --json
 
 ## Conversion skips files
 
-Directory conversion skips an existing same-named `.vera` only when it
+Directory conversion writes `manual.pdf.vera` beside `manual.pdf` and
+`manual.md.vera` beside `manual.md`. It skips an existing archive only when it
 validates and its stored `source_file_hash` matches the current source file
 (PDF, Markdown, or Office/HTML). Changed sources and archives with a missing
-or unreadable hash are reconverted. Same-stem sources that would write the
-same `.vera` path (`manual.pdf` and `manual.md`) fail instead of overwriting
-each other; rename one file or convert them separately with explicit outputs.
-Review `skipped_existing` for unchanged
+or unreadable hash are reconverted. An older `manual.vera` whose stored source
+name matches, or whose hash matches when the name is missing, is renamed to
+the new path and listed in `renamed_existing`. An archive that belongs to
+neither file is left in place. Review `skipped_existing` for unchanged
 skips and `malformed_existing` for archives that must be repaired or replaced.
 Use `--overwrite` only when replacement is intentional:
 
@@ -396,7 +398,8 @@ on (CVE-2026-16633).
 
 The desktop viewer copies the original source into a local cache before PDF.js
 or the Markdown preview can render it. Large stormwater manuals can take a while on first open. VERA
-now prefers a sibling `manual.pdf` next to `manual.vera` and reuses a cache
+now prefers a sibling `manual.pdf` next to `manual.pdf.vera` (or an older
+`manual.vera`) and reuses a cache
 file on later opens instead of extracting and re-hashing the embedded
 original. If the load still exceeds five minutes, the renderer watchdog reports
 `Opening timed out after 300 seconds`. Cancel it from the viewer close

@@ -118,5 +118,5 @@ keeps the source extension, `index/` replaces `.vera-index/`, and `trash/`
 holds deleted archives for 30 days). Sync follows adds, edits, renames,
 moves, and deletes. The nearest parent `.vera/` owns a folder, and searching
 a subfolder scopes to that subfolder. `vera convert file.pdf` still writes a
-sibling archive. Plain folders of `.vera` files still search as before.
+sibling archive named `file.pdf.vera`. Plain folders of `.vera` files still search as before.
 Shared network libraries are still ahead.

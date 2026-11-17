@@ -73,7 +73,10 @@ construct `IngestBlock` directly.
 
 - `build_chunks_from_blocks` — heading-aware sliding windows over
   `(block_id, ParsedBlock | IngestBlock)` pairs. PyMuPDF uses this; custom
-  pipelines with structured layout should too.
+  pipelines with structured layout should too. By default a heading only sets
+  `heading_path`. Pass `headings_in_text=True` to put each heading in the
+  first chunk under it and to store a heading with no body as its own chunk;
+  `pymupdf:plans` does this so a detail title is searchable.
 - `chunk_pages` / `detect_heading` — public helpers for custom pipelines that
   only have `ParsedPage.text`. First-party pipelines do not call them.
 

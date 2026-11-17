@@ -8,6 +8,7 @@ from vera_doc import Citation, UnknownEmbeddingModelError
 from vera_doc.collection import build_library_index, library_index_status, update_library_index
 from vera_doc.corpus import VeraCorpus
 from vera_doc.document import VeraDocument
+from vera_doc.library import sibling_archive_path
 from vera_embed_openai import (
     OpenAIEmbedderError,
 )
@@ -20,16 +21,18 @@ from vera_ingest import (
     batch_convert,
     convert,
 )
-from vera_ingest.convert import read_ingest_notes, read_ingest_warnings
+from vera_ingest.convert import _claim_legacy_sibling, read_ingest_notes, read_ingest_warnings
 from vera_ingest.library import (
     LibraryBusyError,
     LibraryExistsError,
     LibraryNotFoundError,
     NestedLibraryError,
     init_library,
+    library_pipelines,
     library_status,
     list_trash,
     restore_from_trash,
+    set_folder_pipeline,
     sync_library,
 )
 from vera_ingest.viewer import (
@@ -143,7 +146,8 @@ def cmd_convert(args) -> int:
         if input_path.is_dir():
             if args.output:
                 message = (
-                    "Directory conversion creates each .vera beside its source file; "
+                    "Directory conversion creates a <filename>.vera archive beside each "
+                    "source file (manual.pdf becomes manual.pdf.vera); "
                     "do not provide an output path."
                 )
                 if args.json:
@@ -174,9 +178,12 @@ def cmd_convert(args) -> int:
             else:
                 print(
                     f"Found {report['discovered']} files: {report['converted']} converted, "
-                    f"{report['skipped']} skipped, {report['malformed']} malformed, "
+                    f"{report['skipped']} skipped, {report['renamed']} renamed, "
+                    f"{report['malformed']} malformed, "
                     f"{report['failed']} failed"
                 )
+                for entry in report.get("renamed_existing") or []:
+                    print(f"Renamed {entry['from']} -> {entry['to']}")
                 for entry in report["malformed_existing"]:
                     issues = "; ".join(entry["issues"])
                     print(f"Malformed {entry['output']}: {issues}", file=sys.stderr)
@@ -187,7 +194,12 @@ def cmd_convert(args) -> int:
                         print(f"Warning {entry['input']}: {message}", file=sys.stderr)
             return 1 if unsuccessful else 0
 
-        output = args.output or str(input_path.with_suffix(".vera"))
+        if args.output:
+            output = args.output
+        else:
+            destination = sibling_archive_path(input_path)
+            _claim_legacy_sibling(input_path, destination)
+            output = str(destination)
         path = convert(
             args.input,
             output,
@@ -679,6 +691,11 @@ def _print_library_report(report: dict) -> None:
         f"{report.get('skipped', 0)} unchanged, "
         f"{report.get('failed', 0)} failed"
     )
+    repipelined = sum(
+        1 for action in report.get("actions") or [] if action.get("reason") == "pipeline"
+    )
+    if repipelined:
+        print(f"Folder pipeline changed: {repipelined} file{'s' if repipelined != 1 else ''} reconverted")
     if report.get("needs_confirmation"):
         print(
             "Confirmation required before deleting that many archives. "
@@ -742,6 +759,41 @@ def cmd_library_sync(args) -> int:
     except (LibraryNotFoundError, LibraryBusyError, NotADirectoryError, ValueError, OSError) as exc:
         return _library_error(args, exc)
     return _library_exit(args, report)
+
+
+def cmd_library_pipeline(args) -> int:
+    options = _pipeline_options_from_args(args)
+    try:
+        if args.clear and (args.parser or options):
+            raise ValueError("--clear cannot be combined with --parser or --pipeline-option")
+        if args.clear or args.parser:
+            report = set_folder_pipeline(
+                args.directory,
+                folder=args.folder,
+                parser=args.parser,
+                pipeline_options=options or None,
+                clear=args.clear,
+            )
+        elif options or args.folder is not None:
+            raise ValueError("Pass --parser to set a folder rule, or --clear to remove one")
+        else:
+            report = library_pipelines(args.directory)
+    except (LibraryNotFoundError, NotADirectoryError, ValueError, OSError) as exc:
+        return _library_error(args, exc)
+    if args.json:
+        print(json.dumps(report))
+        return 0
+    print(f"Library: {report['directory']}")
+    print(f"Default: {report['parser'] or 'by file extension'}")
+    if not report["rules"]:
+        print("Folder rules: none")
+    for rule in report["rules"]:
+        options_text = " ".join(f"{key}={value}" for key, value in rule["pipeline_options"].items())
+        folder = rule["folder"] or "(whole library)"
+        print(f"{folder}: {rule['parser']}{'  ' + options_text if options_text else ''}")
+    if args.clear or args.parser:
+        print("Run 'vera library sync' to reconvert files whose pipeline changed.")
+    return 0
 
 
 def cmd_library_status(args) -> int:

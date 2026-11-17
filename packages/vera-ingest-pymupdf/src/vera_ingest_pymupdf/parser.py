@@ -26,10 +26,21 @@ _TABLE_SETTINGS = {
     "horizontal_strategy": "lines",
 }
 _OCR_MODES = {"auto", "off", "force"}
+_OCR_DRAWN_TEXT_MODES = {"auto", "off"}
 # Native alphanumeric characters below this count on a large-image page are
 # treated as headers / Bates stamps / letterhead, not a searchable text page.
 _OCR_SPARSE_NATIVE_CHARACTERS = 200
 _OCR_IMAGE_COVERAGE_THRESHOLD = 0.5
+# Drawn-text pages (CAD lettering stored as vectors, or a collage of images)
+# are sparse for their area. 200 alnum characters per million square points is
+# about 670 characters on a 36×24 inch sheet and about 100 on a letter page.
+_OCR_DRAWN_TEXT_MAX_DENSITY = 200 / 1_000_000
+_OCR_DRAWN_TEXT_MIN_PATHS = 2000
+# Summed image area, so several pasted details can qualify without one image
+# covering half the sheet.
+_OCR_DRAWN_TEXT_MIN_IMAGE_COVERAGE = 0.30
+# Drop an OCR block when this fraction of its area already has native text.
+_OCR_TEXT_OVERLAP = 0.5
 
 
 def _open_fitz():
@@ -78,6 +89,90 @@ def _bbox_coverage(
     return min(1.0, (width * height) / page_area)
 
 
+def _useful_characters(page_text: str) -> int:
+    return sum(character.isalnum() for character in page_text)
+
+
+def _summed_image_coverage(
+    layout: dict[str, Any], *, width: float, height: float
+) -> float:
+    """Return the summed area of embedded images as a fraction of the page."""
+    page_area = max(0.0, width) * max(0.0, height)
+    if page_area <= 0.0:
+        return 0.0
+    covered = 0.0
+    for block in layout.get("blocks", []):
+        if block.get("type") != 1:
+            continue
+        bbox = tuple(float(value) for value in block.get("bbox", (0, 0, 0, 0)))
+        covered += _bbox_coverage(bbox, page_width=width, page_height=height)
+    return min(1.0, covered)
+
+
+def _page_needs_drawn_text_ocr(
+    page_text: str,
+    *,
+    width: float,
+    height: float,
+    drawing_count: int,
+    image_coverage: float,
+) -> bool:
+    """Return whether a low-text vector or image-collage page should be OCR'd.
+
+    The character allowance scales with page area so a short title block on a
+    drawing sheet qualifies and a letter page of real prose does not.
+    """
+    area = max(0.0, width) * max(0.0, height)
+    if area <= 0.0:
+        return False
+    if _useful_characters(page_text) / area > _OCR_DRAWN_TEXT_MAX_DENSITY:
+        return False
+    if drawing_count >= _OCR_DRAWN_TEXT_MIN_PATHS:
+        return True
+    return image_coverage >= _OCR_DRAWN_TEXT_MIN_IMAGE_COVERAGE
+
+
+def _ocr_line_is_plausible(text: str) -> bool:
+    """Return whether an OCR line looks like words rather than traced linework.
+
+    Tesseract reads hatching and pipe lines as long letter-like strings
+    (``ESEEIEEOEKIESESE``). PyMuPDF does not expose a confidence score, so this
+    uses the shape of the text.
+    """
+    stripped = " ".join(text.split())
+    if not stripped:
+        return False
+    letters = [character for character in stripped if character.isalpha()]
+    digits = sum(character.isdigit() for character in stripped)
+    if not letters and digits == 0:
+        return False
+    run = 1
+    longest_run = 1
+    for previous, current in zip(stripped, stripped[1:]):
+        if previous.isalpha() and current.isalpha() and previous.lower() == current.lower():
+            run += 1
+            longest_run = max(longest_run, run)
+        else:
+            run = 1
+    if longest_run >= 4:
+        return False
+    if (
+        len(letters) >= 4
+        and digits == 0
+        and not any(character.lower() in "aeiouy" for character in letters)
+    ):
+        return False
+    if len(letters) >= 8:
+        if len({character.lower() for character in letters}) <= 3:
+            return False
+        vowels = sum(character.lower() in "aeiou" for character in letters) / len(letters)
+        if vowels > 0.70 or vowels < 0.15:
+            return False
+        if " " not in stripped and len(letters) >= 14:
+            return False
+    return True
+
+
 def _page_needs_ocr(page_text: str, layout: dict[str, Any], *, width: float, height: float) -> bool:
     has_large_image = any(
         block.get("type") == 1
@@ -92,7 +187,7 @@ def _page_needs_ocr(page_text: str, layout: dict[str, Any], *, width: float, hei
     if not has_large_image:
         # Do not send genuinely blank (or native-text) pages through OCR.
         return False
-    useful_characters = sum(character.isalnum() for character in page_text)
+    useful_characters = _useful_characters(page_text)
     # A scanned page often still has a native header, Bates stamp, or
     # letterhead. Those crumbs must not disable OCR of the image body.
     return useful_characters < _OCR_SPARSE_NATIVE_CHARACTERS
@@ -151,6 +246,143 @@ def _span_is_bold(span: dict) -> bool:
     return bool(span.get("flags", 0) & 16)
 
 
+def _text_blocks_from_layout(
+    page_number: int,
+    layout: dict[str, Any],
+    size_weights: Counter,
+    *,
+    ocr: bool,
+    drop_linework: bool,
+) -> list[_RawBlock]:
+    """Turn a PyMuPDF ``dict`` text layout into raw text blocks.
+
+    ``drop_linework`` removes lines that look like traced linework. It is used
+    for OCR of drawing sheets only; scanned pages keep every line.
+    """
+    blocks: list[_RawBlock] = []
+    for block in layout.get("blocks", []):
+        if block.get("type") == 1:
+            continue
+        bbox = tuple(float(value) for value in block.get("bbox", (0, 0, 0, 0)))
+        lines = block.get("lines", [])
+        block_sizes: Counter = Counter()
+        texts: list[str] = []
+        bold_chars = 0
+        total_chars = 0
+        rotated_lines = 0
+        for line in lines:
+            direction = line.get("dir", (1.0, 0.0))
+            if abs(float(direction[0])) < 0.99:
+                rotated_lines += 1
+            line_parts: list[str] = []
+            line_sizes: Counter = Counter()
+            line_bold = 0
+            line_chars = 0
+            prev_x1: float | None = None
+            for span in line.get("spans", []):
+                text = span.get("text", "")
+                stripped = text.strip()
+                if not stripped:
+                    continue
+                span_bbox = span.get("bbox") or (0.0, 0.0, 0.0, 0.0)
+                span_x0 = float(span_bbox[0])
+                span_x1 = float(span_bbox[2])
+                span_size = float(span.get("size", 0.0)) or 0.0
+                # PyMuPDF often emits each word of justified text as its own
+                # span with no trailing space, which would glue words together
+                # ("elementsshallbeinstalled"). Insert a space when the visual
+                # gap to the previous span looks like a word boundary.
+                if line_parts and prev_x1 is not None:
+                    gap = span_x0 - prev_x1
+                    prev_ends_space = line_parts[-1][-1:].isspace()
+                    starts_space = text[:1].isspace()
+                    if (
+                        not prev_ends_space
+                        and not starts_space
+                        and gap > max(1.0, 0.2 * span_size)
+                    ):
+                        line_parts.append(" ")
+                line_parts.append(text)
+                prev_x1 = span_x1
+                size = round(span_size, 1)
+                line_sizes[size] += len(stripped)
+                line_chars += len(stripped)
+                if _span_is_bold(span):
+                    line_bold += len(stripped)
+            if not line_parts:
+                continue
+            line_text = "".join(line_parts).strip()
+            if not line_text:
+                continue
+            if drop_linework and not _ocr_line_is_plausible(line_text):
+                continue
+            texts.append(line_text)
+            block_sizes.update(line_sizes)
+            size_weights.update(line_sizes)
+            total_chars += line_chars
+            bold_chars += line_bold
+        text = "\n".join(texts).strip()
+        if not text:
+            continue
+        dominant = block_sizes.most_common(1)[0][0] if block_sizes else 0.0
+        bold = total_chars > 0 and bold_chars / total_chars > 0.8
+        rotated = len(lines) > 0 and rotated_lines == len(lines)
+        blocks.append(
+            _RawBlock(
+                page_number,
+                text,
+                bbox,
+                dominant,
+                bold,
+                len(texts),
+                rotated=rotated,
+                ocr=ocr,
+            )
+        )
+    return blocks
+
+
+def _image_blocks_from_layout(page_number: int, layout: dict[str, Any]) -> list[_RawBlock]:
+    images: list[_RawBlock] = []
+    for block in layout.get("blocks", []):
+        if block.get("type") != 1:
+            continue
+        bbox = tuple(float(value) for value in block.get("bbox", (0, 0, 0, 0)))
+        images.append(
+            _RawBlock(
+                page_number,
+                "",
+                bbox,
+                0.0,
+                False,
+                0,
+                block.get("image"),
+                block.get("ext", "png"),
+            )
+        )
+    return images
+
+
+def _without_native_overlap(ocr_blocks: list[_RawBlock], native_blocks: list[_RawBlock]) -> list[_RawBlock]:
+    """Keep OCR blocks that sit outside native text."""
+    native_boxes = [block.bbox for block in native_blocks if block.text]
+    kept: list[_RawBlock] = []
+    for block in ocr_blocks:
+        if any(
+            _overlap_fraction(block.bbox, native_box) >= _OCR_TEXT_OVERLAP
+            for native_box in native_boxes
+        ):
+            continue
+        kept.append(block)
+    return kept
+
+
+def _joined_text(native_text: str, extra_blocks: list[_RawBlock]) -> str:
+    parts = [native_text.strip()]
+    parts.extend(block.text.strip() for block in extra_blocks if block.text.strip())
+    return "\n".join(part for part in parts if part)
+
+
 def _collect_raw_blocks(
     doc,
     *,
@@ -158,27 +390,58 @@ def _collect_raw_blocks(
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
     ocr_download: bool = False,
+    ocr_drawn_text: str = "off",
     cancel: Any | None = None,
-) -> tuple[list[ParsedPage], list[_RawBlock], Counter, list[int]]:
+) -> tuple[list[ParsedPage], list[_RawBlock], Counter, list[int], list[int]]:
     pages: list[ParsedPage] = []
     raw: list[_RawBlock] = []
     size_weights: Counter = Counter()
     ocr_pages: list[int] = []
+    drawn_text_pages: list[int] = []
     for idx, page in enumerate(doc, start=1):
         raise_if_cancelled(cancel)
-        page_raw: list[_RawBlock] = []
         try:
+            # CAD sheets are often stored portrait with a rotation flag.
+            # PyMuPDF then reports text in the unrotated box, which clips OCR
+            # and stores highlights outside the visible page. Rewriting the
+            # page in memory puts text, images, and OCR in the space the
+            # viewer already displays. The source file is not saved.
+            if page.rotation:
+                page.remove_rotation()
             rect = page.rect
             width = float(rect.width)
             height = float(rect.height)
             native_text = page.get_text("text") or ""
             native_layout = page.get_text("dict")
-            use_ocr = ocr_mode == "force" or (
+            # Forced OCR and scanned pages replace the page text with what
+            # Tesseract read. Drawn-text pages keep their text layer instead.
+            replace_with_ocr = ocr_mode == "force" or (
                 ocr_mode == "auto"
                 and _page_needs_ocr(native_text, native_layout, width=width, height=height)
             )
+            drawn_ocr = False
+            if (
+                ocr_mode == "auto"
+                and ocr_drawn_text != "off"
+                and not replace_with_ocr
+                and _useful_characters(native_text) / max(width * height, 1.0)
+                <= _OCR_DRAWN_TEXT_MAX_DENSITY
+            ):
+                drawing_count = len(page.get_cdrawings())
+                drawn_ocr = _page_needs_drawn_text_ocr(
+                    native_text,
+                    width=width,
+                    height=height,
+                    drawing_count=drawing_count,
+                    image_coverage=_summed_image_coverage(
+                        native_layout, width=width, height=height
+                    ),
+                )
+            use_ocr = replace_with_ocr or drawn_ocr
+            ocr_text = ""
+            ocr_layout: dict[str, Any] | None = None
             if use_ocr:
-                page_text, text_layout = _ocr_page_content(
+                ocr_text, ocr_layout = _ocr_page_content(
                     page,
                     language=ocr_language,
                     dpi=ocr_dpi,
@@ -188,95 +451,44 @@ def _collect_raw_blocks(
                 # middle of this call. Honor stop/skip as soon as it returns.
                 raise_if_cancelled(cancel)
                 ocr_pages.append(idx)
-            else:
-                page_text = native_text
-                text_layout = native_layout
+                if drawn_ocr:
+                    drawn_text_pages.append(idx)
         except Exception:
             # Closing the document from another thread (stop/skip) surfaces here.
             raise_if_cancelled(cancel)
             raise
-        pages.append(ParsedPage(idx, width, height, page_text.strip()))
 
         # Always source images from the native PDF layout. OCR TextPage output
         # contains recognized text and coordinates, but not the original image bytes.
-        for block in native_layout.get("blocks", []):
-            bbox = tuple(float(v) for v in block.get("bbox", (0, 0, 0, 0)))
-            if block.get("type") == 1:
-                page_raw.append(
-                    _RawBlock(
-                        idx, "", bbox, 0.0, False, 0, block.get("image"), block.get("ext", "png")
-                    )
-                )
-        for block in text_layout.get("blocks", []):
-            if block.get("type") == 1:
-                continue
-            bbox = tuple(float(v) for v in block.get("bbox", (0, 0, 0, 0)))
-            lines = block.get("lines", [])
-            block_sizes: Counter = Counter()
-            texts: list[str] = []
-            bold_chars = 0
-            total_chars = 0
-            rotated_lines = 0
-            for line in lines:
-                direction = line.get("dir", (1.0, 0.0))
-                if abs(float(direction[0])) < 0.99:
-                    rotated_lines += 1
-                line_parts: list[str] = []
-                prev_x1: float | None = None
-                for span in line.get("spans", []):
-                    text = span.get("text", "")
-                    stripped = text.strip()
-                    if not stripped:
-                        continue
-                    span_bbox = span.get("bbox") or (0.0, 0.0, 0.0, 0.0)
-                    span_x0 = float(span_bbox[0])
-                    span_x1 = float(span_bbox[2])
-                    span_size = float(span.get("size", 0.0)) or 0.0
-                    # PyMuPDF often emits each word of justified text as its own
-                    # span with no trailing space, which would glue words together
-                    # ("elementsshallbeinstalled"). Insert a space when the visual
-                    # gap to the previous span looks like a word boundary.
-                    if line_parts and prev_x1 is not None:
-                        gap = span_x0 - prev_x1
-                        prev_ends_space = line_parts[-1][-1:].isspace()
-                        starts_space = text[:1].isspace()
-                        if (
-                            not prev_ends_space
-                            and not starts_space
-                            and gap > max(1.0, 0.2 * span_size)
-                        ):
-                            line_parts.append(" ")
-                    line_parts.append(text)
-                    prev_x1 = span_x1
-                    size = round(span_size, 1)
-                    block_sizes[size] += len(stripped)
-                    size_weights[size] += len(stripped)
-                    total_chars += len(stripped)
-                    if _span_is_bold(span):
-                        bold_chars += len(stripped)
-                if line_parts:
-                    texts.append("".join(line_parts).strip())
-            text = "\n".join(t for t in texts if t).strip()
-            if not text:
-                continue
-            dominant = block_sizes.most_common(1)[0][0] if block_sizes else 0.0
-            bold = total_chars > 0 and bold_chars / total_chars > 0.8
-            rotated = len(lines) > 0 and rotated_lines == len(lines)
-            page_raw.append(
-                _RawBlock(
-                    idx,
-                    text,
-                    bbox,
-                    dominant,
-                    bold,
-                    len(texts),
-                    rotated=rotated,
-                    ocr=use_ocr,
-                )
+        page_raw = _image_blocks_from_layout(idx, native_layout)
+        if replace_with_ocr:
+            assert ocr_layout is not None
+            text_blocks = _text_blocks_from_layout(
+                idx, ocr_layout, size_weights, ocr=True, drop_linework=False
             )
+            page_text = ocr_text
+        else:
+            text_blocks = _text_blocks_from_layout(
+                idx, native_layout, size_weights, ocr=False, drop_linework=False
+            )
+            page_text = native_text
+            if drawn_ocr:
+                assert ocr_layout is not None
+                # Keep the text layer and add only the words it lacks. Lines
+                # Tesseract traced from linework are dropped.
+                ocr_blocks = _without_native_overlap(
+                    _text_blocks_from_layout(
+                        idx, ocr_layout, size_weights, ocr=True, drop_linework=True
+                    ),
+                    text_blocks,
+                )
+                text_blocks.extend(ocr_blocks)
+                page_text = _joined_text(native_text, ocr_blocks)
+        page_raw.extend(text_blocks)
+        pages.append(ParsedPage(idx, width, height, page_text.strip()))
         page_raw.sort(key=lambda block: (block.bbox[1], block.bbox[0]))
         raw.extend(page_raw)
-    return pages, raw, size_weights, ocr_pages
+    return pages, raw, size_weights, ocr_pages, drawn_text_pages
 
 
 def parse_pdf_structured(
@@ -286,6 +498,7 @@ def parse_pdf_structured(
     ocr_language: str = "eng",
     ocr_dpi: int = 300,
     ocr_download: bool = False,
+    ocr_drawn_text: str = "off",
     diagnostics: dict[str, Any] | None = None,
     cancel: Any | None = None,
 ) -> tuple[list[ParsedPage], list[ParsedBlock]]:
@@ -293,9 +506,15 @@ def parse_pdf_structured(
 
     Detects headings via font size/weight relative to body text, keeps
     paragraphs as text blocks, and captures embedded images as image blocks.
+
+    ``ocr_drawn_text="auto"`` also OCRs low-text drawing sheets and adds the
+    words to the text layer. It is off unless the caller asks for it; the
+    ``pymupdf:plans`` pipeline does.
     """
     if ocr_mode not in _OCR_MODES:
         raise ValueError(f"ocr_mode must be one of {sorted(_OCR_MODES)}")
+    if ocr_drawn_text not in _OCR_DRAWN_TEXT_MODES:
+        raise ValueError(f"ocr_drawn_text must be one of {sorted(_OCR_DRAWN_TEXT_MODES)}")
     validate_ocr_language(ocr_language)
     if ocr_dpi <= 0:
         raise ValueError("ocr_dpi must be positive")
@@ -307,12 +526,13 @@ def parse_pdf_structured(
     try:
         if callable(register):
             register(doc)
-        pages, raw, size_weights, ocr_pages = _collect_raw_blocks(
+        pages, raw, size_weights, ocr_pages, drawn_text_pages = _collect_raw_blocks(
             doc,
             ocr_mode=ocr_mode,
             ocr_language=ocr_language,
             ocr_dpi=ocr_dpi,
             ocr_download=ocr_download,
+            ocr_drawn_text=ocr_drawn_text,
             cancel=cancel,
         )
     except Exception:
@@ -336,6 +556,8 @@ def parse_pdf_structured(
                 "ocr_language": ocr_language,
                 "ocr_dpi": ocr_dpi,
                 "ocr_pages": ocr_pages,
+                "ocr_drawn_text": ocr_drawn_text,
+                "ocr_drawn_text_pages": drawn_text_pages,
             }
         )
 

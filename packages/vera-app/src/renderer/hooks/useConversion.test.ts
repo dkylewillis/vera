@@ -214,7 +214,7 @@ describe('createConversionController', () => {
     expect(Object.keys(updater({}))).toEqual(['pymupdf']);
   });
 
-  it('reconvert writes to the clicked archive instead of source.with_suffix(.vera)', async () => {
+  it('reconvert writes to the clicked archive instead of Report.pdf.vera', async () => {
     const request = vi.fn(async (payload: Record<string, unknown>) => {
       if (payload.action === 'convert') {
         return { ok: true, result: { output: payload.output } };
@@ -388,6 +388,8 @@ describe('createConversionController', () => {
         skipped_existing: [],
         skipped_by_user: [],
         malformed_existing: [],
+        renamed: 0,
+        renamed_existing: [],
         errors: [],
         ...overrides,
       };

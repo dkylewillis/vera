@@ -64,6 +64,9 @@ class PipelineDescriptor:
     capabilities: PipelineCapabilities = field(default_factory=PipelineCapabilities)
     fields: tuple[PipelineField, ...] = ()
     notes: tuple[str, ...] = ()
+    # Other variants this provider accepts as ``provider:variant``. Set on the
+    # default variant's descriptor so clients can list them.
+    variants: tuple[str, ...] = ()
 
     def field_keys(self) -> set[str]:
         return {item.key for item in self.fields}

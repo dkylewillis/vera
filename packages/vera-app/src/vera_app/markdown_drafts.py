@@ -11,6 +11,13 @@ from vera_app.citations import CitationRegistry
 
 _CITATION_RE = re.compile(r"\[([CA]\d+)\]")
 _UNSAFE = re.compile(r"[^A-Za-z0-9._ -]+")
+# Lone UTF-16 surrogates show up in extracted PDF text. UTF-8 cannot store them.
+_SURROGATE_RE = re.compile(r"[\ud800-\udfff]")
+
+
+def _utf8_text(value: str) -> str:
+    """Replace unpaired surrogates so the draft can be written as UTF-8."""
+    return _SURROGATE_RE.sub("\ufffd", value or "")
 
 
 def _yaml_quote(value: str) -> str:
@@ -93,7 +100,7 @@ def write_draft(drafts_dir: str, session_id: str, filename: str, text: str) -> d
             version += 1
     if root not in target.parents:
         raise ValueError("Draft path escaped the drafts folder.")
-    target.write_text(text, encoding="utf-8")
+    target.write_text(_utf8_text(text), encoding="utf-8")
     return {"path": str(target), "filename": target.name, "version": version}
 
 

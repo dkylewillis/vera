@@ -131,7 +131,11 @@ Each pipeline owns typed defaults and validation. Advertised integer
 `minimum`/`maximum` bounds are enforced (`chunk_size` 100–3000; hashing
 `dimension` 8–4096). PyMuPDF defaults:
 `chunk_size=500` whitespace-split words, `overlap=75` words, `ocr_mode=auto`,
-`ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false`. Markdown defaults:
+`ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false`. `--parser pymupdf:plans`
+(construction drawing sets; never chosen by extension) adds
+`ocr_drawn_text=auto` (`off` skips it): low-text drawing sheets are OCR'd and
+the words added to the text layer, and heading text such as a detail title is
+kept in chunk `text`. Plain `pymupdf` rejects `ocr_drawn_text`. Markdown defaults:
 `chunk_size=500` words, `overlap=75` words (OCR keys are ignored so a mixed
 PDF+Markdown directory convert can reuse one `pipeline_options` bag). Docling defaults:
 `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`,
@@ -139,8 +143,10 @@ PDF+Markdown directory convert can reuse one `pipeline_options` bag). Docling de
 (no overlap/DPI/download fields; auto page recovery / `pypdfium2` fallback on
 memory errors, then page-batch `pypdfium2` if the whole-document convert raises).
 
-For a single PDF, omitted `OUTPUT` defaults to the input basename with a
-`.vera` suffix. Conversion writes and validates a temporary sibling before
+For a single file, omitted `OUTPUT` defaults to `<filename>.vera`
+(`manual.pdf` becomes `manual.pdf.vera`). An older `manual.vera` that belongs
+to that file is renamed onto the new path first. An explicit output path is
+unchanged. Conversion writes and validates a temporary sibling before
 atomically replacing the output. A failure preserves an existing destination
 and removes the temporary file. OCR uses the `vera-ingest-pymupdf` package
 (PyMuPDF's local Tesseract integration with bundled English language data).
@@ -158,7 +164,7 @@ Single-file JSON:
 ```json
 {
   "ok": true,
-  "output": "C:/docs/manual.vera"
+  "output": "C:/docs/manual.pdf.vera"
 }
 ```
 
@@ -190,14 +196,22 @@ Directory JSON:
   "user_skipped": 0,
   "malformed": 1,
   "failed": 0,
-  "outputs": ["C:/docs/a.vera", "C:/docs/nested/b.vera"],
-  "skipped_existing": ["C:/docs/c.vera"],
+  "renamed": 1,
+  "outputs": ["C:/docs/a.pdf.vera", "C:/docs/nested/b.md.vera"],
+  "skipped_existing": ["C:/docs/c.pdf.vera"],
   "skipped_by_user": [],
   "malformed_existing": [
     {
       "input": "C:/docs/d.pdf",
-      "output": "C:/docs/d.vera",
+      "output": "C:/docs/d.pdf.vera",
       "issues": ["Missing required table: vera_metadata"]
+    }
+  ],
+  "renamed_existing": [
+    {
+      "input": "C:/docs/e.pdf",
+      "from": "C:/docs/e.vera",
+      "to": "C:/docs/e.pdf.vera"
     }
   ],
   "errors": [],
@@ -212,9 +226,10 @@ the archive stored them.
 Existing outputs are validated: only valid archives whose stored
 `source_file_hash` matches the current source file appear in `skipped_existing`.
 Changed sources and archives with a missing or unreadable hash are reconverted.
-Same-stem sources that would write the same `.vera` path are reported in
-`errors` instead of overwriting each other. Invalid archives appear in
-`malformed_existing`.
+An older stem archive that belongs to the source is renamed onto
+`<filename>.vera` and listed in `renamed_existing` (`input`, `from`, `to`)
+before that skip check. `manual.pdf` and `manual.md` each get their own
+archive. Invalid archives appear in `malformed_existing`.
 `skipped_by_user` / `user_skipped` are reserved for interactive skip
 requests (desktop app); CLI runs leave them empty. Each error entry has
 `input` and `error`. `warnings` lists files that converted with content
@@ -271,7 +286,9 @@ Summary counts, embedding dimensions, attachment counts, and
 
 `ocr` is the pipeline `diagnostics` dict (historical key). Text-mode inspect
 omits it. PyMuPDF writes `ocr_engine`, `ocr_mode`, `ocr_language`, `ocr_dpi`,
-and `ocr_pages` (1-based pages that ran Tesseract). Docling writes `engine`
+`ocr_pages` (1-based pages that ran Tesseract). `pymupdf:plans` archives add
+`ocr_drawn_text` and `ocr_drawn_text_pages` (the drawing-sheet subset).
+Docling writes `engine`
 (`docling`), `source_format`, `recovered_pages`, and optionally
 `pdf_backend`, `recovered_pages_backend`, `whole_document_fallback_backend`,
 and `whole_document_fallback_strategy` (`document` or `batched`). Markdown writes `ocr: {}`.
@@ -636,8 +653,9 @@ Options: `--adopt`, `--model`, `--parser`, `--pipeline-option`,
 
 Creates a hidden `.vera/` folder with `library.json`, `README.txt`,
 `archives/`, and `index/`. Refuses to run inside an existing library.
-`--adopt` moves sibling `.vera` files whose stored `source_file_hash` matches
-the source into `.vera/archives/`. Convert settings in `library.json` are what
+`--adopt` moves sibling archives whose stored `source_file_hash` matches
+the source into `.vera/archives/`, including `file.pdf.vera` and an older
+`file.vera`. Convert settings in `library.json` are what
 later syncs use. Exit 0 on success. Exit 1 for an existing or nested library.
 
 ### `vera library sync DIRECTORY`
@@ -652,13 +670,41 @@ files are missing, the report sets `needs_confirmation` and nothing is
 trashed until `--confirm-deletes`. `--reconvert` rebuilds archives whose
 sources are unchanged. Exit 1 when `failed` is non-zero.
 
+### `vera library pipeline DIRECTORY`
+
+Options: `--folder`, `--parser`, `--pipeline-option`, `--clear`, `--json`.
+
+Lists, sets, or clears the folder pipeline rules stored in
+`.vera/library.json` under `convert.pipeline_rules`. Without `--parser` or
+`--clear` it only lists. The JSON is
+`{ok, directory, parser, pipeline_options, rules}`; each rule has `folder`,
+`parser`, and `pipeline_options`. Setting or clearing a rule adds `folder`.
+
+`--folder` is relative to the library root (`""` or omitted means the whole
+library). `*` and `?` match within one folder name. The deepest matching rule
+wins, and a later rule wins a tie. A rule only changes the formats its
+pipeline reads: `pymupdf:plans` affects PDFs, not Markdown or Office files.
+Setting a rule replaces the folder's rules that read any of the same formats.
+`--clear` removes all of that folder's rules.
+Files no rule covers use the library `parser`, or else the default for their
+extension. Rule options merge over the library `pipeline_options`.
+
+The command writes only `library.json`. The next `vera library sync`
+reconverts the files whose pipeline changed (`"reason": "pipeline"`).
+Exit 1 for an unknown pipeline, a folder outside the library or inside
+`.vera/`, `--clear` combined with `--parser`, or an unmanaged folder.
+
 ### `vera library status DIRECTORY`
 
 Options: `--json`.
 
 Dry-run report for a managed library: pending conversions, moves, and trash.
 Does not take the sync lock and does not convert. An unmanaged folder reports
-`managed: false` and any adoptable sibling archives.
+`managed: false` and any adoptable sibling archives. A managed library's
+report includes `pipeline_rules`. Each convert action has a `parser`: the
+pipeline spec sync will use, or `null` for the default for the file's
+extension. A convert caused by a folder pipeline change has
+`"reason": "pipeline"`.
 
 ### `vera library trash list DIRECTORY`
 

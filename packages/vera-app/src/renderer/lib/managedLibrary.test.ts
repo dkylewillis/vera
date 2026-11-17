@@ -69,4 +69,17 @@ describe('prepareManagedLibrary', () => {
     }));
     expect(skipped?.inside_library).toBe(true);
   });
+
+  it('stores the chosen PDF pipeline as a whole-library folder rule', async () => {
+    const inits: Record<string, unknown>[] = [];
+    const request = async <T>(payload: Record<string, unknown>): Promise<VeraResponse<T>> => {
+      if (payload.action === 'library_status') return { ok: true, result: { managed: false } as T };
+      inits.push(payload);
+      return { ok: true, result: { library_id: 'abc' } as T };
+    };
+    await prepareManagedLibrary('C:\\plans', request, { askPdfPipeline: async () => 'pymupdf:plans' });
+    await prepareManagedLibrary('C:\\docs', request, { askPdfPipeline: async () => null });
+    expect(inits[0].pipeline_rules).toEqual([{ folder: '', parser: 'pymupdf:plans' }]);
+    expect(inits[1]).not.toHaveProperty('pipeline_rules');
+  });
 });

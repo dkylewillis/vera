@@ -19,9 +19,11 @@ from vera_ingest.library import (
     LibraryUnreachableError,
     NestedLibraryError,
     init_library,
+    library_pipelines,
     library_status,
     list_trash,
     restore_from_trash,
+    set_folder_pipeline,
     sync_library,
 )
 
@@ -32,6 +34,29 @@ OTHER = "# Sight distance\n\nRequired stopping sight distance is one hundred met
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+
+
+def test_adopt_accepts_extension_keeping_and_legacy_siblings(tmp_path: Path):
+    from vera_ingest import convert
+
+    plans = tmp_path / "Plans"
+    current = plans / "Current.md"
+    legacy = plans / "Legacy.md"
+    _write(current, NOTE)
+    _write(legacy, OTHER)
+    convert(str(current), str(plans / "Current.md.vera"), model="hashing")
+    convert(str(legacy), str(plans / "Legacy.vera"), model="hashing")
+
+    status = library_status(str(tmp_path))
+    assert set(status["adoptable"]) == {"Plans/Current.md", "Plans/Legacy.md"}
+
+    created = init_library(str(tmp_path), adopt=True, model="hashing")
+    assert created["ok"]
+    archives = tmp_path / ".vera" / "archives" / "Plans"
+    assert (archives / "Current.md.vera").is_file()
+    assert (archives / "Legacy.md.vera").is_file()
+    assert not (plans / "Current.md.vera").exists()
+    assert not (plans / "Legacy.vera").exists()
 
 
 def test_init_adopt_sync_and_source_path_search(tmp_path: Path):
@@ -269,3 +294,169 @@ def test_plain_recursive_search_skips_trash(tmp_path: Path):
     found = [path.name for path in discover_vera_files(tmp_path, recursive=True)]
     assert found == []
     assert list_trash(str(tmp_path))["entries"]
+
+
+def _parser_name(root: Path, source_rel: str) -> str:
+    from vera_doc import VeraDocument
+
+    archive = root / LIBRARY_DIRECTORY / "archives" / f"{source_rel}.vera"
+    with VeraDocument.open(str(archive)) as document:
+        return document.inspect()["parser_name"]
+
+
+def _mixed_library(root: Path) -> None:
+    from helpers.pdfs import make_topic_pdf
+
+    (root / "Plans").mkdir(parents=True)
+    (root / "Docs").mkdir(parents=True)
+    make_topic_pdf(root / "Plans" / "C701.pdf", "CONSTRUCTION DETAILS", "Doghouse manhole detail.")
+    make_topic_pdf(root / "Docs" / "Manual.pdf", "Stormwater Manual", "Detention is required.")
+    _write(root / "Plans" / "Notes.md", NOTE)
+
+
+def test_folder_rule_picks_the_pipeline_for_its_pdfs_only(tmp_path: Path):
+    _mixed_library(tmp_path)
+    init_library(str(tmp_path), model="hashing")
+    rules = set_folder_pipeline(str(tmp_path / "Plans"), parser="pymupdf:plans")
+    assert rules["folder"] == "Plans"
+    assert rules["rules"] == [{"folder": "Plans", "parser": "pymupdf:plans", "pipeline_options": {}}]
+
+    pending = library_status(str(tmp_path))
+    assert pending["pipeline_rules"] == rules["rules"]
+    parsers = {action["source"]: action.get("parser") for action in pending["actions"]}
+    assert parsers == {
+        "Plans/C701.pdf": "pymupdf:plans",
+        "Plans/Notes.md": None,
+        "Docs/Manual.pdf": None,
+    }
+
+    report = sync_library(str(tmp_path))
+    assert report["ok"], report["errors"]
+    assert report["converted"] == 3
+    assert _parser_name(tmp_path, "Plans/C701.pdf") == "pymupdf:plans"
+    assert _parser_name(tmp_path, "Plans/Notes.md") == "markdown"
+    assert _parser_name(tmp_path, "Docs/Manual.pdf") == "pymupdf"
+    assert read_state(tmp_path)["Plans/C701.pdf"]["pipeline"] == "pymupdf:plans"
+    assert read_state(tmp_path)["Docs/Manual.pdf"]["pipeline"] == ""
+    assert sync_library(str(tmp_path))["converted"] == 0
+
+
+def test_changing_a_rule_reconverts_only_the_files_it_affects(tmp_path: Path):
+    _mixed_library(tmp_path)
+    init_library(str(tmp_path), model="hashing")
+    set_folder_pipeline(str(tmp_path), folder="Plans", parser="pymupdf:plans")
+    sync_library(str(tmp_path))
+
+    cleared = set_folder_pipeline(str(tmp_path), folder="Plans", clear=True)
+    assert cleared["rules"] == []
+    pending = library_status(str(tmp_path))
+    converts = [action for action in pending["actions"] if action["action"] == "convert"]
+    assert converts == [
+        {
+            "action": "convert",
+            "source": "Plans/C701.pdf",
+            "size": converts[0]["size"],
+            "mtime_ns": converts[0]["mtime_ns"],
+            "hash": converts[0]["hash"],
+            "reason": "pipeline",
+            "parser": None,
+        }
+    ]
+    report = sync_library(str(tmp_path))
+    assert report["converted"] == 1
+    assert _parser_name(tmp_path, "Plans/C701.pdf") == "pymupdf"
+
+
+def test_moving_a_pdf_into_a_plans_folder_reconverts_it(tmp_path: Path):
+    _mixed_library(tmp_path)
+    init_library(str(tmp_path), model="hashing")
+    set_folder_pipeline(str(tmp_path / "Plans"), parser="pymupdf:plans")
+    sync_library(str(tmp_path))
+
+    (tmp_path / "Docs" / "Manual.pdf").rename(tmp_path / "Plans" / "Manual.pdf")
+    report = sync_library(str(tmp_path))
+    assert report["ok"], report["errors"]
+    assert report["moved"] == 0
+    assert report["converted"] == 1
+    assert report["trashed"] == 1
+    assert _parser_name(tmp_path, "Plans/Manual.pdf") == "pymupdf:plans"
+
+
+def test_rule_added_before_state_recorded_pipelines_checks_the_archive(tmp_path: Path):
+    from vera_doc.library import write_state
+
+    _mixed_library(tmp_path)
+    init_library(str(tmp_path), model="hashing")
+    sync_library(str(tmp_path))
+    legacy_state = {
+        source: {key: value for key, value in entry.items() if key != "pipeline"}
+        for source, entry in read_state(tmp_path).items()
+    }
+    write_state(tmp_path, legacy_state)
+
+    set_folder_pipeline(str(tmp_path), parser="pymupdf:plans")
+    report = sync_library(str(tmp_path))
+    assert report["converted"] == 2
+    assert _parser_name(tmp_path, "Docs/Manual.pdf") == "pymupdf:plans"
+    assert _parser_name(tmp_path, "Plans/Notes.md") == "markdown"
+
+
+def test_deepest_matching_rule_wins_and_wildcards_match_one_folder():
+    from vera_ingest.library import _PipelineResolver
+
+    resolver = _PipelineResolver(
+        {
+            "convert": {
+                "pipeline_options": {"chunk_size": 400},
+                "pipeline_rules": [
+                    {"folder": "", "parser": "pymupdf:plans"},
+                    {
+                        "folder": "Projects/*/Reports",
+                        "parser": "pymupdf",
+                        "pipeline_options": {"ocr_mode": "off"},
+                    },
+                ],
+            }
+        }
+    )
+    assert resolver.resolve("Sheet.pdf") == ("pymupdf:plans", {"chunk_size": 400})
+    assert resolver.resolve("Projects/Lagrange/Reports/Study.pdf") == (
+        "pymupdf",
+        {"chunk_size": 400, "ocr_mode": "off"},
+    )
+    assert resolver.resolve("projects/lagrange/reports/deep/Study.pdf")[0] == "pymupdf"
+    assert resolver.resolve("Projects/A/B/Reports/Study.pdf")[0] == "pymupdf:plans"
+    assert resolver.resolve("Projects/Lagrange/Reports/Notes.md") == (None, {"chunk_size": 400})
+
+
+def test_folder_rules_are_validated(tmp_path: Path):
+    init_library(str(tmp_path), model="hashing")
+    with pytest.raises(ValueError, match="Unknown ingest pipeline"):
+        set_folder_pipeline(str(tmp_path), folder="Plans", parser="blueprints")
+    with pytest.raises(ValueError, match="needs a parser"):
+        set_folder_pipeline(str(tmp_path), folder="Plans")
+    with pytest.raises(ValueError, match="inside the library"):
+        set_folder_pipeline(str(tmp_path), folder="../Elsewhere", parser="pymupdf:plans")
+    with pytest.raises(ValueError, match="managed by VERA"):
+        set_folder_pipeline(str(tmp_path), folder=".vera/archives", parser="pymupdf:plans")
+    assert library_pipelines(str(tmp_path))["rules"] == []
+
+
+def test_a_folder_keeps_one_rule_per_file_type(tmp_path: Path):
+    init_library(str(tmp_path), model="hashing")
+    set_folder_pipeline(str(tmp_path), folder="Plans", parser="markdown")
+    set_folder_pipeline(str(tmp_path), folder="Plans", parser="pymupdf:plans")
+
+    def rules():
+        return [(rule["folder"], rule["parser"]) for rule in library_pipelines(str(tmp_path))["rules"]]
+
+    assert rules() == [("Plans", "markdown"), ("Plans", "pymupdf:plans")]
+
+    set_folder_pipeline(str(tmp_path), folder="Plans", parser="pymupdf")
+    assert rules() == [("Plans", "markdown"), ("Plans", "pymupdf")]
+
+    set_folder_pipeline(str(tmp_path), folder="Plans", clear=True, source_format="pdf")
+    assert rules() == [("Plans", "markdown")]
+
+    set_folder_pipeline(str(tmp_path), folder="Plans", clear=True)
+    assert rules() == []

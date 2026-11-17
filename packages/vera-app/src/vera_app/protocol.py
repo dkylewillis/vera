@@ -34,6 +34,8 @@ SIDECAR_ACTIONS = (
     "library_status",
     "library_trash_list",
     "library_restore",
+    "library_pipelines",
+    "library_set_pipeline",
     "cancel",
     "skip",
 )

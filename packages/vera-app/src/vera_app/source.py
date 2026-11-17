@@ -14,6 +14,7 @@ from vera_app.documents import open_document
 from vera_app.markdown_html import ensure_markdown_html
 from vera_app.types import Request
 from vera_doc import VeraDocument
+from vera_ingest.formats import source_mime_type
 from vera_ingest.viewer import export_source_document, get_source_document, get_viewer_preview
 
 _SOURCE_COPY_CHUNK = 8 * 1024 * 1024
@@ -113,7 +114,19 @@ def copy_file_to_cache(
 
 
 def sibling_source_file(path: Path) -> tuple[Path, str] | None:
-    """Return a same-stem source file beside an archive, if one exists."""
+    """Return the source file beside an archive, if one exists.
+
+    ``Report.pdf.vera`` pairs with ``Report.pdf``. An older ``Report.vera``
+    pairs with ``Report.pdf`` or ``Report.md``.
+    """
+    name = path.name
+    if name.lower().endswith(".vera"):
+        remainder = name[: -len(".vera")]
+        if "." in remainder:
+            candidate = path.with_name(remainder)
+            if candidate.is_file() and candidate.resolve() != path.resolve():
+                return candidate, source_mime_type(candidate)
+            return None
     pdf = path.with_suffix(".pdf")
     if pdf.is_file() and pdf.resolve() != path.resolve():
         return pdf, "application/pdf"

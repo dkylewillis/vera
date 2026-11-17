@@ -256,7 +256,7 @@ def handle_describe_ingest_pipelines(request: Request) -> dict[str, Any]:
     return {
         "pipelines": [
             descriptor.as_dict()
-            for descriptor in list_ingest_pipeline_descriptors()
+            for descriptor in list_ingest_pipeline_descriptors(include_variants=True)
             if descriptor.provider not in _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS
         ],
     }

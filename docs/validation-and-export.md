@@ -36,7 +36,7 @@ key.
 
 | Pipeline | Always present | Conditional / notes |
 | --- | --- | --- |
-| PyMuPDF | `ocr_engine` (`tesseract`), `ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_pages` | `ocr_pages` is the 1-based list of pages that actually ran Tesseract. Empty means auto mode found no sparse image pages. |
+| PyMuPDF | `ocr_engine` (`tesseract`), `ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_pages` | `ocr_pages` is the 1-based list of pages that actually ran Tesseract. Empty means auto mode found none. `pymupdf:plans` archives also write `ocr_drawn_text` and `ocr_drawn_text_pages`, the subset OCR'd because the page was a low-text drawing sheet (vector lettering or a collage of images) rather than one full-page scan. |
 | Docling | `engine` (`docling`), `variant`, `source_format`, `ocr_mode`, `ocr_language`, `ocr_languages`, `images_scale`, `torch_compile`, `layout_engine`, `tableformer_mode`, `overlap_ignored`, `artifacts_path_env`, `recovered_pages` | `pdf_backend` only for PDFs. `recovered_pages_backend` maps page number strings to the backend that recovered that page. `whole_document_fallback_backend` / `whole_document_fallback_strategy` (`document` or `batched`) appear after a whole-document `pypdfium2` fallback. Office/HTML omit `pdf_backend` and stay at `recovered_pages: []`. |
 | Markdown | _(none — `ocr` is `{}`)_ | No OCR or page-recovery fields. |
 

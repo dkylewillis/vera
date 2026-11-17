@@ -305,7 +305,7 @@ export function ConvertPanel({
           <input type="checkbox" checked={storeOriginal} onChange={(event) => onStoreOriginalChange(event.target.checked)} />
           <span>Include a copy of the original file</span>
         </label>
-        <p className="sideMuted">Each .vera is saved next to its source with the same name. Files that are already converted are skipped unless you replace them.</p>
+        <p className="sideMuted">Each archive is saved next to its source, named after the full file (Report.pdf becomes Report.pdf.vera). Files that are already converted are skipped unless you replace them.</p>
         <label className="field">
           <span>Search model</span>
           <select
@@ -446,6 +446,7 @@ function ConvertResult({ result }: { result: BatchConvertResult }) {
     upToDate ? `${upToDate} already up to date` : '',
     result.user_skipped ? `${result.user_skipped} skipped by you` : '',
     warningCount ? `${warningCount} with warnings` : '',
+    result.renamed ? `${result.renamed} renamed` : '',
     result.failed ? `${result.failed} failed` : '',
     result.malformed ? `${result.malformed} damaged .vera file${result.malformed === 1 ? '' : 's'}` : '',
   ].filter(Boolean);
@@ -464,6 +465,12 @@ function ConvertResult({ result }: { result: BatchConvertResult }) {
       title: message,
       tone: 'muted' as const,
     }))),
+    ...(result.renamed_existing ?? []).map((entry) => ({
+      key: `renamed:${entry.from}`,
+      text: `${fileName(entry.from)} renamed to ${fileName(entry.to)}`,
+      title: `${entry.from} → ${entry.to}`,
+      tone: 'muted' as const,
+    })),
     ...(result.skipped_by_user || []).map((filePath) => ({ key: filePath, text: `${fileName(filePath)}: skipped`, title: filePath, tone: 'muted' as const })),
   ];
   return (
@@ -478,13 +485,13 @@ function ConvertResult({ result }: { result: BatchConvertResult }) {
         <details>
           <summary>Show details</summary>
           {details.map((entry) => (
-            <span
+            <div
               className={entry.tone === 'error' ? 'batchConvertError' : entry.tone === 'warning' ? 'batchConvertWarning' : 'batchConvertSkipped'}
               key={entry.key}
               title={entry.title}
             >
               {entry.text}
-            </span>
+            </div>
           ))}
         </details>
       ) : null}

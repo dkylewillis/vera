@@ -12,6 +12,7 @@ import os
 import shutil
 from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta, timezone
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -34,14 +35,16 @@ from vera_doc.library import (
     NestedLibraryError,
     archive_path_for,
     extended_path,
-    strip_extended_path,
     find_library_root,
     hide_directory,
     is_managed_library,
+    legacy_sibling_archive_path,
     library_dir,
     new_manifest,
     read_manifest,
     read_state,
+    sibling_archive_path,
+    strip_extended_path,
     sync_lock,
     write_manifest,
     write_state,
@@ -49,7 +52,14 @@ from vera_doc.library import (
 
 from .cancellation import raise_if_cancelled
 from .convert import _stored_source_file_hash, convert, read_ingest_notes, read_ingest_warnings
-from .formats import installed_source_formats, is_office_owner_file, source_suffix
+from .formats import (
+    installed_source_formats,
+    is_office_owner_file,
+    pick_parser_for_suffix,
+    pipeline_source_formats,
+    source_suffix,
+)
+from .pipeline import describe_ingest_pipeline, format_ingest_pipeline_spec, parse_ingest_pipeline_spec
 from .viewer import export_source_document
 
 TRASH_STAMP_FORMAT = "%Y%m%dT%H%M%S%fZ"
@@ -81,14 +91,171 @@ def _is_file(path: Path) -> bool:
 
 def _source_suffixes(parser: str | None) -> set[str]:
     if parser:
-        from .formats import pipeline_source_formats
-
         suffixes = set(pipeline_source_formats(parser))
     else:
         suffixes = set(installed_source_formats())
     if not suffixes:
         raise ValueError("No installed ingest pipeline advertises source formats to convert.")
     return suffixes
+
+
+def _convert_settings(manifest: Mapping[str, Any]) -> Mapping[str, Any]:
+    settings = manifest.get("convert")
+    return settings if isinstance(settings, dict) else {}
+
+
+def _rule_segments(folder: str) -> tuple[str, ...]:
+    return tuple(part for part in folder.replace("\\", "/").split("/") if part and part != ".")
+
+
+def normalize_rule_folder(root: Path, folder: str | None) -> str:
+    """Return ``folder`` as a library-relative POSIX path (``""`` is the root).
+
+    Accepts a path relative to the library or an absolute path inside it.
+    Segments may use ``*`` and ``?`` wildcards, matched per folder name.
+    """
+    text = (folder or "").strip()
+    if not text or text == ".":
+        return ""
+    candidate = Path(text).expanduser()
+    if candidate.is_absolute():
+        try:
+            text = candidate.resolve().relative_to(root.resolve()).as_posix()
+        except ValueError as exc:
+            raise ValueError(f"{folder} is not inside the library at {root}") from exc
+    parts = _rule_segments(text)
+    if any(part == ".." for part in parts):
+        raise ValueError(f"Folder must stay inside the library: {folder}")
+    if parts and parts[0].casefold() == LIBRARY_DIRECTORY:
+        raise ValueError(f"{LIBRARY_DIRECTORY}/ is managed by VERA and cannot have a pipeline rule")
+    return "/".join(parts)
+
+
+def _pipeline_rules(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rules = _convert_settings(manifest).get("pipeline_rules")
+    if not isinstance(rules, list):
+        return []
+    kept: list[dict[str, Any]] = []
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        parser = rule.get("parser")
+        folder = rule.get("folder", "")
+        if not isinstance(parser, str) or not parser.strip() or not isinstance(folder, str):
+            continue
+        options = rule.get("pipeline_options")
+        kept.append(
+            {
+                "folder": folder,
+                "parser": parser.strip(),
+                "pipeline_options": dict(options) if isinstance(options, dict) else {},
+            }
+        )
+    return kept
+
+
+def _canonical_spec(spec: str) -> str:
+    try:
+        return format_ingest_pipeline_spec(*parse_ingest_pipeline_spec(spec))
+    except Exception:
+        return spec.strip().lower()
+
+
+def _rule_formats(spec: str) -> tuple[str, ...]:
+    """Formats a rule's pipeline reads; empty when the pipeline is not installed."""
+    try:
+        return tuple(item.casefold() for item in pipeline_source_formats(spec))
+    except Exception:
+        return ()
+
+
+class _PipelineResolver:
+    """Pick each source file's pipeline from the library manifest.
+
+    The deepest folder rule whose pipeline reads the file's format wins;
+    a later rule wins a tie. Otherwise the library-wide ``parser`` applies,
+    and ``None`` means "choose from the extension".
+    """
+
+    def __init__(self, manifest: Mapping[str, Any]) -> None:
+        settings = _convert_settings(manifest)
+        parser = settings.get("parser")
+        self.parser = parser.strip() if isinstance(parser, str) and parser.strip() else None
+        options = settings.get("pipeline_options")
+        self.options = dict(options) if isinstance(options, dict) else {}
+        self.rules = _pipeline_rules(manifest)
+        self._formats: dict[str, tuple[str, ...] | None] = {}
+        self._defaults: dict[str, str] = {}
+
+    @property
+    def has_choices(self) -> bool:
+        return bool(self.rules or self.parser)
+
+    def _reads(self, spec: str, suffix: str) -> bool:
+        if spec not in self._formats:
+            try:
+                self._formats[spec] = pipeline_source_formats(spec)
+            except Exception:
+                # Unknown or broken pipeline: let convert report the error.
+                self._formats[spec] = None
+        formats = self._formats[spec]
+        return formats is None or suffix in formats
+
+    def resolve(self, source_rel: str) -> tuple[str | None, dict[str, Any]]:
+        suffix = source_suffix(source_rel)
+        parent = _rule_segments(source_rel)[:-1]
+        best: dict[str, Any] | None = None
+        best_depth = -1
+        for rule in self.rules:
+            segments = _rule_segments(rule["folder"])
+            if len(segments) > len(parent) or len(segments) < best_depth:
+                continue
+            if not all(
+                fnmatchcase(name.casefold(), pattern.casefold())
+                for name, pattern in zip(parent, segments)
+            ):
+                continue
+            if not self._reads(rule["parser"], suffix):
+                continue
+            best, best_depth = rule, len(segments)
+        if best is not None:
+            return best["parser"], {**self.options, **best["pipeline_options"]}
+        return self.parser, dict(self.options)
+
+    def key(self, spec: str | None, source_rel: str) -> str:
+        """Comparable pipeline identity; ``""`` is the extension default."""
+        if not spec:
+            return ""
+        suffix = source_suffix(source_rel)
+        if suffix not in self._defaults:
+            try:
+                self._defaults[suffix] = _canonical_spec(pick_parser_for_suffix(suffix))
+            except Exception:
+                self._defaults[suffix] = ""
+        canonical = _canonical_spec(spec)
+        return "" if canonical == self._defaults[suffix] else canonical
+
+    def wanted_key(self, source_rel: str) -> str:
+        return self.key(self.resolve(source_rel)[0], source_rel)
+
+    def suffixes(self) -> set[str]:
+        suffixes = _source_suffixes(self.parser)
+        for rule in self.rules:
+            formats = self._formats.get(rule["parser"])
+            if rule["parser"] not in self._formats:
+                self._reads(rule["parser"], "")
+                formats = self._formats[rule["parser"]]
+            suffixes.update(formats or ())
+        return suffixes
+
+
+def _stored_parser_name(path: Path) -> str | None:
+    try:
+        with VeraDocument.open(path) as document:
+            stored = document.inspect().get("parser_name")
+    except Exception:
+        return None
+    return stored if isinstance(stored, str) and stored.strip() else None
 
 
 def _walk_root(root: Path) -> str:
@@ -193,17 +360,23 @@ def init_library(
     pipeline_options: Mapping[str, Any] | None = None,
     embedder_options: Mapping[str, Any] | None = None,
     metadata: Mapping[str, Any] | None = None,
+    pipeline_rules: list[Mapping[str, Any]] | None = None,
     trash_retention_days: int = 30,
 ) -> dict[str, Any]:
     """Create ``.vera/`` for a folder of source documents.
 
     Refuses to create a library inside an existing one, or a library that
     would contain another. ``adopt`` moves sibling ``.vera`` files whose
-    stored source hash matches into ``.vera/archives/``.
+    stored source hash matches into ``.vera/archives/``. ``pipeline_rules``
+    are folder overrides; see :func:`set_folder_pipeline`.
     """
     root = Path(directory).expanduser().resolve()
     if not root.is_dir():
         raise NotADirectoryError(str(directory))
+    rules = [
+        _validated_rule(root, rule.get("folder"), rule.get("parser"), rule.get("pipeline_options"))
+        for rule in pipeline_rules or []
+    ]
     if is_managed_library(root):
         raise LibraryExistsError(f"This folder is already a VERA library: {root}")
     if root.parent != root:
@@ -225,6 +398,7 @@ def init_library(
         pipeline_options=pipeline_options,
         embedder_options=embedder_options,
         metadata=metadata,
+        pipeline_rules=rules,
         trash_retention_days=trash_retention_days,
     )
     vera_dir = library_dir(root)
@@ -238,7 +412,7 @@ def init_library(
     adopted: list[str] = []
     errors: list[dict[str, str]] = []
     if adopt:
-        adopted, errors = _adopt_siblings(root, _source_suffixes(parser))
+        adopted, errors = _adopt_siblings(root, _PipelineResolver(manifest).suffixes())
     return {
         "ok": not errors,
         "managed": True,
@@ -248,6 +422,25 @@ def init_library(
         "failed": len(errors),
         "errors": errors,
     }
+
+
+def _loose_sibling_candidate(source: Path) -> Path | None:
+    """Return the loose archive beside ``source``, preferring the current name.
+
+    ``Report.pdf.vera`` wins over an older ``Report.vera``. The older name is
+    used only when the current name is absent.
+    """
+    current = sibling_archive_path(source)
+    if current.is_file():
+        return current
+    legacy = legacy_sibling_archive_path(source)
+    try:
+        same_path = legacy.resolve() == current.resolve()
+    except OSError:
+        same_path = legacy == current
+    if not same_path and legacy.is_file():
+        return legacy
+    return None
 
 
 def _adopt_siblings(
@@ -261,10 +454,17 @@ def _adopt_siblings(
         sources = discover_sources(root, suffixes, cancel)
     except LibraryUnreachableError as exc:
         return [], [{"input": str(root), "error": str(exc)}]
+    claimed: set[str] = set()
     for source_rel, source in sources:
-        sibling = source.with_suffix(ARCHIVE_SUFFIX)
+        sibling = _loose_sibling_candidate(source)
         destination = archive_path_for(root, source_rel)
-        if destination.exists() or not sibling.is_file():
+        if sibling is None or destination.exists():
+            continue
+        try:
+            sibling_key = str(sibling.resolve()).casefold()
+        except OSError:
+            sibling_key = str(sibling).casefold()
+        if sibling_key in claimed:
             continue
         stored = _stored_source_file_hash(sibling)
         try:
@@ -274,6 +474,7 @@ def _adopt_siblings(
             continue
         if stored is None or stored != current:
             continue
+        claimed.add(sibling_key)
         try:
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(extended_path(sibling), extended_path(destination))
@@ -316,9 +517,8 @@ def _plan(
     cancel: Any | None = None,
 ) -> dict[str, Any]:
     manifest = read_manifest(root)
-    parser = manifest.get("convert", {}).get("parser")
-    suffixes = _source_suffixes(parser if isinstance(parser, str) else None)
-    sources = discover_sources(root, suffixes, cancel)
+    resolver = _PipelineResolver(manifest)
+    sources = discover_sources(root, resolver.suffixes(), cancel)
     source_map = dict(sources)
     archives = _list_archives(root)
     archive_map = dict(archives)
@@ -329,6 +529,20 @@ def _plan(
         if path not in hash_cache:
             hash_cache[path] = _stored_source_file_hash(path)
         return hash_cache[path]
+
+    def recorded_key(source_rel: str, archive: Path) -> str:
+        """The pipeline that made ``archive``, as a :meth:`_PipelineResolver.key`."""
+        recorded = state.get(source_rel) or {}
+        if isinstance(recorded.get("pipeline"), str):
+            return recorded["pipeline"]
+        # State written before folder rules existed. Without any rule or
+        # library parser every file uses the extension default, so skip the read.
+        if not resolver.has_choices:
+            return resolver.wanted_key(source_rel)
+        return resolver.key(_stored_parser_name(archive), source_rel)
+
+    def pipeline_changed(source_rel: str, archive: Path) -> bool:
+        return recorded_key(source_rel, archive) != resolver.wanted_key(source_rel)
 
     unchanged: list[dict[str, Any]] = []
     converts: list[dict[str, Any]] = []
@@ -352,6 +566,18 @@ def _plan(
         same_stat = (
             recorded.get("size") == stat.st_size and recorded.get("mtime_ns") == stat.st_mtime_ns
         )
+        if same_stat and not reconvert and pipeline_changed(source_rel, archive):
+            converts.append(
+                {
+                    "action": "convert",
+                    "source": source_rel,
+                    "size": stat.st_size,
+                    "mtime_ns": stat.st_mtime_ns,
+                    "hash": recorded.get("hash"),
+                    "reason": "pipeline",
+                }
+            )
+            continue
         if same_stat and not reconvert:
             unchanged.append(
                 {
@@ -441,7 +667,19 @@ def _plan(
             converts.append({"action": "convert", "source": source_rel, "error": str(exc)})
             continue
         if job["kind"] == "compare":
-            if stored_hash(job["archive"]) == digest and not reconvert:
+            same_source = stored_hash(job["archive"]) == digest
+            if same_source and not reconvert and pipeline_changed(source_rel, job["archive"]):
+                converts.append(
+                    {
+                        "action": "convert",
+                        "source": source_rel,
+                        "size": job["size"],
+                        "mtime_ns": job["mtime_ns"],
+                        "hash": digest,
+                        "reason": "pipeline",
+                    }
+                )
+            elif same_source and not reconvert:
                 unchanged.append(
                     {
                         "action": "unchanged",
@@ -477,7 +715,22 @@ def _plan(
                 if Path(old_rel).name.lower() == Path(source_rel).name.lower()
             ]
             candidates = named if len(named) == 1 else []
-        if len(candidates) == 1:
+        if len(candidates) == 1 and recorded_key(
+            candidates[0], unmatched_archives[candidates[0]]
+        ) != resolver.wanted_key(source_rel):
+            # Moved into a folder with a different pipeline: convert fresh and
+            # let the old archive go to trash.
+            converts.append(
+                {
+                    "action": "convert",
+                    "source": source_rel,
+                    "size": job["size"],
+                    "mtime_ns": job["mtime_ns"],
+                    "hash": digest,
+                    "reason": "pipeline",
+                }
+            )
+        elif len(candidates) == 1:
             old_rel = candidates[0]
             claimed.add(old_rel)
             moves.append(
@@ -506,6 +759,11 @@ def _plan(
         for source_rel in sorted(unmatched_archives)
         if source_rel not in claimed
     ]
+    for step in (*unchanged, *converts, *moves):
+        source_rel = str(step["source"])
+        parser, _options = resolver.resolve(source_rel)
+        step["parser"] = parser
+        step["pipeline_key"] = resolver.key(parser, source_rel)
     archive_count = len(archives)
     needs_confirmation = bool(
         archive_count
@@ -530,7 +788,8 @@ def _convert_one(
     *,
     cancel: Any | None,
 ) -> None:
-    settings = manifest.get("convert") if isinstance(manifest.get("convert"), dict) else {}
+    settings = _convert_settings(manifest)
+    parser, pipeline_options = _PipelineResolver(manifest).resolve(source_rel)
     source = root / source_rel
     destination = archive_path_for(root, source_rel)
     output = extended_path(destination) if os.name == "nt" and len(str(destination)) >= 240 else str(destination)
@@ -538,8 +797,8 @@ def _convert_one(
         extended_path(source) if os.name == "nt" and len(str(source)) >= 240 else str(source),
         output,
         model=str(settings.get("model") or "hashing"),
-        parser=settings.get("parser") if isinstance(settings.get("parser"), str) else None,
-        pipeline_options=settings.get("pipeline_options") or None,
+        parser=parser,
+        pipeline_options=pipeline_options or None,
         embedder_options=settings.get("embedder_options") or None,
         metadata=settings.get("metadata") or None,
         cancel=cancel,
@@ -597,7 +856,7 @@ def _apply_plan(
                 raise
             errors.append({"input": source_rel, "error": str(exc)})
             continue
-        recorded = {key: value for key, value in step.items() if key != "error"}
+        recorded = {key: value for key, value in step.items() if key not in {"error", "pipeline_key"}}
         if step["action"] == "convert" and not dry_run:
             destination = archive_path_for(root, source_rel)
             recorded["output"] = str(destination)
@@ -612,6 +871,7 @@ def _apply_plan(
                 "size": step.get("size"),
                 "mtime_ns": step.get("mtime_ns"),
                 "hash": step.get("hash"),
+                "pipeline": step.get("pipeline_key", ""),
             }
         if step["action"] == "move":
             report["moved"] += 1
@@ -621,12 +881,13 @@ def _apply_plan(
             report["trashed"] += 1
 
     for step in plan["unchanged"]:
-        actions.append(step)
+        actions.append({key: value for key, value in step.items() if key != "pipeline_key"})
         report["skipped"] += 1
         state_files[str(step["source"])] = {
             "size": step.get("size"),
             "mtime_ns": step.get("mtime_ns"),
             "hash": step.get("hash"),
+            "pipeline": step.get("pipeline_key", ""),
         }
     if hold_trash:
         report["pending_trash"] = len(plan["trashes"])
@@ -702,9 +963,16 @@ def library_status(directory: str) -> dict[str, Any]:
                 "adoptable": [],
             }
         adoptable = []
+        claimed: set[str] = set()
         for source_rel, source in sources:
-            sibling = source.with_suffix(ARCHIVE_SUFFIX)
-            if not sibling.is_file():
+            sibling = _loose_sibling_candidate(source)
+            if sibling is None:
+                continue
+            try:
+                sibling_key = str(sibling.resolve()).casefold()
+            except OSError:
+                sibling_key = str(sibling).casefold()
+            if sibling_key in claimed:
                 continue
             stored = _stored_source_file_hash(sibling)
             try:
@@ -712,6 +980,7 @@ def library_status(directory: str) -> dict[str, Any]:
             except OSError:
                 continue
             if stored and stored == current:
+                claimed.add(sibling_key)
                 adoptable.append(source_rel)
         return {
             "ok": True,
@@ -739,6 +1008,7 @@ def library_status(directory: str) -> dict[str, Any]:
     report["inside_library"] = False
     report["library_root"] = str(root)
     report["library_id"] = plan["manifest"].get("library_id")
+    report["pipeline_rules"] = _pipeline_rules(plan["manifest"])
     report["trash"] = list_trash(str(root))["entries"]
     report["adoptable"] = []
     return report
@@ -831,7 +1101,7 @@ def sync_library(
             "errors": [],
         }
     try:
-        adopted, adopt_errors = _adopt_siblings(root, _source_suffixes(_parser_from_manifest(root)), cancel)
+        adopted, adopt_errors = _adopt_siblings(root, _library_suffixes(root), cancel)
         try:
             plan = _plan(root, reconvert=reconvert, progress=progress, cancel=cancel)
         except LibraryUnreachableError as exc:
@@ -871,12 +1141,111 @@ def sync_library(
         lock.__exit__(None, None, None)
 
 
-def _parser_from_manifest(root: Path) -> str | None:
+def _library_suffixes(root: Path) -> set[str]:
     try:
-        parser = read_manifest(root).get("convert", {}).get("parser")
+        manifest = read_manifest(root)
     except LibraryError:
-        return None
-    return parser if isinstance(parser, str) else None
+        return _source_suffixes(None)
+    return _PipelineResolver(manifest).suffixes()
+
+
+def _validated_rule(
+    root: Path,
+    folder: Any,
+    parser: Any,
+    pipeline_options: Any = None,
+) -> dict[str, Any]:
+    if not isinstance(parser, str) or not parser.strip():
+        raise ValueError("A folder pipeline rule needs a parser, for example pymupdf:plans")
+    spec = parser.strip()
+    try:
+        describe_ingest_pipeline(spec)
+    except Exception as exc:
+        raise ValueError(f"Unknown ingest pipeline {spec!r}: {exc}") from exc
+    if pipeline_options is not None and not isinstance(pipeline_options, Mapping):
+        raise ValueError("pipeline_options must be a mapping")
+    return {
+        "folder": normalize_rule_folder(root, folder if isinstance(folder, str) else None),
+        "parser": spec,
+        "pipeline_options": dict(pipeline_options or {}),
+    }
+
+
+def _pipelines_report(root: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
+    resolver = _PipelineResolver(manifest)
+    return {
+        "ok": True,
+        "directory": str(root),
+        "parser": resolver.parser,
+        "pipeline_options": resolver.options,
+        "rules": resolver.rules,
+    }
+
+
+def library_pipelines(directory: str) -> dict[str, Any]:
+    """Return the library-wide parser and its folder pipeline rules."""
+    requested, located = _library_root_for(directory)
+    root = located or requested
+    if not is_managed_library(root):
+        raise LibraryNotFoundError(f"No managed library at {root}")
+    return _pipelines_report(root, read_manifest(root))
+
+
+def set_folder_pipeline(
+    directory: str,
+    *,
+    folder: str | None = None,
+    parser: str | None = None,
+    pipeline_options: Mapping[str, Any] | None = None,
+    clear: bool = False,
+    source_format: str | None = None,
+) -> dict[str, Any]:
+    """Set or clear the pipeline used for one folder of a managed library.
+
+    ``directory`` is the library root or a folder inside it. ``folder``
+    overrides it with a library-relative path, which may use ``*``
+    wildcards per folder name (``Projects/*/Plans``). A rule applies to its
+    folder and every subfolder, but only to file types its pipeline reads;
+    the deepest matching rule wins. The next sync reconverts files whose
+    archive was made by a different pipeline.
+
+    A folder can hold one rule per file type: setting a rule replaces the
+    folder's rules that read any of the same formats. ``clear`` removes all of
+    the folder's rules, or with ``source_format`` (``"pdf"``) only the rules
+    that read that format.
+    """
+    requested, located = _library_root_for(directory)
+    root = located or requested
+    if not is_managed_library(root):
+        raise LibraryNotFoundError(f"No managed library at {root}")
+    if folder is None:
+        target = normalize_rule_folder(root, str(requested) if requested != root else "")
+    else:
+        target = normalize_rule_folder(root, folder)
+    manifest = read_manifest(root)
+    settings = manifest.setdefault("convert", {})
+    new_rule = None if clear else _validated_rule(root, target, parser, pipeline_options)
+    if new_rule is not None:
+        replaced = set(_rule_formats(new_rule["parser"]))
+    elif source_format:
+        replaced = {source_format.strip().lstrip(".").casefold()}
+    else:
+        replaced = None
+
+    def replaces(rule: Mapping[str, Any]) -> bool:
+        if rule["folder"].casefold() != target.casefold():
+            return False
+        formats = _rule_formats(rule["parser"])
+        return replaced is None or not formats or bool(replaced.intersection(formats))
+
+    rules = [rule for rule in _pipeline_rules(manifest) if not replaces(rule)]
+    if new_rule is not None:
+        rules.append(new_rule)
+    settings["pipeline_rules"] = rules
+    write_manifest(root, manifest)
+    report = _pipelines_report(root, manifest)
+    report["folder"] = target
+    return report
 
 
 def list_trash(directory: str) -> dict[str, Any]:
@@ -959,8 +1328,11 @@ __all__ = [
     "LibraryUnreachableError",
     "NestedLibraryError",
     "init_library",
+    "library_pipelines",
     "library_status",
     "list_trash",
+    "normalize_rule_folder",
     "restore_from_trash",
+    "set_folder_pipeline",
     "sync_library",
 ]

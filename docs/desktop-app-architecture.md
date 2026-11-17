@@ -247,9 +247,11 @@ Explorer renders each folder as a tree built in the renderer from the flat
 `listFolder` entries (`buildExplorerTree` in `lib/explorer.ts`). Chains of
 single-child folders are compacted into one row, subfolders start collapsed,
 and their expansion persists in `vera.expandedSubfolders`.
-`pairExplorerDocuments` shows a source and its same-folder, same-stem `.vera`
-as one document row whose selection path is the archive; when a PDF and a
-Markdown file share a stem, the PDF is paired. Rows without an archive select
+`pairExplorerDocuments` shows a source and its archive as one document row
+whose selection path is the archive. `Report.pdf.vera` pairs with `Report.pdf`.
+An older `Report.vera` still pairs by file stem, and the extension-keeping
+archive wins when both exist. When a PDF and a Markdown file share one older
+stem archive, the PDF is paired. Rows without an archive select
 the source. Each tree folder counts unconverted sources across its subtree
 (`pendingCount`), which labels the **Convert N new files** menu item and the
 count badge on library, folder, and subfolder rows. The badge runs the same
@@ -257,7 +259,18 @@ quick convert, and its icon spins when the running conversion's
 `convertingTargets` (the batch directory or selected files) overlap that
 folder. Shift+click ranges use the visible rows in tree order
 (`visibleExplorerDocuments`). Subfolder context menus offer the same
-two convert actions and show-in-system-folder. Inside a library, selecting
+two convert actions and show-in-system-folder. Library and library-subfolder
+menus also offer **PDF pipeline…**, which opens `FolderPipelineModal`.
+`main.tsx` loads each library's rules with the `library_pipelines` sidecar
+action. `lib/libraryPipelines.ts` mirrors the engine's rule matching
+(`pdfPipelineFor`). `folderPipelineState` separates the folder's own PDF
+rule from what it inherits. `pdfPipelineChoices` lists installed pipelines
+whose descriptors read PDFs, and any other formats each one takes over.
+Saving sends `library_set_pipeline` with `source_format: "pdf"`; a `null`
+parser removes only the folder's PDF rule. The renderer then syncs the
+library. `prepareManagedLibrary` shows the same dialog before
+`library_init`. Choosing anything but `pymupdf` there becomes a whole-library
+rule (`pipeline_rules: [{folder: "", parser: ...}]`). Inside a library, selecting
 a subfolder (`onSearchFolder`) limits Search and Chat to that folder and its
 subfolders; the disclosure arrow only expands or collapses the row. Clicking
 the library name clears that scope. The nested-library prompt still offers
@@ -429,14 +442,17 @@ selection becomes the file list, and a folder or active library seeds
 directory conversion. **Add files…** browses for PDFs or Markdown files and
 **Choose folder…** picks a directory; each replaces the other kind of target.
 Directory conversion can include nested folders. File-list and directory runs
-create each `.vera` archive beside its source file using the same base filename
-(`proposal.pdf` becomes `proposal.vera`; `notes.md` becomes `notes.vera`).
+create each archive beside its source file, keeping the full file name
+(`proposal.pdf` becomes `proposal.pdf.vera`; `notes.md` becomes `notes.md.vera`).
 Existing archives are validated
 before they are skipped; malformed outputs are reported separately, and
 overwrite must be selected explicitly. PDF conversion uses selective
 PyMuPDF/Tesseract OCR (via `vera-ingest-pymupdf`) for image-based low-text
-pages with English language data bundled into that package and the packaged
-sidecar. Markdown uses the bundled `markdown` pipeline (no OCR). Docling remains a CLI extra (`vera[docling]`), not a Convert
+pages, with English language data bundled into
+that package and the packaged sidecar. The pipeline list also offers
+`pymupdf:plans` for construction drawing sets (drawn-text OCR and detail
+titles in chunk text). Markdown uses the bundled `markdown`
+pipeline (no OCR). Docling remains a CLI extra (`vera[docling]`), not a Convert
 pipeline. It publishes a validated
 temporary sibling atomically, preserves an existing destination after failure,
 and rejects PDFs with no searchable text after OCR with an OCR-specific
@@ -582,7 +598,8 @@ embedding model and dimensions, creation time, archive size, parser and
 chunking settings, OCR summary, attachment count, validation status, and
 export controls alongside the source. The OCR line is
 `formatOcrSummary()` over PyMuPDF-shaped `ocr` keys (`ocr_engine`,
-`ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_pages`). Docling writes `engine`
+`ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_pages`; `ocr_drawn_text_pages` from `pymupdf:plans`
+is in the same bag and is not part of the one-line summary). Docling writes `engine`
 and `recovered_pages` instead; Markdown writes `ocr: {}`, which the
 formatter treats as present and shows as `Unknown mode · 0 pages OCR’d`.
 Use sidecar inspect JSON when that summary is incomplete.

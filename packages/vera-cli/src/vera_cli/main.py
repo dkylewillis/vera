@@ -12,6 +12,7 @@ from .commands import (
     cmd_index_status,
     cmd_index_update,
     cmd_library_init,
+    cmd_library_pipeline,
     cmd_library_restore,
     cmd_library_status,
     cmd_library_sync,
@@ -90,7 +91,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Ingest pipeline spec: provider[:variant] "
             "(omitted: choose from the file extension; PDF -> pymupdf, "
             "Markdown -> markdown, DOCX/PPTX/XLSX/HTML -> docling when "
-            "vera-ingest-docling is installed; optional docling or docling:hybrid). "
+            "vera-ingest-docling is installed; optional docling or docling:hybrid; "
+            "pymupdf:plans for construction drawing sets). "
             "Unknown providers exit with an error."
         ),
     )
@@ -327,7 +329,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     library_init_p.add_argument("--model", default="hashing", help="Embedding model spec to store")
     library_init_p.add_argument(
-        "--parser", default=None, help="Ingest pipeline spec to store (default: choose by extension)"
+        "--parser",
+        default=None,
+        help=(
+            "Ingest pipeline spec for the whole library; only its formats are synced "
+            "(default: choose by extension). Use 'vera library pipeline' for one folder."
+        ),
     )
     library_init_p.add_argument(
         "--pipeline-option",
@@ -371,6 +378,36 @@ def build_parser() -> argparse.ArgumentParser:
     )
     library_sync_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     library_sync_p.set_defaults(func=cmd_library_sync)
+
+    library_pipeline_p = library_sub.add_parser(
+        "pipeline",
+        help="Show, set, or clear the ingest pipeline for a folder of a managed library",
+    )
+    library_pipeline_p.add_argument(
+        "directory",
+        help="Library root or a folder inside it; the rule applies to that folder and its subfolders",
+    )
+    library_pipeline_p.add_argument(
+        "--folder",
+        default=None,
+        help="Library-relative folder instead of DIRECTORY; '*' matches one folder name (Projects/*/Plans)",
+    )
+    library_pipeline_p.add_argument(
+        "--parser",
+        default=None,
+        help="Pipeline spec for the folder, for example pymupdf:plans (applies only to formats it reads)",
+    )
+    library_pipeline_p.add_argument(
+        "--pipeline-option",
+        dest="pipeline_options",
+        action="append",
+        type=pipeline_option,
+        default=[],
+        help="Pipeline option KEY=VALUE stored with the folder rule (repeatable)",
+    )
+    library_pipeline_p.add_argument("--clear", action="store_true", help="Remove the folder's rule")
+    library_pipeline_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    library_pipeline_p.set_defaults(func=cmd_library_pipeline)
 
     library_status_p = library_sub.add_parser("status", help="Show whether a folder is a managed library and what sync would do")
     library_status_p.add_argument("directory")

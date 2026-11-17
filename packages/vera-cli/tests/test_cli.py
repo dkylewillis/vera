@@ -9,6 +9,7 @@ import vera_cli.commands as cli_commands
 from helpers.pdfs import make_pdf, make_structured_pdf
 from vera_cli import str_to_bool
 from vera_cli.main import build_parser
+from vera_ingest import convert
 
 
 def test_cli_convert_inspect_search(tmp_path):
@@ -317,8 +318,8 @@ def test_cli_batch_convert_directory_recursively(tmp_path):
     assert report["discovered"] == 2
     assert report["converted"] == 2
     assert report["skipped"] == 0
-    assert (root / "top.vera").is_file()
-    assert (nested_pdf.parent / "proposal.vera").is_file()
+    assert (root / "top.pdf.vera").is_file()
+    assert (nested_pdf.parent / "proposal.PDF.vera").is_file()
 
     repeated = subprocess.run(command, text=True, capture_output=True, check=True)
     repeated_report = json.loads(repeated.stdout)
@@ -328,7 +329,7 @@ def test_cli_batch_convert_directory_recursively(tmp_path):
 
 def test_cli_batch_convert_reports_malformed_existing_output(tmp_path):
     pdf = tmp_path / "manual.pdf"
-    out = tmp_path / "manual.vera"
+    out = tmp_path / "manual.pdf.vera"
     make_pdf(pdf)
     out.write_bytes(b"not a sqlite database")
 
@@ -712,6 +713,34 @@ def test_cli_pipeline_option_strings_are_not_float_coerced(tmp_path, monkeypatch
     assert parsed.chunk_size == 900
 
 
+def test_cli_convert_defaults_to_extension_keeping_name(tmp_path, capsys):
+    pdf = tmp_path / "manual.pdf"
+    legacy = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    convert(str(pdf), str(legacy), model="hashing")
+
+    args = build_parser().parse_args(["convert", str(tmp_path), "--model", "hashing"])
+    assert args.func(args) == 0
+    text = capsys.readouterr().out
+    current = tmp_path / "manual.pdf.vera"
+    assert "1 renamed" in text
+    assert f"Renamed {legacy} -> {current}" in text
+    assert current.is_file()
+    assert not legacy.exists()
+
+
+def test_cli_single_convert_claims_legacy_sibling_when_output_is_omitted(tmp_path):
+    pdf = tmp_path / "manual.pdf"
+    legacy = tmp_path / "manual.vera"
+    make_pdf(pdf)
+    convert(str(pdf), str(legacy), model="hashing")
+
+    args = build_parser().parse_args(["convert", str(pdf), "--model", "hashing", "--json"])
+    assert args.func(args) == 0
+    assert (tmp_path / "manual.pdf.vera").is_file()
+    assert not legacy.exists()
+
+
 def test_cli_directory_convert_with_output_emits_json(tmp_path, capsys):
     args = build_parser().parse_args(
         ["convert", str(tmp_path), str(tmp_path / "out.vera"), "--json"]
@@ -720,6 +749,40 @@ def test_cli_directory_convert_with_output_emits_json(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is False
     assert "output path" in payload["error"]
+
+
+def test_cli_library_pipeline_sets_lists_and_clears_folder_rules(tmp_path):
+    library = tmp_path / "library"
+    plans = library / "Plans"
+    plans.mkdir(parents=True)
+
+    def vera(*argv):
+        return subprocess.run(
+            [sys.executable, "-m", "vera_cli", "library", *argv],
+            text=True,
+            capture_output=True,
+        )
+
+    assert vera("init", str(library), "--model", "hashing", "--json").returncode == 0
+    set_rule = vera("pipeline", str(plans), "--parser", "pymupdf:plans", "--json")
+    assert set_rule.returncode == 0, set_rule.stderr
+    payload = json.loads(set_rule.stdout)
+    assert payload["folder"] == "Plans"
+    assert payload["rules"] == [{"folder": "Plans", "parser": "pymupdf:plans", "pipeline_options": {}}]
+
+    listed = vera("pipeline", str(library))
+    assert listed.returncode == 0
+    assert "Default: by file extension" in listed.stdout
+    assert "Plans: pymupdf:plans" in listed.stdout
+
+    bad = vera("pipeline", str(plans), "--parser", "blueprints", "--json")
+    assert bad.returncode == 1
+    assert "Unknown ingest pipeline" in json.loads(bad.stdout)["error"]
+    assert vera("pipeline", str(plans), "--clear", "--parser", "pymupdf", "--json").returncode == 1
+
+    cleared = vera("pipeline", str(plans), "--clear", "--json")
+    assert cleared.returncode == 0
+    assert json.loads(cleared.stdout)["rules"] == []
 
 
 def test_cli_index_exclude_defaults_to_none():

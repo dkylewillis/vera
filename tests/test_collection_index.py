@@ -81,7 +81,13 @@ def _convert_topic(
 ) -> Path:
     target = root / relative
     target.parent.mkdir(parents=True, exist_ok=True)
-    pdf = target.with_suffix(".pdf")
+    archive_name = target.name
+    if archive_name.lower().endswith(".vera"):
+        remainder = archive_name[: -len(".vera")]
+        pdf_name = remainder if "." in remainder else f"{remainder}.pdf"
+    else:
+        pdf_name = f"{target.stem}.pdf"
+    pdf = target.with_name(pdf_name)
     make_topic_pdf(pdf, heading, body)
     convert(str(pdf), str(target), model=model, embedding_function=embedding_function)
     return target

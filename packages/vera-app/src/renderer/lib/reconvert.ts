@@ -32,9 +32,10 @@ export type ReconvertTarget = {
 
 /**
  * Return the clicked archive path when Convert is still targeting that
- * Reconvert source. Batch convert always writes ``source.with_suffix(".vera")``,
- * which overwrites a differently named sibling archive and leaves the clicked
- * file stale.
+ * Reconvert source. Batch convert writes ``<source name>.vera``
+ * (``Report.pdf`` becomes ``Report.pdf.vera``). That is a different file from
+ * an older ``Report.vera`` the user clicked, so Reconvert keeps writing to
+ * the clicked archive.
  */
 export function reconvertConvertOutput(
   target: ReconvertTarget | null | undefined,

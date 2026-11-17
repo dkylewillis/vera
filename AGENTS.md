@@ -33,6 +33,10 @@ vera library init ./library --json
 vera library sync ./library --json
 vera library status ./library --json
 
+# Per-folder pipelines in a managed library (drawing sets vs. regular PDFs)
+vera library pipeline ./library --folder "Projects/*/Plans" --parser pymupdf:plans --json
+vera library pipeline ./library --json
+
 # Include figure/table metadata near each result
 vera search manual.vera "pipe sizing chart" --json --figures
 
@@ -77,6 +81,9 @@ vera convert notes.html notes.vera --json
 vera convert scan.pdf scan.vera --parser docling --json
 vera convert scan.pdf scan.vera --parser docling --pipeline-option pdf_backend=pypdfium2 --json
 
+# Construction drawing sets (OCRs drawn lettering, keeps detail titles searchable)
+vera convert plans.pdf plans.vera --parser pymupdf:plans --json
+
 # Provider-owned embedder options (hashing dimension; OpenAI batch_size)
 vera convert manual.pdf --model hashing --embedder-option dimension=256 --json
 vera convert manual.pdf --model openai:text-embedding-3-small --json
@@ -101,10 +108,12 @@ prefer repeatable `--pipeline-option KEY=VALUE` for provider-owned settings)
 and publishes a validated temporary sibling atomically. PDFs with no searchable
 chunks after OCR fail with an OCR-specific message. Markdown files with no
 searchable text fail with a generic empty-file message. Directory conversion
-skips an existing `.vera` only when it validates and its stored
-`source_file_hash` matches the current source file, reports same-stem sources that
-would share one `.vera` path as failures instead of overwriting, and reports
-malformed archives in `malformed_existing`. Python `convert()` / `batch_convert()` callers should
+writes each archive beside its source as `<filename>.vera` (`manual.pdf`
+becomes `manual.pdf.vera`). It skips an existing `.vera` only when it validates
+and its stored `source_file_hash` matches the current source file. An older
+`manual.vera` whose stored source name or hash belongs to that file is renamed
+to `manual.pdf.vera` first and listed in `renamed_existing`. Malformed archives
+are reported in `malformed_existing`. Python `convert()` / `batch_convert()` callers should
 pass `parser` (omitted: choose from the file extension), `pipeline_options`, and embedder settings
 (`model` / `embedding_function` / `embedder_options`); legacy kwargs such as
 `chunk_size`, `overlap`, `ocr_mode`, `ocr_language`, `ocr_dpi`, and

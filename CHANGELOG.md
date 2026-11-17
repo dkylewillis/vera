@@ -13,9 +13,18 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Agent access library names. Each shared folder can have a short name, and
   Desktop and cloud agents pass `library` plus a relative path. `vera_library_info`
   returns those names in `libraries`. Unrestricted `vera mcp` is unchanged.
+- `pymupdf:plans` ingest pipeline for construction drawing sets. It OCRs
+  lettering drawn as linework and keeps detail titles in chunk text. The
+  default `pymupdf` pipeline no longer does either.
+- Per-folder pipelines in managed libraries. `vera library pipeline` stores
+  folder rules in `.vera/library.json`. Sync reconverts only the files whose
+  pipeline changed, with `"reason": "pipeline"`. Desktop asks for the PDF
+  pipeline when a folder becomes a library. **PDF pipeline…** in a library
+  folder's menu picks any installed PDF pipeline, or the parent folder's.
 
 ### Changed
 
+- Loose archives beside a source keep the source file name. `vera convert manual.pdf` writes `manual.pdf.vera`, so a Word file and a PDF with the same stem no longer collide. An older `manual.vera` whose stored source name matches, or whose hash matches when that name is missing, is renamed onto the new path and reported in `renamed_existing`. An explicit output path is unchanged.
 - Desktop **Agent access** is three steps: choose folders, answer
   **Where does your AI run?**, and connect. **In the cloud** (ChatGPT, Claude, Grok on
   the web, desktop, or phone) is the default and shows **Sign in**, **Get Agent Access**, or **Allow cloud
@@ -54,6 +63,7 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Fixed
 
+- **Save as Markdown** keeps going when an answer contains a character UTF-8 cannot store. The character is replaced, and the file is written.
 - Desktop **Context tokens** values are kept when settings are saved.
 - Desktop model listing for **VERA Pro** uses the Pro key instead of a
   personal OpenRouter key.

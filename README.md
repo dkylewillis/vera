@@ -25,7 +25,7 @@ vera convert manual.pdf
 vera convert memo.docx
 vera convert deck.pptx
 vera convert budget.xlsx
-vera search manual.vera "stormwater detention" --pretty
+vera search manual.pdf.vera "stormwater detention" --pretty
 ```
 
 Word, PowerPoint, and Excel use the bundled `ooxml` pipeline. A folder of

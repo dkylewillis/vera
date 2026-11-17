@@ -10,7 +10,8 @@ vera convert manual.pdf manual.vera --model hashing
 vera convert notes.md notes.vera --model hashing
 ```
 
-Directory conversion writes each `.vera` beside its source file:
+Directory conversion writes each archive beside its source, named
+`<filename>.vera` (`manual.pdf` becomes `manual.pdf.vera`):
 
 ```bash
 vera convert ./proposals --recursive
@@ -23,7 +24,7 @@ vera inspect manual.vera --json
 vera validate manual.vera --json
 ```
 
-Inspect JSON includes the pipeline `ocr` diagnostics bag (PyMuPDF `ocr_pages`,
+Inspect JSON includes the pipeline `ocr` diagnostics bag (PyMuPDF `ocr_pages`, plus `ocr_drawn_text_pages` from `pymupdf:plans`,
 Docling recovery, or `{}` for Markdown). Text-mode `vera inspect` omits it.
 
 ## Step 3 — Search from the CLI

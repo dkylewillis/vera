@@ -84,8 +84,8 @@ dependency. The resulting archive contains parsed pages or Markdown structure,
 chunks, embeddings, the keyword index, citation metadata, figures (PDF), and
 the original source file.
 
-If the output path is omitted, VERA uses the input filename with a `.vera`
-suffix:
+If the output path is omitted, VERA appends `.vera` to the full file name
+(`manual.pdf` becomes `manual.pdf.vera`):
 
 ```bash
 vera convert "manual.pdf"

@@ -102,6 +102,8 @@ export const SIDECAR_ACTIONS = {
   libraryStatus: 'library_status',
   libraryTrashList: 'library_trash_list',
   libraryRestore: 'library_restore',
+  libraryPipelines: 'library_pipelines',
+  librarySetPipeline: 'library_set_pipeline',
   cancel: 'cancel',
   skip: 'skip',
 } as const;

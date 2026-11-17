@@ -8,9 +8,11 @@ from vera_app.types import Request, WriteEvent
 from vera_doc import build_library_index, library_index_status, update_library_index
 from vera_ingest.library import (
     init_library,
+    library_pipelines as _library_pipelines,
     library_status,
     list_trash,
     restore_from_trash,
+    set_folder_pipeline,
     sync_library,
 )
 
@@ -61,6 +63,34 @@ def library_init(request: Request, write_event: WriteEvent | None = None, cancel
         pipeline_options=_mapping(request.get("pipeline_options")),
         embedder_options=_mapping(request.get("embedder_options")),
         metadata=_mapping(request.get("metadata")),
+        pipeline_rules=_rules(request.get("pipeline_rules")),
+    )
+
+
+def _rules(value: object) -> list[dict[str, Any]] | None:
+    if not isinstance(value, list):
+        return None
+    return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def library_pipelines(request: Request) -> dict[str, Any]:
+    return _library_pipelines(str(request["path"]))
+
+
+def library_set_pipeline(request: Request) -> dict[str, Any]:
+    """Set or clear one folder's pipeline. ``path`` is that folder.
+
+    Without ``parser`` the folder's rule for ``source_format`` (default
+    ``pdf``) is removed, so that format follows the parent folder again.
+    """
+    parser = request.get("parser")
+    source_format = request.get("source_format")
+    return set_folder_pipeline(
+        str(request["path"]),
+        parser=str(parser) if parser else None,
+        pipeline_options=_mapping(request.get("pipeline_options")),
+        clear=not parser,
+        source_format=str(source_format) if source_format else "pdf",
     )
 
 

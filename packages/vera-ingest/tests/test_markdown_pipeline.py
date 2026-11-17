@@ -172,12 +172,12 @@ def test_batch_convert_mixed_pdf_and_markdown(markdown_ready, tmp_path):
     assert report["discovered"] == 2
     assert report["converted"] == 2
     assert report["failed"] == 0
-    assert (tmp_path / "manual.vera").is_file()
-    assert (tmp_path / "notes.vera").is_file()
+    assert (tmp_path / "manual.pdf.vera").is_file()
+    assert (tmp_path / "notes.md.vera").is_file()
 
-    with VeraDocument.open(str(tmp_path / "notes.vera")) as document:
+    with VeraDocument.open(str(tmp_path / "notes.md.vera")) as document:
         assert document.inspect()["parser_name"] == "markdown"
-    with VeraDocument.open(str(tmp_path / "manual.vera")) as document:
+    with VeraDocument.open(str(tmp_path / "manual.pdf.vera")) as document:
         assert document.inspect()["parser_name"] == "pymupdf"
 
 
@@ -189,5 +189,5 @@ def test_batch_convert_parser_markdown_skips_pdfs(markdown_ready, tmp_path):
     report = batch_convert(str(tmp_path), model="hashing", parser="markdown")
     assert report["discovered"] == 1
     assert report["converted"] == 1
-    assert (tmp_path / "notes.vera").is_file()
-    assert not (tmp_path / "manual.vera").exists()
+    assert (tmp_path / "notes.md.vera").is_file()
+    assert not (tmp_path / "manual.pdf.vera").exists()

@@ -36,12 +36,17 @@ rest of the required archive header), and convert-owned archive fields such as
 same `--metadata` to every output in that run; hash-matched skips still skip,
 so reconvert or pass `--overwrite` to restamp.
 
-Omit the output to create a same-named archive:
+Omit the output to create an archive named after the full file
+(`input.pdf` becomes `input.pdf.vera`):
 
 ```bash
 vera convert "input.pdf"
 vera convert "notes.md"
 ```
+
+An older `input.vera` built from that file is renamed to `input.pdf.vera`
+before conversion, so the next run does not leave a duplicate. An explicit
+output path is left unchanged.
 
 Single-file conversion builds and validates a temporary sibling archive before
 atomically replacing the output path. If parsing, writing, or validation
@@ -60,18 +65,45 @@ Automatic OCR is the default for pipelines that advertise OCR fields:
 vera convert "scan.pdf" "scan.vera" --ocr auto
 ```
 
-With the default PyMuPDF pipeline (`vera-ingest-pymupdf`), OCR runs only on
+With the default PyMuPDF pipeline (`vera-ingest-pymupdf`), OCR runs on
 pages that are mostly a scanned image and have too little native text to
 search reliably. A large-image page with fewer than 200 alphanumeric
 characters is treated as sparse native text (headers, Bates stamps, or
-letterhead) and is still OCR'd. Genuinely blank pages and native-text pages
-without a large image skip OCR. Mixed PDFs can therefore use native
-extraction on ordinary pages and OCR on scanned pages in one conversion.
+letterhead) and is still OCR'd. Genuinely blank pages and ordinary
+text pages skip OCR. Mixed PDFs can therefore use native extraction on
+ordinary pages and OCR on scanned pages in one conversion.
+
+### Construction plans (`pymupdf:plans`)
+
+CAD drawing sets often store detail lettering as linework, or as several
+pasted images, so the page has almost no text to extract. Convert those with
+the `pymupdf:plans` variant:
+
+```bash
+vera convert "plans.pdf" "plans.vera" --parser pymupdf:plans
+```
+
+It is the default PyMuPDF pipeline with two differences:
+
+- **Drawn-text OCR.** Auto mode also OCRs low-text drawing sheets. The real
+  text layer is kept and only recognized words that do not overlap it are
+  added. Lines that look like traced linework are dropped. Turn this pass off
+  with `--pipeline-option ocr_drawn_text=off`; scanned-page OCR is unchanged.
+- **Titles in chunk text.** The first chunk under a heading includes the
+  heading, and a heading with no body text is stored as its own chunk, so a
+  detail title such as `DOGHOUSE MANHOLE DETAIL` is searchable.
+
+The plain `pymupdf` pipeline does neither and rejects `ocr_drawn_text`. The
+variant is never chosen from the file extension; pass `--parser
+pymupdf:plans` (or pick it in the desktop Convert view). Archives record
+`parser_name` `pymupdf:plans`. Expect a slower conversion: each OCR'd sheet
+is rasterized and read by Tesseract.
 
 Legacy CLI aliases (forwarded only when the selected pipeline advertises the
 matching descriptor field):
 
-- `--ocr auto` selects scanned pages (default);
+- `--ocr auto` selects scanned pages (default; `pymupdf:plans` adds low-text
+  drawing sheets);
 - `--ocr off` never invokes OCR;
 - `--ocr force` OCRs every page, replacing native text extraction;
 - `--ocr-language eng` selects language data (PyMuPDF/Tesseract default);
@@ -110,7 +142,9 @@ multi-column reading order. For layout-aware parsing, install the optional
 
 ## Convert a directory
 
-Directory conversion writes each archive beside its source file:
+Directory conversion writes each archive beside its source file, keeping the
+full file name (`manual.pdf` becomes `manual.pdf.vera`, `notes.md` becomes
+`notes.md.vera`):
 
 ```bash
 vera convert "./proposals"
@@ -141,11 +175,13 @@ vera convert "./proposals" --recursive --json
 ```
 
 The report distinguishes discovered, converted, same-source-hash skips,
-malformed existing outputs, and conversion failures. `skipped_existing`
+renames, malformed existing outputs, and conversion failures. `skipped_existing`
 lists only unchanged valid archives. `malformed_existing` entries include
-`input`, `output`, and validation `issues`. Same-stem sources that would
-write the same `.vera` path (`manual.pdf` and `manual.md`) are reported as
-failures instead of overwriting each other. Directory discovery skips
+`input`, `output`, and validation `issues`. `renamed_existing` lists older
+stem archives that were renamed onto the new name (`manual.vera` built from
+`manual.pdf` becomes `manual.pdf.vera`) with `input`, `from`, and `to`.
+`manual.pdf` and `manual.md` each get their own archive. An older archive
+whose stored name matches neither source is left in place. Directory discovery skips
 Microsoft Office lock files, the `~$` files Excel, Word, and PowerPoint
 create beside an open document (`~$budget.xlsx`). Those files are locked
 while the document is open and are not workbooks or documents. Batch conversion
@@ -181,9 +217,9 @@ sibling source is resolved (or the embedded original is restored). Overwrite is
 enabled, and the archive's current ingest pipeline, embedding model, and OCR
 options are prefilled from inspect so you can change them before converting.
 Convert then replaces **the archive you clicked**, even when its filename
-differs from the source (`report.pdf` → `project-alpha.vera`, or a renamed
-copy). Batch convert still names new archives `source.with_suffix(".vera")`;
-only Reconvert keeps the clicked path.
+differs from the new default (`report.pdf` → `project-alpha.vera`, or a renamed
+copy). Batch convert names new archives `<filename>.vera` (`report.pdf` becomes
+`report.pdf.vera`). Reconvert keeps the clicked path.
 If inspect fails and no sibling source is listed, Reconvert does **not** export
 an embedded original; Convert shows **Could not read archive metadata**. Place
 the matching `.pdf` or `.md` next to the archive, or open Document Info and export the

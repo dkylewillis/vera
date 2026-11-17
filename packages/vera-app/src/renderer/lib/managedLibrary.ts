@@ -65,7 +65,12 @@ export function librarySyncProblem(report: LibrarySyncReport | null | undefined)
 export async function prepareManagedLibrary(
   folderPath: string,
   request: Request,
-  options: { model?: string; askAdopt?: (count: number) => Promise<boolean> } = {},
+  options: {
+    model?: string;
+    askAdopt?: (count: number) => Promise<boolean>;
+    /** Pipeline for the library's PDFs, for example `pymupdf:plans`; `null` keeps the default. */
+    askPdfPipeline?: () => Promise<string | null>;
+  } = {},
 ): Promise<LibrarySyncReport | null> {
   const status = await request<LibrarySyncReport>({
     action: SIDECAR_ACTIONS.libraryStatus,
@@ -73,6 +78,7 @@ export async function prepareManagedLibrary(
   });
   const report = status.ok ? status.result ?? null : null;
   if (!report || report.managed || report.inside_library) return report;
+  const pdfPipeline = options.askPdfPipeline ? await options.askPdfPipeline() : null;
   let adopt = false;
   const adoptable = report.adoptable?.length ?? 0;
   if (adoptable > 0 && options.askAdopt) adopt = await options.askAdopt(adoptable);
@@ -81,6 +87,7 @@ export async function prepareManagedLibrary(
     path: folderPath,
     adopt,
     model: options.model,
+    ...(pdfPipeline ? { pipeline_rules: [{ folder: '', parser: pdfPipeline }] } : {}),
   });
   if (!created.ok) return null;
   return report;

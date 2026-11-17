@@ -80,6 +80,18 @@ import {
 import { DEFAULT_EMBEDDING_MODEL, embeddingProviderFromSpec } from './lib/convertPresets';
 import { libraryActivityLabel, nextSyncReport } from './lib/libraryHealth';
 import { prepareManagedLibrary } from './lib/managedLibrary';
+import {
+  DEFAULT_PDF_PIPELINE,
+  folderPipelineState,
+  libraryRelativeFolder,
+  loadLibraryPipelines,
+  pdfPipelineChoices,
+  pipelineDisplayName,
+  pipelineSourceLabel,
+  saveFolderPipeline,
+  type LibraryPipelines,
+} from './lib/libraryPipelines';
+import { FolderPipelineModal, type FolderPipelinePrompt } from './components/FolderPipelineModal';
 import { folderScopeInclude, libraryQueryScope, multiLibraryScope, multiLibraryScopeLabel } from './lib/search';
 import { hydrateSessionTurns, stripTrace, traceKey } from './lib/sessions';
 import { filterDiscoveredModels, listModelsLlm, providerDisplayName, REASONING_EFFORTS, withDiscoveredModels } from './lib/providers';
@@ -206,6 +218,13 @@ function App() {
   const [folderScopeRequest, setFolderScopeRequest] = useState('');
   const [nestedLibraryPrompt, setNestedLibraryPrompt] = useState<NestedLibraryConflict | null>(null);
   const [adoptPrompt, setAdoptPrompt] = useState<{ path: string; count: number; resolve: (adopt: boolean) => void } | null>(null);
+  const [folderPipelineDialog, setFolderPipelineDialog] = useState<
+    | { kind: 'setup'; path: string; resolve: (parser: string | null) => void }
+    | { kind: 'folder'; rootPath: string; folderPath: string }
+    | null
+  >(null);
+  const [folderPipelineSaving, setFolderPipelineSaving] = useState(false);
+  const [libraryPipelines, setLibraryPipelines] = useState<Record<string, LibraryPipelines>>({});
   const [trashFolderPath, setTrashFolderPath] = useState<string | null>(null);
   const [lastSyncReports, setLastSyncReports] = useState<Record<string, LibrarySyncReport>>({});
   const [collapsedFolders, setCollapsedFolders] = useState(() => (
@@ -327,10 +346,12 @@ function App() {
     onPrepareLibrary: async (folderPath) => {
       await prepareManagedLibrary(folderPath, (payload) => window.vera.request(payload), {
         model: embeddingModel,
+        askPdfPipeline: () => askPdfPipeline(folderPath),
         askAdopt: (count) => new Promise((resolve) => {
           setAdoptPrompt({ path: folderPath, count, resolve });
         }),
       });
+      await reloadLibraryPipelines(folderPath);
       await window.vera.syncLibrary(folderPath);
     },
   });
@@ -635,6 +656,17 @@ function App() {
     .filter((folder) => libraryPaths.includes(folder.path) && isPathInsideFolder(convertTarget, folder.path))
     .map((folder) => `${folder.path}:${folder.entries.filter((entry) => entry.type === 'vera').length}`)
     .join('|');
+  const libraryRootsKey = libraryPaths.join('\n');
+  useEffect(() => {
+    let canceled = false;
+    for (const root of libraryPaths) {
+      void loadLibraryPipelines(root, (payload) => window.vera.request(payload)).then((loaded) => {
+        if (canceled || !loaded) return;
+        setLibraryPipelines((prev) => ({ ...prev, [root]: loaded }));
+      });
+    }
+    return () => { canceled = true; };
+  }, [libraryRootsKey]);
   useEffect(() => window.vera.onLibrarySync((folderPath, report) => {
     setLastSyncReports((prev) => {
       const next = nextSyncReport(prev[folderPath], report);
@@ -944,11 +976,103 @@ function App() {
     selectExplorerFolder(folderPath);
     void prepareManagedLibrary(folderPath, (payload) => window.vera.request(payload), {
       model: embeddingModel,
+      askPdfPipeline: () => askPdfPipeline(folderPath),
       askAdopt: (count) => new Promise((resolve) => {
         setAdoptPrompt({ path: folderPath, count, resolve });
       }),
-    }).then(() => window.vera.syncLibrary(folderPath)).then(() => refreshFolder(folderPath));
+    })
+      .then(() => reloadLibraryPipelines(folderPath))
+      .then(() => window.vera.syncLibrary(folderPath))
+      .then(() => refreshFolder(folderPath));
   }
+
+  function askPdfPipeline(folderPath: string): Promise<string | null> {
+    return new Promise((resolve) => {
+      setFolderPipelineDialog({ kind: 'setup', path: folderPath, resolve });
+    });
+  }
+
+  async function reloadLibraryPipelines(rootPath: string) {
+    const loaded = await loadLibraryPipelines(rootPath, (payload) => window.vera.request(payload));
+    setLibraryPipelines((prev) => {
+      if (!loaded) {
+        if (!(rootPath in prev)) return prev;
+        const copy = { ...prev };
+        delete copy[rootPath];
+        return copy;
+      }
+      return { ...prev, [rootPath]: loaded };
+    });
+  }
+
+  function closeFolderPipelineDialog() {
+    if (folderPipelineDialog?.kind === 'setup') folderPipelineDialog.resolve(null);
+    setFolderPipelineDialog(null);
+  }
+
+  async function saveFolderPipelineDialog(parser: string | null) {
+    const dialog = folderPipelineDialog;
+    if (!dialog) return;
+    if (dialog.kind === 'setup') {
+      setFolderPipelineDialog(null);
+      dialog.resolve(parser && parser !== DEFAULT_PDF_PIPELINE ? parser : null);
+      return;
+    }
+    const current = libraryPipelines[dialog.rootPath];
+    const relative = libraryRelativeFolder(dialog.rootPath, dialog.folderPath);
+    if (!current || relative === null) {
+      setFolderPipelineDialog(null);
+      return;
+    }
+    if (folderPipelineState(current, relative, ingestPipelineDescriptors).own === parser) {
+      setFolderPipelineDialog(null);
+      return;
+    }
+    setFolderPipelineSaving(true);
+    try {
+      const next = await saveFolderPipeline(dialog.folderPath, parser, (payload) => window.vera.request(payload));
+      setLibraryPipelines((prev) => ({ ...prev, [dialog.rootPath]: next }));
+      setFolderPipelineDialog(null);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to change the folder pipeline');
+      return;
+    } finally {
+      setFolderPipelineSaving(false);
+    }
+    // Sync reconverts only the PDFs whose archive came from another pipeline.
+    await syncLibraryNow(dialog.rootPath);
+  }
+
+  const folderPipelinePrompt = useMemo<FolderPipelinePrompt | null>(() => {
+    if (!folderPipelineDialog) return null;
+    const choices = pdfPipelineChoices(ingestPipelineDescriptors);
+    if (folderPipelineDialog.kind === 'setup') {
+      return {
+        title: 'How should this library convert PDFs?',
+        subtitle: `${folderPipelineDialog.path}. You can give any folder its own pipeline later from its right-click menu.`,
+        choices,
+        selected: DEFAULT_PDF_PIPELINE,
+        saveLabel: 'Continue',
+        cancelLabel: 'Use default',
+      };
+    }
+    const pipelines = libraryPipelines[folderPipelineDialog.rootPath];
+    const relative = libraryRelativeFolder(folderPipelineDialog.rootPath, folderPipelineDialog.folderPath);
+    if (!pipelines || relative === null) return null;
+    const state = folderPipelineState(pipelines, relative, ingestPipelineDescriptors);
+    const inheritedName = pipelineDisplayName(state.inherited.parser, ingestPipelineDescriptors);
+    return {
+      title: relative ? 'PDF pipeline for this folder' : 'PDF pipeline for this library',
+      subtitle: folderPipelineDialog.folderPath,
+      choices,
+      selected: state.own ?? '',
+      inheritTitle: relative ? 'Same as parent folder' : 'Library default',
+      inheritLabel: state.inherited.ruleFolder === null
+        ? `Uses ${inheritedName}.`
+        : `Uses ${inheritedName}, set by ${pipelineSourceLabel(state.inherited.ruleFolder)}.`,
+      saveLabel: 'Save and sync',
+    };
+  }, [folderPipelineDialog, ingestPipelineDescriptors, libraryPipelines]);
 
   function addNestedLibraryAnyway(folderPath: string) {
     setNestedLibraryPrompt(null);
@@ -2242,7 +2366,10 @@ function App() {
                   convertingTargets={conversionInProgress
                     ? (convertMode === 'batch' ? [batchDirectory] : selectedPdfs).filter(Boolean)
                     : []}
-                  escapeBlocked={Boolean(settingsOpen || indexPrompt || indexReport || nestedLibraryPrompt || adoptPrompt || trashFolderPath)}
+                  escapeBlocked={Boolean(settingsOpen || indexPrompt || indexReport || nestedLibraryPrompt || adoptPrompt || folderPipelineDialog || trashFolderPath)}
+                  libraryPipelines={libraryPipelines}
+                  pipelineDescriptors={ingestPipelineDescriptors}
+                  onEditFolderPipeline={(rootPath, folderPath) => setFolderPipelineDialog({ kind: 'folder', rootPath, folderPath })}
                   lastSyncReports={lastSyncReports}
                   libraryWorkMessages={libraryWorkMessages}
                   onSyncLibraryNow={(folderPath) => { void syncLibraryNow(folderPath); }}
@@ -2849,6 +2976,12 @@ function App() {
         onSuppressPromptChange={setSuppressIndexPrompt}
         onConfirm={() => void confirmIndexAction()}
         onDismiss={dismissIndexPrompt}
+      />
+      <FolderPipelineModal
+        prompt={folderPipelinePrompt}
+        busy={folderPipelineSaving}
+        onSave={(parser) => { void saveFolderPipelineDialog(parser); }}
+        onCancel={closeFolderPipelineDialog}
       />
       <AdoptLibraryModal
         prompt={adoptPrompt}

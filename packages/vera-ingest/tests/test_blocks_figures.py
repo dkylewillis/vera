@@ -73,6 +73,36 @@ class TestBuildChunksFromBlocks:
             ("b5", ParsedBlock(2, "paragraph", "Detention is required for impervious area.")),
         ]
 
+    def test_heading_titles_stay_searchable_without_a_body(self):
+        blocks = [
+            ("b1", ParsedBlock(1, "heading", "CONCRETE STAIRWAY SCALE: N.T.S", heading_level=1)),
+            ("b2", ParsedBlock(1, "paragraph", "2'-0\" 8\"")),
+            ("b3", ParsedBlock(1, "heading", "DOGHOUSE MANHOLE DETAIL", heading_level=1)),
+        ]
+        chunks = build_chunks_from_blocks(blocks, headings_in_text=True)
+        assert chunks[0].text.startswith("CONCRETE STAIRWAY SCALE: N.T.S\n")
+        assert "2'-0\"" in chunks[0].text
+        assert chunks[0].block_ids[0] == "b1"
+        assert chunks[1].text == "DOGHOUSE MANHOLE DETAIL"
+        assert chunks[1].block_ids == ["b3"]
+
+    def test_parent_heading_is_stored_when_only_a_child_has_body(self):
+        chunks = build_chunks_from_blocks(self._blocks(), headings_in_text=True)
+        assert chunks[0].text.startswith("Section 1.1 Parking\n")
+        assert chunks[0].block_ids == ["b2", "b3"]
+        assert "Chapter 1 Zoning" not in chunks[0].text
+        assert any(chunk.text == "Chapter 1 Zoning" for chunk in chunks)
+        stormwater = next(chunk for chunk in chunks if "Detention is required" in chunk.text)
+        assert stormwater.text.startswith("Chapter 2 Stormwater\n")
+        assert stormwater.heading_path == "Chapter 2 Stormwater"
+
+    def test_headings_stay_out_of_chunk_text_by_default(self):
+        chunks = build_chunks_from_blocks(self._blocks())
+        assert [chunk.text for chunk in chunks] == [
+            "Parking spaces are required for restaurants.",
+            "Detention is required for impervious area.",
+        ]
+
     def test_hierarchical_heading_path(self):
         chunks = build_chunks_from_blocks(self._blocks())
         assert chunks[0].heading_path == "Chapter 1 Zoning > Section 1.1 Parking"

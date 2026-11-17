@@ -153,7 +153,7 @@ def _pdf_view(source, regions, requested_page: int, initial_page: int) -> dict[s
             raise ValueError("Page preview is too large; use the desktop viewer.")
         boxes = []
         for region in regions:
-            if region.get("page_number") != number or page.rotation:
+            if region.get("page_number") != number:
                 continue
             bbox = region.get("bbox")
             width, height = region.get("page_width"), region.get("page_height")
@@ -181,13 +181,7 @@ def _pdf_view(source, regions, requested_page: int, initial_page: int) -> dict[s
             "page_height": float(size.height),
             "image": "data:image/png;base64," + base64.b64encode(image).decode("ascii"),
             "boxes": boxes,
-            "notice": ""
-            if boxes
-            else (
-                "Highlights unavailable for rotated source pages."
-                if page.rotation
-                else "No verified highlight locations on this page."
-            ),
+            "notice": "" if boxes else "No verified highlight locations on this page.",
         }
 
 

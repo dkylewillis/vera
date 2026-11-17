@@ -27,11 +27,19 @@ import {
 } from '../lib/explorer';
 import { fileName, isPathInsideFolder, showInFolderLabel, type ExplorerSelection } from '../lib/formatting';
 import { libraryHealth, type LibraryHealthAction, type LibraryHealthItem } from '../lib/libraryHealth';
+import {
+  libraryRelativeFolder,
+  pdfPipelineFor,
+  pipelineDisplayName,
+  pipelineSourceLabel,
+  type LibraryPipelines,
+} from '../lib/libraryPipelines';
 import type {
   FolderEntry,
   LibraryIndexBuildReport,
   LibraryIndexStatus,
   LibrarySyncReport,
+  PipelineDescriptor,
   WorkspaceFolderResult,
 } from '../types';
 
@@ -106,6 +114,9 @@ export function ExplorerPanel({
   libraryWorkMessages,
   onSyncLibraryNow,
   onOpenConvertLog,
+  libraryPipelines = {},
+  pipelineDescriptors = [],
+  onEditFolderPipeline,
 }: {
   folders: WorkspaceFolderResult[];
   libraryPaths: string[];
@@ -168,6 +179,12 @@ export function ExplorerPanel({
   libraryWorkMessages?: Record<string, string>;
   onSyncLibraryNow: (folderPath: string) => void;
   onOpenConvertLog: () => void;
+  /** Folder pipeline rules for each library root. */
+  libraryPipelines?: Record<string, LibraryPipelines>;
+  /** Installed ingest pipelines, for pipeline names in menus. */
+  pipelineDescriptors?: PipelineDescriptor[];
+  /** Open the PDF pipeline dialog for `folderPath` inside the library at `rootPath`. */
+  onEditFolderPipeline?: (rootPath: string, folderPath: string) => void;
 }) {
   const [menu, setMenu] = useState<ExplorerMenu | null>(null);
   const menuTriggerRef = useRef<HTMLElement | null>(null);
@@ -493,6 +510,29 @@ export function ExplorerPanel({
     );
   }
 
+  function pdfPipelineMenuItem(rootPath: string, folderPath: string) {
+    const pipelines = libraryPipelines[rootPath];
+    const relative = libraryRelativeFolder(rootPath, folderPath);
+    if (!onEditFolderPipeline || !pipelines || relative === null) return null;
+    const current = pdfPipelineFor(pipelines, relative, { descriptors: pipelineDescriptors });
+    const source = current.ruleFolder !== null && current.ruleFolder.toLowerCase() === relative.toLowerCase()
+      ? 'this folder'
+      : pipelineSourceLabel(current.ruleFolder);
+    const locked = convertLocked || pathIsSyncing(folderPath);
+    return (
+      <button
+        role="menuitem"
+        disabled={locked}
+        title={locked
+          ? 'Wait for the current conversion or sync to finish'
+          : `PDFs here use ${pipelineDisplayName(current.parser, pipelineDescriptors)}, set by ${source}`}
+        onClick={() => runMenuAction(() => onEditFolderPipeline(rootPath, folderPath))}
+      >
+        PDF pipeline…
+      </button>
+    );
+  }
+
   function menuItems(current: ExplorerMenu) {
     if (current.kind === 'root') {
       const tree = trees.find((item) => item.folder.path === current.path)?.full;
@@ -521,6 +561,7 @@ export function ExplorerPanel({
               Make this a library
             </button>
           )}
+          {isLibrary ? pdfPipelineMenuItem(current.path, current.path) : null}
           {onOpenLibraryTrash && isLibrary ? (
             <button role="menuitem" onClick={() => runMenuAction(() => onOpenLibraryTrash(current.path))}>
               Library trash…
@@ -554,6 +595,7 @@ export function ExplorerPanel({
       return (
         <>
           {convertMenuItems(current.folder.path, current.folder.readyCount + pending, pending)}
+          {libraryPaths.includes(current.rootPath) ? pdfPipelineMenuItem(current.rootPath, current.folder.path) : null}
           <button role="menuitem" onClick={() => runMenuAction(() => onRevealInFolder(current.folder.path))}>
             {showInFolderLabel(window.vera.platform)}
           </button>

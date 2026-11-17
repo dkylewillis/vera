@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from vera_app.citations import CitationRegistry
 from vera_app.markdown_drafts import (
     current_draft_block,
@@ -55,6 +57,14 @@ def test_write_draft_versions_and_stays_in_the_folder(tmp_path) -> None:
     assert str(tmp_path) in first["path"]
     escaped = write_draft(str(tmp_path), "..", "report.md", "nope")
     assert escaped["path"].startswith(str(tmp_path))
+
+
+def test_write_draft_replaces_unpaired_surrogates(tmp_path) -> None:
+    saved = write_draft(str(tmp_path), "sess", "answer.md", "Extracted \udc9d text")
+    body = Path(saved["path"]).read_text(encoding="utf-8")
+    assert "\udc9d" not in body
+    assert "Extracted \ufffd text" in body
+    body.encode("utf-8")
 
 
 def test_current_draft_is_fed_back_as_raw_text(tmp_path) -> None:

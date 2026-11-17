@@ -73,6 +73,12 @@ describe('siblingSourcePath', () => {
   it('defaults to a same-named PDF', () => {
     expect(siblingSourcePath('C:\\docs\\manual.vera')).toBe('C:\\docs\\manual.pdf');
   });
+
+  it('uses the name before .vera when that name still has an extension', () => {
+    expect(siblingSourcePath('C:\\docs\\Report.pdf.vera')).toBe('C:\\docs\\Report.pdf');
+    expect(siblingSourcePath('C:\\docs\\Report.vera')).toBe('C:\\docs\\Report.pdf');
+    expect(siblingSourcePath('C:\\docs\\Report.pdf.vera')).not.toContain('.pdf.pdf');
+  });
 });
 
 describe('sameFsPath', () => {

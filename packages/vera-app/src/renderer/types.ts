@@ -340,6 +340,8 @@ export interface BatchConvertResult {
   skipped_existing: string[];
   skipped_by_user?: string[];
   malformed_existing: { input: string; output: string; issues: string[] }[];
+  renamed?: number;
+  renamed_existing?: { input: string; from: string; to: string }[];
   errors: { input: string; error: string }[];
   warnings?: { input: string; output: string; warnings: string[] }[];
   notes?: { input: string; output: string; notes: string[] }[];

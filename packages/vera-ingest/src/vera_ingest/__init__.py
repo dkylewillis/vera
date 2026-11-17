@@ -23,9 +23,11 @@ from .formats import (
 )
 from .library import (
     init_library,
+    library_pipelines,
     library_status,
     list_trash,
     restore_from_trash,
+    set_folder_pipeline,
     sync_library,
 )
 from .markdown import ensure_registered as ensure_markdown_pipeline_registered
@@ -96,7 +98,9 @@ __all__ = [
     "clear_ingest_pipeline_cache",
     "convert",
     "init_library",
+    "library_pipelines",
     "library_status",
+    "set_folder_pipeline",
     "list_trash",
     "restore_from_trash",
     "sync_library",

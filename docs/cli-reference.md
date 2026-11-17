@@ -45,7 +45,8 @@ Options:
 - `--parser PARSER` (omitted: choose from the file extension — PDF → `pymupdf`,
   Markdown → `markdown`, DOCX/PPTX/XLSX/HTML → `docling` when
   `vera[docling]` is installed; accepts `provider[:variant]` specs such as
-  `docling` / `docling:hybrid`; unknown
+  `docling` / `docling:hybrid`, or `pymupdf:plans` for construction drawing
+  sets, which is never chosen by extension; unknown
   providers exit with an error; the 0.3.x Windows installer does not include
   Docling)
 - `--chunk-size N` (`500`; compatibility alias; PyMuPDF counts whitespace-split
@@ -73,15 +74,16 @@ Options:
 - `--json`
 
 Conversion selectively OCRs image-based low-text pages through PyMuPDF and
-Tesseract, publishes a validated temporary archive atomically, and fails when
+Tesseract (`--parser pymupdf:plans` also OCRs low-text drawing sheets), publishes a validated temporary archive atomically, and fails when
 no searchable chunks are extracted. English language data is bundled for
 offline, zero-setup OCR; other selected languages either require
 `--ocr-allow-download` (or the equivalent `ocr_download` pipeline option) to
 auto-fetch curated language data, or a manually installed Tesseract
 `.traineddata` file with `TESSDATA_PREFIX` set. Directory conversion writes
-archives beside source files, skips an existing `.vera` only when it validates and
-its stored `source_file_hash` matches the current source file, reports same-stem
-sources that would share one `.vera` path as failures instead of overwriting,
+`<filename>.vera` beside each source (`manual.pdf` becomes `manual.pdf.vera`),
+skips an existing `.vera` only when it validates and its stored
+`source_file_hash` matches the current source file, renames an older
+`manual.vera` that belongs to that source onto the new name (`renamed_existing`),
 reports malformed outputs separately, and does not accept `OUTPUT`.
 Pipeline-owned defaults and validation live in each ingest plugin; advertised
 integer `minimum`/`maximum` bounds are enforced (for example `chunk_size`
@@ -271,7 +273,8 @@ Options: `--adopt`, `--model`, `--parser`, `--pipeline-option`,
 
 Creates `.vera/` (`library.json`, `README.txt`, `archives/`, `index/`) and
 hides it on Windows. `--adopt` moves matching sibling archives into
-`.vera/archives/`. Refuses a second library inside an existing one.
+`.vera/archives/`, including `file.pdf.vera` and an older `file.vera` whose
+stored hash matches the source. Refuses a second library inside an existing one.
 
 ## `vera library sync DIRECTORY`
 
@@ -283,11 +286,29 @@ files, move renamed archives, and trash archives whose sources are gone.
 more than 20% of archives and more than 5 files, sets `needs_confirmation`
 until `--confirm-deletes`. `--reconvert` rebuilds unchanged sources too.
 
+## `vera library pipeline DIRECTORY`
+
+Options: `--folder`, `--parser`, `--pipeline-option`, `--clear`, `--json`.
+
+Lists, sets, or clears folder pipeline rules in `.vera/library.json`
+(`convert.pipeline_rules`). With no `--parser` or `--clear`, it lists the
+library `parser`, `pipeline_options`, and `rules` (each `folder`, `parser`,
+`pipeline_options`). `--folder` is relative to the library root, `*` and `?`
+match within one folder name, and leaving it out means the whole library.
+`--parser` sets the rule. `--clear` removes it and cannot be combined with
+`--parser`. The deepest matching rule wins. A rule only changes formats its
+pipeline reads. Nothing converts until the next `vera library sync`, which
+reconverts the affected files with `"reason": "pipeline"`. Exit 1 for an
+unknown pipeline, a folder outside the library, or an unmanaged folder.
+
 ## `vera library status DIRECTORY`
 
 Options: `--json`.
 
 Pending-change report. Does not convert and does not take the sync lock.
+The report includes `pipeline_rules`, and each convert action includes the
+`parser` that will convert the file (`null` means the default for its
+extension).
 
 ## `vera library trash list DIRECTORY`
 

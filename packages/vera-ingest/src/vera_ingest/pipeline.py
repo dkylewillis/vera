@@ -298,14 +298,28 @@ def list_ingest_pipelines() -> list[str]:
         return sorted(_PIPELINE_FACTORIES)
 
 
-def list_ingest_pipeline_descriptors() -> list[PipelineDescriptor]:
-    """Return descriptors for each installed provider using its default variant."""
+def list_ingest_pipeline_descriptors(*, include_variants: bool = False) -> list[PipelineDescriptor]:
+    """Return descriptors for each installed provider using its default variant.
+
+    With ``include_variants``, each provider's default is followed by the
+    other variants its descriptor advertises (for example ``pymupdf:plans``).
+    Format routing leaves this off so a variant is never picked by extension.
+    """
     providers = list_ingest_pipelines()
     descriptors: list[PipelineDescriptor] = []
     for provider in providers:
         variant = _DEFAULT_VARIANTS.get(provider, "")
         spec = format_ingest_pipeline_spec(provider, variant)
-        descriptors.append(describe_ingest_pipeline(spec))
+        descriptor = describe_ingest_pipeline(spec)
+        descriptors.append(descriptor)
+        if not include_variants:
+            continue
+        for extra in descriptor.variants:
+            if extra == descriptor.variant:
+                continue
+            descriptors.append(
+                describe_ingest_pipeline(format_ingest_pipeline_spec(provider, extra))
+            )
     return descriptors
 
 

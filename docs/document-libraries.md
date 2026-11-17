@@ -39,10 +39,53 @@ include `source_path` (for example `Plans/Site Plan.pdf`). `--include` and
 `--exclude` match those source paths. The nearest parent `.vera/` owns the
 folder; creating a second library inside it is refused.
 
-`vera convert file.pdf` still writes a sibling `.vera`. `vera library init
+`vera convert file.pdf` still writes a sibling `file.pdf.vera`. `vera library init
 --adopt` moves sibling archives whose stored hash matches the source into
-`.vera/archives/`. A folder of loose `.vera` files, with no `library.json`,
+`.vera/archives/`, including `file.pdf.vera` and an older `file.vera`. A folder of loose `.vera` files, with no `library.json`,
 keeps using `.vera-index/` and the commands above.
+
+### Choose a pipeline per folder
+
+A library can convert different folders with different pipelines. For
+example, use `pymupdf:plans` for drawing sets and the regular `pymupdf`
+pipeline for reports and specs. Folder rules live in `.vera/library.json`
+under `convert.pipeline_rules`, so every sync uses them:
+
+```bash
+vera library pipeline ./library --folder "Projects/*/Plans" --parser pymupdf:plans
+vera library pipeline ./library --folder Projects/Tower/Plans/Details --parser pymupdf
+vera library pipeline ./library --json
+vera library pipeline ./library --folder Projects/Tower/Plans/Details --clear
+vera library sync ./library
+```
+
+Rules follow these rules:
+
+- `--folder` is relative to the library root. Leave it out to set the whole
+  library. `*` and `?` match within one folder name, so `Projects/*/Plans`
+  covers each project's `Plans` folder. Matching ignores case.
+- The deepest matching rule wins. When two rules match at the same depth, the
+  later one wins.
+- A folder keeps one rule per file type. Setting a PDF pipeline on a folder
+  replaces that folder's earlier PDF rule but leaves a Markdown rule alone.
+  `--clear` removes all of the folder's rules.
+- A rule applies only to files its pipeline reads. A `pymupdf:plans` rule
+  changes PDFs, but Markdown and Office files in that folder keep their usual
+  pipeline.
+- Files no rule covers use the library's `--parser` from `vera library init`.
+  Without one, each file uses the default pipeline for its extension.
+- `--pipeline-option` values on a rule are merged over the library's options.
+
+Changing a rule does not convert anything by itself. The next `vera library
+sync` reconverts only the files whose pipeline changed; those actions have
+`"reason": "pipeline"`. Moving a PDF into a folder with a different pipeline
+converts it again instead of moving the old archive. Sync records each file's
+pipeline in the library state. In a library synced before this was recorded,
+sync reads the stored `parser_name` from each archive once.
+
+`vera library init --parser` still limits which formats the library picks up.
+To set the PDF pipeline for a whole library without limiting it to PDFs, add a
+rule with no `--folder`.
 
 Malformed archives do not abort folder search or inspection. Direct fallback
 search validates each discovered archive and searches the valid subset.

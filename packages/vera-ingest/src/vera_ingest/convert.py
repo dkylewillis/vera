@@ -20,6 +20,7 @@ from vera_doc import (
     VeraDocument,
     get_embedder,
 )
+from vera_doc.library import legacy_sibling_archive_path, sibling_archive_path
 from vera_doc.models import (
     METADATA_DOCUMENT_ID,
     METADATA_HEADING_PATH,
@@ -205,6 +206,57 @@ def _stored_source_file_hash(path: Path) -> str | None:
         return None
     digest = stored.strip()
     return digest or None
+
+
+def _stored_source_file_name(path: Path) -> str | None:
+    """Return the archive's stored source file name, or None if missing/unreadable."""
+    try:
+        with VeraDocument.open(path) as document:
+            stored = document.inspect().get("source_file_name")
+    except Exception:
+        return None
+    if not isinstance(stored, str):
+        return None
+    name = stored.strip()
+    return name or None
+
+
+def _legacy_archive_belongs_to(archive: Path, source: Path, cancel: Any | None) -> bool:
+    """True when an old-style archive was built from ``source``.
+
+    A stored ``source_file_name`` must match the file name. Archives that
+    predate that header match only when their stored hash still matches.
+    """
+    stored_name = _stored_source_file_name(archive)
+    if stored_name:
+        return stored_name.casefold() == source.name.casefold()
+    stored_hash = _stored_source_file_hash(archive)
+    if not stored_hash:
+        return False
+    return stored_hash == _sha256_file(source, cancel)
+
+
+def _claim_legacy_sibling(source: Path, output: Path, cancel: Any | None = None) -> Path | None:
+    """Rename an old-style sibling archive onto ``output`` when it belongs to ``source``.
+
+    ``Report.vera`` built from ``Report.docx`` becomes ``Report.docx.vera``.
+    Returns the previous path, or None when nothing was renamed. A mismatched
+    or invalid archive is left in place.
+    """
+    legacy = legacy_sibling_archive_path(source)
+    try:
+        same_path = legacy.resolve() == output.resolve()
+    except OSError:
+        same_path = legacy == output
+    if same_path or output.exists() or not legacy.is_file():
+        return None
+    if not _validate_output(legacy)["ok"]:
+        return None
+    if not _legacy_archive_belongs_to(legacy, source, cancel):
+        return None
+    output.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(legacy, output)
+    return legacy
 
 
 @dataclass(frozen=True)
@@ -772,23 +824,6 @@ def _resolve_batch_sources(
     return root, sources
 
 
-def _batch_output_collisions(sources: Sequence[Path]) -> dict[Path, str]:
-    """Return per-source errors when multiple inputs share one ``.vera`` path."""
-    by_output: dict[Path, list[Path]] = {}
-    for source_file in sources:
-        by_output.setdefault(source_file.with_suffix(".vera"), []).append(source_file)
-    errors: dict[Path, str] = {}
-    for output, group in by_output.items():
-        if len(group) < 2:
-            continue
-        for source_file in group:
-            others = ", ".join(str(path) for path in group if path != source_file)
-            errors[source_file] = (
-                f"Refusing to write {output}: it is also the conversion target of {others}"
-            )
-    return errors
-
-
 def batch_convert(
     directory: str | None = None,
     *,
@@ -823,9 +858,11 @@ def batch_convert(
         overwrite: When ``True``, replace existing ``.vera`` outputs. When
             ``False``, skip a sibling archive only when it validates and its
             stored ``source_file_hash`` matches the current source file. Stale or
-            hash-less archives are reconverted. Same-stem sources that would
-            write the same ``.vera`` path fail instead of overwriting each other,
-            including when ``overwrite`` is true.
+            hash-less archives are reconverted. Each source writes
+            ``<filename>.vera`` (``Report.pdf`` becomes ``Report.pdf.vera``).
+            An older ``Report.vera`` whose stored name or hash belongs to the
+            source is renamed onto that path before the skip check, including
+            when ``overwrite`` is true.
         model: Embedding model spec passed to :func:`convert`.
         embedding_function: Optional custom embedder passed to :func:`convert`.
         parser: Ingest pipeline spec passed to :func:`convert`. ``None``
@@ -901,7 +938,7 @@ def batch_convert(
     errors: list[dict[str, str]] = []
     warnings: list[dict[str, Any]] = []
     notes: list[dict[str, Any]] = []
-    output_collisions = _batch_output_collisions(sources)
+    renamed_existing: list[dict[str, str]] = []
     total = len(sources)
     if progress and not sources:
         progress(0, 0, "")
@@ -911,10 +948,12 @@ def batch_convert(
             if progress:
                 # completed = files finished so far; input = file about to convert
                 progress(index, total, str(source_file))
-            if source_file in output_collisions:
-                errors.append({"input": str(source_file), "error": output_collisions[source_file]})
-                continue
-            output = source_file.with_suffix(".vera")
+            output = sibling_archive_path(source_file)
+            claimed = _claim_legacy_sibling(source_file, output, settings.cancel)
+            if claimed is not None:
+                renamed_existing.append(
+                    {"input": str(source_file), "from": str(claimed), "to": str(output)}
+                )
             if output.exists() and not overwrite:
                 validation = _validate_output(output)
                 if not validation["ok"]:
@@ -968,10 +1007,12 @@ def batch_convert(
         "user_skipped": len(skipped_by_user),
         "malformed": len(malformed_existing),
         "failed": len(errors),
+        "renamed": len(renamed_existing),
         "outputs": outputs,
         "skipped_existing": skipped_existing,
         "skipped_by_user": skipped_by_user,
         "malformed_existing": malformed_existing,
+        "renamed_existing": renamed_existing,
         "errors": errors,
         "warnings": warnings,
         "notes": notes,

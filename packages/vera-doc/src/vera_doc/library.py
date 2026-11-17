@@ -108,6 +108,21 @@ def archive_path_for(root: str | Path, source_rel: str) -> Path:
     return library_dir(root) / LIBRARY_ARCHIVES / f"{relative}{ARCHIVE_SUFFIX}"
 
 
+def sibling_archive_path(source: str | Path) -> Path:
+    """Return the loose archive beside ``source``.
+
+    ``Report.pdf`` becomes ``Report.pdf.vera``, the same rule managed
+    libraries use under ``.vera/archives/``.
+    """
+    path = Path(source)
+    return path.with_name(f"{path.name}{ARCHIVE_SUFFIX}")
+
+
+def legacy_sibling_archive_path(source: str | Path) -> Path:
+    """Return the older loose archive name: ``Report.pdf`` becomes ``Report.vera``."""
+    return Path(source).with_suffix(ARCHIVE_SUFFIX)
+
+
 def source_path_for(archive_rel: str) -> str | None:
     """Map a library-relative archive path back to its source path.
 
@@ -175,6 +190,7 @@ def default_convert_settings(
     pipeline_options: Mapping[str, Any] | None = None,
     embedder_options: Mapping[str, Any] | None = None,
     metadata: Mapping[str, Any] | None = None,
+    pipeline_rules: list[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     return {
         "model": model,
@@ -182,6 +198,9 @@ def default_convert_settings(
         "pipeline_options": dict(pipeline_options or {}),
         "embedder_options": dict(embedder_options or {}),
         "metadata": dict(metadata or {}),
+        # Folder overrides: {"folder": "Projects/*/Plans", "parser": "pymupdf:plans",
+        # "pipeline_options": {...}}. "" is the whole library.
+        "pipeline_rules": [dict(rule) for rule in pipeline_rules or []],
     }
 
 
@@ -192,6 +211,7 @@ def new_manifest(
     pipeline_options: Mapping[str, Any] | None = None,
     embedder_options: Mapping[str, Any] | None = None,
     metadata: Mapping[str, Any] | None = None,
+    pipeline_rules: list[Mapping[str, Any]] | None = None,
     trash_retention_days: int = DEFAULT_TRASH_RETENTION_DAYS,
 ) -> dict[str, Any]:
     if trash_retention_days < 0:
@@ -207,6 +227,7 @@ def new_manifest(
             pipeline_options=pipeline_options,
             embedder_options=embedder_options,
             metadata=metadata,
+            pipeline_rules=pipeline_rules,
         ),
     }
 

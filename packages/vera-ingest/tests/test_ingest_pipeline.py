@@ -518,6 +518,21 @@ def test_pymupdf_descriptor_and_strict_options():
         "ocr_dpi",
         "ocr_download",
     }
+    assert descriptor.variants == ("plans",)
+    plans = describe_ingest_pipeline("pymupdf:plans")
+    assert plans.spec == "pymupdf:plans"
+    assert plans.variant == "plans"
+    assert plans.field_keys() == descriptor.field_keys() | {"ocr_drawn_text"}
+    assert plans.defaults()["ocr_drawn_text"] == "auto"
+    with pytest.raises(ValueError, match="Unknown PyMuPDF option"):
+        PyMuPDFOptions.from_mapping({"ocr_drawn_text": "off"})
+    with pytest.raises(UnknownIngestPipelineError, match="pymupdf:plans"):
+        describe_ingest_pipeline("pymupdf:blueprints")
+    # Listing stays one descriptor per provider unless variants are requested,
+    # so a variant is never chosen as a format's default parser.
+    assert "pymupdf:plans" not in [item.spec for item in list_ingest_pipeline_descriptors()]
+    listed = [item.spec for item in list_ingest_pipeline_descriptors(include_variants=True)]
+    assert listed.index("pymupdf:plans") == listed.index("pymupdf") + 1
     assert descriptor.as_dict()["capabilities"]["ocr_engine"] == "tesseract"
     assert descriptor.capabilities.chunk_unit == "words"
     chunk_size = next(field for field in descriptor.fields if field.key == "chunk_size")

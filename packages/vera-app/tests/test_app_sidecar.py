@@ -590,6 +590,35 @@ def test_empty_library_can_open_for_summary(tmp_path):
     assert response["result"]["summary_source"] == "discovery"
 
 
+def test_library_pipeline_actions_store_folder_rules(tmp_path):
+    plans = tmp_path / "Plans"
+    plans.mkdir()
+    created = handle(
+        {
+            "id": "init",
+            "action": "library_init",
+            "path": str(tmp_path),
+            "pipeline_rules": [{"folder": "", "parser": "pymupdf:plans"}],
+        }
+    )
+    assert created["ok"] is True, created
+
+    listed = handle({"id": "list", "action": "library_pipelines", "path": str(tmp_path)})
+    assert listed["ok"] is True, listed
+    assert listed["result"]["rules"] == [{"folder": "", "parser": "pymupdf:plans", "pipeline_options": {}}]
+
+    set_rule = handle({"id": "set", "action": "library_set_pipeline", "path": str(plans), "parser": "pymupdf"})
+    assert set_rule["ok"] is True, set_rule
+    assert [(rule["folder"], rule["parser"]) for rule in set_rule["result"]["rules"]] == [
+        ("", "pymupdf:plans"),
+        ("Plans", "pymupdf"),
+    ]
+
+    cleared = handle({"id": "clear", "action": "library_set_pipeline", "path": str(plans), "parser": None})
+    assert cleared["ok"] is True, cleared
+    assert [rule["folder"] for rule in cleared["result"]["rules"]] == [""]
+
+
 def test_single_file_scope_still_stamps_source_path(tmp_path):
     pdf = tmp_path / "manual.pdf"
     out = tmp_path / "manual.vera"
@@ -633,8 +662,8 @@ def test_batch_convert_supports_recursive_discovery_and_default_names(tmp_path):
     assert top_only["ok"] is True
     assert top_only["result"]["discovered"] == 1
     assert top_only["result"]["converted"] == 1
-    assert (root / "top-level.vera").is_file()
-    assert not (nested_pdf.parent / "nested-proposal.vera").exists()
+    assert (root / "top-level.pdf.vera").is_file()
+    assert not (nested_pdf.parent / "nested-proposal.PDF.vera").exists()
 
     recursive = handle(
         {
@@ -653,7 +682,7 @@ def test_batch_convert_supports_recursive_discovery_and_default_names(tmp_path):
     assert recursive["result"]["malformed"] == 0
     assert recursive["result"]["malformed_existing"] == []
     assert recursive["result"]["failed"] == 0
-    assert (nested_pdf.parent / "nested-proposal.vera").is_file()
+    assert (nested_pdf.parent / "nested-proposal.PDF.vera").is_file()
 
 
 def test_batch_convert_paths_converts_only_selected_pdfs(tmp_path):
@@ -679,9 +708,9 @@ def test_batch_convert_paths_converts_only_selected_pdfs(tmp_path):
     assert response["result"]["discovered"] == 2
     assert response["result"]["converted"] == 2
     assert response["result"]["recursive"] is False
-    assert (root / "first.vera").is_file()
-    assert (root / "second.vera").is_file()
-    assert not (root / "ignored.vera").exists()
+    assert (root / "first.pdf.vera").is_file()
+    assert (root / "second.pdf.vera").is_file()
+    assert not (root / "ignored.pdf.vera").exists()
 
 
 def test_sidecar_forwards_ocr_options_for_single_and_batch_conversion(monkeypatch):
@@ -766,7 +795,7 @@ def test_sidecar_describe_ingest_pipelines_and_pipeline_options(monkeypatch):
     monkeypatch.setattr(
         convert_mod,
         "list_ingest_pipeline_descriptors",
-        lambda: [FakeDescriptor()],
+        lambda **_kwargs: [FakeDescriptor()],
     )
 
     described = handle({"id": "desc", "action": "describe_ingest_pipelines"})
@@ -815,6 +844,15 @@ def test_sidecar_describe_omits_docling_even_when_package_importable():
     assert "pymupdf" in providers
     assert "docling" not in providers
     assert "docling" not in listed["result"]["pipelines"]
+
+
+def test_sidecar_describe_lists_the_plans_variant_after_the_default():
+    described = handle({"id": "desc-plans", "action": "describe_ingest_pipelines"})
+    assert described["ok"] is True
+    specs = [item["spec"] for item in described["result"]["pipelines"]]
+    assert specs.index("pymupdf:plans") == specs.index("pymupdf") + 1
+    plans = described["result"]["pipelines"][specs.index("pymupdf:plans")]
+    assert "ocr_drawn_text" in [field["key"] for field in plans["fields"]]
 
 
 def test_sidecar_rejects_docling_parser():
@@ -1107,6 +1145,22 @@ def test_source_action_reuses_cache_without_extracting_blob(tmp_path, monkeypatc
     )
     assert again["ok"] is True
     assert again["result"]["cache_path"] == first["result"]["cache_path"]
+
+
+def test_sibling_source_file_reads_the_name_before_vera(tmp_path):
+    from vera_app.source import sibling_source_file
+
+    pdf = tmp_path / "Report.pdf"
+    archive = tmp_path / "Report.pdf.vera"
+    pdf.write_bytes(b"%PDF-1.4")
+    archive.write_bytes(b"not-opened")
+
+    found = sibling_source_file(archive)
+
+    assert found is not None
+    assert found[0] == pdf
+    assert found[1] == "application/pdf"
+    assert not (tmp_path / "Report.pdf.pdf").exists()
 
 
 def test_source_action_copies_sibling_pdf_instead_of_embedded_blob(tmp_path, monkeypatch):

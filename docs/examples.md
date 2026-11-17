@@ -5,8 +5,9 @@ These recipes use the `vera` console script. Substitute
 
 ## Convert, index, and search a library
 
-Start with a folder of PDFs or Markdown files. Conversion writes `.vera`
-files beside their sources:
+Start with a folder of PDFs or Markdown files. Conversion writes an archive
+beside each source, named `<filename>.vera` (`manual.pdf` becomes
+`manual.pdf.vera`):
 
 ```bash
 vera convert ./library --recursive
@@ -68,7 +69,7 @@ vera get "ordinance.vera" "chunk_0001" --json
 ## Convert a scanned PDF
 
 Automatic mode uses native text where available and OCRs image-based low-text
-pages:
+pages (add `--parser pymupdf:plans` for construction drawing sets):
 
 ```bash
 vera convert "scanned-manual.pdf" "scanned-manual.vera" --ocr auto --ocr-language eng

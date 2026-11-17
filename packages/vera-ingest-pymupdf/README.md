@@ -34,6 +34,8 @@ Python 3.10 or newer is required. English OCR works offline with the bundled
 vera convert "manual.pdf" "manual.vera"
 # or explicitly:
 vera convert "manual.pdf" "manual.vera" --parser pymupdf
+# construction drawing sets:
+vera convert "plans.pdf" "plans.vera" --parser pymupdf:plans
 ```
 
 ```python
@@ -53,6 +55,10 @@ convert("manual.pdf", "manual.vera", parser="pymupdf")
   whose only native text is a header, Bates stamp, or letterhead (fewer than
   200 alphanumeric characters on a large-image page). Use `force` for
   full-page OCR or `off` to disable OCR.
+- `--parser pymupdf:plans` is a variant for construction drawing sets. It
+  also OCRs low-text drawing sheets while keeping their real text
+  (`ocr_drawn_text=auto`; `off` skips that pass) and keeps detail titles in
+  the chunk text. The default `pymupdf` pipeline does neither.
 
 See the [vera-ingest-pymupdf documentation](https://dkylewillis.github.io/vera/packages/vera-ingest-pymupdf/)
 and [conversion guide](https://github.com/dkylewillis/vera/blob/main/docs/conversion.md).

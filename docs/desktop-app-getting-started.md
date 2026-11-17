@@ -60,6 +60,19 @@ library for **Library trash…**, and a converted document for **Share
 archive…**, which copies that one `.vera` file out. Sibling `.vera` files
 that match their sources can be moved into `.vera/archives/` when the library
 is created.
+When a folder becomes a library, VERA asks how it should convert PDFs and
+lists every installed PDF pipeline. For drawing sets choose `pymupdf:plans`,
+which also reads lettering drawn as linework and keeps detail titles
+searchable. For reports, manuals, and specs keep the default `pymupdf`.
+A library can mix pipelines. Right-click the library or one of its subfolders
+and choose **PDF pipeline…**. Hover the item to see which pipeline the folder
+uses now and where that was set. The dialog offers **Same as parent folder**
+(**Library default** on the library itself) and each installed pipeline. A
+pipeline that also reads other formats, such as Docling with Word files,
+says so. Subfolders follow the choice unless they set their own. **Save and
+sync** stores the choice in the library's hidden `.vera/library.json` (the same
+rules `vera library pipeline` edits) and reconverts only the PDFs whose
+pipeline changed.
 
 The library list is stored in `localStorage` (`vera.libraryPaths`).
 
@@ -67,7 +80,8 @@ Each folder is a tree. Subfolders start collapsed and remember whether you
 expanded them; a chain of folders that only contain one subfolder is shown as
 one row (for example `reports/2024`). A PDF, Markdown, Word, PowerPoint, or Excel file and its archive appear as one document row. The row icon matches the source type. A `.vera` file with no source beside it keeps the VERA mark. In a managed library the archive lives under `.vera/archives/` and
 pairs by the full source name (`Site Plan.pdf` with `Site Plan.pdf.vera`).
-A loose `.vera` beside its source still pairs by file-name stem. A converted document shows a green dot. Sources that are not converted yet show their file
+A loose archive beside its source uses the same name (`Report.pdf.vera`).
+An older `Report.vera` still pairs by file-name stem. A converted document shows a green dot. Sources that are not converted yet show their file
 name in a muted style with a grey dot. A plain folder or subfolder that
 holds unconverted sources shows a grey sync-arrow badge with the count of files not
 searchable yet; select it to convert those files with your default settings.
@@ -310,7 +324,7 @@ listed, Reconvert does not export an embedded original and shows
 **Could not read archive metadata**. Place the matching `.pdf` or `.md` next to the
 archive, or export the original from Document Info once the archive is
 readable. Document Info's OCR line is PyMuPDF-shaped (`ocr_engine`,
-`ocr_mode`, `ocr_pages`). Markdown archives store `ocr: {}` and the UI shows
+`ocr_mode`, `ocr_pages`; `pymupdf:plans` adds `ocr_drawn_text_pages` to the JSON bag). Markdown archives store `ocr: {}` and the UI shows
 `Unknown mode · 0 pages OCR’d`; Docling recovery uses `engine` /
 `recovered_pages`, so the Info line can look incomplete after a successful
 convert. Use `vera inspect FILE --json` (or sidecar inspect) for the full bag.

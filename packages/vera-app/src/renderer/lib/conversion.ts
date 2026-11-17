@@ -149,6 +149,8 @@ export function singleConvertAsBatchResult(options: {
     skipped_existing: [],
     skipped_by_user: [],
     malformed_existing: [],
+    renamed: 0,
+    renamed_existing: [],
     errors: [],
     ...(warnings.length ? { warnings: [{ input, output, warnings }] } : {}),
     ...(notes.length ? { notes: [{ input, output, notes }] } : {}),

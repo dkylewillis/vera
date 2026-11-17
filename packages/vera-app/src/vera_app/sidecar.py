@@ -131,6 +131,8 @@ HANDLERS: dict[str, Handler] = {
     "library_status": library_handlers.library_info,
     "library_trash_list": library_handlers.library_trash_list,
     "library_restore": library_handlers.library_restore,
+    "library_pipelines": library_handlers.library_pipelines,
+    "library_set_pipeline": library_handlers.library_set_pipeline,
 }
 
 _CONTROL_ACTIONS = {"cancel", "skip"}
@@ -305,6 +307,7 @@ _THREADED_ACTIONS = _CANCELLABLE_ACTIONS | {
     "validate",
     "library_status",
     "library_trash_list",
+    "library_pipelines",
 }
 
 

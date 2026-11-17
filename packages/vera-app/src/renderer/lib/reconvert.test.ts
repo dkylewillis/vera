@@ -50,6 +50,12 @@ describe('resolveReconvertPdf', () => {
 });
 
 describe('resolveReconvertSource', () => {
+  it('pairs Report.pdf.vera with Report.pdf', () => {
+    expect(resolveReconvertSource('C:\\library\\Report.pdf.vera', {
+      entries: [{ path: 'C:\\library\\Report.pdf', type: 'pdf' }],
+    })).toEqual({ status: 'ready', sourcePath: 'C:\\library\\Report.pdf' });
+  });
+
   const veraPath = 'C:\\library\\notes.vera';
 
   it('prefers a listed sibling Markdown file from inspect', () => {

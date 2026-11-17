@@ -123,7 +123,7 @@ def test_pdf_preview_without_pymupdf_falls_back(monkeypatch):
     }
 
 
-def test_rotated_pdf_does_not_claim_verified_highlights(tmp_path):
+def test_rotated_pdf_highlights_use_the_visible_page(tmp_path):
     path = tmp_path / "rotated.pdf"
     with pymupdf.open() as pdf:
         page = pdf.new_page()
@@ -134,9 +134,17 @@ def test_rotated_pdf_does_not_claim_verified_highlights(tmp_path):
     convert(str(path), str(out), model="hashing")
     with VeraDocument.open(out) as doc:
         chunk = doc.search(text="capacity", top_k=1)[0].record
+        region = chunk.metadata["regions"][0]
+    with pymupdf.open(path) as pdf:
+        visible = pdf[0].rect
+    assert region["page_width"] == pytest.approx(visible.width)
+    assert region["page_height"] == pytest.approx(visible.height)
+    assert region["bbox"][2] <= visible.width + 1
+    assert region["bbox"][3] <= visible.height + 1
     view = source_view(SourceRef(file=str(out), chunk_id=chunk.id))
-    assert view["kind"] == "pdf" and not view["boxes"]
-    assert "rotated" in view["notice"]
+    assert view["kind"] == "pdf" and view["boxes"]
+    assert view["notice"] == ""
+    assert all(0 <= value <= 1 for box in view["boxes"] for value in box)
 
 
 @pytest.mark.anyio

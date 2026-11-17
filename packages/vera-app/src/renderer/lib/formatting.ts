@@ -53,10 +53,14 @@ export function siblingSourcePath(veraPath: string, sourceFileName?: string | nu
   const cut = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
   const dir = cut >= 0 ? trimmed.slice(0, cut + 1) : '';
   if (sourceFileName?.trim()) return `${dir}${sourceFileName.trim()}`;
-  return `${trimmed.slice(0, -5)}.pdf`;
+  const base = trimmed.slice(0, -'.vera'.length);
+  const name = base.slice(cut + 1);
+  // Report.pdf.vera pairs with Report.pdf. An older Report.vera pairs with Report.pdf.
+  if (name.includes('.')) return base;
+  return `${base}.pdf`;
 }
 
-/** `manual.vera` → `manual.pdf`. */
+/** `Report.pdf.vera` → `Report.pdf`. An older `Report.vera` → `Report.pdf`. */
 export function siblingPdfPath(veraPath: string): string {
   return siblingSourcePath(veraPath);
 }
