@@ -24,17 +24,14 @@ PLUGIN_API_VERSION = 1
 _ENTRY_POINT_GROUP = "vera.ingest_pipelines"
 _DESCRIPTOR_ENTRY_POINT_GROUP = "vera.ingest_pipeline_descriptors"
 _REGISTRY_LOCK = threading.RLock()
-_PIPELINE_FACTORIES: dict[str, Callable[[str], IngestPipeline]] = {}
-_DESCRIPTOR_FACTORIES: dict[str, Callable[[str], PipelineDescriptor]] = {}
+_PROVIDERS: dict[str, _Provider] = {}
 _PIPELINE_CACHE: dict[tuple[str, str], IngestPipeline] = {}
 _DESCRIPTOR_CACHE: dict[tuple[str, str], PipelineDescriptor] = {}
 _LOAD_ERRORS: list[str] = []
 _ENTRY_POINTS_LOADED = False
 _DEFAULT_VARIANTS = {"docling": "hybrid"}
-# Pipelines the separate Python environment (VERA_PIPELINE_PYTHON) offers, the
-# ones that actually run there, and the providers a host never runs in process.
-_EXTERNAL_OFFERS: dict[str, _ExternalProvider] = {}
-_EXTERNAL_ACTIVE: set[str] = set()
+# Providers a host never runs in this process. Host configuration: it survives
+# reset_ingest_pipeline_registry, and a local factory stays registered beside it.
 _EXTERNAL_PREFERRED: set[str] = set()
 
 
@@ -88,17 +85,69 @@ class _ExternalProvider:
             f"Ingest pipeline {self.provider!r} in {self.python} has no variant {variant!r}."
         )
 
-    def create(self, variant: str) -> IngestPipeline:
-        spec = self.describe(variant).spec
-        python = self.python
 
-        def runs_elsewhere(source_path: str, request: IngestRequest) -> IngestResult:
-            raise RuntimeError(
-                f"Ingest pipeline {spec!r} runs in a separate Python environment "
-                f"({python}). Convert files with vera_ingest.convert()."
-            )
+@dataclass
+class _Provider:
+    """One provider, as installed in this process and as offered elsewhere.
 
-        return runs_elsewhere
+    A local factory and an environment offer coexist. Which one runs is
+    computed by :meth:`runs_external`, so preferring the environment never
+    discards the local factory.
+    """
+
+    factory: Callable[[str], IngestPipeline] | None = None
+    descriptor_factory: Callable[[str], PipelineDescriptor] | None = None
+    external: _ExternalProvider | None = None
+
+    def runs_external(self, preferred: bool) -> bool:
+        """True when this provider's files are converted in the separate environment."""
+        return self.external is not None and (self.factory is None or preferred)
+
+    @property
+    def installed(self) -> bool:
+        """True when a pipeline can be resolved. A descriptor on its own does not count."""
+        return self.factory is not None or self.external is not None
+
+
+def _record(provider: str) -> _Provider:
+    """Return the provider record, creating it. Caller holds the registry lock."""
+    record = _PROVIDERS.get(provider)
+    if record is None:
+        record = _Provider()
+        _PROVIDERS[provider] = record
+    return record
+
+
+def _drop_cached(provider: str) -> None:
+    """Forget resolved pipelines and descriptors for ``provider``. Caller holds the lock."""
+    for cache in (_PIPELINE_CACHE, _DESCRIPTOR_CACHE):
+        for cache_key in tuple(cache):
+            if cache_key[0] == provider:
+                cache.pop(cache_key, None)
+
+
+def _installed_names() -> list[str]:
+    """Sorted providers that resolve. Caller holds the registry lock."""
+    return sorted(name for name, record in _PROVIDERS.items() if record.installed)
+
+
+def _runs_external(provider: str, record: _Provider) -> bool:
+    """Caller holds the registry lock."""
+    return record.runs_external(provider in _EXTERNAL_PREFERRED)
+
+
+def _external_pipeline(offer: _ExternalProvider, variant: str) -> IngestPipeline:
+    """A pipeline callable that refuses in-process use of an environment pipeline."""
+    spec = offer.describe(variant).spec
+    python = offer.python
+
+    def runs_elsewhere(source_path: str, request: IngestRequest) -> IngestResult:
+        raise RuntimeError(
+            f"Ingest pipeline {spec!r} runs in a separate Python environment "
+            f"({python}). Convert files with vera_ingest.convert()."
+        )
+
+    return runs_elsewhere
 
 
 def _normalize_provider(provider: str) -> str:
@@ -172,19 +221,13 @@ def register_ingest_pipeline(
     if not callable(factory):
         raise TypeError("ingest pipeline factory must be callable")
     with _REGISTRY_LOCK:
-        if key in _PIPELINE_FACTORIES and not replace:
+        record = _PROVIDERS.get(key)
+        if record is not None and record.factory is not None and not replace:
             raise ValueError(f"ingest pipeline provider {provider!r} is already registered")
-        _PIPELINE_FACTORIES[key] = factory
-        if key in _EXTERNAL_ACTIVE:
-            # A local registration takes the provider back from the separate environment.
-            _EXTERNAL_ACTIVE.discard(key)
-            _DESCRIPTOR_FACTORIES.pop(key, None)
-        for cache_key in tuple(_PIPELINE_CACHE):
-            if cache_key[0] == key:
-                _PIPELINE_CACHE.pop(cache_key, None)
-        for cache_key in tuple(_DESCRIPTOR_CACHE):
-            if cache_key[0] == key:
-                _DESCRIPTOR_CACHE.pop(cache_key, None)
+        # Kept beside an environment offer. It runs only when that provider is
+        # not preferred, so a later registration takes the provider back then.
+        _record(key).factory = factory
+        _drop_cached(key)
     return None
 
 
@@ -213,9 +256,10 @@ def register_ingest_pipeline_descriptor(
     if not callable(factory):
         raise TypeError("ingest pipeline descriptor factory must be callable")
     with _REGISTRY_LOCK:
-        if key in _DESCRIPTOR_FACTORIES and not replace:
+        record = _PROVIDERS.get(key)
+        if record is not None and record.descriptor_factory is not None and not replace:
             raise ValueError(f"ingest pipeline descriptor for {provider!r} is already registered")
-        _DESCRIPTOR_FACTORIES[key] = factory
+        _record(key).descriptor_factory = factory
         for cache_key in tuple(_DESCRIPTOR_CACHE):
             if cache_key[0] == key:
                 _DESCRIPTOR_CACHE.pop(cache_key, None)
@@ -287,16 +331,14 @@ def _collect_external_offers() -> dict[str, _ExternalProvider]:
     }
 
 
-def _activate_external(provider: str) -> None:
-    """Route ``provider`` to the separate environment. Caller holds the registry lock."""
-    offer = _EXTERNAL_OFFERS[provider]
-    _PIPELINE_FACTORIES[provider] = offer.create
-    _DESCRIPTOR_FACTORIES[provider] = offer.describe
-    _EXTERNAL_ACTIVE.add(provider)
-    for cache in (_PIPELINE_CACHE, _DESCRIPTOR_CACHE):
-        for cache_key in tuple(cache):
-            if cache_key[0] == provider:
-                cache.pop(cache_key, None)
+def _store_factory(provider: str, factory: Any, *, descriptor: bool) -> None:
+    """Keep the first factory registered for ``provider``. Caller holds the registry lock."""
+    record = _record(provider)
+    if descriptor:
+        if record.descriptor_factory is None:
+            record.descriptor_factory = factory
+    elif record.factory is None:
+        record.factory = factory
 
 
 def _ensure_entry_points_loaded() -> None:
@@ -314,14 +356,14 @@ def _ensure_entry_points_loaded() -> None:
         if _ENTRY_POINTS_LOADED:
             return
         for provider, factory in pipeline_factories:
-            _PIPELINE_FACTORIES.setdefault(provider, factory)
+            _store_factory(provider, factory, descriptor=False)
         for provider, factory in descriptor_factories:
-            _DESCRIPTOR_FACTORIES.setdefault(provider, factory)
-        _EXTERNAL_OFFERS.update(external_offers)
-        for provider in external_offers:
-            # A pipeline this process has wins, unless the host never runs it here.
-            if provider not in _PIPELINE_FACTORIES or provider in _EXTERNAL_PREFERRED:
-                _activate_external(provider)
+            _store_factory(provider, factory, descriptor=True)
+        for provider, offer in external_offers.items():
+            # Stored beside a local factory. runs_external() decides which one is used,
+            # so a pipeline this process has wins unless the host prefers the environment.
+            _record(provider).external = offer
+            _drop_cached(provider)
         _ENTRY_POINTS_LOADED = True
 
 
@@ -336,10 +378,12 @@ def prefer_external_pipelines(providers: Iterable[str]) -> None:
     names = {_normalize_provider(provider) for provider in providers}
     with _REGISTRY_LOCK:
         _EXTERNAL_PREFERRED.update(names)
-        if _ENTRY_POINTS_LOADED:
-            for provider in names:
-                if provider in _EXTERNAL_OFFERS:
-                    _activate_external(provider)
+        if not _ENTRY_POINTS_LOADED:
+            return
+        for provider in names:
+            record = _PROVIDERS.get(provider)
+            if record is not None and record.external is not None:
+                _drop_cached(provider)
 
 
 def external_pipeline_python(spec: str | None) -> str | None:
@@ -347,9 +391,10 @@ def external_pipeline_python(spec: str | None) -> str | None:
     provider, _variant = parse_ingest_pipeline_spec(spec)
     _ensure_entry_points_loaded()
     with _REGISTRY_LOCK:
-        if provider not in _EXTERNAL_ACTIVE:
+        record = _PROVIDERS.get(provider)
+        if record is None or not _runs_external(provider, record) or record.external is None:
             return None
-        return _EXTERNAL_OFFERS[provider].python
+        return record.external.python
 
 
 def is_external_pipeline(spec: str | None) -> bool:
@@ -364,7 +409,10 @@ def external_pipeline_status() -> dict[str, Any]:
     """Report the separate Python environment: its location and the pipelines it runs."""
     _ensure_entry_points_loaded()
     with _REGISTRY_LOCK:
-        return {"python": configured_python(), "pipelines": sorted(_EXTERNAL_ACTIVE)}
+        pipelines = sorted(
+            name for name, record in _PROVIDERS.items() if _runs_external(name, record)
+        )
+        return {"python": configured_python(), "pipelines": pipelines}
 
 
 def get_ingest_pipeline(spec: str = "pymupdf") -> IngestPipeline:
@@ -380,16 +428,23 @@ def get_ingest_pipeline(spec: str = "pymupdf") -> IngestPipeline:
         cached = _PIPELINE_CACHE.get(cache_key)
         if cached is not None:
             return cached
-        factory = _PIPELINE_FACTORIES.get(provider)
-        if factory is None:
-            available = ", ".join(sorted(_PIPELINE_FACTORIES)) or "(none)"
+        record = _PROVIDERS.get(provider)
+        if record is None or not record.installed:
+            available = ", ".join(_installed_names()) or "(none)"
             raise UnknownIngestPipelineError(_unknown_pipeline_message(spec, available))
-    pipeline = factory(variant)
-    if not (callable(pipeline) or callable(getattr(pipeline, "ingest", None))):
-        raise TypeError(
-            f"Ingest pipeline provider {provider!r} returned an object that is "
-            "neither callable nor has an ingest() method."
-        )
+        external = record.external if _runs_external(provider, record) else None
+        factory = None if external is not None else record.factory
+    if external is not None:
+        pipeline = _external_pipeline(external, variant)
+    elif factory is None:
+        raise RuntimeError(f"Ingest pipeline provider {provider!r} has no factory.")
+    else:
+        pipeline = factory(variant)
+        if not (callable(pipeline) or callable(getattr(pipeline, "ingest", None))):
+            raise TypeError(
+                f"Ingest pipeline provider {provider!r} returned an object that is "
+                "neither callable nor has an ingest() method."
+            )
     with _REGISTRY_LOCK:
         cached = _PIPELINE_CACHE.get(cache_key)
         if cached is not None:
@@ -407,11 +462,15 @@ def describe_ingest_pipeline(spec: str = "pymupdf") -> PipelineDescriptor:
         cached = _DESCRIPTOR_CACHE.get(cache_key)
         if cached is not None:
             return cached
-        if provider not in _PIPELINE_FACTORIES:
-            available = ", ".join(sorted(_PIPELINE_FACTORIES)) or "(none)"
+        record = _PROVIDERS.get(provider)
+        if record is None or not record.installed:
+            available = ", ".join(_installed_names()) or "(none)"
             raise UnknownIngestPipelineError(_unknown_pipeline_message(spec, available))
-        factory = _DESCRIPTOR_FACTORIES.get(provider)
-    if factory is None:
+        external = record.external if _runs_external(provider, record) else None
+        factory = None if external is not None else record.descriptor_factory
+    if external is not None:
+        descriptor = external.describe(variant)
+    elif factory is None:
         descriptor = generic_pipeline_descriptor(provider, variant)
     else:
         descriptor = factory(variant)
@@ -431,7 +490,7 @@ def list_ingest_pipelines() -> list[str]:
     """Return sorted installed provider names."""
     _ensure_entry_points_loaded()
     with _REGISTRY_LOCK:
-        return sorted(_PIPELINE_FACTORIES)
+        return _installed_names()
 
 
 def list_ingest_pipeline_descriptors(*, include_variants: bool = False) -> list[PipelineDescriptor]:
@@ -482,13 +541,10 @@ def reset_ingest_pipeline_registry(*, builtins: bool = True) -> None:
     del builtins  # retained for call-site compatibility
     global _ENTRY_POINTS_LOADED
     with _REGISTRY_LOCK:
-        _PIPELINE_FACTORIES.clear()
-        _DESCRIPTOR_FACTORIES.clear()
+        _PROVIDERS.clear()
         _PIPELINE_CACHE.clear()
         _DESCRIPTOR_CACHE.clear()
         _LOAD_ERRORS.clear()
-        _EXTERNAL_OFFERS.clear()
-        _EXTERNAL_ACTIVE.clear()
         _ENTRY_POINTS_LOADED = False
 
 

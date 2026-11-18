@@ -166,6 +166,30 @@ def test_a_host_can_prefer_the_environment_over_its_own_copy(environment):
     assert is_external_pipeline("notes")
 
 
+def test_preferring_the_environment_keeps_the_local_factory(environment):
+    def local_pipeline(source_path, request):
+        return None
+
+    def local_factory(variant=""):
+        return local_pipeline
+
+    register_ingest_pipeline("notes", local_factory)
+    assert get_ingest_pipeline("notes") is local_pipeline
+
+    prefer_external_pipelines(["notes"])
+    assert is_external_pipeline("notes")
+    with pytest.raises(RuntimeError, match="separate Python environment"):
+        get_ingest_pipeline("notes")("a.note", None)
+    assert pipeline_registry._PROVIDERS["notes"].factory is local_factory
+
+    # The factory was kept, so dropping the preference runs it again.
+    with pipeline_registry._REGISTRY_LOCK:
+        pipeline_registry._EXTERNAL_PREFERRED.discard("notes")
+        pipeline_registry._drop_cached("notes")
+    assert not is_external_pipeline("notes")
+    assert get_ingest_pipeline("notes") is local_pipeline
+
+
 def test_library_rule_can_use_an_environment_pipeline(environment, tmp_path):
     library = tmp_path / "library"
     _note(library / "Notes" / "a.note", "Sight distance is one hundred metres.")
