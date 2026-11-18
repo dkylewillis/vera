@@ -243,9 +243,7 @@ def read_manifest(root: str | Path) -> dict[str, Any]:
     if not isinstance(manifest, dict):
         raise LibraryError(f"Invalid library manifest: {path}")
     if manifest.get("layout_version") != LAYOUT_VERSION:
-        raise LibraryError(
-            f"Unsupported library layout version: {manifest.get('layout_version')}"
-        )
+        raise LibraryError(f"Unsupported library layout version: {manifest.get('layout_version')}")
     manifest.setdefault("trash_retention_days", DEFAULT_TRASH_RETENTION_DAYS)
     convert = manifest.get("convert")
     if not isinstance(convert, dict):
@@ -280,7 +278,9 @@ def write_state(root: str | Path, files: Mapping[str, Mapping[str, Any]]) -> Non
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_name(f"{target.name}.tmp-{uuid.uuid4().hex}")
     temporary.write_text(
-        json.dumps({"files": {key: dict(value) for key, value in files.items()}}, indent=2, sort_keys=True),
+        json.dumps(
+            {"files": {key: dict(value) for key, value in files.items()}}, indent=2, sort_keys=True
+        ),
         encoding="utf-8",
     )
     os.replace(temporary, target)

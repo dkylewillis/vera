@@ -100,7 +100,9 @@ def parse_xlsx(
         header = _pad(rows[header_index], width)
         data = [_pad(row, width) for row in rows[header_index + 1 :]]
         header_row = header_index + 1
-        groups = [data[start : start + rows_per_chunk] for start in range(0, len(data), rows_per_chunk)]
+        groups = [
+            data[start : start + rows_per_chunk] for start in range(0, len(data), rows_per_chunk)
+        ]
         if not groups:
             groups = [[]]
         last_column = get_column_letter(width)
@@ -113,7 +115,11 @@ def parse_xlsx(
                     text=title,
                     heading_level=1,
                 ),
-                region={"kind": "sheet_range", "sheet": title, "range": f"A{header_row}:{last_column}{header_row}"},
+                region={
+                    "kind": "sheet_range",
+                    "sheet": title,
+                    "range": f"A{header_row}:{last_column}{header_row}",
+                },
                 citation_label=sheet_citation(title, f"A{header_row}:{last_column}{header_row}"),
             )
         )

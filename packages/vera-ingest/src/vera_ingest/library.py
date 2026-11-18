@@ -59,7 +59,11 @@ from .formats import (
     pipeline_source_formats,
     source_suffix,
 )
-from .pipeline import describe_ingest_pipeline, format_ingest_pipeline_spec, parse_ingest_pipeline_spec
+from .pipeline import (
+    describe_ingest_pipeline,
+    format_ingest_pipeline_spec,
+    parse_ingest_pipeline_spec,
+)
 from .viewer import export_source_document
 
 TRASH_STAMP_FORMAT = "%Y%m%dT%H%M%S%fZ"
@@ -294,7 +298,11 @@ def discover_sources(
             current_plain = Path(strip_extended_path(current))
             kept: list[str] = []
             for name in directories:
-                child = Path(extended_path(current_plain / name)) if os.name == "nt" else current_plain / name
+                child = (
+                    Path(extended_path(current_plain / name))
+                    if os.name == "nt"
+                    else current_plain / name
+                )
                 if name.startswith(".") or Path(child).is_symlink():
                     continue
                 kept.append(name)
@@ -623,9 +631,7 @@ def _plan(
         )
 
     unmatched_archives = {
-        source_rel: path
-        for source_rel, path in archives
-        if source_rel not in source_map
+        source_rel: path for source_rel, path in archives if source_rel not in source_map
     }
     # A file with no archive can only be a rename when some archive was left behind.
     # Otherwise convert reads the file once and records the hash it already computed.
@@ -814,7 +820,11 @@ def _convert_one(
     parser, pipeline_options = _PipelineResolver(manifest).resolve(source_rel)
     source = root / source_rel
     destination = archive_path_for(root, source_rel)
-    output = extended_path(destination) if os.name == "nt" and len(str(destination)) >= 240 else str(destination)
+    output = (
+        extended_path(destination)
+        if os.name == "nt" and len(str(destination)) >= 240
+        else str(destination)
+    )
     convert(
         extended_path(source) if os.name == "nt" and len(str(source)) >= 240 else str(source),
         output,
@@ -878,7 +888,9 @@ def _apply_plan(
                 raise
             errors.append({"input": source_rel, "error": str(exc)})
             continue
-        recorded = {key: value for key, value in step.items() if key not in {"error", "pipeline_key"}}
+        recorded = {
+            key: value for key, value in step.items() if key not in {"error", "pipeline_key"}
+        }
         if step["action"] == "convert" and not dry_run:
             destination = archive_path_for(root, source_rel)
             recorded["output"] = str(destination)
@@ -1026,7 +1038,9 @@ def library_status(directory: str) -> dict[str, Any]:
             "error": str(exc),
             "adoptable": [],
         }
-    report = _apply_plan(root, plan, dry_run=True, confirm_deletes=False, cancel=None, progress=None)
+    report = _apply_plan(
+        root, plan, dry_run=True, confirm_deletes=False, cancel=None, progress=None
+    )
     report["inside_library"] = False
     report["library_root"] = str(root)
     report["library_id"] = plan["manifest"].get("library_id")
@@ -1098,7 +1112,12 @@ def sync_library(
             report["error"] = str(exc)
             return report
         return _apply_plan(
-            root, plan, dry_run=True, confirm_deletes=confirm_deletes, cancel=cancel, progress=progress
+            root,
+            plan,
+            dry_run=True,
+            confirm_deletes=confirm_deletes,
+            cancel=cancel,
+            progress=progress,
         )
 
     try:

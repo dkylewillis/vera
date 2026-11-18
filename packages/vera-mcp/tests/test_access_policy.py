@@ -69,9 +69,7 @@ def approved_library(tmp_path):
         "sibling": sibling,
         "sentinel": sentinel,
         "prefix_trap": trap,
-        "policy": AccessPolicy(
-            library_roots=(canonicalize_path(library, require_directory=True),)
-        ),
+        "policy": AccessPolicy(library_roots=(canonicalize_path(library, require_directory=True),)),
     }
 
 
@@ -401,12 +399,14 @@ def test_multiple_library_roots_allow_each_and_deny_prefix_sibling(approved_libr
             ]
         }
     )
-    assert policy.check_archive(approved_library["archive"]) == Path(
-        approved_library["archive"]
-    ).resolve()
-    assert policy.check_archive(approved_library["sentinel"]) == Path(
-        approved_library["sentinel"]
-    ).resolve()
+    assert (
+        policy.check_archive(approved_library["archive"])
+        == Path(approved_library["archive"]).resolve()
+    )
+    assert (
+        policy.check_archive(approved_library["sentinel"])
+        == Path(approved_library["sentinel"]).resolve()
+    )
     with pytest.raises(AccessDenied):
         policy.check_archive(approved_library["prefix_trap"])
     info = policy.discovery()
@@ -469,7 +469,9 @@ def test_library_roots_mapping_rejects_bad_shapes(approved_library):
 def test_computer_is_reported_and_named_when_a_path_is_outside(approved_library):
     root = str(approved_library["root"])
     with pytest.raises(ValueError, match="computer"):
-        AccessPolicy.from_mapping({"library_roots": [root], "computer": {"id": "", "name": "Work PC"}})
+        AccessPolicy.from_mapping(
+            {"library_roots": [root], "computer": {"id": "", "name": "Work PC"}}
+        )
     with pytest.raises(ValueError, match="computer"):
         AccessPolicy.from_mapping(
             {"library_roots": [root], "computer": {"id": "device-1", "name": "x" * 65}}

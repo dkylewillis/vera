@@ -103,7 +103,9 @@ async def test_mcp_round_trip_allows_library_and_denies_outside(library: dict[st
     url = f"http://127.0.0.1:{port}/mcp"
     headers = {"Authorization": f"Bearer {token}"}
     with running_service(library["policy"], port=port, token=token):
-        async with httpx.AsyncClient(headers=headers, timeout=httpx.Timeout(30.0, read=60.0)) as http_client:
+        async with httpx.AsyncClient(
+            headers=headers, timeout=httpx.Timeout(30.0, read=60.0)
+        ) as http_client:
             client_streams = streamable_http_client(url, http_client=http_client)
             async with client_streams as (read, write, get_session_id):
                 async with ClientSession(read, write) as session:
@@ -176,7 +178,9 @@ async def test_mcp_round_trip_allows_library_and_denies_outside(library: dict[st
                     )
                     denied = _tool_payload(denied_result)
                     denied_text = json.dumps(denied)
-                    assert getattr(denied_result, "isError", False) or "denied" in denied_text.lower()
+                    assert (
+                        getattr(denied_result, "isError", False) or "denied" in denied_text.lower()
+                    )
                     assert "UNIQUE_SENTINEL" not in denied_text
 
             second = streamable_http_client(url, http_client=http_client)
@@ -189,7 +193,9 @@ async def test_mcp_round_trip_allows_library_and_denies_outside(library: dict[st
                     assert str(library["root"].resolve()) in again["library_roots"]
 
 
-def test_bind_failure_is_reported(library: dict[str, Path], capsys: pytest.CaptureFixture[str]) -> None:
+def test_bind_failure_is_reported(
+    library: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     port = int(sock.getsockname()[1])

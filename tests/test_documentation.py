@@ -597,9 +597,7 @@ def test_hardening_json_contracts_are_documented():
     assert "from openai import OpenAI" not in guide
     assert "vera-embed-openai" in guide
     assert "Do not call the network from `__init__`" in guide
-    assert "**Advanced**" in (DOCS / "packages" / "vera-app.md").read_text(
-        encoding="utf-8"
-    )
+    assert "**Advanced**" in (DOCS / "packages" / "vera-app.md").read_text(encoding="utf-8")
     assert "`attachment_metadata()`" in python_api
     assert "do not contain a `data` field" in python_api
     assert "pipeline_options" in python_api

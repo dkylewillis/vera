@@ -188,18 +188,24 @@ def _unread_parts(document: Document) -> tuple[list[str], list[str]]:
         if header_text:
             left_out.extend(("headers", "footers"))
     related_parts = (
-        ("http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes", "footnotes"),
-        ("http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes", "endnotes"),
-        ("http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments", "comments"),
+        (
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes",
+            "footnotes",
+        ),
+        (
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes",
+            "endnotes",
+        ),
+        (
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
+            "comments",
+        ),
     )
     for reltype, name in related_parts:
         if _related_part_has_text(document, reltype):
             left_out.append(name)
     body = document.element.body
-    if any(
-        child.tag == qn("w:sdt") and _element_has_text(child)
-        for child in body.iterchildren()
-    ):
+    if any(child.tag == qn("w:sdt") and _element_has_text(child) for child in body.iterchildren()):
         left_out.append("content controls")
     if any(_element_has_text(node) for node in body.iter(qn("w:txbxContent"))):
         left_out.append("text boxes")
@@ -311,9 +317,7 @@ def parse_docx(
     if unread_paragraphs or unread_tables:
         parts: list[str] = []
         if unread_paragraphs:
-            parts.append(
-                f"{unread_paragraphs} paragraph" + ("s" if unread_paragraphs != 1 else "")
-            )
+            parts.append(f"{unread_paragraphs} paragraph" + ("s" if unread_paragraphs != 1 else ""))
         if unread_tables:
             parts.append(f"{unread_tables} table" + ("s" if unread_tables != 1 else ""))
         detail = f" ({first_error})" if first_error else ""

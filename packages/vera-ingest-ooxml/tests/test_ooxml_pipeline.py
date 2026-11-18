@@ -205,7 +205,13 @@ def test_sheet_repeats_header_and_keeps_formula_text(tmp_path: Path) -> None:
     assert preview["sheets"][0]["name"] == "Budget"
     assert all(sheet["name"] != "Empty" for sheet in preview["sheets"])
     context = format_search_context(
-        [{"text": result.chunks[0].text, "citation_label": "Budget!A1:B3", "heading_path": "Budget"}]
+        [
+            {
+                "text": result.chunks[0].text,
+                "citation_label": "Budget!A1:B3",
+                "heading_path": "Budget",
+            }
+        ]
     )
     assert "Budget!A1:B3" in context
     assert "p. 1" not in context
@@ -271,7 +277,9 @@ def test_header_and_content_control_are_notes_not_warnings(tmp_path: Path) -> No
         assert "ingest_warnings" not in stored.metadata
 
 
-def test_unreadable_table_keeps_the_rest_of_the_document(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unreadable_table_keeps_the_rest_of_the_document(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     source = tmp_path / "memo.docx"
     _word(source)
 
@@ -281,7 +289,9 @@ def test_unreadable_table_keeps_the_rest_of_the_document(tmp_path: Path, monkeyp
     monkeypatch.setattr("vera_ingest_ooxml.docx._table_rows", boom)
     result = ooxml_pipeline(str(source), IngestRequest())
     assert any(block.block_type == "paragraph" for block in result.blocks)
-    assert any("1 table could not be read" in item and "grid_offset=13" in item for item in result.warnings)
+    assert any(
+        "1 table could not be read" in item and "grid_offset=13" in item for item in result.warnings
+    )
 
 
 def test_corrupt_docx_fails_and_a_noted_file_does_not(tmp_path: Path) -> None:

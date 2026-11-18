@@ -30,7 +30,9 @@ def _table_rows(shape) -> list[list[str]]:
     return rows
 
 
-def _add_shape(blocks: list[OfficeBlock], slide_number: int, shape_index: int, shape, title_shape) -> None:
+def _add_shape(
+    blocks: list[OfficeBlock], slide_number: int, shape_index: int, shape, title_shape
+) -> None:
     if shape is title_shape:
         return
     shape_type = getattr(shape, "shape_type", None)

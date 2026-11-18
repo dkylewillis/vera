@@ -525,7 +525,9 @@ def test_rotated_page_text_stays_inside_the_visible_page(tmp_path):
     page = doc.new_page(width=500, height=900)
     # rotate=90 is horizontal once the page's 270 degree flag is applied.
     page.insert_text((120, 700), "ALPHA FIRST", fontsize=28, rotate=90)
-    page.insert_text((200, 700), "A body sentence that should stay a paragraph.", fontsize=11, rotate=90)
+    page.insert_text(
+        (200, 700), "A body sentence that should stay a paragraph.", fontsize=11, rotate=90
+    )
     page.set_rotation(270)
     doc.save(pdf)
     doc.close()

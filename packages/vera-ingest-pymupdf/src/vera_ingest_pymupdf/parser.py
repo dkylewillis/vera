@@ -93,9 +93,7 @@ def _useful_characters(page_text: str) -> int:
     return sum(character.isalnum() for character in page_text)
 
 
-def _summed_image_coverage(
-    layout: dict[str, Any], *, width: float, height: float
-) -> float:
+def _summed_image_coverage(layout: dict[str, Any], *, width: float, height: float) -> float:
     """Return the summed area of embedded images as a fraction of the page."""
     page_area = max(0.0, width) * max(0.0, height)
     if page_area <= 0.0:
@@ -296,11 +294,7 @@ def _text_blocks_from_layout(
                     gap = span_x0 - prev_x1
                     prev_ends_space = line_parts[-1][-1:].isspace()
                     starts_space = text[:1].isspace()
-                    if (
-                        not prev_ends_space
-                        and not starts_space
-                        and gap > max(1.0, 0.2 * span_size)
-                    ):
+                    if not prev_ends_space and not starts_space and gap > max(1.0, 0.2 * span_size):
                         line_parts.append(" ")
                 line_parts.append(text)
                 prev_x1 = span_x1
@@ -363,7 +357,9 @@ def _image_blocks_from_layout(page_number: int, layout: dict[str, Any]) -> list[
     return images
 
 
-def _without_native_overlap(ocr_blocks: list[_RawBlock], native_blocks: list[_RawBlock]) -> list[_RawBlock]:
+def _without_native_overlap(
+    ocr_blocks: list[_RawBlock], native_blocks: list[_RawBlock]
+) -> list[_RawBlock]:
     """Keep OCR blocks that sit outside native text."""
     native_boxes = [block.bbox for block in native_blocks if block.text]
     kept: list[_RawBlock] = []

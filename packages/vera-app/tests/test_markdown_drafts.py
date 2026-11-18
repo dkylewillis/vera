@@ -70,8 +70,19 @@ def test_write_draft_replaces_unpaired_surrogates(tmp_path) -> None:
 def test_current_draft_is_fed_back_as_raw_text(tmp_path) -> None:
     saved = write_draft(str(tmp_path), "sess", "report.md", "The pond is sized. [^1]")
     block = current_draft_block(
-        {"drafts_dir": str(tmp_path), "current_drafts": [{"path": saved["path"], "filename": saved["filename"]}]}
+        {
+            "drafts_dir": str(tmp_path),
+            "current_drafts": [{"path": saved["path"], "filename": saved["filename"]}],
+        }
     )
     assert "Current draft (report.md)" in block
     assert "[^1]" in block
-    assert current_draft_block({"drafts_dir": str(tmp_path), "current_drafts": [{"path": str(tmp_path.parent / "x.md")}]}) == ""
+    assert (
+        current_draft_block(
+            {
+                "drafts_dir": str(tmp_path),
+                "current_drafts": [{"path": str(tmp_path.parent / "x.md")}],
+            }
+        )
+        == ""
+    )

@@ -92,9 +92,13 @@ class AccessPolicy:
         if self.computer is not None:
             ident, name = self.computer
             if not isinstance(ident, str) or not ident.strip() or len(ident.strip()) > 64:
-                raise ValueError("Bridge policy computer id must be a non-empty string of at most 64 characters.")
+                raise ValueError(
+                    "Bridge policy computer id must be a non-empty string of at most 64 characters."
+                )
             if not isinstance(name, str) or not name.strip() or len(name.strip()) > 64:
-                raise ValueError("Bridge policy computer name must be a non-empty string of at most 64 characters.")
+                raise ValueError(
+                    "Bridge policy computer name must be a non-empty string of at most 64 characters."
+                )
             object.__setattr__(self, "computer", (ident.strip(), name.strip()))
 
     @property

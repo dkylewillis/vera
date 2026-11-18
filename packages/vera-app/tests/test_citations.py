@@ -7,8 +7,12 @@ from vera_app.citations import CitationRegistry, evidence_block, evidence_token_
 
 def test_citation_keys_do_not_collide_across_files() -> None:
     registry = CitationRegistry()
-    first = registry.label({"chunk_id": "chunk_0001", "file": r"C:\a.vera", "page_start": 1, "text": "a"})
-    second = registry.label({"chunk_id": "chunk_0001", "file": r"C:\b.vera", "page_start": 2, "text": "b"})
+    first = registry.label(
+        {"chunk_id": "chunk_0001", "file": r"C:\a.vera", "page_start": 1, "text": "a"}
+    )
+    second = registry.label(
+        {"chunk_id": "chunk_0001", "file": r"C:\b.vera", "page_start": 2, "text": "b"}
+    )
     assert first == "C1"
     assert second == "C2"
     assert registry.lookup("C1")["result"]["file"].endswith("a.vera")
@@ -60,8 +64,22 @@ def test_resolve_answer_records_seeded_evidence_only_when_cited() -> None:
 
 def test_evidence_block_prefers_latest_turn_and_stops_at_the_budget() -> None:
     entries = [
-        {"id": "C1", "chunk_id": "a", "text": "x" * 400, "from_latest": False, "source_filename": "old.pdf", "page_start": 1},
-        {"id": "C2", "chunk_id": "b", "text": "latest passage", "from_latest": True, "source_filename": "new.pdf", "page_start": 2},
+        {
+            "id": "C1",
+            "chunk_id": "a",
+            "text": "x" * 400,
+            "from_latest": False,
+            "source_filename": "old.pdf",
+            "page_start": 1,
+        },
+        {
+            "id": "C2",
+            "chunk_id": "b",
+            "text": "latest passage",
+            "from_latest": True,
+            "source_filename": "new.pdf",
+            "page_start": 2,
+        },
     ]
     block = evidence_block(entries, budget_tokens=10_000)
     assert block.index("[C2]") < block.index("[C1]")
@@ -71,8 +89,12 @@ def test_evidence_block_prefers_latest_turn_and_stops_at_the_budget() -> None:
 
 
 def test_local_provider_evidence_budget_is_smaller() -> None:
-    local = evidence_token_budget({"llm": {"provider": "ollama", "base_url": "http://127.0.0.1:11434"}})
-    cloud = evidence_token_budget({"llm": {"provider": "openai", "base_url": "https://api.openai.com/v1"}})
+    local = evidence_token_budget(
+        {"llm": {"provider": "ollama", "base_url": "http://127.0.0.1:11434"}}
+    )
+    cloud = evidence_token_budget(
+        {"llm": {"provider": "openai", "base_url": "https://api.openai.com/v1"}}
+    )
     explicit = evidence_token_budget({"llm": {"provider": "ollama", "context_tokens": 32000}})
     assert local == 2_000
     assert cloud == 8_000

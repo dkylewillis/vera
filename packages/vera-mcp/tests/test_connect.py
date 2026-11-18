@@ -46,7 +46,9 @@ def _tool_payload(result: object) -> object:
 
 
 @pytest.mark.anyio
-async def test_forwards_tools_resources_and_calls(library: dict[str, object], tmp_path: Path) -> None:
+async def test_forwards_tools_resources_and_calls(
+    library: dict[str, object], tmp_path: Path
+) -> None:
     from mcp import ClientSession
     from mcp.client.stdio import StdioServerParameters, stdio_client
 
@@ -104,7 +106,9 @@ async def test_forwards_tools_resources_and_calls(library: dict[str, object], tm
 
                 resources = await session.list_resources()
                 viewer = next(
-                    resource for resource in resources.resources if "source-viewer" in str(resource.uri)
+                    resource
+                    for resource in resources.resources
+                    if "source-viewer" in str(resource.uri)
                 )
                 assert (viewer.meta or {}).get("ui")
                 opened = await session.read_resource(viewer.uri)

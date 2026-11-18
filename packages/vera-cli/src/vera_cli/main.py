@@ -11,13 +11,13 @@ from .commands import (
     cmd_index_build,
     cmd_index_status,
     cmd_index_update,
+    cmd_inspect,
     cmd_library_init,
     cmd_library_pipeline,
     cmd_library_restore,
     cmd_library_status,
     cmd_library_sync,
     cmd_library_trash_list,
-    cmd_inspect,
     cmd_mcp,
     cmd_ocr_languages_download,
     cmd_ocr_languages_list,
@@ -363,9 +363,13 @@ def build_parser() -> argparse.ArgumentParser:
     library_init_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     library_init_p.set_defaults(func=cmd_library_init)
 
-    library_sync_p = library_sub.add_parser("sync", help="Convert, move, and trash archives to match the folder")
+    library_sync_p = library_sub.add_parser(
+        "sync", help="Convert, move, and trash archives to match the folder"
+    )
     library_sync_p.add_argument("directory", help="Managed library root, or a folder inside it")
-    library_sync_p.add_argument("--dry-run", action="store_true", help="Report the plan without changing files")
+    library_sync_p.add_argument(
+        "--dry-run", action="store_true", help="Report the plan without changing files"
+    )
     library_sync_p.add_argument(
         "--confirm-deletes",
         action="store_true",
@@ -406,22 +410,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="Pipeline option KEY=VALUE stored with the folder rule (repeatable)",
     )
     library_pipeline_p.add_argument("--clear", action="store_true", help="Remove the folder's rule")
-    library_pipeline_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    library_pipeline_p.add_argument(
+        "--json", action="store_true", help="Emit machine-readable JSON"
+    )
     library_pipeline_p.set_defaults(func=cmd_library_pipeline)
 
-    library_status_p = library_sub.add_parser("status", help="Show whether a folder is a managed library and what sync would do")
+    library_status_p = library_sub.add_parser(
+        "status", help="Show whether a folder is a managed library and what sync would do"
+    )
     library_status_p.add_argument("directory")
     library_status_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     library_status_p.set_defaults(func=cmd_library_status)
 
-    library_trash_p = library_sub.add_parser("trash", help="List or inspect recoverable deleted archives")
+    library_trash_p = library_sub.add_parser(
+        "trash", help="List or inspect recoverable deleted archives"
+    )
     library_trash_sub = library_trash_p.add_subparsers(dest="trash_command", required=True)
     library_trash_list_p = library_trash_sub.add_parser("list", help="List archives in .vera/trash")
     library_trash_list_p.add_argument("directory")
-    library_trash_list_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    library_trash_list_p.add_argument(
+        "--json", action="store_true", help="Emit machine-readable JSON"
+    )
     library_trash_list_p.set_defaults(func=cmd_library_trash_list)
 
-    library_restore_p = library_sub.add_parser("restore", help="Restore a trashed document and its archive")
+    library_restore_p = library_sub.add_parser(
+        "restore", help="Restore a trashed document and its archive"
+    )
     library_restore_p.add_argument("directory")
     library_restore_p.add_argument("entry", help="Trash entry from 'vera library trash list'")
     library_restore_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")

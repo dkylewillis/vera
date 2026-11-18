@@ -414,8 +414,14 @@ VIEW_FIGURE_TOOL = {
         "parameters": {
             "type": "object",
             "properties": {
-                "file": {"type": "string", "description": "VERA archive path for a document figure."},
-                "asset_id": {"type": "string", "description": "Figure asset id or attached image id."},
+                "file": {
+                    "type": "string",
+                    "description": "VERA archive path for a document figure.",
+                },
+                "asset_id": {
+                    "type": "string",
+                    "description": "Figure asset id or attached image id.",
+                },
             },
             "required": ["asset_id"],
             "additionalProperties": False,
@@ -437,7 +443,9 @@ def delivery_for(request: Request) -> dict[str, str]:
     return apply_full_ids(delivery, request.get("full_attachment_ids"))
 
 
-def searchable_paths(request: Request, delivery: dict[str, str], ids: list[str] | None = None) -> list[str]:
+def searchable_paths(
+    request: Request, delivery: dict[str, str], ids: list[str] | None = None
+) -> list[str]:
     wanted = set(ids or [])
     paths: list[str] = []
     for row in attachment_rows(request):

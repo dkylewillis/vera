@@ -65,4 +65,7 @@ def test_mode_allowlist_drops_unlisted_tools() -> None:
     assert [tool.name for tool in allowlisted([search, writer], mode)] == ["search"]
     open_mode = parse_mode("---\nid: ask\n---\nBody\n")
     assert open_mode is not None
-    assert [tool.name for tool in allowlisted([search, writer], open_mode)] == ["search", "write_markdown"]
+    assert [tool.name for tool in allowlisted([search, writer], open_mode)] == [
+        "search",
+        "write_markdown",
+    ]

@@ -812,11 +812,7 @@ def _resolve_batch_sources(
         raise ValueError("No installed ingest pipeline advertises source formats to convert.")
 
     def is_source(path: Path) -> bool:
-        return (
-            path.is_file()
-            and not is_office_owner_file(path)
-            and source_suffix(path) in suffixes
-        )
+        return path.is_file() and not is_office_owner_file(path) and source_suffix(path) in suffixes
 
     if paths is not None:
         if not paths:

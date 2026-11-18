@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 from ._index_layout import _included, discover_index_entries
-from .library import find_library_root, is_managed_library, source_path_for
 from ._util import _MAX_TOP_K
 from ._where import CHUNK_METADATA_FILTER_REASON, metadata_matches
 from .collection import (
@@ -20,6 +19,7 @@ from .collection import (
     library_index_status,
 )
 from .document import VeraDocument
+from .library import find_library_root, is_managed_library, source_path_for
 from .models import QueryResult
 from .ranking import RRF_K, reciprocal_rank_fusion
 
@@ -259,6 +259,7 @@ class VeraCorpus:
             and effective_excludes == tuple(status.get("excludes", ()))
             and (effective_includes == index_includes or narrows_index)
         )
+
         def scope_key(relative_path: str, source_path: str | None = None) -> str:
             if source_path:
                 return source_path

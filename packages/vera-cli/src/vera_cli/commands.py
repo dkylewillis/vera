@@ -695,7 +695,9 @@ def _print_library_report(report: dict) -> None:
         1 for action in report.get("actions") or [] if action.get("reason") == "pipeline"
     )
     if repipelined:
-        print(f"Folder pipeline changed: {repipelined} file{'s' if repipelined != 1 else ''} reconverted")
+        print(
+            f"Folder pipeline changed: {repipelined} file{'s' if repipelined != 1 else ''} reconverted"
+        )
     if report.get("needs_confirmation"):
         print(
             "Confirmation required before deleting that many archives. "

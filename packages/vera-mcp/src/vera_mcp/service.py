@@ -77,7 +77,9 @@ class LoopbackGuardMiddleware:
         if "origin" in headers:
             await _reject(send, 403, "Origin header is not allowed")
             return
-        if scope.get("path") != "/healthz" and not _bearer_ok(headers.get("authorization", ""), self._token):
+        if scope.get("path") != "/healthz" and not _bearer_ok(
+            headers.get("authorization", ""), self._token
+        ):
             await _reject(send, 401, "Unauthorized")
             return
         await self.app(scope, receive, send)
@@ -136,9 +138,7 @@ def serve(
             server.should_exit = True
             with contextlib.suppress(Exception):
                 await task
-            raise RuntimeError(
-                f"VERA agent service failed while starting on 127.0.0.1:{port}."
-            )
+            raise RuntimeError(f"VERA agent service failed while starting on 127.0.0.1:{port}.")
         if state_path is not None:
             _write_state(state_path, port)
             wrote = True
@@ -270,7 +270,9 @@ def _offload_sync_tools(mcp: Any) -> None:
         original = tool.fn
         tool_name = tool.name
 
-        async def wrapped(*args: Any, __fn: Any = original, __name: str = tool_name, **kwargs: Any) -> Any:
+        async def wrapped(
+            *args: Any, __fn: Any = original, __name: str = tool_name, **kwargs: Any
+        ) -> Any:
             started = time.perf_counter()
             try:
                 return await anyio.to_thread.run_sync(

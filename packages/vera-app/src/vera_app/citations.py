@@ -28,6 +28,7 @@ def _same_file(left: str, right: str) -> bool:
         return False
     return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
 
+
 _LOCAL_PROVIDERS = {"ollama", "lmstudio", "lm_studio", "lm-studio"}
 
 

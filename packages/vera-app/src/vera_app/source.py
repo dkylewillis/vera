@@ -206,7 +206,9 @@ def extract_attachment_to_cache(
     return cache_path
 
 
-def _materialize_preview(doc: VeraDocument, cache_dir: Path, cancel: CancellationToken | None) -> dict[str, Any] | None:
+def _materialize_preview(
+    doc: VeraDocument, cache_dir: Path, cancel: CancellationToken | None
+) -> dict[str, Any] | None:
     """Return the ingest preview when this archive has one.
 
     Word previews are Markdown so the existing line highlighter can mark them.

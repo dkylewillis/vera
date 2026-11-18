@@ -253,9 +253,7 @@ def handle_preflight_embedder(request: Request) -> dict[str, Any]:
 def handle_list_ingest_pipelines(request: Request) -> dict[str, Any]:
     """List installed ingest pipeline providers for the Convert view."""
     return {
-        "pipelines": [
-            name for name in list_ingest_pipelines() if not _excluded_from_desktop(name)
-        ]
+        "pipelines": [name for name in list_ingest_pipelines() if not _excluded_from_desktop(name)]
     }
 
 

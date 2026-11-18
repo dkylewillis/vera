@@ -30,10 +30,10 @@ from ._index_layout import (
     _sha256_file,
     discover_index_entries,
 )
-from .library import is_managed_library
 from ._util import _utc_now
 from .document import VeraDocument
 from .embeddings import deserialize_vector
+from .library import is_managed_library
 from .models import (
     METADATA_DOCUMENT_ID,
     METADATA_HEADING_PATH,

@@ -72,7 +72,11 @@ async def _forward(url: str, token: str) -> int:
     headers = {"Authorization": f"Bearer {token}"}
     try:
         async with create_mcp_http_client(headers=headers) as http_client:
-            async with streamable_http_client(url, http_client=http_client) as (read, write, _session_id):
+            async with streamable_http_client(url, http_client=http_client) as (
+                read,
+                write,
+                _session_id,
+            ):
                 async with ClientSession(read, write) as remote:
                     await remote.initialize()
                     proxy = _proxy_server(remote, ReadResourceContents)
@@ -135,7 +139,9 @@ def _proxy_server(remote: Any, read_resource_contents: type[Any]) -> Any:
             text = getattr(block, "text", None)
             blob = getattr(block, "blob", None)
             if text is not None:
-                contents.append(read_resource_contents(content=text, mime_type=mime, meta=meta_dict))
+                contents.append(
+                    read_resource_contents(content=text, mime_type=mime, meta=meta_dict)
+                )
             elif blob is not None:
                 contents.append(
                     read_resource_contents(

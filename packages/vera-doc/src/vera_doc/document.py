@@ -376,9 +376,7 @@ class VeraDocument(_DocumentRecordsMixin, _DocumentSearchMixin, _DocumentAttachm
     def iter_chunk_text(self) -> Iterator[dict[str, Any]]:
         """Yield chunk id, text, and metadata without loading embedding vectors."""
         self._ensure_open()
-        rows = self._conn.execute(
-            "SELECT chunk_id, text, metadata_json FROM chunks ORDER BY rowid"
-        )
+        rows = self._conn.execute("SELECT chunk_id, text, metadata_json FROM chunks ORDER BY rowid")
         for row in rows:
             yield {
                 "chunk_id": str(row["chunk_id"]),

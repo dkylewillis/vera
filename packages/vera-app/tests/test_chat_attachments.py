@@ -86,8 +86,22 @@ def test_attached_chunks_get_fixed_a_numbers_beside_search_results(monkeypatch) 
     monkeypatch.setattr("vera_app.chat_attachments.read_chunks", lambda path: files[path])
     request = {
         "file_attachments": [
-            {"id": "a", "name": "first.md", "vera_path": "first.vera", "chunk_count": 3, "label_start": 1, "token_estimate": 3},
-            {"id": "b", "name": "second.md", "vera_path": "second.vera", "chunk_count": 2, "label_start": 4, "token_estimate": 2},
+            {
+                "id": "a",
+                "name": "first.md",
+                "vera_path": "first.vera",
+                "chunk_count": 3,
+                "label_start": 1,
+                "token_estimate": 3,
+            },
+            {
+                "id": "b",
+                "name": "second.md",
+                "vera_path": "second.vera",
+                "chunk_count": 2,
+                "label_start": 4,
+                "token_estimate": 2,
+            },
         ],
     }
     for _turn in range(2):
@@ -117,16 +131,35 @@ def test_full_text_block_drops_the_repeated_overlap() -> None:
 
 def test_search_passages_name_their_source(monkeypatch) -> None:
     hits = [
-        {"chunk_id": "chunk_0001", "score": 1.0, "text": "Library text.", "file": "lib/spec.vera", "source_filename": "spec.pdf"},
-        {"chunk_id": "chunk_0001", "score": 1.0, "text": "Memo text.", "file": "cache/memo.vera", "source_filename": "memo.md"},
+        {
+            "chunk_id": "chunk_0001",
+            "score": 1.0,
+            "text": "Library text.",
+            "file": "lib/spec.vera",
+            "source_filename": "spec.pdf",
+        },
+        {
+            "chunk_id": "chunk_0001",
+            "score": 1.0,
+            "text": "Memo text.",
+            "file": "cache/memo.vera",
+            "source_filename": "memo.md",
+        },
     ]
     monkeypatch.setattr("vera_app.chat.search", lambda request, cancel=None: hits)
     request = {
         "path": "lib",
-        "file_attachments": [{"id": "m", "name": "Memo.txt", "vera_path": "cache/memo.vera", "chunk_count": 1}],
+        "file_attachments": [
+            {"id": "m", "name": "Memo.txt", "vera_path": "cache/memo.vera", "chunk_count": 1}
+        ],
     }
-    output = SearchTool(request, Mode(id="ask", label="Ask")).run({"query": "text", "quality": "permissive"})
-    assert [passage["source"] for passage in output["passages"]] == ["spec.pdf", "attached: Memo.txt"]
+    output = SearchTool(request, Mode(id="ask", label="Ask")).run(
+        {"query": "text", "quality": "permissive"}
+    )
+    assert [passage["source"] for passage in output["passages"]] == [
+        "spec.pdf",
+        "attached: Memo.txt",
+    ]
 
 
 def test_cited_full_text_chunk_gets_highlight_regions(tmp_path) -> None:
@@ -164,7 +197,15 @@ def test_prepared_archive_keeps_the_original(tmp_path) -> None:
 
 def test_manifest_names_searchable_files() -> None:
     text = manifest_text(
-        [{"id": "b", "name": "spec.pdf", "page_count": 12, "token_estimate": 9000, "outline": ["Scope"]}],
+        [
+            {
+                "id": "b",
+                "name": "spec.pdf",
+                "page_count": 12,
+                "token_estimate": 9000,
+                "outline": ["Scope"],
+            }
+        ],
         {"b": "searchable"},
     )
     assert "spec.pdf" in text
@@ -221,7 +262,9 @@ def test_view_figure_queues_a_session_image_and_hides_when_vision_is_off() -> No
     mode = Mode(id="ask", label="Ask", max_searches=1, max_figure_images=1)
     request = {
         "path": "manual.vera",
-        "image_attachments": [{"id": "photo", "name": "pond.png", "data_url": "data:image/png;base64,aa"}],
+        "image_attachments": [
+            {"id": "photo", "name": "pond.png", "data_url": "data:image/png;base64,aa"}
+        ],
     }
     search_tool = SearchTool(request, mode)
     ctx = ToolContext(

@@ -47,8 +47,7 @@ class OoxmlOptions(PipelineOptions):
         metadata={
             "label": "Overlap",
             "description": (
-                "Overlap between consecutive Word and PowerPoint chunks, "
-                "in whitespace-split words."
+                "Overlap between consecutive Word and PowerPoint chunks, in whitespace-split words."
             ),
             "unit": "words",
             "minimum": 0,

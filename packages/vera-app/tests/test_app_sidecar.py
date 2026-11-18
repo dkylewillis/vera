@@ -610,14 +610,18 @@ def test_library_pipeline_actions_store_folder_rules(tmp_path):
     assert listed["ok"] is True, listed
     assert listed["result"]["rules"] == [{"folder": "", "parser": "plans", "pipeline_options": {}}]
 
-    set_rule = handle({"id": "set", "action": "library_set_pipeline", "path": str(plans), "parser": "pymupdf"})
+    set_rule = handle(
+        {"id": "set", "action": "library_set_pipeline", "path": str(plans), "parser": "pymupdf"}
+    )
     assert set_rule["ok"] is True, set_rule
     assert [(rule["folder"], rule["parser"]) for rule in set_rule["result"]["rules"]] == [
         ("", "plans"),
         ("Plans", "pymupdf"),
     ]
 
-    cleared = handle({"id": "clear", "action": "library_set_pipeline", "path": str(plans), "parser": None})
+    cleared = handle(
+        {"id": "clear", "action": "library_set_pipeline", "path": str(plans), "parser": None}
+    )
     assert cleared["ok"] is True, cleared
     assert [rule["folder"] for rule in cleared["result"]["rules"]] == [""]
 
@@ -855,7 +859,9 @@ def test_sidecar_does_not_bundle_the_plans_plugin():
     specs = [item["spec"] for item in described["result"]["pipelines"]]
     assert "pymupdf" in specs
     assert "pymupdf:plans" not in specs
-    sidecar_source = Path(importlib.import_module("vera_app.sidecar").__file__).read_text(encoding="utf-8")
+    sidecar_source = Path(importlib.import_module("vera_app.sidecar").__file__).read_text(
+        encoding="utf-8"
+    )
     assert "vera_ingest_plans" not in sidecar_source
 
 
@@ -1242,7 +1248,9 @@ def test_source_action_prerenders_markdown_html_with_line_ranges(tmp_path, monke
         encoding="utf-8",
     )
 
-    response = handle({"id": "1", "action": "source", "path": str(source), "cache_dir": str(cache_dir)})
+    response = handle(
+        {"id": "1", "action": "source", "path": str(source), "cache_dir": str(cache_dir)}
+    )
     assert response["ok"] is True
     html_path = Path(response["result"]["html_cache_path"])
     assert html_path.resolve().parent == cache_dir.resolve()
@@ -1257,7 +1265,9 @@ def test_source_action_prerenders_markdown_html_with_line_ranges(tmp_path, monke
         raise AssertionError("cached HTML should be reused")
 
     monkeypatch.setattr(markdown_html, "render_markdown_html", fail)
-    again = handle({"id": "2", "action": "source", "path": str(source), "cache_dir": str(cache_dir)})
+    again = handle(
+        {"id": "2", "action": "source", "path": str(source), "cache_dir": str(cache_dir)}
+    )
     assert again["result"]["html_cache_path"] == str(html_path)
 
 
@@ -1280,7 +1290,9 @@ def test_source_action_renders_word_figures_from_the_archive(tmp_path):
     convert(str(source), str(out), model="hashing")
 
     cache_dir = tmp_path / "source-cache"
-    response = handle({"id": "1", "action": "source", "path": str(out), "cache_dir": str(cache_dir)})
+    response = handle(
+        {"id": "1", "action": "source", "path": str(out), "cache_dir": str(cache_dir)}
+    )
     assert response["ok"] is True
     html_path = Path(response["result"]["html_cache_path"])
     html = html_path.read_text(encoding="utf-8")

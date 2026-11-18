@@ -8,12 +8,14 @@ from vera_app.types import Request, WriteEvent
 from vera_doc import build_library_index, library_index_status, update_library_index
 from vera_ingest.library import (
     init_library,
-    library_pipelines as _library_pipelines,
     library_status,
     list_trash,
     restore_from_trash,
     set_folder_pipeline,
     sync_library,
+)
+from vera_ingest.library import (
+    library_pipelines as _library_pipelines,
 )
 
 
@@ -52,7 +54,9 @@ def _mapping(value: object) -> dict[str, Any] | None:
     return dict(value) if isinstance(value, dict) else None
 
 
-def library_init(request: Request, write_event: WriteEvent | None = None, cancel: Any | None = None) -> dict[str, Any]:
+def library_init(
+    request: Request, write_event: WriteEvent | None = None, cancel: Any | None = None
+) -> dict[str, Any]:
     del write_event, cancel
     parser = request.get("parser")
     return init_library(
@@ -94,7 +98,9 @@ def library_set_pipeline(request: Request) -> dict[str, Any]:
     )
 
 
-def library_sync(request: Request, write_event: WriteEvent | None = None, cancel: Any | None = None) -> dict[str, Any]:
+def library_sync(
+    request: Request, write_event: WriteEvent | None = None, cancel: Any | None = None
+) -> dict[str, Any]:
     def report_progress(update: dict[str, Any]) -> None:
         if write_event:
             write_event({"event": "library_progress", **update})

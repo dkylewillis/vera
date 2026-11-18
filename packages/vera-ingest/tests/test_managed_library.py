@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 import pytest
+
 from vera_doc.corpus import VeraCorpus
 from vera_doc.library import (
     LIBRARY_DIRECTORY,
@@ -16,7 +17,6 @@ from vera_doc.library import (
     sync_lock,
 )
 from vera_ingest.library import (
-    LibraryUnreachableError,
     NestedLibraryError,
     init_library,
     library_pipelines,
@@ -177,7 +177,9 @@ def test_rename_move_delete_restore_and_purge(tmp_path: Path):
 def test_mass_delete_guard_and_unreachable_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     init_library(str(tmp_path), model="hashing")
     for index in range(6):
-        _write(tmp_path / f"file-{index}.md", f"# File {index}\n\nUnique body {index} for search.\n")
+        _write(
+            tmp_path / f"file-{index}.md", f"# File {index}\n\nUnique body {index} for search.\n"
+        )
     assert sync_library(str(tmp_path))["converted"] == 6
     for index in range(6):
         (tmp_path / f"file-{index}.md").unlink()
@@ -457,7 +459,9 @@ def test_a_folder_keeps_one_rule_per_file_type(tmp_path: Path):
     set_folder_pipeline(str(tmp_path), folder="Plans", parser="plans")
 
     def rules():
-        return [(rule["folder"], rule["parser"]) for rule in library_pipelines(str(tmp_path))["rules"]]
+        return [
+            (rule["folder"], rule["parser"]) for rule in library_pipelines(str(tmp_path))["rules"]
+        ]
 
     assert rules() == [("Plans", "markdown"), ("Plans", "plans")]
 

@@ -338,14 +338,18 @@ def _answered_from(request: Request, searches: list[dict[str, Any]]) -> str:
     if isinstance(attachments, list) and attachments:
         return "attachments"
     evidence = request.get("prior_evidence")
-    if isinstance(evidence, list) and any(isinstance(item, dict) and item.get("text") for item in evidence):
+    if isinstance(evidence, list) and any(
+        isinstance(item, dict) and item.get("text") for item in evidence
+    ):
         return "prior_evidence"
     return "none"
 
 
 def _run_search_attachments(arguments: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
     raw_ids = arguments.get("ids")
-    ids = [str(item) for item in raw_ids if str(item).strip()] if isinstance(raw_ids, list) else None
+    ids = (
+        [str(item) for item in raw_ids if str(item).strip()] if isinstance(raw_ids, list) else None
+    )
     paths = searchable_paths(ctx.request, delivery_for(ctx.request), ids)
     if not paths:
         return {"error": "No searchable attached files match that request."}
@@ -410,7 +414,9 @@ def _search_agent_tool(search_tool: SearchTool) -> AgentTool:
     return AgentTool(
         name="search",
         schema=SEARCH_TOOL,
-        run=lambda arguments, _ctx: search_tool.run(arguments if isinstance(arguments, dict) else {}),
+        run=lambda arguments, _ctx: search_tool.run(
+            arguments if isinstance(arguments, dict) else {}
+        ),
         max_calls=search_tool._mode.max_searches,
         available=lambda ctx: has_library_scope(ctx.request),
     )
@@ -933,7 +939,9 @@ def answer(
     # figure images the agent surfaces later while searching.
     attachment_parts = _user_attachment_parts(request)
     draft_block = current_draft_block(request)
-    question_parts = [part for part in (attachment_preamble, prior_block, draft_block, prompt) if part]
+    question_parts = [
+        part for part in (attachment_preamble, prior_block, draft_block, prompt) if part
+    ]
     question = "\n\n".join(question_parts)
     user_content: Any = question
     if attachment_parts:

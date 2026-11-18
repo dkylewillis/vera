@@ -183,11 +183,7 @@ def build_chunks_from_blocks(
     ) -> None:
         """Store one chunk, folding an unused leaf heading into the first body."""
         ids = list(dict.fromkeys(block_ids))
-        if (
-            headings_in_text
-            and heading_stack
-            and heading_stack[-1][2] not in covered_heading_ids
-        ):
+        if headings_in_text and heading_stack and heading_stack[-1][2] not in covered_heading_ids:
             heading_text = heading_stack[-1][1]
             heading_id = heading_stack[-1][2]
             covered_heading_ids.add(heading_id)
@@ -198,9 +194,7 @@ def build_chunks_from_blocks(
         word_count = len(tokens(text))
         if word_count == 0:
             return
-        chunks.append(
-            Chunk(text, page_start, page_end, heading_path(), word_count, ids)
-        )
+        chunks.append(Chunk(text, page_start, page_end, heading_path(), word_count, ids))
 
     def emit_uncovered_heading(entry: tuple[int, str, str, int]) -> None:
         """Store a heading that labels no body chunk."""
@@ -211,9 +205,7 @@ def build_chunks_from_blocks(
         word_count = len(tokens(text))
         if word_count == 0:
             return
-        chunks.append(
-            Chunk(text, page, page, heading_path(), word_count, [block_id])
-        )
+        chunks.append(Chunk(text, page, page, heading_path(), word_count, [block_id]))
 
     def flush() -> None:
         nonlocal buffer_words, buffer_blocks, buffer_pages

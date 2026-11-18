@@ -76,7 +76,7 @@ class TestBuildChunksFromBlocks:
     def test_heading_titles_stay_searchable_without_a_body(self):
         blocks = [
             ("b1", ParsedBlock(1, "heading", "CONCRETE STAIRWAY SCALE: N.T.S", heading_level=1)),
-            ("b2", ParsedBlock(1, "paragraph", "2'-0\" 8\"")),
+            ("b2", ParsedBlock(1, "paragraph", '2\'-0" 8"')),
             ("b3", ParsedBlock(1, "heading", "DOGHOUSE MANHOLE DETAIL", heading_level=1)),
         ]
         chunks = build_chunks_from_blocks(blocks, headings_in_text=True)
