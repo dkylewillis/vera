@@ -36,6 +36,9 @@ SIDECAR_ACTIONS = (
     "library_restore",
     "library_pipelines",
     "library_set_pipeline",
+    "plugins_list",
+    "plugin_install",
+    "plugin_remove",
     "cancel",
     "skip",
 )

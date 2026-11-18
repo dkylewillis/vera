@@ -15,14 +15,13 @@ from vera_ingest.types import (
     ensure_ingest_request,
 )
 
-from .options import PyMuPDFOptions, PyMuPDFPlansOptions, describe_pipeline
+from .options import PyMuPDFOptions, describe_pipeline
 from .parser import parse_pdf_structured
 
 __all__ = [
     "pymupdf_pipeline",
-    "pymupdf_plans_pipeline",
+    "run_pymupdf_pipeline",
     "PyMuPDFOptions",
-    "PyMuPDFPlansOptions",
     "describe_pipeline",
 ]
 
@@ -53,44 +52,25 @@ def pymupdf_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
     """Default PDF ingest pipeline using PyMuPDF parsing and Tesseract OCR."""
     request = ensure_ingest_request(options)
     config = PyMuPDFOptions.from_mapping(request.pipeline_options)
-    return _run(
-        source_path,
-        request,
-        config,
-        parser_name="pymupdf",
-        ocr_drawn_text="off",
-        headings_in_text=False,
-    )
+    return run_pymupdf_pipeline(source_path, request, config, parser_name="pymupdf")
 
 
-def pymupdf_plans_pipeline(source_path: str, options: IngestRequest) -> IngestResult:
-    """``pymupdf:plans``: the default pipeline tuned for construction drawings.
-
-    It also OCRs low-text sheets whose lettering is drawn linework, and keeps
-    heading text (detail titles) in the chunk text so a title is searchable.
-    """
-    request = ensure_ingest_request(options)
-    config = PyMuPDFPlansOptions.from_mapping(request.pipeline_options)
-    return _run(
-        source_path,
-        request,
-        config,
-        parser_name="pymupdf:plans",
-        ocr_drawn_text=config.ocr_drawn_text,
-        headings_in_text=True,
-    )
-
-
-def _run(
+def run_pymupdf_pipeline(
     source_path: str,
     request: IngestRequest,
     config: PyMuPDFOptions,
     *,
     parser_name: str,
-    ocr_drawn_text: str,
-    headings_in_text: bool,
+    ocr_drawn_text: str | None = None,
+    headings_in_text: bool = False,
 ) -> IngestResult:
-    plans = parser_name != "pymupdf"
+    """Parse, chunk, and package a PDF; shared by ``pymupdf`` and plugins built on it.
+
+    ``ocr_drawn_text`` (``"auto"`` or ``"off"``) turns on the parser's
+    drawn-lettering OCR and records it in the diagnostics bag; ``None`` leaves
+    it off and keeps it out of the bag. ``headings_in_text`` repeats heading
+    text in the chunk body so a title is searchable.
+    """
     diagnostics: dict[str, object] = {}
     pages, parsed_blocks = parse_pdf_structured(
         source_path,
@@ -98,12 +78,11 @@ def _run(
         ocr_language=config.ocr_language,
         ocr_dpi=config.ocr_dpi,
         ocr_download=config.ocr_download,
-        ocr_drawn_text=ocr_drawn_text,
+        ocr_drawn_text=ocr_drawn_text or "off",
         diagnostics=diagnostics,
         cancel=request.cancel,
     )
-    if not plans:
-        # Drawn-text OCR belongs to pymupdf:plans; keep the default bag as it was.
+    if ocr_drawn_text is None:
         diagnostics.pop("ocr_drawn_text", None)
         diagnostics.pop("ocr_drawn_text_pages", None)
     block_records = _drop_repeated_images(

@@ -92,7 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(omitted: choose from the file extension; PDF -> pymupdf, "
             "Markdown -> markdown, DOCX/PPTX/XLSX/HTML -> docling when "
             "vera-ingest-docling is installed; optional docling or docling:hybrid; "
-            "pymupdf:plans for construction drawing sets). "
+            "plans for construction drawing sets when the vera-ingest-plans plugin is installed). "
             "Unknown providers exit with an error."
         ),
     )
@@ -395,7 +395,7 @@ def build_parser() -> argparse.ArgumentParser:
     library_pipeline_p.add_argument(
         "--parser",
         default=None,
-        help="Pipeline spec for the folder, for example pymupdf:plans (applies only to formats it reads)",
+        help="Pipeline spec for the folder, for example pymupdf or a plugin such as plans (applies only to formats it reads)",
     )
     library_pipeline_p.add_argument(
         "--pipeline-option",

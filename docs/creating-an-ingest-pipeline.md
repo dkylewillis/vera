@@ -76,7 +76,7 @@ construct `IngestBlock` directly.
   pipelines with structured layout should too. By default a heading only sets
   `heading_path`. Pass `headings_in_text=True` to put each heading in the
   first chunk under it and to store a heading with no body as its own chunk;
-  `pymupdf:plans` does this so a detail title is searchable.
+  the `plans` plugin does this so a detail title is searchable.
 - `chunk_pages` / `detect_heading` — public helpers for custom pipelines that
   only have `ParsedPage.text`. First-party pipelines do not call them.
 
@@ -418,8 +418,52 @@ vera-lab "manual.pdf" -o compare.html --parser pymupdf --parser docling
 
 ## Desktop app plugins
 
+### Install a wheel from Settings
+
+The packaged desktop app has no `pip`. Build your pipeline as a pure-Python
+wheel and install it from **File > Settings → Plugins → Install from file…**:
+
+```bash
+uv build --package my-vera-pipeline --out-dir dist   # or: python -m build --wheel
+```
+
+The wheel must be `py3-none-any` and declare a `vera.ingest_pipelines` entry
+point (add `vera.ingest_pipeline_descriptors` for typed Convert controls).
+VERA unpacks it into `plugins/<name>/` under its user data folder, puts that
+folder at the end of the sidecar's `sys.path`, and restarts the sidecar, so
+discovery works exactly as for a pip install. Only import what the sidecar
+already ships (`vera-ingest`, `vera-ingest-pymupdf`, PyMuPDF, NumPy, and the
+rest of the freeze); the installer warns about any other requirement and does
+not download it. `packages/vera-ingest-plans` is a complete example: it reuses
+`vera_ingest_pymupdf.run_pymupdf_pipeline` with different options and
+registers the `plans` provider.
+
+The CLI reads the same layout from `VERA_PLUGIN_DIRS` (plugin roots separated
+by the OS path separator), so one plugin folder can serve both.
+
+### Depend on libraries the app does not ship
+
+A plugin wheel cannot bring compiled or heavy dependencies into the frozen
+sidecar. Install such a pipeline, together with `vera`, in a Python
+environment of your own and select it under **File > Settings → Plugins →
+Separate Python environment** (or set `VERA_PIPELINE_PYTHON` for the CLI).
+VERA lists the pipelines that environment adds and converts each file in a
+child process there. Nothing changes in the pipeline code: it registers the
+same `vera.ingest_pipelines` and `vera.ingest_pipeline_descriptors` entry
+points. Three things differ from an in-process plugin:
+
+- A provider name the host already has stays with the host.
+- The pipeline is used only when named (`--parser`, the Convert dropdown, or a
+  library folder rule), never by file extension alone.
+- `get_ingest_pipeline()` returns a stub that raises for it. Convert through
+  `vera_ingest.convert()` and pass `model`, not `embedding_function`.
+
+See [Separate Python environment](desktop-app-getting-started.md#separate-python-environment).
+
+### Install into a source-run environment
+
 Source-run and packaged builds use one sidecar interpreter. Extra ingest and
-embedding plugins are pip packages in **the same environment**.
+embedding plugins can also be pip packages in **the same environment**.
 
 1. Install `vera-doc` and `vera-ingest` 0.3.x plus your plugin
    (`python -m pip install …` or `python -m pip install -e <clone>`). From a
@@ -433,9 +477,9 @@ embedding plugins are pip packages in **the same environment**.
    hashing needs no extra install. Other Hub Sentence Transformers models
    still need `uv sync --extra ml`.
 3. Restart the desktop app so Convert reloads `describe_ingest_pipelines`.
-   Bundled `pymupdf` wins on duplicate names. The 0.3.0 sidecar does not list
-   `docling`. Raw `PYTHONPATH`
-   folders are not discovered.
+   Bundled `pymupdf` wins on duplicate names. The sidecar lists `docling`
+   only from a separate Python environment. Raw `PYTHONPATH`
+   folders are not discovered; use a plugin folder instead.
 
 See [Plugins in the same environment](desktop-app-getting-started.md#plugins-in-the-same-environment).
 

@@ -260,8 +260,8 @@ older `manual.vera` that belongs to that source is renamed onto the new name
 and listed in `renamed_existing`. Check `malformed_existing` and replace those
 archives intentionally with `--overwrite`. Automatic conversion selectively OCRs image-based low-text
 pages via `vera-ingest-pymupdf` with bundled English language data. For construction
-drawing sets pass `--parser pymupdf:plans`, which also OCRs low-text drawing sheets and
-keeps detail titles in chunk text. Other
+drawing sets pass `--parser plans` (optional `vera-ingest-plans` plugin), which also
+OCRs low-text drawing sheets and keeps detail titles in chunk text. Other
 languages require external
 Tesseract data. A PDF with no searchable chunks after OCR fails with a message
 that it may require OCR; conversion preserves any existing destination.

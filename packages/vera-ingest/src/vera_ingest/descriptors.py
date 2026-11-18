@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
+from dataclasses import fields as dataclass_fields
 from typing import Any, Literal
 
 from vera_doc.option_parsing import fields_from_dataclass as _fields_from_dataclass
@@ -77,6 +79,51 @@ class PipelineDescriptor:
     def as_dict(self) -> dict[str, Any]:
         """Serialize for sidecar/CLI JSON clients."""
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> PipelineDescriptor:
+        """Rebuild a descriptor from :meth:`as_dict` output.
+
+        Keys this version does not know are ignored, so a descriptor written
+        by a newer ``vera-ingest`` in another environment still loads.
+        """
+        provider = str(data.get("provider") or "").strip().lower()
+        if not provider:
+            raise ValueError("pipeline descriptor has no provider")
+        variant = str(data.get("variant") or "").strip().lower()
+        capabilities = _known(PipelineCapabilities, data.get("capabilities"))
+        if "source_formats" in capabilities:
+            capabilities["source_formats"] = tuple(
+                str(item).strip().lower().lstrip(".") for item in capabilities["source_formats"]
+            )
+        pipeline_fields = []
+        for raw in data.get("fields") or ():
+            values = _known(PipelineField, raw)
+            values["choices"] = tuple(
+                PipelineFieldChoice(**_known(PipelineFieldChoice, choice))
+                for choice in values.get("choices") or ()
+            )
+            pipeline_fields.append(PipelineField(**values))
+        return cls(
+            provider=provider,
+            variant=variant,
+            spec=str(data.get("spec") or (f"{provider}:{variant}" if variant else provider)),
+            label=str(data.get("label") or provider),
+            description=str(data.get("description") or ""),
+            installed=bool(data.get("installed", True)),
+            capabilities=PipelineCapabilities(**capabilities),
+            fields=tuple(pipeline_fields),
+            notes=tuple(str(item) for item in data.get("notes") or ()),
+            variants=tuple(str(item) for item in data.get("variants") or ()),
+        )
+
+
+def _known(cls: type, data: Any) -> dict[str, Any]:
+    """Keep only the keys ``cls`` declares as dataclass fields."""
+    if not isinstance(data, Mapping):
+        return {}
+    names = {item.name for item in dataclass_fields(cls)}
+    return {key: value for key, value in data.items() if key in names}
 
 
 def fields_from_dataclass(cls: type) -> tuple[PipelineField, ...]:

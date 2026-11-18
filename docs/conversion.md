@@ -73,14 +73,17 @@ letterhead) and is still OCR'd. Genuinely blank pages and ordinary
 text pages skip OCR. Mixed PDFs can therefore use native extraction on
 ordinary pages and OCR on scanned pages in one conversion.
 
-### Construction plans (`pymupdf:plans`)
+### Construction plans (`plans` plugin)
 
 CAD drawing sets often store detail lettering as linework, or as several
-pasted images, so the page has almost no text to extract. Convert those with
-the `pymupdf:plans` variant:
+pasted images, so the page has almost no text to extract. The optional
+`vera-ingest-plans` plugin adds a `plans` pipeline for them. It is not part of
+the default install or the desktop app. Install it beside the CLI from a
+checkout (`uv sync --extra plans`, or `pip install ./packages/vera-ingest-plans`),
+or install its wheel from the desktop app's **Settings → Plugins**:
 
 ```bash
-vera convert "plans.pdf" "plans.vera" --parser pymupdf:plans
+vera convert "plans.pdf" "plans.vera" --parser plans
 ```
 
 It is the default PyMuPDF pipeline with two differences:
@@ -94,15 +97,17 @@ It is the default PyMuPDF pipeline with two differences:
   detail title such as `DOGHOUSE MANHOLE DETAIL` is searchable.
 
 The plain `pymupdf` pipeline does neither and rejects `ocr_drawn_text`. The
-variant is never chosen from the file extension; pass `--parser
-pymupdf:plans` (or pick it in the desktop Convert view). Archives record
-`parser_name` `pymupdf:plans`. Expect a slower conversion: each OCR'd sheet
-is rasterized and read by Tesseract.
+`plans` pipeline is never chosen from the file extension; pass `--parser
+plans` (or pick it in the desktop Convert view once the plugin is installed).
+Archives record `parser_name` `plans`. Expect a slower conversion: each OCR'd
+sheet is rasterized and read by Tesseract. Development builds called this
+pipeline `pymupdf:plans`; those archives still open and search, but library
+folder rules that name `pymupdf:plans` must be changed to `plans`.
 
 Legacy CLI aliases (forwarded only when the selected pipeline advertises the
 matching descriptor field):
 
-- `--ocr auto` selects scanned pages (default; `pymupdf:plans` adds low-text
+- `--ocr auto` selects scanned pages (default; the `plans` plugin adds low-text
   drawing sheets);
 - `--ocr off` never invokes OCR;
 - `--ocr force` OCRs every page, replacing native text extraction;
@@ -392,7 +397,7 @@ override aliases for the same key.
 | PyMuPDF (`pymupdf`) | `chunk_size=500` words, `overlap=75` words, `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false` | Sliding-window chunks of whitespace-split words (`str.split()`, not characters or LLM subword tokens); Tesseract OCR; language picker lists bundled/downloadable codes |
 | Markdown (`markdown`) | `chunk_size=500` words, `overlap=75` words | Bundled in `vera-ingest`. ATX/Setext headings, lists, fenced code, GFM tables; heading-aware sliding windows. Citations use heading paths and `text_span` locators, not PDF page boxes. Silently ignores OCR keys (`ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_download`) so a mixed PDF+Markdown directory convert can reuse one `pipeline_options` bag |
 | OOXML (`ooxml`) | `chunk_size=500` words, `overlap=75` words, `rows_per_chunk=40`, `include_notes=true` | Default for `.docx`, `.pptx`, and `.xlsx`. Ships in the CLI and the desktop app. Word stores a Markdown preview with `text_span` highlights. PowerPoint and Excel store native JSON previews with `slide` and `sheet_range` locators. Ignores OCR keys. See [`vera-ingest-ooxml`](packages/vera-ingest-ooxml.md) |
-| Docling (`docling`) | `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | Optional higher-fidelity path for PDF, DOCX, PPTX, XLSX, and HTML (`.htm`). Pass `--parser docling`. No `overlap` / `ocr_dpi` / Tesseract `--ocr-language` aliases; RapidOCR and auto page recovery / `pypdfium2` fallback apply to **PDFs only**. The desktop app excludes this pipeline |
+| Docling (`docling`) | `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`, `pdf_backend=docling_parse` | Optional higher-fidelity path for PDF, DOCX, PPTX, XLSX, and HTML (`.htm`). Pass `--parser docling`. No `overlap` / `ocr_dpi` / Tesseract `--ocr-language` aliases; RapidOCR and auto page recovery / `pypdfium2` fallback apply to **PDFs only**. The desktop app runs it only through a [separate Python environment](desktop-app-getting-started.md#separate-python-environment) |
 
 Discover descriptors from Python with `describe_ingest_pipeline` /
 `list_ingest_pipeline_descriptors`, or from the desktop sidecar action
@@ -462,9 +467,9 @@ artifacts directory is not treated as offline — VERA lets Hugging Face
 download or resume, and keeps Hub files under that cache via `HF_HOME`.
 Stopping mid-download does not abort Hugging Face immediately; the next
 run resumes. The first prefetch is about 380 MB (Heron ONNX plus TableFormer
-accurate). The 0.3.0 desktop app does not run `prepare_docling` or list
-**Advanced layout (slower)**; use `vera convert --parser docling` after
-installing `vera[docling]`. Set `DOCLING_ARTIFACTS_PATH` for a local
+accurate). The desktop app does not run `prepare_docling` or bundle Docling; use
+`vera convert --parser docling` after installing `vera[docling]`, or choose
+that environment under **Settings → Plugins → Separate Python environment**. Set `DOCLING_ARTIFACTS_PATH` for a local
 layout-model cache. Convert uses that ONNX layout engine instead of downloading a
 second Transformers Heron snapshot and TableFormer fast. In CLI runs,
 sidecar Hub progress appears as tqdm on stderr. After the cache is ready the

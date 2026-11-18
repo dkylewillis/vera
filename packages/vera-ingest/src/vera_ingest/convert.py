@@ -31,6 +31,7 @@ from vera_doc.models import (
 from vera_doc.validation import validate_document
 
 from .cancellation import clear_user_skip, is_user_skip_error, raise_if_cancelled
+from .external import run_external_convert
 from .formats import (
     installed_source_formats,
     is_office_owner_file,
@@ -40,6 +41,7 @@ from .formats import (
     source_suffix,
 )
 from .pipeline import (
+    external_pipeline_python,
     get_ingest_pipeline,
     invoke_ingest_pipeline,
     parse_ingest_pipeline_spec,
@@ -504,6 +506,9 @@ def convert(
     )
     resolved_parser = resolve_ingest_parser(source, settings.parser)
     settings = replace(settings, parser=resolved_parser)
+    external_python = external_pipeline_python(settings.parser)
+    if external_python is not None:
+        return _convert_in_external_environment(external_python, source, target, settings)
     with timed_step("resolve_pipeline", parser=settings.parser):
         _, pipeline_variant = parse_ingest_pipeline_spec(settings.parser)
         pipeline = get_ingest_pipeline(settings.parser)
@@ -733,6 +738,43 @@ def convert(
             document.close()
         temporary.unlink(missing_ok=True)
     return str(target)
+
+
+def _convert_in_external_environment(
+    python: str, source: Path, target: Path, settings: _ConvertSettings
+) -> str:
+    """Run the whole conversion in the separate Python environment that has the pipeline."""
+    if settings.embedding_function is not None:
+        raise ValueError(
+            f"Ingest pipeline {settings.parser!r} runs in a separate Python environment "
+            f"({python}), which cannot use an embedding_function object. Pass model=... instead."
+        )
+    options = {
+        "model": settings.model,
+        "parser": settings.parser,
+        "chunk_size": settings.chunk_size,
+        "overlap": settings.overlap,
+        "store_original": settings.store_original,
+        "ocr_mode": settings.ocr_mode,
+        "ocr_language": settings.ocr_language,
+        "ocr_dpi": settings.ocr_dpi,
+        "ocr_download": settings.ocr_download,
+        "pipeline_options": settings.pipeline_options,
+        "embedder_options": settings.embedder_options,
+        "metadata": settings.metadata,
+    }
+    raise_if_cancelled(settings.cancel)
+    with timed_step("external_convert", parser=settings.parser, file=source.name):
+        return run_external_convert(
+            python, str(source), str(target), options, cancel=settings.cancel
+        )
+
+
+def _runs_in_external_environment(source: Path, parser: str | None) -> bool:
+    try:
+        return external_pipeline_python(resolve_ingest_parser(source, parser)) is not None
+    except ValueError:
+        return False  # convert() reports the unsupported file or unknown pipeline
 
 
 def _publish_archive(temporary: Path, target: Path) -> None:
@@ -972,10 +1014,17 @@ def batch_convert(
                     clear_user_skip(settings.cancel)
                     skipped_existing.append(str(output))
                     continue
+            convert_kwargs = file_settings.as_convert_kwargs()
+            if settings.embedding_function is None and _runs_in_external_environment(
+                source_file, settings.parser
+            ):
+                # The other environment loads the model by name; the embedder
+                # resolved above only exists in this process.
+                convert_kwargs["embedding_function"] = None
             written = convert(
                 str(source_file),
                 str(output),
-                **file_settings.as_convert_kwargs(),
+                **convert_kwargs,
             )
             outputs.append(written)
             file_warnings = read_ingest_warnings(written)

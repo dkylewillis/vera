@@ -148,6 +148,10 @@ function runDescribeChecks(sidecarPath) {
       finish(1, `Sidecar included Docling; 0.3.x packaged Convert is PyMuPDF-only (got ${providers.join(", ")})`);
       return;
     }
+    if (providers.includes("plans")) {
+      finish(1, `Sidecar bundled the plans plugin; install it from Settings > Plugins instead (got ${providers.join(", ")})`);
+      return;
+    }
 
     const embedders = await send("describe-2", "describe_embedding_providers");
     if (!embedders.ok) {

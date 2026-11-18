@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -752,28 +753,35 @@ def test_cli_directory_convert_with_output_emits_json(tmp_path, capsys):
 
 
 def test_cli_library_pipeline_sets_lists_and_clears_folder_rules(tmp_path):
+    from helpers.plugins import make_echo_wheel
+    from vera_ingest.plugins import PLUGIN_DIRS_ENV, install_plugin_wheel
+
     library = tmp_path / "library"
     plans = library / "Plans"
     plans.mkdir(parents=True)
+    plugins = tmp_path / "plugins"
+    install_plugin_wheel(make_echo_wheel(tmp_path), plugins)
+    env = {**os.environ, PLUGIN_DIRS_ENV: str(plugins)}
 
     def vera(*argv):
         return subprocess.run(
             [sys.executable, "-m", "vera_cli", "library", *argv],
             text=True,
             capture_output=True,
+            env=env,
         )
 
     assert vera("init", str(library), "--model", "hashing", "--json").returncode == 0
-    set_rule = vera("pipeline", str(plans), "--parser", "pymupdf:plans", "--json")
+    set_rule = vera("pipeline", str(plans), "--parser", "echo", "--json")
     assert set_rule.returncode == 0, set_rule.stderr
     payload = json.loads(set_rule.stdout)
     assert payload["folder"] == "Plans"
-    assert payload["rules"] == [{"folder": "Plans", "parser": "pymupdf:plans", "pipeline_options": {}}]
+    assert payload["rules"] == [{"folder": "Plans", "parser": "echo", "pipeline_options": {}}]
 
     listed = vera("pipeline", str(library))
     assert listed.returncode == 0
     assert "Default: by file extension" in listed.stdout
-    assert "Plans: pymupdf:plans" in listed.stdout
+    assert "Plans: echo" in listed.stdout
 
     bad = vera("pipeline", str(plans), "--parser", "blueprints", "--json")
     assert bad.returncode == 1

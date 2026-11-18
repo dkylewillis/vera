@@ -74,6 +74,12 @@ const IPC_CHANNELS: typeof IpcChannels = {
   librarySync: 'vera:librarySync',
   librarySyncProgress: 'vera:librarySyncProgress',
   librarySyncStatus: 'vera:librarySyncStatus',
+  pluginsList: 'vera:pluginsList',
+  pluginsInstall: 'vera:pluginsInstall',
+  pluginsRemove: 'vera:pluginsRemove',
+  openPluginsFolder: 'vera:openPluginsFolder',
+  pluginsChooseEnvironment: 'vera:pluginsChooseEnvironment',
+  pluginsClearEnvironment: 'vera:pluginsClearEnvironment',
 };
 
 contextBridge.exposeInMainWorld('vera', {
@@ -109,6 +115,12 @@ contextBridge.exposeInMainWorld('vera', {
   deleteSession: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.deleteSession, id),
   listModes: () => ipcRenderer.invoke(IPC_CHANNELS.listModes),
   openModesFolder: () => ipcRenderer.invoke(IPC_CHANNELS.openModesFolder),
+  pluginsList: () => ipcRenderer.invoke(IPC_CHANNELS.pluginsList),
+  pluginsInstall: () => ipcRenderer.invoke(IPC_CHANNELS.pluginsInstall),
+  pluginsRemove: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.pluginsRemove, name),
+  openPluginsFolder: () => ipcRenderer.invoke(IPC_CHANNELS.openPluginsFolder),
+  pluginsChooseEnvironment: () => ipcRenderer.invoke(IPC_CHANNELS.pluginsChooseEnvironment),
+  pluginsClearEnvironment: () => ipcRenderer.invoke(IPC_CHANNELS.pluginsClearEnvironment),
   pickArchive: () => ipcRenderer.invoke(IPC_CHANNELS.pickArchive),
   pickFolder: (purpose?: FolderPickPurpose) => ipcRenderer.invoke(IPC_CHANNELS.pickFolder, purpose),
   listFolder: (dir: string) => ipcRenderer.invoke(IPC_CHANNELS.listFolder, dir),

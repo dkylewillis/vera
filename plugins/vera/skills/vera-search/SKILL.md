@@ -87,9 +87,14 @@ A managed library is a folder of source documents with a hidden `.vera/`
 directory. Search it like any other directory. Hits include `source_path`.
 Use `vera library status` or MCP `vera_library_status` to see pending
 changes. Do not sync from MCP; sync can move archives to trash.
-Folders can use different ingest pipelines, for example `pymupdf:plans` for
-drawing sets: `vera library pipeline DIR --folder Plans --parser pymupdf:plans`,
-then `vera library sync DIR`. `vera library pipeline DIR --json` lists the rules.
+Folders can use different ingest pipelines, for example `plans` (from the
+optional `vera-ingest-plans` plugin) for drawing sets:
+`vera library pipeline DIR --folder Plans --parser plans`, then
+`vera library sync DIR`. `vera library pipeline DIR --json` lists the rules.
+A rule must name an installed pipeline; plugins installed into a folder named
+by `VERA_PLUGIN_DIRS` count, and so do pipelines from the separate Python
+environment named by `VERA_PIPELINE_PYTHON` (converted in a child process
+there).
 
 1. Identify the `.vera` file or directory and the question.
 2. Run a high-recall first search:
@@ -206,7 +211,7 @@ vera inspect "manual.vera" --json
 Inspection includes `default_embedding_normalization`: `l2`, `none`, or
 `unknown`. Older archives without the field are reported as `unknown`.
 Prefer `--json`: text mode omits the pipeline `ocr` diagnostics bag
-(PyMuPDF `ocr_pages`, plus `ocr_drawn_text_pages` from `pymupdf:plans`, Docling `recovered_pages` / fallback fields, or `{}`
+(PyMuPDF `ocr_pages`, plus `ocr_drawn_text_pages` from the `plans` plugin, Docling `recovered_pages` / fallback fields, or `{}`
 for Markdown). Package release 0.3.x versions the CLI and APIs;
 `format_version` remains `0.2` and existing archives stay compatible.
 

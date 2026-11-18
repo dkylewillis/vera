@@ -7,6 +7,7 @@ import {
   KeyRound,
   LayoutGrid,
   MessageSquareText,
+  Package,
   RefreshCw,
   Search,
   Settings,
@@ -21,6 +22,7 @@ import { providerDisplayName, withPresetModels } from '../lib/providers';
 import type { AgentServiceStatus, AppSettings, EmbedderDescriptor, ProviderProfile } from '../types';
 import { AccountSection } from './AccountSection';
 import { AgentAccessSection } from './AgentAccessSection';
+import { PluginsSection } from './PluginsSection';
 import { ProvidersSection } from './ProviderSettings';
 import { Callout, CopyField, SecretField, SettingsCard, StatusPill, type PillTone } from './SettingsWidgets';
 
@@ -30,6 +32,7 @@ export type SettingsSectionId =
   | 'providers'
   | 'embeddings'
   | 'agents'
+  | 'plugins'
   | 'huggingface'
   | 'diagnostics';
 
@@ -90,6 +93,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     group: 'ai',
     icon: Bot,
     keywords: 'agent agents mcp claude chatgpt cursor connector share sharing library libraries token snippet cloud relay computer',
+  },
+  {
+    id: 'plugins',
+    label: 'Plugins',
+    hint: 'Extra ingest pipelines',
+    description: 'Install pure-Python plugin wheels that add ingest pipelines to Convert and libraries.',
+    group: 'advanced',
+    icon: Package,
+    keywords: 'plugin plugins pipeline pipelines ingest parser wheel whl install extension plans drawings',
   },
   {
     id: 'huggingface',
@@ -205,6 +217,7 @@ export function SettingsModal({
   initialSection = 'overview',
   onPersist,
   onRefresh,
+  onPluginsChanged,
   onClose,
 }: {
   providers: ProviderProfile[];
@@ -222,6 +235,8 @@ export function SettingsModal({
   initialSection?: SettingsSectionId;
   onPersist: (next: AppSettings) => Promise<AppSettings>;
   onRefresh: () => Promise<AppSettings>;
+  /** A plugin was installed or removed; the sidecar restarted with a new pipeline list. */
+  onPluginsChanged?: () => void;
   onClose: () => void;
 }) {
   const [section, setSection] = useState<SettingsSectionId>(initialSection);
@@ -774,6 +789,7 @@ export function SettingsModal({
             ) : null}
             {section === 'embeddings' ? renderEmbeddings() : null}
             {section === 'agents' ? <AgentAccessSection /> : null}
+            {section === 'plugins' ? <PluginsSection onChanged={() => onPluginsChanged?.()} /> : null}
             {section === 'huggingface' ? renderHuggingFace() : null}
             {section === 'diagnostics' ? renderDiagnostics() : null}
           </div>

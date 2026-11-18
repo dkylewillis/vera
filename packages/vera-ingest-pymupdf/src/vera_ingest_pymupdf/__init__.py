@@ -12,14 +12,13 @@ from vera_ingest.pipeline import (
 from vera_ingest.types import ParsedBlock, ParsedPage
 
 from .options import (
-    PLANS_VARIANT,
     PyMuPDFOptions,
-    PyMuPDFPlansOptions,
     describe_pipeline,
     normalize_variant,
+    pymupdf_capabilities,
 )
 from .parser import parse_pdf_structured
-from .pipeline import pymupdf_pipeline, pymupdf_plans_pipeline
+from .pipeline import pymupdf_pipeline, run_pymupdf_pipeline
 from .tessdata_manager import (
     OCRLanguageDownloadError,
     UnknownOCRLanguageError,
@@ -33,7 +32,6 @@ __all__ = [
     "ParsedBlock",
     "ParsedPage",
     "PyMuPDFOptions",
-    "PyMuPDFPlansOptions",
     "UnknownOCRLanguageError",
     "create_descriptor",
     "create_pipeline",
@@ -43,19 +41,18 @@ __all__ = [
     "download_ocr_language_data",
     "ensure_registered",
     "parse_pdf_structured",
+    "pymupdf_capabilities",
     "pymupdf_pipeline",
-    "pymupdf_plans_pipeline",
+    "run_pymupdf_pipeline",
 ]
 
 
 def create_pipeline(variant: str = "default") -> IngestPipeline:
     """Entry-point factory for ``vera.ingest_pipelines`` provider ``pymupdf``."""
     try:
-        normalized = normalize_variant(variant)
+        normalize_variant(variant)
     except ValueError as exc:
         raise UnknownIngestPipelineError(str(exc)) from exc
-    if normalized == PLANS_VARIANT:
-        return pymupdf_plans_pipeline
     return pymupdf_pipeline
 
 

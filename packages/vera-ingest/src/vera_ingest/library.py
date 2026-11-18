@@ -186,6 +186,7 @@ class _PipelineResolver:
         self.rules = _pipeline_rules(manifest)
         self._formats: dict[str, tuple[str, ...] | None] = {}
         self._defaults: dict[str, str] = {}
+        self._base_suffixes: set[str] | None = None
 
     @property
     def has_choices(self) -> bool:
@@ -202,6 +203,25 @@ class _PipelineResolver:
         return formats is None or suffix in formats
 
     def resolve(self, source_rel: str) -> tuple[str | None, dict[str, Any]]:
+        best = self._matching_rule(source_rel)
+        if best is not None:
+            return best["parser"], {**self.options, **best["pipeline_options"]}
+        return self.parser, dict(self.options)
+
+    def converts(self, source_rel: str) -> bool:
+        """False for a file type only a folder rule reads, outside that rule's folders.
+
+        A rule can bring in a format no other pipeline handles (a pipeline in
+        a separate Python environment is never chosen by extension). Such a
+        file elsewhere in the library is not a document to convert.
+        """
+        if self._matching_rule(source_rel) is not None:
+            return True
+        if self._base_suffixes is None:
+            self._base_suffixes = _source_suffixes(self.parser)
+        return source_suffix(source_rel) in self._base_suffixes
+
+    def _matching_rule(self, source_rel: str) -> dict[str, Any] | None:
         suffix = source_suffix(source_rel)
         parent = _rule_segments(source_rel)[:-1]
         best: dict[str, Any] | None = None
@@ -218,9 +238,7 @@ class _PipelineResolver:
             if not self._reads(rule["parser"], suffix):
                 continue
             best, best_depth = rule, len(segments)
-        if best is not None:
-            return best["parser"], {**self.options, **best["pipeline_options"]}
-        return self.parser, dict(self.options)
+        return best
 
     def key(self, spec: str | None, source_rel: str) -> str:
         """Comparable pipeline identity; ``""`` is the extension default."""
@@ -518,7 +536,11 @@ def _plan(
 ) -> dict[str, Any]:
     manifest = read_manifest(root)
     resolver = _PipelineResolver(manifest)
-    sources = discover_sources(root, resolver.suffixes(), cancel)
+    sources = [
+        item
+        for item in discover_sources(root, resolver.suffixes(), cancel)
+        if resolver.converts(item[0])
+    ]
     source_map = dict(sources)
     archives = _list_archives(root)
     archive_map = dict(archives)
@@ -1156,7 +1178,7 @@ def _validated_rule(
     pipeline_options: Any = None,
 ) -> dict[str, Any]:
     if not isinstance(parser, str) or not parser.strip():
-        raise ValueError("A folder pipeline rule needs a parser, for example pymupdf:plans")
+        raise ValueError("A folder pipeline rule needs a parser, for example pymupdf")
     spec = parser.strip()
     try:
         describe_ingest_pipeline(spec)

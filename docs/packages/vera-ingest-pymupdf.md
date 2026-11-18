@@ -29,7 +29,6 @@ manually via `TESSDATA_PREFIX` or fetched on demand with
 ```bash
 vera convert "manual.pdf" "manual.vera"
 vera convert "manual.pdf" "manual.vera" --parser pymupdf
-vera convert "plans.pdf" "plans.vera" --parser pymupdf:plans
 ```
 
 ```python
@@ -48,15 +47,14 @@ convert("manual.pdf", "manual.vera", parser="pymupdf")
   and ordinary text pages skip OCR.
 - Owns typed defaults: `chunk_size=500` whitespace-split words, `overlap=75`
   words, `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300`.
-- `--parser pymupdf:plans` is a variant for construction drawing sets. It
-  adds `ocr_drawn_text` (`auto` default, or `off`): auto mode also OCRs
-  low-text drawing sheets (vector lettering, or several pasted images),
-  keeps the real text layer, and adds only recognized words that do not
-  already overlap it. It also puts each heading in the first chunk under it
-  and stores a heading with no body as its own chunk, so detail titles are
-  searchable. The default `pymupdf` pipeline does neither and rejects
-  `ocr_drawn_text`. The variant is never selected by file extension and
-  records `parser_name` `pymupdf:plans`.
+- `pymupdf` has no variants and rejects `ocr_drawn_text`. The parser can
+  also OCR low-text drawing sheets (vector lettering, or several pasted
+  images), keeping the real text layer and adding only recognized words that
+  do not already overlap it. That pass is off here; the optional
+  `vera-ingest-plans` plugin turns it on for its `plans` pipeline through
+  `run_pymupdf_pipeline(..., ocr_drawn_text="auto", headings_in_text=True)`,
+  which also keeps detail titles in chunk text. See
+  [Construction plans](../conversion.md#construction-plans-plans-plugin).
 - Sliding-window chunking with heading detection produces searchable text and
   figure metadata. Size and overlap count `str.split()` words, not characters
   or LLM subword tokens. Runtime overlap is clamped to `chunk_size - 1`.
@@ -64,7 +62,7 @@ convert("manual.pdf", "manual.vera", parser="pymupdf")
   forms or tables.
 - Convert records diagnostics on archive metadata `ocr`: `ocr_engine`
   (`tesseract`), `ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_pages`
-  (1-based pages that actually ran Tesseract). `pymupdf:plans` adds
+  (1-based pages that actually ran Tesseract). The `plans` plugin adds
   `ocr_drawn_text` and `ocr_drawn_text_pages` (the subset OCR'd because the
   lettering was drawn or pasted rather than a full-page scan). Read them with
   `vera inspect FILE --json`; text-mode inspect omits the bag.

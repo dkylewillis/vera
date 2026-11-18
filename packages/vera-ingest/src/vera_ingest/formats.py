@@ -5,7 +5,12 @@ from __future__ import annotations
 import mimetypes
 from pathlib import Path
 
-from .pipeline import describe_ingest_pipeline, list_ingest_pipeline_descriptors
+from .descriptors import PipelineDescriptor
+from .pipeline import (
+    describe_ingest_pipeline,
+    is_external_pipeline,
+    list_ingest_pipeline_descriptors,
+)
 
 _PREFERRED_PROVIDERS = ("pymupdf", "markdown", "ooxml", "docling")
 
@@ -50,12 +55,24 @@ def pipeline_source_formats(spec: str) -> tuple[str, ...]:
     return describe_ingest_pipeline(spec).capabilities.source_formats
 
 
+def _chosen_by_extension() -> list[PipelineDescriptor]:
+    """Installed pipelines a file extension may select.
+
+    Pipelines in the separate Python environment (``VERA_PIPELINE_PYTHON``)
+    are left out: they run only when named, so setting an environment never
+    changes which files a folder converts or how.
+    """
+    return [
+        descriptor
+        for descriptor in list_ingest_pipeline_descriptors()
+        if descriptor.installed and not is_external_pipeline(descriptor.provider)
+    ]
+
+
 def installed_source_formats() -> tuple[str, ...]:
     """Return unique suffixes advertised by installed pipelines, in first-seen order."""
     seen: list[str] = []
-    for descriptor in list_ingest_pipeline_descriptors():
-        if not descriptor.installed:
-            continue
+    for descriptor in _chosen_by_extension():
         for item in descriptor.capabilities.source_formats:
             if item not in seen:
                 seen.append(item)
@@ -70,8 +87,8 @@ def pick_parser_for_suffix(suffix: str) -> str:
     key = suffix.strip().lower().lstrip(".")
     matches = [
         descriptor
-        for descriptor in list_ingest_pipeline_descriptors()
-        if descriptor.installed and key in descriptor.capabilities.source_formats
+        for descriptor in _chosen_by_extension()
+        if key in descriptor.capabilities.source_formats
     ]
     if not matches:
         raise ValueError(f"No installed ingest pipeline supports .{key} files.")

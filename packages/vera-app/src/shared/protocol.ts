@@ -65,6 +65,12 @@ export const IPC_CHANNELS = {
   librarySync: 'vera:librarySync',
   librarySyncProgress: 'vera:librarySyncProgress',
   librarySyncStatus: 'vera:librarySyncStatus',
+  pluginsList: 'vera:pluginsList',
+  pluginsInstall: 'vera:pluginsInstall',
+  pluginsRemove: 'vera:pluginsRemove',
+  openPluginsFolder: 'vera:openPluginsFolder',
+  pluginsChooseEnvironment: 'vera:pluginsChooseEnvironment',
+  pluginsClearEnvironment: 'vera:pluginsClearEnvironment',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -104,6 +110,9 @@ export const SIDECAR_ACTIONS = {
   libraryRestore: 'library_restore',
   libraryPipelines: 'library_pipelines',
   librarySetPipeline: 'library_set_pipeline',
+  pluginsList: 'plugins_list',
+  pluginInstall: 'plugin_install',
+  pluginRemove: 'plugin_remove',
   cancel: 'cancel',
   skip: 'skip',
 } as const;

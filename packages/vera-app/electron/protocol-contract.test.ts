@@ -76,6 +76,30 @@ describe('sidecar protocol contract', () => {
     expect(preload).toContain('getConvertLogPath:');
   });
 
+  it('keeps plugin installs on main-owned IPC, never the generic sidecar request', () => {
+    const main = readFileSync(join(root, 'electron/main.ts'), 'utf8');
+    for (const channel of ['pluginsList', 'pluginsInstall', 'pluginsRemove', 'openPluginsFolder'] as const) {
+      expect(main).toContain(`IPC_CHANNELS.${channel}`);
+      expect(preload).toContain(`${channel}:`);
+    }
+    expect(main).toContain('PLUGIN_SIDECAR_ACTIONS.has(');
+    expect(main).toContain('env.VERA_PLUGIN_DIRS');
+    expect(main).toContain("extensions: ['whl']");
+  });
+
+  it('lets only a main-owned folder picker choose the separate Python environment', () => {
+    const main = readFileSync(join(root, 'electron/main.ts'), 'utf8');
+    for (const channel of ['pluginsChooseEnvironment', 'pluginsClearEnvironment'] as const) {
+      expect(main).toContain(`IPC_CHANNELS.${channel}`);
+      expect(preload).toContain(`${channel}:`);
+    }
+    expect(main).toContain('env.VERA_PIPELINE_PYTHON = pipelineEnvironment');
+    expect(main).toContain("properties: ['openDirectory', 'showHiddenFiles']");
+    // Kept out of settings.json, which the renderer can save.
+    expect(main).toContain("'pipeline-environment.json'");
+    expect(main).not.toMatch(/sanitized[\s\S]{0,600}pipeline_python/);
+  });
+
   it('registers and routes Windows shell opens for .vera archives', () => {
     const main = readFileSync(join(root, 'electron/main.ts'), 'utf8');
     const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));

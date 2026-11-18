@@ -81,6 +81,7 @@ ensure_openai_embedder_registered()
 
 from vera_app import convert as convert_handlers
 from vera_app import library as library_handlers
+from vera_app import plugins as plugin_handlers
 from vera_app.cancellation import CancellationToken, CancelledError, SkipCurrentError
 from vera_app.chat import answer as _answer
 from vera_app.chat import list_llm_models as _list_models
@@ -133,6 +134,9 @@ HANDLERS: dict[str, Handler] = {
     "library_restore": library_handlers.library_restore,
     "library_pipelines": library_handlers.library_pipelines,
     "library_set_pipeline": library_handlers.library_set_pipeline,
+    "plugins_list": plugin_handlers.handle_plugins_list,
+    "plugin_install": plugin_handlers.handle_plugin_install,
+    "plugin_remove": plugin_handlers.handle_plugin_remove,
 }
 
 _CONTROL_ACTIONS = {"cancel", "skip"}

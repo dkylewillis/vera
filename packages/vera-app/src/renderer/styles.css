@@ -5344,6 +5344,40 @@ input.viewerPageInput:focus {
   min-width: 0;
 }
 
+.pluginList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pluginRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.pluginRow:first-child {
+  border-top: 0;
+}
+
+.pluginRowText {
+  min-width: 0;
+}
+
+.pluginRowText p {
+  margin: 4px 0 0;
+}
+
+.pluginError {
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
 .statusPill {
   display: inline-flex;
   align-items: center;

@@ -56,6 +56,35 @@ export interface VeraResponse<T = unknown> {
   cancelled?: boolean;
 }
 
+/** One unpacked plugin wheel under the app's plugins folder. */
+export interface InstalledPlugin {
+  name: string;
+  version: string;
+  summary: string;
+  path: string;
+  /** Ingest pipeline providers the plugin registers, such as `plans`. */
+  pipelines: string[];
+  error?: string;
+  /** Only on install: missing requirements or provider names already taken. */
+  warnings?: string[];
+}
+
+/** The separate Python environment that runs pipelines VERA does not include. */
+export interface PipelineEnvironment {
+  /** The chosen environment folder or interpreter; empty when none is set. */
+  python: string;
+  /** Pipelines that run there, such as `docling`. */
+  pipelines: string[];
+}
+
+export interface PluginsListResult {
+  plugins_dir: string;
+  plugins: InstalledPlugin[];
+  environment?: PipelineEnvironment;
+  /** Pipelines that failed to import, and a separate environment that did not answer. */
+  load_errors: string[];
+}
+
 export interface VeraApi {
   platform: string;
   showMenu(menuId: string, x: number, y: number): Promise<boolean>;
@@ -85,6 +114,14 @@ export interface VeraApi {
   deleteSession(id: string): Promise<Session[]>;
   listModes(): Promise<VeraResponse<{ modes: Mode[] }>>;
   openModesFolder(): Promise<unknown>;
+  pluginsList(): Promise<VeraResponse<PluginsListResult>>;
+  /** Opens a `.whl` picker; `null` when the user cancels. */
+  pluginsInstall(): Promise<VeraResponse<InstalledPlugin> | null>;
+  pluginsRemove(name: string): Promise<VeraResponse<{ name: string; removed: boolean }>>;
+  openPluginsFolder(): Promise<string>;
+  /** Opens a folder picker for a Python environment; `null` when the user cancels. */
+  pluginsChooseEnvironment(): Promise<VeraResponse<PluginsListResult> | null>;
+  pluginsClearEnvironment(): Promise<VeraResponse<PluginsListResult>>;
   pickArchive(): Promise<string | null>;
   pickFolder(purpose?: FolderPickPurpose): Promise<string | null>;
   listFolder(dir: string): Promise<WorkspaceFolderResult | null>;

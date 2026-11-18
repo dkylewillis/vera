@@ -19,8 +19,8 @@ Non-desktop users can also:
 pip install "vera[docling]>=0.3.0"
 ```
 
-The 0.3.0 Windows app does not freeze this pipeline or list **Advanced layout
-(slower)** in Convert. CLI MiniLM embeddings use `vera-doc[onnx]` /
+The Windows app does not freeze this pipeline. Convert lists it only from a
+[separate Python environment](#desktop-app) you choose. CLI MiniLM embeddings use `vera-doc[onnx]` /
 `uv sync --extra onnx` plus a VERA-exported snapshot (or the installer graph).
 Other Sentence Transformers models still need `vera-doc[ml]` /
 `uv sync --extra ml`. Those extras are independent of this Docling package.
@@ -145,11 +145,25 @@ fidelity compared with `docling_parse`.
 
 ## Desktop app
 
-The 0.3.0 desktop Convert view does not list Docling. Use this package from
-the CLI (`vera convert --parser docling`, or omit `--parser` on DOCX/PPTX/XLSX/HTML)
-after installing `vera[docling]`.
-Pipeline descriptors still omit overlap and OCR DPI when a future desktop
-host lists the plugin.
+Docling is not part of the desktop app, and the sidecar never imports it. Use
+this package from the CLI (`vera convert --parser docling`, or omit `--parser`
+on DOCX/PPTX/XLSX/HTML) after installing `vera[docling]`.
+
+To convert with Docling from the desktop app, install it in a Python
+environment of your own and choose that folder under **File > Settings →
+Plugins → Separate Python environment**:
+
+```bash
+python -m venv C:\vera-docling
+C:\vera-docling\Scripts\python -m pip install "vera[docling]>=0.3.0" "vera-doc[onnx]"
+```
+
+Convert then lists `docling` and runs each file in a child process in that
+environment. The first conversion imports Docling and may download layout
+models, so expect it to take a minute or more. See
+[Separate Python environment](../desktop-app-getting-started.md#separate-python-environment).
+Pipeline descriptors omit overlap and OCR DPI, so Convert does not show those
+controls for Docling.
 
 ## See also
 

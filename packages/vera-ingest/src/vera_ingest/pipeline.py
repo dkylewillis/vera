@@ -2,11 +2,19 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from importlib.metadata import entry_points
 from typing import Any
 
 from .descriptors import PipelineDescriptor, generic_pipeline_descriptor
+from .external import (
+    ExternalPipelineError,
+    configured_python,
+    list_external_descriptors,
+    resolve_python,
+)
+from .plugins import activate_plugin_dirs
 from .types import IngestRequest, IngestResult
 
 logger = logging.getLogger(__name__)
@@ -23,6 +31,11 @@ _DESCRIPTOR_CACHE: dict[tuple[str, str], PipelineDescriptor] = {}
 _LOAD_ERRORS: list[str] = []
 _ENTRY_POINTS_LOADED = False
 _DEFAULT_VARIANTS = {"docling": "hybrid"}
+# Pipelines the separate Python environment (VERA_PIPELINE_PYTHON) offers, the
+# ones that actually run there, and the providers a host never runs in process.
+_EXTERNAL_OFFERS: dict[str, _ExternalProvider] = {}
+_EXTERNAL_ACTIVE: set[str] = set()
+_EXTERNAL_PREFERRED: set[str] = set()
 
 
 IngestPipeline = Callable[[str, IngestRequest], IngestResult]
@@ -55,6 +68,37 @@ def invoke_ingest_pipeline(
 
 class UnknownIngestPipelineError(ValueError):
     """Raised when an ingest pipeline spec cannot be resolved."""
+
+
+@dataclass(frozen=True)
+class _ExternalProvider:
+    """One provider offered by the separate Python environment."""
+
+    provider: str
+    python: str
+    descriptors: tuple[PipelineDescriptor, ...]
+
+    def describe(self, variant: str) -> PipelineDescriptor:
+        for descriptor in self.descriptors:
+            if descriptor.variant == variant:
+                return descriptor
+        if not variant:
+            return self.descriptors[0]
+        raise UnknownIngestPipelineError(
+            f"Ingest pipeline {self.provider!r} in {self.python} has no variant {variant!r}."
+        )
+
+    def create(self, variant: str) -> IngestPipeline:
+        spec = self.describe(variant).spec
+        python = self.python
+
+        def runs_elsewhere(source_path: str, request: IngestRequest) -> IngestResult:
+            raise RuntimeError(
+                f"Ingest pipeline {spec!r} runs in a separate Python environment "
+                f"({python}). Convert files with vera_ingest.convert()."
+            )
+
+        return runs_elsewhere
 
 
 def _normalize_provider(provider: str) -> str:
@@ -131,6 +175,10 @@ def register_ingest_pipeline(
         if key in _PIPELINE_FACTORIES and not replace:
             raise ValueError(f"ingest pipeline provider {provider!r} is already registered")
         _PIPELINE_FACTORIES[key] = factory
+        if key in _EXTERNAL_ACTIVE:
+            # A local registration takes the provider back from the separate environment.
+            _EXTERNAL_ACTIVE.discard(key)
+            _DESCRIPTOR_FACTORIES.pop(key, None)
         for cache_key in tuple(_PIPELINE_CACHE):
             if cache_key[0] == key:
                 _PIPELINE_CACHE.pop(cache_key, None)
@@ -196,7 +244,9 @@ def _unknown_pipeline_message(spec: str, available: str) -> str:
         f"Unknown ingest parser pipeline {spec!r}. "
         f"Installed providers: {available}. "
         f"Install a plugin registered under the '{_ENTRY_POINT_GROUP}' "
-        "entry-point group, or call register_ingest_pipeline()."
+        "entry-point group (or unpack it into a VERA_PLUGIN_DIRS folder), "
+        "point VERA_PIPELINE_PYTHON at an environment that has it, "
+        "or call register_ingest_pipeline()."
     )
 
 
@@ -212,15 +262,54 @@ def _collect_entry_point_factories(group: str, *, kind: str) -> list[tuple[str, 
     return loaded
 
 
+def _collect_external_offers() -> dict[str, _ExternalProvider]:
+    """Ask the separate Python environment, when one is set, which pipelines it has."""
+    location = configured_python()
+    if not location:
+        return {}
+    try:
+        python = str(resolve_python(location))
+        descriptors = list_external_descriptors(python)
+    except ExternalPipelineError as exc:
+        message = f"Separate Python environment {location}: {exc}"
+        logger.warning("%s", message)
+        with _REGISTRY_LOCK:
+            if message not in _LOAD_ERRORS:
+                _LOAD_ERRORS.append(message)
+        return {}
+    grouped: dict[str, list[PipelineDescriptor]] = {}
+    for descriptor in descriptors:
+        if descriptor.installed:
+            grouped.setdefault(descriptor.provider, []).append(descriptor)
+    return {
+        provider: _ExternalProvider(provider, python, tuple(items))
+        for provider, items in grouped.items()
+    }
+
+
+def _activate_external(provider: str) -> None:
+    """Route ``provider`` to the separate environment. Caller holds the registry lock."""
+    offer = _EXTERNAL_OFFERS[provider]
+    _PIPELINE_FACTORIES[provider] = offer.create
+    _DESCRIPTOR_FACTORIES[provider] = offer.describe
+    _EXTERNAL_ACTIVE.add(provider)
+    for cache in (_PIPELINE_CACHE, _DESCRIPTOR_CACHE):
+        for cache_key in tuple(cache):
+            if cache_key[0] == provider:
+                cache.pop(cache_key, None)
+
+
 def _ensure_entry_points_loaded() -> None:
     global _ENTRY_POINTS_LOADED
     with _REGISTRY_LOCK:
         if _ENTRY_POINTS_LOADED:
             return
+    activate_plugin_dirs()
     pipeline_factories = _collect_entry_point_factories(_ENTRY_POINT_GROUP, kind="ingest pipeline")
     descriptor_factories = _collect_entry_point_factories(
         _DESCRIPTOR_ENTRY_POINT_GROUP, kind="ingest pipeline descriptor"
     )
+    external_offers = _collect_external_offers()
     with _REGISTRY_LOCK:
         if _ENTRY_POINTS_LOADED:
             return
@@ -228,7 +317,54 @@ def _ensure_entry_points_loaded() -> None:
             _PIPELINE_FACTORIES.setdefault(provider, factory)
         for provider, factory in descriptor_factories:
             _DESCRIPTOR_FACTORIES.setdefault(provider, factory)
+        _EXTERNAL_OFFERS.update(external_offers)
+        for provider in external_offers:
+            # A pipeline this process has wins, unless the host never runs it here.
+            if provider not in _PIPELINE_FACTORIES or provider in _EXTERNAL_PREFERRED:
+                _activate_external(provider)
         _ENTRY_POINTS_LOADED = True
+
+
+def prefer_external_pipelines(providers: Iterable[str]) -> None:
+    """Run ``providers`` in the separate Python environment whenever it offers them.
+
+    By default a pipeline installed in this process wins over the same
+    provider in ``VERA_PIPELINE_PYTHON``. A host that never runs a provider
+    in process (the desktop app and Docling) names it here. The preference
+    is host configuration and survives :func:`reset_ingest_pipeline_registry`.
+    """
+    names = {_normalize_provider(provider) for provider in providers}
+    with _REGISTRY_LOCK:
+        _EXTERNAL_PREFERRED.update(names)
+        if _ENTRY_POINTS_LOADED:
+            for provider in names:
+                if provider in _EXTERNAL_OFFERS:
+                    _activate_external(provider)
+
+
+def external_pipeline_python(spec: str | None) -> str | None:
+    """Return the interpreter that runs ``spec``, or ``None`` when it runs in this process."""
+    provider, _variant = parse_ingest_pipeline_spec(spec)
+    _ensure_entry_points_loaded()
+    with _REGISTRY_LOCK:
+        if provider not in _EXTERNAL_ACTIVE:
+            return None
+        return _EXTERNAL_OFFERS[provider].python
+
+
+def is_external_pipeline(spec: str | None) -> bool:
+    """True when ``spec`` runs in the separate Python environment."""
+    try:
+        return external_pipeline_python(spec) is not None
+    except UnknownIngestPipelineError:
+        return False
+
+
+def external_pipeline_status() -> dict[str, Any]:
+    """Report the separate Python environment: its location and the pipelines it runs."""
+    _ensure_entry_points_loaded()
+    with _REGISTRY_LOCK:
+        return {"python": configured_python(), "pipelines": sorted(_EXTERNAL_ACTIVE)}
 
 
 def get_ingest_pipeline(spec: str = "pymupdf") -> IngestPipeline:
@@ -302,7 +438,7 @@ def list_ingest_pipeline_descriptors(*, include_variants: bool = False) -> list[
     """Return descriptors for each installed provider using its default variant.
 
     With ``include_variants``, each provider's default is followed by the
-    other variants its descriptor advertises (for example ``pymupdf:plans``).
+    other variants its descriptor advertises (``provider:variant`` specs).
     Format routing leaves this off so a variant is never picked by extension.
     """
     providers = list_ingest_pipelines()
@@ -351,6 +487,8 @@ def reset_ingest_pipeline_registry(*, builtins: bool = True) -> None:
         _PIPELINE_CACHE.clear()
         _DESCRIPTOR_CACHE.clear()
         _LOAD_ERRORS.clear()
+        _EXTERNAL_OFFERS.clear()
+        _EXTERNAL_ACTIVE.clear()
         _ENTRY_POINTS_LOADED = False
 
 

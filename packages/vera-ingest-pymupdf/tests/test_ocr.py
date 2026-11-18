@@ -480,41 +480,14 @@ def test_drawn_text_ocr_can_be_disabled_without_skipping_scans(tmp_path, monkeyp
         pdf_parser.parse_pdf_structured(str(scan), ocr_drawn_text="sometimes")
 
 
-def _drawn_title_content():
-    return (
-        "raw",
-        {
-            "blocks": [
-                {
-                    "type": 0,
-                    "bbox": (80.0, 400.0, 700.0, 460.0),
-                    "lines": [
-                        {
-                            "dir": (1.0, 0.0),
-                            "spans": [
-                                {
-                                    "text": "SADDLE BLOCKING",
-                                    "bbox": (80.0, 400.0, 700.0, 460.0),
-                                    "size": 14.0,
-                                    "flags": 0,
-                                }
-                            ],
-                        }
-                    ],
-                }
-            ]
-        },
-    )
-
-
-def test_only_the_plans_variant_ocrs_drawing_sheets(tmp_path, monkeypatch):
+def test_the_default_pipeline_never_ocrs_drawing_sheets(tmp_path, monkeypatch):
     pdf = tmp_path / "details.pdf"
     _vector_sheet(pdf, text="C705 CONSTRUCTION DETAILS", paths=2000)
     calls = []
 
     def fake_ocr(page, *, language, dpi, allow_download=False):
         calls.append(page.number + 1)
-        return _drawn_title_content()
+        return _recognized_content("SADDLE BLOCKING")
 
     monkeypatch.setattr(pdf_parser, "_ocr_page_content", fake_ocr)
 
@@ -532,29 +505,8 @@ def test_only_the_plans_variant_ocrs_drawing_sheets(tmp_path, monkeypatch):
     finally:
         document.close()
 
-    plans_out = tmp_path / "plans.vera"
-    convert(str(pdf), str(plans_out), model="hashing", parser="pymupdf:plans")
-    assert calls == [1]
-    document = VeraDocument.open(str(plans_out))
-    try:
-        info = document.inspect()
-        assert info["parser_name"] == "pymupdf:plans"
-        assert info["ocr"]["ocr_drawn_text"] == "auto"
-        assert info["ocr"]["ocr_drawn_text_pages"] == [1]
-        hit = document.search("saddle blocking", mode="keyword", top_k=1)[0]
-        assert hit.page_start == 1
-    finally:
-        document.close()
-
-    off_out = tmp_path / "plans-off.vera"
-    convert(
-        str(pdf),
-        str(off_out),
-        model="hashing",
-        parser="pymupdf:plans",
-        pipeline_options={"ocr_drawn_text": "off"},
-    )
-    assert calls == [1]
+    with pytest.raises(ValueError, match="vera-ingest-plans"):
+        convert(str(pdf), str(tmp_path / "variant.vera"), model="hashing", parser="pymupdf:plans")
 
     with pytest.raises(ValueError, match="Unknown PyMuPDF option"):
         convert(

@@ -432,6 +432,9 @@ class PythonSidecar {
     applyEmbedderSecretEnv(env);
     applyHfHomeEnv(env);
     env.PYTHONUNBUFFERED = (env.PYTHONUNBUFFERED || '').trim() || '1';
+    env.VERA_PLUGIN_DIRS = [pluginsDir(), env.VERA_PLUGIN_DIRS || ''].filter(Boolean).join(delimiter);
+    const pipelineEnvironment = readPipelineEnvironment();
+    if (pipelineEnvironment) env.VERA_PIPELINE_PYTHON = pipelineEnvironment;
     const bundledMinilm = minilmHome();
     if (bundledMinilm) {
       env.VERA_ONNX_MINILM_HOME = bundledMinilm;
@@ -1376,6 +1379,117 @@ function withModesDir(payload: SidecarPayload): SidecarPayload {
   return payload;
 }
 
+/** Unpacked plugin wheels; the sidecar reads it from `VERA_PLUGIN_DIRS`. */
+function pluginsDir(): string {
+  return join(app.getPath('userData'), 'plugins');
+}
+
+/** Plugin installs run code, so only the dedicated IPC (main-owned file picker) may reach them. */
+const PLUGIN_SIDECAR_ACTIONS = new Set<string>([
+  SIDECAR_ACTIONS.pluginsList,
+  SIDECAR_ACTIONS.pluginInstall,
+  SIDECAR_ACTIONS.pluginRemove,
+]);
+
+async function listPlugins(): Promise<SidecarResponse> {
+  return sidecar.request({ action: SIDECAR_ACTIONS.pluginsList, plugins_dir: pluginsDir() });
+}
+
+async function installPluginFromFile(owner: BrowserWindow | null): Promise<SidecarResponse | null> {
+  const options: Electron.OpenDialogOptions = {
+    title: 'Install VERA plugin',
+    buttonLabel: 'Install',
+    properties: ['openFile'],
+    filters: [{ name: 'Python wheel', extensions: ['whl'] }],
+  };
+  const picked = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
+  if (picked.canceled || !picked.filePaths[0]) return null;
+  mkdirSync(pluginsDir(), { recursive: true });
+  const response = await sidecar.request({
+    action: SIDECAR_ACTIONS.pluginInstall,
+    plugins_dir: pluginsDir(),
+    wheel: picked.filePaths[0],
+  });
+  if (response.ok) sidecar.restart();
+  return response;
+}
+
+async function removePlugin(name: string): Promise<SidecarResponse> {
+  const response = await sidecar.request({
+    action: SIDECAR_ACTIONS.pluginRemove,
+    plugins_dir: pluginsDir(),
+    name,
+  });
+  if (response.ok) sidecar.restart();
+  return response;
+}
+
+/**
+ * The separate Python environment for pipelines VERA does not ship (Docling).
+ * The sidecar runs code from it, so main keeps the choice in its own file,
+ * outside the settings the renderer can save, and sets it only from a folder
+ * the user picks in a native dialog.
+ */
+function pipelineEnvironmentFile(): string {
+  return join(app.getPath('userData'), 'pipeline-environment.json');
+}
+
+function readPipelineEnvironment(): string {
+  try {
+    const raw = JSON.parse(readFileSync(pipelineEnvironmentFile(), 'utf8')) as { python?: unknown };
+    return typeof raw.python === 'string' ? raw.python.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+function writePipelineEnvironment(location: string): void {
+  const target = pipelineEnvironmentFile();
+  if (!location) {
+    rmSync(target, { force: true });
+    return;
+  }
+  mkdirSync(app.getPath('userData'), { recursive: true });
+  const temp = `${target}.tmp`;
+  writeFileSync(temp, JSON.stringify({ python: location }, null, 2), 'utf8');
+  renameSync(temp, target);
+}
+
+/** True when `folder` holds a Python interpreter where a virtual environment keeps it. */
+function hasEnvironmentPython(folder: string): boolean {
+  return [
+    join(folder, 'Scripts', 'python.exe'),
+    join(folder, 'bin', 'python'),
+    join(folder, 'bin', 'python3'),
+    join(folder, 'python.exe'),
+  ].some((candidate) => existsSync(candidate));
+}
+
+async function choosePipelineEnvironment(owner: BrowserWindow | null): Promise<SidecarResponse | null> {
+  const options: Electron.OpenDialogOptions = {
+    title: 'Choose a Python environment folder',
+    buttonLabel: 'Use this environment',
+    properties: ['openDirectory', 'showHiddenFiles'],
+  };
+  const picked = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
+  if (picked.canceled || !picked.filePaths[0]) return null;
+  if (!hasEnvironmentPython(picked.filePaths[0])) {
+    return {
+      ok: false,
+      error: 'No Python found in that folder. Choose a virtual environment folder, such as .venv.',
+    };
+  }
+  writePipelineEnvironment(picked.filePaths[0]);
+  sidecar.restart();
+  return listPlugins();
+}
+
+async function clearPipelineEnvironment(): Promise<SidecarResponse> {
+  writePipelineEnvironment('');
+  sidecar.restart();
+  return listPlugins();
+}
+
 async function pickArchivePath(): Promise<string | null> {
   const result = await dialog.showOpenDialog({
     title: 'Open VERA archive',
@@ -1981,6 +2095,9 @@ if (singleInstanceLock) app.whenReady().then(() => {
       streamed = true;
       if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.answerEvent, e);
     };
+    if (PLUGIN_SIDECAR_ACTIONS.has(String(payload?.action || ''))) {
+      return { id: requestId || '', ok: false, error: 'Manage plugins from Settings > Plugins.' };
+    }
     const prepared = withModesDir(withStoredApiKey(payload));
     const request = prepared.action === 'source'
       ? { ...prepared, cache_dir: sourceCacheDir() }
@@ -2028,6 +2145,15 @@ if (singleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle(IPC_CHANNELS.skipConversion, (_event, requestId: string) => sidecar.skipConversion(requestId));
   ipcMain.handle(IPC_CHANNELS.listModes, async () => sidecar.request({ action: SIDECAR_ACTIONS.listModes, modes_dir: modesDir() }));
   ipcMain.handle(IPC_CHANNELS.openModesFolder, async () => shell.openPath(modesDir()));
+  ipcMain.handle(IPC_CHANNELS.pluginsList, async () => listPlugins());
+  ipcMain.handle(IPC_CHANNELS.pluginsInstall, async (event) => installPluginFromFile(BrowserWindow.fromWebContents(event.sender)));
+  ipcMain.handle(IPC_CHANNELS.pluginsRemove, async (_event, name: string) => removePlugin(String(name || '')));
+  ipcMain.handle(IPC_CHANNELS.openPluginsFolder, async () => {
+    mkdirSync(pluginsDir(), { recursive: true });
+    return shell.openPath(pluginsDir());
+  });
+  ipcMain.handle(IPC_CHANNELS.pluginsChooseEnvironment, async (event) => choosePipelineEnvironment(BrowserWindow.fromWebContents(event.sender)));
+  ipcMain.handle(IPC_CHANNELS.pluginsClearEnvironment, async () => clearPipelineEnvironment());
   ipcMain.handle(IPC_CHANNELS.getSettings, async () => readSettings());
   ipcMain.handle(IPC_CHANNELS.saveSettings, async (_event, settings: AppSettings) => writeSettings(settings));
   ipcMain.handle(IPC_CHANNELS.proGetAccount, () => {

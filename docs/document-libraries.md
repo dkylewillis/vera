@@ -47,12 +47,14 @@ keeps using `.vera-index/` and the commands above.
 ### Choose a pipeline per folder
 
 A library can convert different folders with different pipelines. For
-example, use `pymupdf:plans` for drawing sets and the regular `pymupdf`
-pipeline for reports and specs. Folder rules live in `.vera/library.json`
-under `convert.pipeline_rules`, so every sync uses them:
+example, use the `plans` plugin pipeline (`vera-ingest-plans`, see
+[Construction plans](conversion.md#construction-plans-plans-plugin)) for
+drawing sets and the regular `pymupdf` pipeline for reports and specs. Folder
+rules live in `.vera/library.json` under `convert.pipeline_rules`, so every
+sync uses them. A rule must name an installed pipeline:
 
 ```bash
-vera library pipeline ./library --folder "Projects/*/Plans" --parser pymupdf:plans
+vera library pipeline ./library --folder "Projects/*/Plans" --parser plans
 vera library pipeline ./library --folder Projects/Tower/Plans/Details --parser pymupdf
 vera library pipeline ./library --json
 vera library pipeline ./library --folder Projects/Tower/Plans/Details --clear
@@ -69,7 +71,7 @@ Rules follow these rules:
 - A folder keeps one rule per file type. Setting a PDF pipeline on a folder
   replaces that folder's earlier PDF rule but leaves a Markdown rule alone.
   `--clear` removes all of the folder's rules.
-- A rule applies only to files its pipeline reads. A `pymupdf:plans` rule
+- A rule applies only to files its pipeline reads. A `plans` rule
   changes PDFs, but Markdown and Office files in that folder keep their usual
   pipeline.
 - Files no rule covers use the library's `--parser` from `vera library init`.

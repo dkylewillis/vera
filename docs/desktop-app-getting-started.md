@@ -60,11 +60,11 @@ library for **Library trash…**, and a converted document for **Share
 archive…**, which copies that one `.vera` file out. Sibling `.vera` files
 that match their sources can be moved into `.vera/archives/` when the library
 is created.
-When a folder becomes a library, VERA asks how it should convert PDFs and
-lists every installed PDF pipeline. For drawing sets choose `pymupdf:plans`,
-which also reads lettering drawn as linework and keeps detail titles
-searchable. For reports, manuals, and specs keep the default `pymupdf`.
-A library can mix pipelines. Right-click the library or one of its subfolders
+PDFs convert with the default `pymupdf` pipeline. When a plugin adds another
+PDF pipeline (see [Plugins](#plugins)), making a folder a library first asks
+which one its PDFs should use. For example, the optional `plans` plugin reads
+lettering drawn as linework and keeps detail titles searchable in drawing
+sets. A library can mix pipelines. Right-click the library or one of its subfolders
 and choose **PDF pipeline…**. Hover the item to see which pipeline the folder
 uses now and where that was set. The dialog offers **Same as parent folder**
 (**Library default** on the library itself) and each installed pipeline. A
@@ -300,7 +300,8 @@ extra into the workspace environment. The source-run
 sidecar matches packaged releases: one Python process with PyMuPDF,
 hashing, ONNX MiniLM, and OpenAI embeddings. Save `OPENAI_API_KEY` under
 **File > Settings → Embeddings**. Plugins are ordinary pip packages in **the same environment**
-(`vera.ingest_pipelines` / `vera.embedders`); CLI users can
+(`vera.ingest_pipelines` / `vera.embedders`), or ingest pipeline wheels
+installed from **File > Settings → Plugins**; CLI users can
 `pip install "vera[docling]>=0.3.0"` or `pip install -e <clone>` after
 `vera-ingest` 0.3.x. An unavailable selection is disabled or fails with the
 resolver error. Save an optional token under **File > Settings → Hugging Face**
@@ -324,7 +325,7 @@ listed, Reconvert does not export an embedded original and shows
 **Could not read archive metadata**. Place the matching `.pdf` or `.md` next to the
 archive, or export the original from Document Info once the archive is
 readable. Document Info's OCR line is PyMuPDF-shaped (`ocr_engine`,
-`ocr_mode`, `ocr_pages`; `pymupdf:plans` adds `ocr_drawn_text_pages` to the JSON bag). Markdown archives store `ocr: {}` and the UI shows
+`ocr_mode`, `ocr_pages`; the `plans` plugin adds `ocr_drawn_text_pages` to the JSON bag). Markdown archives store `ocr: {}` and the UI shows
 `Unknown mode · 0 pages OCR’d`; Docling recovery uses `engine` /
 `recovered_pages`, so the Info line can look incomplete after a successful
 convert. Use `vera inspect FILE --json` (or sidecar inspect) for the full bag.
@@ -509,16 +510,19 @@ Sentence Transformers are excluded from the freeze.
 
 Source-run (`npm run app:dev`) and packaged builds use **one interpreter**.
 Search, Chat, indexing, and PyMuPDF conversion all run in
-the sidecar. Extra converters are pip packages in that environment, not a
-second interpreter. The sidecar converts Word, PowerPoint, and Excel with
-`ooxml` and does not run Docling conversion.
+the sidecar. Extra converters are pip packages in that environment or plugin
+wheels. The sidecar converts Word, PowerPoint, and Excel with
+`ooxml` and does not run Docling conversion itself. A pipeline that needs
+libraries the app does not include runs in a
+[separate Python environment](#separate-python-environment) you choose.
 
 The packaged Windows installer freezes PyMuPDF, hashing, ONNX Runtime, and
 `vera-embed-openai` into `vera-sidecar.exe`. MiniLM
 (`all-MiniLM-L6-v2`) ONNX weights ship inside Setup.exe, so **Local semantic
 (MiniLM)** does not download those files on
-first use. Docling / **Advanced layout (slower)** is not part of the 0.3.0
-desktop app; install `vera[docling]` and convert from the CLI. OpenAI
+first use. Docling is not bundled in the desktop app; install `vera[docling]`
+and either convert from the CLI or point the app at that environment (see
+[Separate Python environment](#separate-python-environment)). OpenAI
 embeddings are bundled; save `OPENAI_API_KEY` under **File > Settings →
 Embeddings**. Voyage and Ollama are not bundled.
 
@@ -530,8 +534,68 @@ pip install "vera[docling]>=0.3.0"
 uv sync --extra docling
 ```
 
-CLI Docling may download layout models into `DOCLING_ARTIFACTS_PATH`. That
-pipeline is not listed in the 0.3.0 desktop Convert view.
+Docling may download layout models into `DOCLING_ARTIFACTS_PATH`. The desktop
+Convert view lists it only after you choose an environment that has it.
+
+### Plugins
+
+**File > Settings → Plugins** installs extra ingest pipelines into the packaged
+app, which has no `pip`. Choose **Install from file…** and pick a plugin wheel
+(`.whl`). VERA unpacks it into `plugins/<name>/` under its user data folder,
+restarts the converter, and lists the new pipeline in Convert and in the
+**PDF pipeline…** picker. **Open plugins folder** shows that folder, and
+**Remove** deletes one plugin. Library folders that use a removed pipeline
+stop converting until you pick another one.
+
+A plugin wheel must be `py3-none-any` and register a `vera.ingest_pipelines`
+entry point. It runs inside the sidecar, so it can only import libraries VERA
+already ships (PyMuPDF, `vera-ingest`, `vera-ingest-pymupdf`, NumPy, and so
+on) at their shipped versions. Install shows a warning for any requirement the
+app does not include, and for a provider name another pipeline already uses
+(the installed one wins). Plugins run with the same access as VERA, so only
+install ones you trust. The sidecar reads plugin folders from
+`VERA_PLUGIN_DIRS`, which the app sets; the CLI honors the same variable.
+
+The `plans` pipeline for construction drawing sets is such a plugin
+(`packages/vera-ingest-plans`). Build its wheel with
+`uv build --package vera-ingest-plans --out-dir dist`, then install
+`dist/vera_ingest_plans-*.whl` from Settings.
+
+### Separate Python environment
+
+A plugin wheel can only use libraries the app already ships. A pipeline that
+needs more, such as Docling, runs in a Python environment you create and keep
+up to date yourself:
+
+```bash
+python -m venv C:\vera-docling
+C:\vera-docling\Scripts\python -m pip install "vera[docling]>=0.3.0" "vera-doc[onnx]"
+```
+
+Under **File > Settings → Plugins → Separate Python environment**, select
+**Choose folder…** and pick the environment folder (here `C:\vera-docling`;
+in a checkout, `.venv`). VERA restarts the converter and lists the pipelines
+that environment adds, such as `docling`, in Convert and in the folder
+pipeline picker. **Stop using** removes them again.
+
+- Each file that uses one of those pipelines is converted by a separate
+  process in that environment, with the same progress, **Skip**, and **Stop**
+  as other conversions. Search, Chat, and indexing stay in the app.
+- Pipelines the app already has keep running in the app. Docling is the
+  exception: the app never runs it itself.
+- An environment pipeline is used only when you pick it. It never becomes the
+  default for a file type, though it can add file types (Docling adds `.html`)
+  to library folders set to it.
+- The embedding model is loaded in that environment too. The `vera-doc[onnx]` extra
+  covers **Local semantic (MiniLM)**; hashing and OpenAI need nothing extra.
+- The environment needs VERA 0.3.x of its own. VERA does not create, update,
+  or check it, and code there runs with the same access as VERA.
+- If the environment is moved or deleted, Settings shows **Not working** with
+  the reason. Library folders set to its pipelines stop converting until it is
+  back or you pick another pipeline.
+
+The CLI and Python API honor the same choice through `VERA_PIPELINE_PYTHON`
+(an environment folder or a Python executable).
 
 Ingest plugins register under `vera.ingest_pipelines`; embedders register
 under `vera.embedders`. Desktop Convert calls `preflight_embedder` before writing an
@@ -546,7 +610,8 @@ Other Sentence Transformers models still need `uv sync --extra ml`. A missing
 run `uv sync --extra onnx` (or `--extra app`) and restart the app. See
 [Creating an ingest pipeline plugin](creating-an-ingest-pipeline.md) and
 [Creating an embedding provider](creating-an-embedding-provider.md).
-Convert and embed always run in-process in the sidecar; see
+Convert and embed run in-process in the sidecar unless the pipeline comes from
+the separate Python environment; see
 [Convert in one sidecar](desktop-app-architecture.md#convert-in-one-sidecar).
 
 ## Common startup problems
@@ -577,11 +642,14 @@ Convert and embed always run in-process in the sidecar; see
   Set `VERA_SIDECAR_PYTHON` or `VERA_APP_PYTHON` to use a different interpreter, or exclude the
   repository and `%TEMP%` from real-time scanning, then retry.
 - **An extra parser or embedder is missing from Convert** — the 0.3.0 desktop
-  sidecar ships PyMuPDF only. Docling is a CLI extra (`vera[docling]`),
-  not a Convert dropdown. For other plugins, install into
+  sidecar ships PyMuPDF only. Docling (`vera[docling]`) appears only after
+  you choose an environment that has it under **File > Settings → Plugins →
+  Separate Python environment**. For other plugins, install the wheel from
+  **File > Settings → Plugins**, or in a source run install into
   the same environment the sidecar uses (`python -m pip install` or
-  `python -m pip install -e <clone>`), then restart the app. Raw `PYTHONPATH`
-  folders are not discovered. If Search warns that semantic groups were
+  `python -m pip install -e <clone>`) and restart the app. Raw `PYTHONPATH`
+  folders are not discovered. A plugin that fails to import shows
+  **Did not load** with the import error in Settings → Plugins. If Search warns that semantic groups were
   skipped, the embedder used at convert time is not available in this
   sidecar. OpenAI embeddings are bundled (`OPENAI_API_KEY` under **File >
   Settings → Embeddings**); Voyage and Ollama are not.

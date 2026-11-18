@@ -69,7 +69,8 @@ vera get "ordinance.vera" "chunk_0001" --json
 ## Convert a scanned PDF
 
 Automatic mode uses native text where available and OCRs image-based low-text
-pages (add `--parser pymupdf:plans` for construction drawing sets):
+pages (with the optional `vera-ingest-plans` plugin installed, add
+`--parser plans` for construction drawing sets):
 
 ```bash
 vera convert "scanned-manual.pdf" "scanned-manual.vera" --ocr auto --ocr-language eng

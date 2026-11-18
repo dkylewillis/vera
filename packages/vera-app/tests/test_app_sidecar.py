@@ -591,6 +591,9 @@ def test_empty_library_can_open_for_summary(tmp_path):
 
 
 def test_library_pipeline_actions_store_folder_rules(tmp_path):
+    from vera_ingest_plans import ensure_registered
+
+    ensure_registered()
     plans = tmp_path / "Plans"
     plans.mkdir()
     created = handle(
@@ -598,19 +601,19 @@ def test_library_pipeline_actions_store_folder_rules(tmp_path):
             "id": "init",
             "action": "library_init",
             "path": str(tmp_path),
-            "pipeline_rules": [{"folder": "", "parser": "pymupdf:plans"}],
+            "pipeline_rules": [{"folder": "", "parser": "plans"}],
         }
     )
     assert created["ok"] is True, created
 
     listed = handle({"id": "list", "action": "library_pipelines", "path": str(tmp_path)})
     assert listed["ok"] is True, listed
-    assert listed["result"]["rules"] == [{"folder": "", "parser": "pymupdf:plans", "pipeline_options": {}}]
+    assert listed["result"]["rules"] == [{"folder": "", "parser": "plans", "pipeline_options": {}}]
 
     set_rule = handle({"id": "set", "action": "library_set_pipeline", "path": str(plans), "parser": "pymupdf"})
     assert set_rule["ok"] is True, set_rule
     assert [(rule["folder"], rule["parser"]) for rule in set_rule["result"]["rules"]] == [
-        ("", "pymupdf:plans"),
+        ("", "plans"),
         ("Plans", "pymupdf"),
     ]
 
@@ -846,13 +849,14 @@ def test_sidecar_describe_omits_docling_even_when_package_importable():
     assert "docling" not in listed["result"]["pipelines"]
 
 
-def test_sidecar_describe_lists_the_plans_variant_after_the_default():
+def test_sidecar_does_not_bundle_the_plans_plugin():
     described = handle({"id": "desc-plans", "action": "describe_ingest_pipelines"})
     assert described["ok"] is True
     specs = [item["spec"] for item in described["result"]["pipelines"]]
-    assert specs.index("pymupdf:plans") == specs.index("pymupdf") + 1
-    plans = described["result"]["pipelines"][specs.index("pymupdf:plans")]
-    assert "ocr_drawn_text" in [field["key"] for field in plans["fields"]]
+    assert "pymupdf" in specs
+    assert "pymupdf:plans" not in specs
+    sidecar_source = Path(importlib.import_module("vera_app.sidecar").__file__).read_text(encoding="utf-8")
+    assert "vera_ingest_plans" not in sidecar_source
 
 
 def test_sidecar_rejects_docling_parser():

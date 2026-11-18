@@ -51,7 +51,7 @@ so conversion works out of the box.
 
 Optional CLI/library plugin that depends on `vera-ingest` and Docling.
 Registers the `docling` / `docling:hybrid` ingest pipeline. `vera`
-installs it through the `docling` extra. It is not bundled into packaged desktop releases. The 0.3.0 Convert view does not list **Advanced layout (slower)**.
+installs it through the `docling` extra. It is not bundled into packaged desktop releases. The Convert view lists it only when a separate Python environment chosen under **Settings → Plugins** has it; `vera-ingest` then runs each conversion in that environment (`VERA_PIPELINE_PYTHON`).
 
 ## `vera-embed-openai`
 
@@ -91,11 +91,20 @@ and PyMuPDF. Writes a self-contained HTML report with block/chunk/figure
 overlays and layout lint. Not published as part of the release path and not a
 pipeline provider.
 
+## `vera-ingest-plans`
+
+Optional workspace plugin (`plans` extra; not published to PyPI and not in the
+desktop installer). Depends on `vera-ingest` and `vera-ingest-pymupdf` and
+registers the `plans` ingest pipeline for construction drawing sets
+(drawn-text OCR, detail titles in chunk text). Its wheel is pure Python, so the
+desktop app can install it from **Settings → Plugins**.
+
 ## Dependency direction
 
 ```text
 vera-ingest-pymupdf ──> vera-ingest ─┐
 vera-ingest-docling ──> vera-ingest ─┤
+vera-ingest-plans ──> vera-ingest-pymupdf
 vera-embed-openai ───────────────────┤
 vera ─────────────────────────────────┼──> vera-doc
 vera-app ─────────────────────────────┤

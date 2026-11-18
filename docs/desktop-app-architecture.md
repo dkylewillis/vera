@@ -27,6 +27,7 @@ packages/
   vera-ingest/            # conversion registry and archive writer
   vera-ingest-pymupdf/    # default PDF pipeline
   vera-ingest-docling/    # optional CLI Docling pipeline
+  vera-ingest-plans/      # optional plans plugin for drawing sets (not bundled)
   vera-embed-openai/      # official OpenAI embeddings plugin
   vera-cli/               # terminal interface
   vera-app/               # Electron desktop app plus Python sidecar
@@ -124,7 +125,9 @@ bundled MiniLM snapshot) are forwarded on spawn. `app:dev` vendors
 `packages/vera-app/build/minilm` before launch. `app:dev` leaves `HF_HOME` unset.
 Convert stays on **Discovering files…** until `resolve_embedder` finishes.
 Convert gates conversion on `preflight_embedder`.
-Docling is a CLI extra (`vera[docling]`) and is not listed in Convert.
+Docling (`vera[docling]`) is never imported by the sidecar. Convert lists it
+only when a [separate Python environment](#separate-python-environment)
+provides it, and then each conversion runs in a child process there.
 The sidecar sets `PYTHONUNBUFFERED=1`
 and forwards tqdm `\r` Hub progress as `[vera-sidecar]` lines. Electron tees
 that stderr (plus a `sidecar_spawn` line with the executable and `isPackaged`)
@@ -449,11 +452,11 @@ before they are skipped; malformed outputs are reported separately, and
 overwrite must be selected explicitly. PDF conversion uses selective
 PyMuPDF/Tesseract OCR (via `vera-ingest-pymupdf`) for image-based low-text
 pages, with English language data bundled into
-that package and the packaged sidecar. The pipeline list also offers
-`pymupdf:plans` for construction drawing sets (drawn-text OCR and detail
-titles in chunk text). Markdown uses the bundled `markdown`
-pipeline (no OCR). Docling remains a CLI extra (`vera[docling]`), not a Convert
-pipeline. It publishes a validated
+that package and the packaged sidecar. Pipelines from installed plugin wheels
+(for example `plans` from `vera-ingest-plans`, drawn-text OCR for drawing
+sets) join the list; see the plugin section below. Markdown uses the bundled `markdown`
+pipeline (no OCR). Docling (`vera[docling]`) is a Convert pipeline only
+through a separate Python environment. Conversion publishes a validated
 temporary sibling atomically, preserves an existing destination after failure,
 and rejects PDFs with no searchable text after OCR with an OCR-specific
 message. Sidecar `convert` and `batch_convert` requests accept optional
@@ -513,10 +516,69 @@ ships ONNX MiniLM only. The build copies `vera-ingest-pymupdf` and
 `pymupdf` pipeline, the `ooxml` Office pipeline, and the `openai` embedder on import so Convert works in
 frozen builds where `importlib.metadata` entry points are otherwise empty.
 After a freeze, `node packages/vera-app/scripts/verify-packaged-sidecar.cjs`
-asserts `describe_ingest_pipelines` reports `pymupdf` (and not Docling), that
+asserts `describe_ingest_pipelines` reports `pymupdf` (and not Docling or
+`plans`), that
 `describe_embedding_providers` includes `openai`, that MiniLM
 weights are present, that Torch is absent, and that the frozen `mcp-service`
 lists `vera_library_info` without requiring a session id.
+
+### Ingest pipeline plugins
+
+The frozen sidecar has no `pip`, so extra pipelines arrive as unpacked wheels.
+Electron sets `VERA_PLUGIN_DIRS=<userData>/plugins` on the sidecar. Before
+`vera_ingest.pipeline` reads entry points, `vera_ingest.plugins.activate_plugin_dirs()`
+appends each `plugins/<name>/` folder to the end of `sys.path`, so a plugin's
+`.dist-info` entry points are discovered like a pip install while modules the
+sidecar ships still win. **Settings → Plugins** uses dedicated IPC
+(`pluginsList`, `pluginsInstall`, `pluginsRemove`, `openPluginsFolder`). Main
+owns the `.whl` file picker and the plugin folder. It forwards the
+`plugins_list`, `plugin_install`, and `plugin_remove` sidecar actions, and
+rejects those actions on the generic `vera:request` channel. Install accepts
+only `py3-none-any` wheels with a `vera.ingest_pipelines` entry point, unpacks
+them through a staging folder, and returns warnings for missing requirements
+and taken provider names. After an install or removal, main restarts the
+sidecar (once idle) and the renderer reloads `describe_ingest_pipelines`.
+`plugins_list` also returns `list_ingest_pipeline_load_errors()` so a broken
+plugin shows its import error.
+
+### Separate Python environment
+
+A pipeline whose dependencies the frozen sidecar cannot load (Docling) runs in
+a second interpreter the user owns. `VERA_PIPELINE_PYTHON` names it: a virtual
+environment folder or a Python executable. That environment needs its own
+`vera-ingest` 0.3.x.
+
+- **Discovery.** When `vera_ingest.pipeline` loads entry points it runs a short
+  script in that interpreter and reads back the installed pipeline descriptors.
+  A provider the host already has stays local. The sidecar calls
+  `prefer_external_pipelines({"docling"})`, so Docling always comes from the
+  environment and is hidden when the environment does not have it. A failure
+  is added to `list_ingest_pipeline_load_errors()` with the prefix
+  `Separate Python environment`.
+- **Conversion.** `vera_ingest.convert()` checks `external_pipeline_python()`.
+  For such a pipeline it starts `python -c` in that interpreter, which calls
+  `vera_ingest.convert()` there with the same options. Parsing, embedding, and
+  archive writing all happen in the child, so `convert`, `batch_convert`, and
+  managed-library sync need no separate path. The request goes in on stdin as
+  JSON, the result comes back on a marked stdout line, and stderr (timing
+  lines and model download progress) is forwarded to sidecar stderr. The child
+  gets a private temp folder and does not inherit `VERA_PIPELINE_PYTHON`.
+  Cancel, **Skip**, and **Stop** end the child's whole process tree.
+  An `embedding_function` object cannot cross the process boundary; pass
+  `model`.
+- **Selection.** An external pipeline is never chosen from a file extension.
+  A library folder rule can name one, and file types only that pipeline reads
+  are converted inside that folder only.
+- **Ownership.** The chosen folder lives in `pipeline-environment.json` under
+  `userData`, not in `settings.json`, so the renderer cannot write it. Main
+  sets it only from a native folder dialog (`pluginsChooseEnvironment`),
+  checks that the folder holds a Python interpreter, and clears it with
+  `pluginsClearEnvironment`. Both restart the sidecar once it is idle.
+  `plugins_list` returns `environment: {python, pipelines}`.
+- **Limits.** VERA does not create, update, or version-check the environment.
+  `preflight_embedder` checks the sidecar's embedder, not the child's, so a
+  missing embedding runtime in the environment surfaces as a per-file
+  conversion error. Search and Chat never use the environment.
 
 From the repo root:
 
@@ -598,7 +660,7 @@ embedding model and dimensions, creation time, archive size, parser and
 chunking settings, OCR summary, attachment count, validation status, and
 export controls alongside the source. The OCR line is
 `formatOcrSummary()` over PyMuPDF-shaped `ocr` keys (`ocr_engine`,
-`ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_pages`; `ocr_drawn_text_pages` from `pymupdf:plans`
+`ocr_mode`, `ocr_language`, `ocr_dpi`, `ocr_pages`; `ocr_drawn_text_pages` from the `plans` plugin
 is in the same bag and is not part of the one-line summary). Docling writes `engine`
 and `recovered_pages` instead; Markdown writes `ocr: {}`, which the
 formatter treats as present and shows as `Unknown mode · 0 pages OCR’d`.

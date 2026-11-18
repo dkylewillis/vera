@@ -15,8 +15,10 @@ from vera_doc import (
 from vera_ingest import (
     batch_convert,
     convert,
+    is_external_pipeline,
     list_ingest_pipeline_descriptors,
     list_ingest_pipelines,
+    prefer_external_pipelines,
 )
 from vera_ingest.convert import read_ingest_notes, read_ingest_warnings
 from vera_ingest_pymupdf import (
@@ -57,12 +59,20 @@ def require_ready_embedder(model: str) -> None:
         raise ValueError(result.detail or "Embedding provider is not ready")
 
 
-# 0.3.x desktop Convert ships PyMuPDF and bundled Markdown. Docling remains a CLI extra.
+# The desktop sidecar never runs Docling in its own process. It is offered only
+# when the separate Python environment (Settings > Plugins) provides it, and
+# then the conversion runs there.
 _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS = frozenset({"docling"})
+prefer_external_pipelines(_DESKTOP_EXCLUDED_PIPELINE_PROVIDERS)
 
 
 def _pipeline_provider(name: str) -> str:
     return str(name or "").strip().lower().split(":", 1)[0]
+
+
+def _excluded_from_desktop(name: str) -> bool:
+    provider = _pipeline_provider(name)
+    return provider in _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS and not is_external_pipeline(provider)
 
 
 def requested_parser(request: Request) -> str | None:
@@ -75,11 +85,11 @@ def requested_parser(request: Request) -> str | None:
 
 def _reject_excluded_desktop_parser(request: Request) -> None:
     parser = requested_parser(request) or "pymupdf"
-    if _pipeline_provider(parser) not in _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS:
+    if not _excluded_from_desktop(parser):
         return
     raise ValueError(
-        "Docling is not available in the desktop app in 0.3.x. "
-        "Convert PDFs with PyMuPDF or Markdown here, or use the CLI extra: "
+        "Docling is not available in the desktop app on its own. Choose a Python "
+        "environment that has it under Settings > Plugins, or convert with the CLI extra: "
         'pip install "vera[docling]>=0.3.0"'
     )
 
@@ -244,9 +254,7 @@ def handle_list_ingest_pipelines(request: Request) -> dict[str, Any]:
     """List installed ingest pipeline providers for the Convert view."""
     return {
         "pipelines": [
-            name
-            for name in list_ingest_pipelines()
-            if _pipeline_provider(name) not in _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS
+            name for name in list_ingest_pipelines() if not _excluded_from_desktop(name)
         ]
     }
 
@@ -257,7 +265,7 @@ def handle_describe_ingest_pipelines(request: Request) -> dict[str, Any]:
         "pipelines": [
             descriptor.as_dict()
             for descriptor in list_ingest_pipeline_descriptors(include_variants=True)
-            if descriptor.provider not in _DESKTOP_EXCLUDED_PIPELINE_PROVIDERS
+            if not _excluded_from_desktop(descriptor.provider)
         ],
     }
 

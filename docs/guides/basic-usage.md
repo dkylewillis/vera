@@ -24,7 +24,7 @@ vera inspect manual.vera --json
 vera validate manual.vera --json
 ```
 
-Inspect JSON includes the pipeline `ocr` diagnostics bag (PyMuPDF `ocr_pages`, plus `ocr_drawn_text_pages` from `pymupdf:plans`,
+Inspect JSON includes the pipeline `ocr` diagnostics bag (PyMuPDF `ocr_pages`, plus `ocr_drawn_text_pages` from the `plans` plugin,
 Docling recovery, or `{}` for Markdown). Text-mode `vera inspect` omits it.
 
 ## Step 3 — Search from the CLI

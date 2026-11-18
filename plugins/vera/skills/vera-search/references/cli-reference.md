@@ -21,6 +21,23 @@ console entry point is `vera`; `python -m vera_cli` invokes the same parser.
   `pip install "vera-mcp>=0.3.2"`.
 - A repository checkout can use:
   `uv sync --extra dev --extra onnx --extra ml --extra app --extra mcp`.
+- Ingest pipeline plugins register under the `vera.ingest_pipelines` entry
+  point: `pip install` them beside `vera`, or unpack a pure-Python wheel into
+  a folder `<root>/<name>/` and list `<root>` in `VERA_PLUGIN_DIRS`
+  (separated by the OS path separator). The desktop app installs wheels that
+  way from **Settings → Plugins**. The construction drawing pipeline `plans`
+  is the optional `vera-ingest-plans` plugin (`uv sync --extra plans` in a
+  checkout); it is not in the published CLI or the desktop installer.
+- `VERA_PIPELINE_PYTHON` names a separate Python environment (a virtual
+  environment folder or a Python executable) that has `vera` and a pipeline
+  this one lacks. `vera convert --parser NAME`, directory convert, and
+  `vera library sync` then run that pipeline's files in a child process
+  there, embedding included, and print the same JSON. Pipelines already
+  installed here stay local. A pipeline from that environment is used only
+  when named by `--parser` or a library folder rule, never by file extension.
+  An unusable environment does not fail other commands; the pipeline is
+  simply unknown. The desktop app sets this from **Settings → Plugins →
+  Separate Python environment**, which is how it runs Docling.
 
 Check `vera --help` first. If it is not on `PATH`, try
 `python -m vera_cli --help`.
@@ -131,8 +148,9 @@ Each pipeline owns typed defaults and validation. Advertised integer
 `minimum`/`maximum` bounds are enforced (`chunk_size` 100–3000; hashing
 `dimension` 8–4096). PyMuPDF defaults:
 `chunk_size=500` whitespace-split words, `overlap=75` words, `ocr_mode=auto`,
-`ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false`. `--parser pymupdf:plans`
-(construction drawing sets; never chosen by extension) adds
+`ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false`. PyMuPDF has no
+variants; `pymupdf:plans` exits 1. `--parser plans` (construction drawing
+sets, from the optional `vera-ingest-plans` plugin; never chosen by extension) adds
 `ocr_drawn_text=auto` (`off` skips it): low-text drawing sheets are OCR'd and
 the words added to the text layer, and heading text such as a detail title is
 kept in chunk `text`. Plain `pymupdf` rejects `ocr_drawn_text`. Markdown defaults:
@@ -286,7 +304,7 @@ Summary counts, embedding dimensions, attachment counts, and
 
 `ocr` is the pipeline `diagnostics` dict (historical key). Text-mode inspect
 omits it. PyMuPDF writes `ocr_engine`, `ocr_mode`, `ocr_language`, `ocr_dpi`,
-`ocr_pages` (1-based pages that ran Tesseract). `pymupdf:plans` archives add
+`ocr_pages` (1-based pages that ran Tesseract). `plans` archives add
 `ocr_drawn_text` and `ocr_drawn_text_pages` (the drawing-sheet subset).
 Docling writes `engine`
 (`docling`), `source_format`, `recovered_pages`, and optionally
@@ -683,7 +701,7 @@ Lists, sets, or clears the folder pipeline rules stored in
 `--folder` is relative to the library root (`""` or omitted means the whole
 library). `*` and `?` match within one folder name. The deepest matching rule
 wins, and a later rule wins a tie. A rule only changes the formats its
-pipeline reads: `pymupdf:plans` affects PDFs, not Markdown or Office files.
+pipeline reads: `plans` affects PDFs, not Markdown or Office files.
 Setting a rule replaces the folder's rules that read any of the same formats.
 `--clear` removes all of that folder's rules.
 Files no rule covers use the library `parser`, or else the default for their

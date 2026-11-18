@@ -135,7 +135,7 @@ and export the original once the archive is readable.
 
 `vera inspect` without `--json` prints identity fields only. Pipeline
 diagnostics live in the JSON `ocr` object (PyMuPDF `ocr_pages`, plus
-`ocr_drawn_text_pages` from `pymupdf:plans`, Docling
+`ocr_drawn_text_pages` from the `plans` plugin, Docling
 `recovered_pages` / `whole_document_fallback_*`). Desktop **Document Info**
 summarizes PyMuPDF-shaped keys; Markdown's empty `ocr: {}` and Docling's
 `engine` field do not produce a complete Info line. Use
@@ -346,7 +346,11 @@ Settings → Hugging Face** in the desktop app.
 If a CLI Docling convert is slow or sits on model download, check stderr for
 timing lines such as
 `2026-08-19T20:44:01.123Z timing step=import_docling elapsed_ms=12450`.
-Set `DOCLING_ARTIFACTS_PATH` for a local layout-model cache. The desktop
+Set `DOCLING_ARTIFACTS_PATH` for a local layout-model cache. If
+`--parser NAME` reports an unknown pipeline while `VERA_PIPELINE_PYTHON` is
+set, that environment could not be used: it must contain a Python interpreter
+and its own `vera` install with the pipeline. Desktop **Settings → Plugins →
+Separate Python environment** shows the reason. The desktop
 convert log (**File > Open convert log...**, Convert **Advanced → Open convert log**, or
 **Settings → Diagnostics**) records PyMuPDF convert timing in
 `userData/logs/sidecar.log` for `app:dev` and packaged VERA. CLI `vera convert`

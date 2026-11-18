@@ -34,7 +34,7 @@ vera library sync ./library --json
 vera library status ./library --json
 
 # Per-folder pipelines in a managed library (drawing sets vs. regular PDFs)
-vera library pipeline ./library --folder "Projects/*/Plans" --parser pymupdf:plans --json
+vera library pipeline ./library --folder "Projects/*/Plans" --parser plans --json
 vera library pipeline ./library --json
 
 # Include figure/table metadata near each result
@@ -77,12 +77,12 @@ vera convert deck.pptx deck.vera --json
 vera convert budget.xlsx budget.vera --json
 vera convert notes.html notes.vera --json
 
-# Docling (optional, higher-fidelity layout; vera[docling] or --extra docling; not a desktop pipeline)
+# Docling (optional, higher-fidelity layout; vera[docling] or --extra docling; not bundled in the desktop app)
 vera convert scan.pdf scan.vera --parser docling --json
 vera convert scan.pdf scan.vera --parser docling --pipeline-option pdf_backend=pypdfium2 --json
 
-# Construction drawing sets (OCRs drawn lettering, keeps detail titles searchable)
-vera convert plans.pdf plans.vera --parser pymupdf:plans --json
+# Construction drawing sets (optional vera-ingest-plans plugin; OCRs drawn lettering)
+vera convert plans.pdf plans.vera --parser plans --json
 
 # Provider-owned embedder options (hashing dimension; OpenAI batch_size)
 vera convert manual.pdf --model hashing --embedder-option dimension=256 --json
@@ -302,8 +302,11 @@ non-obvious caveats for this environment; standard commands live in the sections
   local MiniLM (`DEFAULT_EMBEDDING_MODEL`); the CLI default embedder is still hashing. Save `OPENAI_API_KEY` under **File > Settings → Embeddings** (or
   export it for CLI convert). Archives converted with OpenAI are not portable
   for semantic search. Docling is an optional higher-fidelity layout path
-  (`uv sync --extra docling`; `vera convert --parser docling`), not a desktop
-  pipeline in 0.3.0. The packaged
+  (`uv sync --extra docling`; `vera convert --parser docling`). The desktop
+  app does not bundle it; it lists Docling only after **File > Settings →
+  Plugins → Separate Python environment** points at an environment that has
+  it (`VERA_PIPELINE_PYTHON` for the CLI), and converts those files in a child
+  process there. The packaged
   Windows sidecar freezes ONNX Runtime and vendors a VERA-exported
   `all-MiniLM-L6-v2` graph (`VERA_ONNX_MINILM_HOME` /
   `VERA_SENTENCE_TRANSFORMERS_HOME`);

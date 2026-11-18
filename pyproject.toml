@@ -30,6 +30,8 @@ onnx = ["vera-doc[onnx]"]
 app = ["vera-app"]
 mcp = ["vera-mcp"]
 docling = ["vera-ingest-docling"]
+# Construction drawing sets; a plugin, not part of the default install or the desktop app.
+plans = ["vera-ingest-plans"]
 docs = [
   "mkdocs>=1.6",
   "mkdocs-material>=9.5",
@@ -49,6 +51,7 @@ members = [
   "packages/vera-ingest-pymupdf",
   "packages/vera-ingest-ooxml",
   "packages/vera-ingest-docling",
+  "packages/vera-ingest-plans",
   "packages/vera-mcp",
   "packages/vera-cli",
   "packages/vera-cli-compat",
@@ -63,6 +66,7 @@ vera-ingest = { workspace = true }
 vera-ingest-pymupdf = { workspace = true }
 vera-ingest-ooxml = { workspace = true }
 vera-ingest-docling = { workspace = true }
+vera-ingest-plans = { workspace = true }
 vera-mcp = { workspace = true }
 vera = { workspace = true }
 vera-cli = { workspace = true }
@@ -101,6 +105,7 @@ known-first-party = [
   "vera_ingest_pymupdf",
   "vera_ingest_ooxml",
   "vera_ingest_docling",
+  "vera_ingest_plans",
   "vera_cli",
   "vera_embed_openai",
   "vera_mcp",
@@ -127,6 +132,7 @@ pythonpath = [
   "packages/vera-ingest-pymupdf/src",
   "packages/vera-ingest-ooxml/src",
   "packages/vera-ingest-docling/src",
+  "packages/vera-ingest-plans/src",
   "packages/vera-mcp/src",
   "packages/vera-cli/src",
   "packages/vera-embed-openai/src",
@@ -141,6 +147,7 @@ testpaths = [
   "packages/vera-ingest-pymupdf/tests",
   "packages/vera-ingest-ooxml/tests",
   "packages/vera-ingest-docling/tests",
+  "packages/vera-ingest-plans/tests",
   "packages/vera-cli/tests",
   "packages/vera-embed-openai/tests",
   "packages/vera-mcp/tests",

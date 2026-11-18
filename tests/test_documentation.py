@@ -231,7 +231,7 @@ def test_documented_cli_examples_parse():
         ],
         ["index", "update", "library", "--json"],
         ["index", "status", "library", "--json"],
-        ["library", "pipeline", "./library/Plans", "--parser", "pymupdf:plans", "--json"],
+        ["library", "pipeline", "./library/Plans", "--parser", "plans", "--json"],
         [
             "library",
             "pipeline",
@@ -239,7 +239,7 @@ def test_documented_cli_examples_parse():
             "--folder",
             "Projects/*/Plans",
             "--parser",
-            "pymupdf:plans",
+            "plans",
             "--json",
         ],
         ["library", "pipeline", "./library/Plans", "--clear", "--json"],
@@ -404,7 +404,7 @@ def test_hardening_json_contracts_are_documented():
     assert "vera.ingest_pipelines" in desktop
     assert "pip install -e" in desktop
     assert "vera[docling]" in desktop
-    assert "Advanced layout" in desktop
+    assert "### Separate Python environment" in desktop
     assert "DOCLING_ARTIFACTS_PATH" in desktop
     assert "vera_plugin_host" not in desktop
     assert "Python plugins" not in desktop
@@ -916,7 +916,7 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
 
     assert "not bundled into packaged desktop releases" in packages_overview
     assert "not bundled in the installer" in packages_overview
-    assert "Advanced layout (slower)" in packages_overview
+    assert "VERA_PIPELINE_PYTHON" in packages_overview
     app_section = packages_overview.split("## `vera-app`", 1)[1].split("## `", 1)[0]
     assert "vera-ingest-docling" not in app_section
     assert "ONNX" in app_section or "MiniLM" in app_section
@@ -1470,3 +1470,65 @@ def test_desktop_pro_and_minilm_default_are_documented():
     assert "Desktop Convert defaults to" in agents
     assert "CLI default embedder is still hashing" in agents
     assert "Desktop Convert defaults to local MiniLM" in changelog
+
+
+def test_ingest_plugins_and_the_plans_plugin_are_documented():
+    """Settings > Plugins, VERA_PLUGIN_DIRS, and plans as an unbundled plugin."""
+    desktop = (DOCS / "desktop-app-getting-started.md").read_text(encoding="utf-8")
+    architecture = (DOCS / "desktop-app-architecture.md").read_text(encoding="utf-8")
+    creating = (DOCS / "creating-an-ingest-pipeline.md").read_text(encoding="utf-8")
+    conversion = (DOCS / "conversion.md").read_text(encoding="utf-8")
+    libraries = (DOCS / "document-libraries.md").read_text(encoding="utf-8")
+    skill_cli = (
+        ROOT / "plugins" / "vera" / "skills" / "vera-search" / "references" / "cli-reference.md"
+    ).read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    sidecar_build = (PACKAGES / "vera-app" / "scripts" / "build-sidecar.cjs").read_text(
+        encoding="utf-8"
+    )
+
+    for text in (desktop, creating, changelog):
+        assert "Settings → Plugins" in text
+        assert "py3-none-any" in text
+    for text in (desktop, architecture, creating, skill_cli, changelog):
+        assert "VERA_PLUGIN_DIRS" in text
+    for name in ("plugins_list", "plugin_install", "plugin_remove", "vera:request"):
+        assert name in architecture
+    assert "--parser plans" in conversion
+    assert "--parser plans" in libraries
+    assert "vera-ingest-plans" in conversion
+    assert "uv build --package vera-ingest-plans" in desktop
+    assert "vera-ingest-plans" not in sidecar_build
+    assert "vera_ingest_plans" not in sidecar_build
+
+    # The separate Python environment for pipelines the app does not include.
+    docling = (DOCS / "packages" / "vera-ingest-docling.md").read_text(encoding="utf-8")
+    cli = (DOCS / "cli-reference.md").read_text(encoding="utf-8")
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    main = (PACKAGES / "vera-app" / "electron" / "main.ts").read_text(encoding="utf-8")
+    for text in (desktop, architecture, creating, cli, skill_cli, changelog, agents):
+        assert "VERA_PIPELINE_PYTHON" in text
+    for text in (desktop, architecture, creating, docling, changelog, agents):
+        assert "Separate Python environment" in text
+    assert 'pip install "vera[docling]>=0.3.0" "vera-doc[onnx]"' in desktop
+    assert 'pip install "vera[docling]>=0.3.0" "vera-doc[onnx]"' in docling
+    for name in ("pluginsChooseEnvironment", "pluginsClearEnvironment"):
+        assert name in architecture
+        assert name in main
+    assert "pipeline-environment.json" in architecture
+    assert "pipeline-environment.json" in main
+    assert "never chosen by file extension" in cli
+    assert "never by file extension" in skill_cli
+
+    documented = [
+        ROOT / "AGENTS.md",
+        ROOT / "README.md",
+        *DOCS.rglob("*.md"),
+        *(ROOT / "plugins" / "vera" / "skills").rglob("*.md"),
+    ]
+    stale = [
+        str(path.relative_to(ROOT))
+        for path in documented
+        if "--parser pymupdf:plans" in path.read_text(encoding="utf-8")
+    ]
+    assert stale == []

@@ -149,6 +149,9 @@ one `embed(texts)` today, and those providers need `input_type` or
 - [x] Keep 0.3.0 desktop Convert PyMuPDF-only. Docling stays a CLI extra
   (`vera[docling]`); it is not listed in Convert and is not frozen into
   Setup.exe.
+- [x] Run Docling and other pipelines the app does not include in a separate
+  Python environment the user chooses (**Settings → Plugins**,
+  `VERA_PIPELINE_PYTHON`). The app does not create or update that environment.
 - [ ] Revisit bundling Docling, a lighter layout engine, or a hosted layout
   API as another ingest provider after 0.3.0.
 
@@ -157,7 +160,8 @@ one `embed(texts)` today, and those providers need `input_type` or
 0.3.0 uses one interpreter. Official converters are pip packages in that
 environment (and a curated freeze in the Windows app). The items below remain
 for an app-managed plugin store; a packaged second-Python plugin host is not
-a 0.3.0 feature.
+a 0.3.0 feature. After 0.3.0 the app can convert in a second Python
+environment the user installs and selects, but it does not manage one.
 
 - [ ] Let users install, update, enable, disable, and remove extra plugins
   from the application.

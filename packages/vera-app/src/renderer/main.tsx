@@ -38,7 +38,7 @@ import { PRO_PRESET_KEY } from '../shared/pro';
 import { embedderAsPipelineDescriptor } from './components/EmbedderConfigForm';
 import { mergePipelineFieldValues } from './components/PipelineConfigForm';
 import { VeraIcon } from './components/VeraIcon';
-import { useAppBootstrap } from './hooks/useAppBootstrap';
+import { loadIngestPipelineDescriptors, useAppBootstrap } from './hooks/useAppBootstrap';
 import { useConversion } from './hooks/useConversion';
 import { useLibrarySyncTasks } from './hooks/useLibrarySyncTasks';
 import { useSearch } from './hooks/useSearch';
@@ -89,6 +89,7 @@ import {
   pipelineDisplayName,
   pipelineSourceLabel,
   saveFolderPipeline,
+  shouldAskPdfPipeline,
   type LibraryPipelines,
 } from './lib/libraryPipelines';
 import { FolderPipelineModal, type FolderPipelinePrompt } from './components/FolderPipelineModal';
@@ -987,6 +988,7 @@ function App() {
   }
 
   function askPdfPipeline(folderPath: string): Promise<string | null> {
+    if (!shouldAskPdfPipeline(ingestPipelineDescriptors)) return Promise.resolve(null);
     return new Promise((resolve) => {
       setFolderPipelineDialog({ kind: 'setup', path: folderPath, resolve });
     });
@@ -2955,6 +2957,7 @@ function App() {
           initialSection={settingsSection}
           onPersist={persistSettings}
           onRefresh={refreshSettings}
+          onPluginsChanged={() => { void loadIngestPipelineDescriptors().then(setIngestPipelineDescriptors); }}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}

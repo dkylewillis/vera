@@ -77,9 +77,9 @@ describe('prepareManagedLibrary', () => {
       inits.push(payload);
       return { ok: true, result: { library_id: 'abc' } as T };
     };
-    await prepareManagedLibrary('C:\\plans', request, { askPdfPipeline: async () => 'pymupdf:plans' });
+    await prepareManagedLibrary('C:\\plans', request, { askPdfPipeline: async () => 'plans' });
     await prepareManagedLibrary('C:\\docs', request, { askPdfPipeline: async () => null });
-    expect(inits[0].pipeline_rules).toEqual([{ folder: '', parser: 'pymupdf:plans' }]);
+    expect(inits[0].pipeline_rules).toEqual([{ folder: '', parser: 'plans' }]);
     expect(inits[1]).not.toHaveProperty('pipeline_rules');
   });
 });

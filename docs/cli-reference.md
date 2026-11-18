@@ -45,10 +45,14 @@ Options:
 - `--parser PARSER` (omitted: choose from the file extension — PDF → `pymupdf`,
   Markdown → `markdown`, DOCX/PPTX/XLSX/HTML → `docling` when
   `vera[docling]` is installed; accepts `provider[:variant]` specs such as
-  `docling` / `docling:hybrid`, or `pymupdf:plans` for construction drawing
-  sets, which is never chosen by extension; unknown
+  `docling` / `docling:hybrid`, or `plans` for construction drawing sets
+  (optional `vera-ingest-plans` plugin, never chosen by extension); unknown
   providers exit with an error; the 0.3.x Windows installer does not include
-  Docling)
+  Docling). Set `VERA_PIPELINE_PYTHON` to a virtual environment folder or
+  Python executable that has `vera` and another pipeline installed to use
+  that pipeline from this one: `--parser NAME` then converts the file in a
+  child process there. Pipelines this environment already has stay local,
+  and a pipeline from that environment is never chosen by file extension
 - `--chunk-size N` (`500`; compatibility alias; PyMuPDF counts whitespace-split
   words, Docling counts whitespace tokens)
 - `--overlap N` (`75`; compatibility alias; PyMuPDF counts whitespace-split
@@ -74,7 +78,7 @@ Options:
 - `--json`
 
 Conversion selectively OCRs image-based low-text pages through PyMuPDF and
-Tesseract (`--parser pymupdf:plans` also OCRs low-text drawing sheets), publishes a validated temporary archive atomically, and fails when
+Tesseract (the `plans` plugin's `--parser plans` also OCRs low-text drawing sheets), publishes a validated temporary archive atomically, and fails when
 no searchable chunks are extracted. English language data is bundled for
 offline, zero-setup OCR; other selected languages either require
 `--ocr-allow-download` (or the equivalent `ocr_download` pipeline option) to

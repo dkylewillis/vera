@@ -13,14 +13,31 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 - Agent access library names. Each shared folder can have a short name, and
   Desktop and cloud agents pass `library` plus a relative path. `vera_library_info`
   returns those names in `libraries`. Unrestricted `vera mcp` is unchanged.
-- `pymupdf:plans` ingest pipeline for construction drawing sets. It OCRs
-  lettering drawn as linework and keeps detail titles in chunk text. The
-  default `pymupdf` pipeline no longer does either.
+- `plans` ingest pipeline for construction drawing sets, shipped as the
+  optional `vera-ingest-plans` plugin (not in the default install or the
+  desktop app). It OCRs lettering drawn as linework and keeps detail titles in
+  chunk text. The default `pymupdf` pipeline does neither and has no variants.
+- Desktop **Settings → Plugins** installs pure-Python ingest pipeline wheels
+  (`py3-none-any`, `vera.ingest_pipelines` entry point) into the packaged app,
+  lists them with any import error, and removes them. Plugins unpack into
+  `plugins/` under the app's user data folder; the sidecar and CLI discover
+  them through `VERA_PLUGIN_DIRS`.
+- Separate Python environment for pipelines VERA does not include. Point
+  `VERA_PIPELINE_PYTHON` at a virtual environment folder or Python executable
+  that has `vera` and the pipeline installed, or pick the folder under
+  Desktop **Settings → Plugins → Separate Python environment**. VERA lists the
+  pipelines that environment adds and converts each such file in a child
+  process there, with progress and cancel. This is how the desktop app runs
+  Docling (`pip install "vera[docling]" "vera-doc[onnx]"` into that environment). Those
+  pipelines are used only when named, never by file extension. New
+  `vera_ingest` exports: `external_pipeline_status`, `external_pipeline_python`,
+  `is_external_pipeline`, `prefer_external_pipelines`, `ExternalPipelineError`.
 - Per-folder pipelines in managed libraries. `vera library pipeline` stores
   folder rules in `.vera/library.json`. Sync reconverts only the files whose
-  pipeline changed, with `"reason": "pipeline"`. Desktop asks for the PDF
-  pipeline when a folder becomes a library. **PDF pipeline…** in a library
-  folder's menu picks any installed PDF pipeline, or the parent folder's.
+  pipeline changed, with `"reason": "pipeline"`. When a plugin adds a second
+  PDF pipeline, Desktop asks which one to use as a folder becomes a library.
+  **PDF pipeline…** in a library folder's menu picks any installed PDF
+  pipeline, or the parent folder's.
 
 ### Changed
 

@@ -32,6 +32,7 @@ members = [
     "vera-ingest",
     "vera-ingest-docling",
     "vera-ingest-ooxml",
+    "vera-ingest-plans",
     "vera-ingest-pymupdf",
     "vera-lab",
     "vera-mcp",
@@ -4954,6 +4955,21 @@ requires-dist = [
 ]
 
 [[package]]
+name = "vera-ingest-plans"
+version = "0.3.2"
+source = { editable = "packages/vera-ingest-plans" }
+dependencies = [
+    { name = "vera-ingest" },
+    { name = "vera-ingest-pymupdf" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "vera-ingest", editable = "packages/vera-ingest" },
+    { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
+]
+
+[[package]]
 name = "vera-ingest-pymupdf"
 version = "0.3.2"
 source = { editable = "packages/vera-ingest-pymupdf" }
@@ -5054,6 +5070,9 @@ ml = [
 onnx = [
     { name = "vera-doc", extra = ["onnx"] },
 ]
+plans = [
+    { name = "vera-ingest-plans" },
+]
 sidecar = [
     { name = "pyinstaller" },
 ]
@@ -5080,12 +5099,13 @@ requires-dist = [
     { name = "vera-ingest", editable = "packages/vera-ingest" },
     { name = "vera-ingest-docling", marker = "extra == 'docling'", editable = "packages/vera-ingest-docling" },
     { name = "vera-ingest-ooxml", editable = "packages/vera-ingest-ooxml" },
+    { name = "vera-ingest-plans", marker = "extra == 'plans'", editable = "packages/vera-ingest-plans" },
     { name = "vera-ingest-pymupdf", editable = "packages/vera-ingest-pymupdf" },
     { name = "vera-lab", marker = "extra == 'dev'", editable = "packages/vera-lab" },
     { name = "vera-mcp", marker = "extra == 'dev'", editable = "packages/vera-mcp" },
     { name = "vera-mcp", marker = "extra == 'mcp'", editable = "packages/vera-mcp" },
 ]
-provides-extras = ["dev", "ml", "onnx", "app", "mcp", "docling", "docs", "sidecar"]
+provides-extras = ["dev", "ml", "onnx", "app", "mcp", "docling", "plans", "docs", "sidecar"]
 
 [[package]]
 name = "virtualenv"

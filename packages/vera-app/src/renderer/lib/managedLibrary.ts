@@ -68,7 +68,7 @@ export async function prepareManagedLibrary(
   options: {
     model?: string;
     askAdopt?: (count: number) => Promise<boolean>;
-    /** Pipeline for the library's PDFs, for example `pymupdf:plans`; `null` keeps the default. */
+    /** Pipeline for the library's PDFs, for example a plugin's `plans`; `null` keeps the default. */
     askPdfPipeline?: () => Promise<string | null>;
   } = {},
 ): Promise<LibrarySyncReport | null> {

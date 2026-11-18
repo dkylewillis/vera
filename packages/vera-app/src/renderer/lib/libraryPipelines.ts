@@ -6,7 +6,6 @@ import { pipelineAcceptsPdf } from './convertPresets';
 type Request = <T>(payload: Record<string, unknown>) => Promise<VeraResponse<T>>;
 
 export const DEFAULT_PDF_PIPELINE = 'pymupdf';
-export const PLANS_PIPELINE = 'pymupdf:plans';
 
 export type LibraryPipelineRule = {
   folder: string;
@@ -110,7 +109,6 @@ export type PdfPipelineChoice = {
 
 const FALLBACK_CHOICES: PdfPipelineChoice[] = [
   { spec: DEFAULT_PDF_PIPELINE, label: 'pymupdf — default PDF pipeline', description: '', alsoReads: [] },
-  { spec: PLANS_PIPELINE, label: 'pymupdf:plans — construction plan sheets', description: '', alsoReads: [] },
 ];
 
 /** Installed pipelines that read PDFs, in sidecar order. */
@@ -128,7 +126,12 @@ export function pdfPipelineChoices(descriptors: PipelineDescriptor[]): PdfPipeli
   return choices.length ? choices : FALLBACK_CHOICES;
 }
 
-/** Short name for a pipeline spec, for example `pymupdf:plans` from its descriptor label. */
+/** New libraries only ask which PDF pipeline to use when a plugin adds a second one. */
+export function shouldAskPdfPipeline(descriptors: PipelineDescriptor[]): boolean {
+  return pdfPipelineChoices(descriptors).length > 1;
+}
+
+/** Short name for a pipeline spec, for example `plans` from its descriptor label. */
 export function pipelineDisplayName(spec: string, descriptors?: PipelineDescriptor[]): string {
   const label = findDescriptor(spec, descriptors)?.label;
   return label || spec;
@@ -162,10 +165,6 @@ export function folderPipelineState(
     inherited: pdfPipelineFor(pipelines, folder, { ignoreFolder: folder, descriptors }),
     effective: pdfPipelineFor(pipelines, folder, { descriptors }),
   };
-}
-
-export function isPlansPipeline(spec: string): boolean {
-  return sameSpec(spec, PLANS_PIPELINE);
 }
 
 export async function loadLibraryPipelines(root: string, request: Request): Promise<LibraryPipelines | null> {
