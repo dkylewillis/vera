@@ -505,7 +505,7 @@ def test_the_default_pipeline_never_ocrs_drawing_sheets(tmp_path, monkeypatch):
     finally:
         document.close()
 
-    with pytest.raises(ValueError, match="vera-ingest-plans"):
+    with pytest.raises(ValueError, match="Unknown PyMuPDF pipeline variant"):
         convert(str(pdf), str(tmp_path / "variant.vera"), model="hashing", parser="pymupdf:plans")
 
     with pytest.raises(ValueError, match="Unknown PyMuPDF option"):

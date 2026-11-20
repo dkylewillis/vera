@@ -3,8 +3,8 @@
 `vera-app` is the VERA desktop product: an Electron and React interface backed
 by a local Python sidecar. It composes `vera-doc` for retrieval,
 `vera-ingest` / `vera-ingest-pymupdf` for PDF conversion (Markdown ingest is
-bundled in `vera-ingest`), and `vera-embed-openai`
-for hosted OpenAI embeddings; it does not use the CLI as its backend.
+bundled in `vera-ingest`), `vera-embed-openai` for hosted OpenAI embeddings, and `vera-lab` for Layout
+report; it does not use the CLI as its backend.
 `vera-ingest-docling` is an optional CLI extra, not bundled in the installer.
 
 See the [product overview](../desktop-app-overview.md) for the intended
@@ -36,7 +36,11 @@ Download `VERA.Setup.<version>.exe` from the
    **File > Settings → Embeddings**. Archives converted with OpenAI are not
    portable for semantic search. Right-click a `.vera`
    archive and choose **Reconvert…** to replace it with a different ingest
-   pipeline or embedding model. Reconvert writes to the clicked archive even
+   pipeline or embedding model. Right-click a converted document and choose
+   **Layout report** to write a vera-lab HTML file into the folder from
+   **Settings → Layout lab**. The sidecar includes vera-lab. The report keeps
+   the archive's own folders so two files with the same name stay apart.
+   Reconvert writes to the clicked archive even
    when its name differs from the source file.
 2. Use **File > Open Folder...** to activate a document library.
    **File > Open...** and a Windows shell open of a `.vera` are standalone

@@ -96,10 +96,13 @@ export function PluginsSection({ onChanged }: { onChanged: () => void }) {
       }
       setListing(response.result);
       const chosen = response.result.environment;
+      const location = chosen?.python?.trim();
       setMessage(
         environmentErrors(response.result.load_errors).length
           ? 'VERA could not use that environment.'
-          : `Using ${chosen?.python ?? 'that environment'}. ${environmentPipelinesLabel(chosen?.pipelines ?? [])}`,
+          : location
+            ? `Using ${location}. ${environmentPipelinesLabel(chosen?.pipelines ?? [])}`
+            : 'The environment was saved, but the converter has not picked it up yet. Reopen Plugins.',
       );
       onChanged();
     } finally {

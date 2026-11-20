@@ -661,6 +661,17 @@ def convert(
             archive_metadata["ingest_warnings"] = list(ingest_result.warnings)
         if ingest_result.notes:
             archive_metadata["ingest_notes"] = list(ingest_result.notes)
+        for extra in ingest_result.attachments:
+            attachments.append(
+                AttachmentRecord(
+                    id=extra.id,
+                    media_type=extra.media_type,
+                    filename=extra.filename,
+                    data=extra.data,
+                    metadata=dict(extra.metadata),
+                )
+            )
+            archive_metadata[f"{extra.id}_attachment_id"] = extra.id
         # PyMuPDF chunks leave embedding_text empty and use chunk text. Docling
         # sets embedding_text when the vector should differ from the readable
         # text. Embed both here so the timing line counts every chunk; records

@@ -94,8 +94,12 @@ folder is highlighted and the scope line under the search box reads
 **Folder “…” in “…”**. Select the library name, or **Whole library** under
 the search box, to search the whole library again.
 Checking files overrides the folder scope. Right-clicking a converted document offers
-**Preview document**, **Reconvert…**, and **Move .vera to Recycle Bin**,
-which leaves the source file in place.
+**Preview document**, **Reconvert…**, **Layout report**, and **Move .vera to Recycle Bin**.
+Moving the archive to the Recycle Bin leaves the source file in place. **Layout report** writes a vera-lab HTML
+page for that archive into the folder from **Settings → Layout lab** and opens
+it. The report keeps the archive's own folders under that directory, so two
+files with the same name stay apart. Until that folder is set, the menu item
+opens Layout lab settings. The packaged app includes vera-lab.
 
 ## Settings
 
@@ -122,6 +126,7 @@ the base URL, temperature, **Context tokens**, and **Remove provider**.
 **Embeddings** shows the search model Convert uses and stores keys for
 online search models. **Agent access** shares libraries with other AI apps.
 **Hugging Face** holds an optional download token that most people can skip.
+**Layout lab** chooses the folder where **Layout report** saves HTML.
 **Diagnostics** opens the convert log and checks for updates.
 
 ## VERA Pro
@@ -325,7 +330,7 @@ listed, Reconvert does not export an embedded original and shows
 **Could not read archive metadata**. Place the matching `.pdf` or `.md` next to the
 archive, or export the original from Document Info once the archive is
 readable. Document Info's OCR line is PyMuPDF-shaped (`ocr_engine`,
-`ocr_mode`, `ocr_pages`; the `plans` plugin adds `ocr_drawn_text_pages` to the JSON bag). Markdown archives store `ocr: {}` and the UI shows
+`ocr_mode`, `ocr_pages`; callers that pass drawn-text OCR add `ocr_drawn_text_pages` to the JSON bag). Markdown archives store `ocr: {}` and the UI shows
 `Unknown mode · 0 pages OCR’d`; Docling recovery uses `engine` /
 `recovered_pages`, so the Info line can look incomplete after a successful
 convert. Use `vera inspect FILE --json` (or sidecar inspect) for the full bag.
@@ -396,8 +401,11 @@ prompt body. Clamped fields:
 does not cover the question. `first_turn` requires a search on the opening
 question of a chat that has no earlier evidence. `always` requires a search
 on every turn while the search budget remains. `tools` limits which tools
-that mode may call. Omit it, or leave it empty, to allow `search`,
+that mode may call. Omit it, or leave it empty, to allow `search`, `filter`,
 `search_attachments`, `view_figure`, and `write_markdown`.
+`filter` lists every record of one type, such as `detail`, with a citation,
+the sheet, the page, and the highlight box. Use it when the question asks for
+a complete set. `search` stays the ranked lookup.
 
 Chat's LLM `search` tool also accepts `quality`: `strict` (keep hits at least
 0.85 of the top score), `balanced` (0.55, default), or `permissive` (keep
@@ -555,16 +563,15 @@ app does not include, and for a provider name another pipeline already uses
 (the installed one wins). Plugins run with the same access as VERA, so only
 install ones you trust. The sidecar reads plugin folders from
 `VERA_PLUGIN_DIRS`, which the app sets; the CLI honors the same variable.
-
-The `plans` pipeline for construction drawing sets is such a plugin
-(`packages/vera-ingest-plans`). Build its wheel with
-`uv build --package vera-ingest-plans --out-dir dist`, then install
-`dist/vera_ingest_plans-*.whl` from Settings.
+Pure-Python wheels belong here. A pipeline that calls a vision API, such as
+the external `plansheet` construction-plan pipeline, does not: install it in
+a **Separate Python environment** (below) and save OpenRouter under
+**Settings → AI providers** so Convert receives `OPENROUTER_API_KEY`.
 
 ### Separate Python environment
 
 A plugin wheel can only use libraries the app already ships. A pipeline that
-needs more, such as Docling, runs in a Python environment you create and keep
+needs more, such as Docling or the external `plansheet` plan-sheet pipeline, runs in a Python environment you create and keep
 up to date yourself:
 
 ```bash

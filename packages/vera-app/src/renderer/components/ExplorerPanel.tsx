@@ -101,6 +101,10 @@ export function ExplorerPanel({
   onConvertFolderWithOptions,
   onConvertSelectedWithOptions,
   onReconvert,
+  layoutLabDir = '',
+  layoutLabBusy = false,
+  onLayoutReport,
+  onConfigureLayoutLab,
   onManageIndex,
   onRefreshFolder,
   onRevealInFolder,
@@ -165,6 +169,12 @@ export function ExplorerPanel({
   onConvertFolderWithOptions: (folderPath: string) => void;
   onConvertSelectedWithOptions: (paths: string[]) => void;
   onReconvert: (entry: FolderEntry, folderPath: string) => void;
+  /** Saved folder for vera-lab HTML. Empty until Settings → Layout lab has one. */
+  layoutLabDir?: string;
+  layoutLabBusy?: boolean;
+  onLayoutReport?: (entry: FolderEntry) => void;
+  /** Open Settings → Layout lab when no report folder is saved. */
+  onConfigureLayoutLab?: () => void;
   onManageIndex: (folderPath: string) => void;
   onRefreshFolder: (folderPath: string) => void;
   onRevealInFolder: (targetPath: string) => void;
@@ -620,14 +630,33 @@ export function ExplorerPanel({
           {doc.archive ? 'Preview document' : 'View in document viewer'}
         </button>
         {doc.archive ? (
-          <button
-            role="menuitem"
-            disabled={locked}
-            title={lockedTitle ?? 'Open Convert to replace this archive with a different parser or embedding'}
-            onClick={() => runMenuAction(() => onReconvert(doc.archive as FolderEntry, folderPath))}
-          >
-            Reconvert…
-          </button>
+          <>
+            <button
+              role="menuitem"
+              disabled={locked}
+              title={lockedTitle ?? 'Open Convert to replace this archive with a different parser or embedding'}
+              onClick={() => runMenuAction(() => onReconvert(doc.archive as FolderEntry, folderPath))}
+            >
+              Reconvert…
+            </button>
+            {onLayoutReport || onConfigureLayoutLab ? (
+              <button
+                role="menuitem"
+                disabled={layoutLabBusy}
+                title={layoutLabBusy
+                  ? 'A layout report is already running'
+                  : layoutLabDir
+                    ? 'Write an HTML layout report for this archive and open it'
+                    : 'Choose a folder in Settings → Layout lab first'}
+                onClick={() => runMenuAction(() => {
+                  if (!layoutLabDir.trim()) onConfigureLayoutLab?.();
+                  else onLayoutReport?.(doc.archive as FolderEntry);
+                })}
+              >
+                Layout report
+              </button>
+            ) : null}
+          </>
         ) : (
           <>
             <button

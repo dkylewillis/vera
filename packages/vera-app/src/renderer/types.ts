@@ -127,6 +127,8 @@ export interface VeraApi {
   listFolder(dir: string): Promise<WorkspaceFolderResult | null>;
   pathExists(targetPath: string): Promise<boolean>;
   showInFolder(targetPath: string): Promise<void>;
+  /** Open a file or folder with the system handler (the browser, for an HTML report). */
+  openPath(targetPath: string): Promise<void>;
   openConvertLog(): Promise<string>;
   showConvertLogFolder(): Promise<void>;
   getConvertLogPath(): Promise<string>;

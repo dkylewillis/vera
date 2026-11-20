@@ -11,6 +11,7 @@ dependencies = [
   "vera-ingest-ooxml>=0.3.2",
   "vera-embed-openai>=0.3.2",
   "vera-mcp[viewer]>=0.3.2",
+  "vera-lab>=0.3.2",
   "markdown-it-py>=3",
 ]
 authors = [{name = "Kyle Willis"}]

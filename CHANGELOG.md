@@ -10,13 +10,29 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Added
 
+- Desktop **Layout report**. Right-click a converted document to write a
+  vera-lab HTML file into the folder from **Settings → Layout lab** and open
+  it. The packaged app includes vera-lab. Reports keep the archive's own
+  folders so two files with the same name stay apart, and rasterize at most
+  200 pages.
+- Desktop chat modes can call `filter` to list every record of one type. Each
+  row is registered as a citation. Ask, Research, and Summarize tell the model
+  to use it for a complete set and to keep `search` for lookups.
+- `vera filter PATH [--type TYPE]` lists every chunk of one `record_type` from
+  a `.vera` file or a directory, with the file, sheet, page, and highlight box.
+  Omit `--type` to list the types present. MCP `vera_filter` matches the
+  command. The list is complete and unranked. Plansheet archives written after
+  this change store `record_type`, `record_label`, and `cd_description` on each
+  region chunk.
 - Agent access library names. Each shared folder can have a short name, and
   Desktop and cloud agents pass `library` plus a relative path. `vera_library_info`
   returns those names in `libraries`. Unrestricted `vera mcp` is unchanged.
-- `plans` ingest pipeline for construction drawing sets, shipped as the
-  optional `vera-ingest-plans` plugin (not in the default install or the
-  desktop app). It OCRs lettering drawn as linework and keeps detail titles in
-  chunk text. The default `pymupdf` pipeline does neither and has no variants.
+- Ingest pipelines can advertise `capabilities.requires_api_key` and
+  `credential_env`. Desktop Convert calls `preflight_ingest_pipeline` and
+  copies a personal AI-provider key (for example OpenRouter) into that
+  environment variable for the sidecar. Construction drawing sets use the
+  external `vera-ingest-plansheet` package (`--parser plansheet`,
+  `OPENROUTER_API_KEY`), not a package in this repository.
 - Desktop **Settings → Plugins** installs pure-Python ingest pipeline wheels
   (`py3-none-any`, `vera.ingest_pipelines` entry point) into the packaged app,
   lists them with any import error, and removes them. Plugins unpack into

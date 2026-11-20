@@ -51,6 +51,8 @@ class PipelineCapabilities:
     ocr_dpi_supported: bool = True
     store_original_supported: bool = True
     source_formats: tuple[str, ...] = ("pdf",)
+    requires_api_key: bool = False
+    credential_env: str = ""
 
 
 @dataclass(frozen=True)

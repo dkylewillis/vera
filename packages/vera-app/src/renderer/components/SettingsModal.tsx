@@ -3,7 +3,9 @@ import {
   Bot,
   CheckCircle2,
   ChevronRight,
+  FileSearch,
   FileText,
+  FolderOpen,
   KeyRound,
   LayoutGrid,
   MessageSquareText,
@@ -34,6 +36,7 @@ export type SettingsSectionId =
   | 'agents'
   | 'plugins'
   | 'huggingface'
+  | 'layout-lab'
   | 'diagnostics';
 
 type SettingsSection = {
@@ -111,6 +114,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     group: 'advanced',
     icon: KeyRound,
     keywords: 'hugging face huggingface hf token HF_TOKEN hub download rate limit',
+  },
+  {
+    id: 'layout-lab',
+    label: 'Layout lab',
+    hint: 'HTML layout reports',
+    description: 'Where a right-click Layout report saves the visual vera-lab page.',
+    group: 'advanced',
+    icon: FileSearch,
+    keywords: 'layout lab vera-lab report html overlay blocks chunks figures inspect visual',
   },
   {
     id: 'diagnostics',
@@ -214,6 +226,7 @@ export function SettingsModal({
   hasHfToken = false,
   hasEnvSecrets = {},
   convertLogPath = '',
+  layoutLabDir = '',
   initialSection = 'overview',
   onPersist,
   onRefresh,
@@ -232,6 +245,7 @@ export function SettingsModal({
   hasHfToken?: boolean;
   hasEnvSecrets?: Record<string, boolean>;
   convertLogPath?: string;
+  layoutLabDir?: string;
   initialSection?: SettingsSectionId;
   onPersist: (next: AppSettings) => Promise<AppSettings>;
   onRefresh: () => Promise<AppSettings>;
@@ -250,6 +264,7 @@ export function SettingsModal({
   const [hfTokenStored, setHfTokenStored] = useState(hasHfToken);
   const [envSecretsStored, setEnvSecretsStored] = useState<Record<string, boolean>>(hasEnvSecrets);
   const [agentStatus, setAgentStatus] = useState<AgentServiceStatus | null>(null);
+  const [layoutLabFolder, setLayoutLabFolder] = useState(layoutLabDir);
   const account = useProAccount();
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -267,6 +282,7 @@ export function SettingsModal({
       ingest_pipeline: ingestPipeline,
       ingest_pipeline_configs: ingestPipelineConfigs,
       embedder_configs: embedderConfigs,
+      layout_lab_dir: layoutLabFolder,
     };
   }
 
@@ -531,6 +547,14 @@ export function SettingsModal({
             onOpen={() => setSection('huggingface')}
           />
           <OverviewCard
+            icon={<FileSearch size={18} />}
+            title="Layout lab"
+            summary={layoutLabFolder
+              ? { tone: 'good', pill: 'Folder set', detail: 'Right-click a converted document to write an HTML layout report.' }
+              : { tone: 'neutral', pill: 'Not set', detail: 'Choose where Layout report saves HTML.' }}
+            onOpen={() => setSection('layout-lab')}
+          />
+          <OverviewCard
             icon={<FileText size={18} />}
             title="Diagnostics"
             summary={{ tone: 'neutral', pill: 'Help', detail: 'Open the convert log or check for updates.' }}
@@ -624,6 +648,49 @@ export function SettingsModal({
             helpLabel="Get a token"
             hint={<>Stored encrypted like provider API keys and passed to the sidecar as <code>HF_TOKEN</code>.</>}
           />
+        </SettingsCard>
+      </div>
+    );
+  }
+
+  async function chooseLayoutLabFolder() {
+    const picked = await window.vera.pickFolder('layout-lab');
+    if (picked) setLayoutLabFolder(picked);
+  }
+
+  function renderLayoutLab() {
+    return (
+      <div className="settingsStack">
+        <SettingsCard
+          icon={<FileSearch size={16} />}
+          title="Report folder"
+          badge={layoutLabFolder
+            ? <StatusPill tone="good">Folder set</StatusPill>
+            : <StatusPill tone="neutral">Not set</StatusPill>}
+          actions={(
+            <div className="editorActions">
+              <button type="button" className="secondaryAction compactAction" onClick={() => { void chooseLayoutLabFolder(); }}>
+                <FolderOpen size={14} />Choose folder…
+              </button>
+              {layoutLabFolder ? (
+                <button type="button" className="secondaryAction compactAction" onClick={() => setLayoutLabFolder('')}>
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          )}
+        >
+          <p className="sideMuted">
+            Right-click a converted document and choose <strong>Layout report</strong>. VERA writes a
+            self-contained HTML page, with the page image and block, chunk, and figure overlays, into this
+            folder and opens it. The report keeps the archive&apos;s own folders, so
+            <code>Plans/North/manual.pdf.vera</code> and <code>Plans/South/manual.pdf.vera</code> stay apart.
+            Running the same archive again replaces its report.
+          </p>
+          <p className="sideMuted">
+            Reports include up to 200 pages. A longer archive notes the rest in the HTML.
+          </p>
+          {layoutLabFolder ? <p className="settingsValue">{layoutLabFolder}</p> : null}
         </SettingsCard>
       </div>
     );
@@ -791,6 +858,7 @@ export function SettingsModal({
             {section === 'agents' ? <AgentAccessSection /> : null}
             {section === 'plugins' ? <PluginsSection onChanged={() => onPluginsChanged?.()} /> : null}
             {section === 'huggingface' ? renderHuggingFace() : null}
+            {section === 'layout-lab' ? renderLayoutLab() : null}
             {section === 'diagnostics' ? renderDiagnostics() : null}
           </div>
         </div>

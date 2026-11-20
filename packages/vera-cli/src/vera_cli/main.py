@@ -7,6 +7,7 @@ from .commands import (
     cmd_eval,
     cmd_export,
     cmd_figures,
+    cmd_filter,
     cmd_get,
     cmd_index_build,
     cmd_index_status,
@@ -92,7 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(omitted: choose from the file extension; PDF -> pymupdf, "
             "Markdown -> markdown, DOCX/PPTX/XLSX/HTML -> docling when "
             "vera-ingest-docling is installed; optional docling or docling:hybrid; "
-            "plans for construction drawing sets when the vera-ingest-plans plugin is installed). "
+            "plansheet for construction drawing sets when the vera-ingest-plansheet plugin is installed). "
             "Unknown providers exit with an error."
         ),
     )
@@ -222,6 +223,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include page/bbox highlight regions in --json output",
     )
     get_p.set_defaults(func=cmd_get)
+
+    filter_p = sub.add_parser(
+        "filter",
+        help="List every chunk of one record type, with its file and highlight location",
+    )
+    filter_p.add_argument("path", help="Path to a .vera file or a directory of .vera files")
+    filter_p.add_argument(
+        "--type",
+        dest="record_type",
+        default="",
+        help="Exact record_type to keep, such as detail. Omit to list the types present.",
+    )
+    filter_p.add_argument(
+        "--recursive",
+        action="store_true",
+        help="Include nested folders. A managed library already includes its archives.",
+    )
+    filter_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
+    filter_p.set_defaults(func=cmd_filter)
 
     search_p = sub.add_parser(
         "search", help="Search a VERA file, or a directory of VERA files as one corpus"

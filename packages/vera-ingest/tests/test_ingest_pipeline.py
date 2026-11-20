@@ -521,7 +521,7 @@ def test_pymupdf_descriptor_and_strict_options():
     assert descriptor.variants == ()
     with pytest.raises(ValueError, match="Unknown PyMuPDF option"):
         PyMuPDFOptions.from_mapping({"ocr_drawn_text": "off"})
-    with pytest.raises(UnknownIngestPipelineError, match="vera-ingest-plans"):
+    with pytest.raises(UnknownIngestPipelineError, match="Unknown PyMuPDF pipeline variant"):
         describe_ingest_pipeline("pymupdf:plans")
     assert "pymupdf:plans" not in [
         item.spec for item in list_ingest_pipeline_descriptors(include_variants=True)

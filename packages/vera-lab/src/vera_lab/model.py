@@ -49,6 +49,7 @@ class LabChunk:
     block_ids: list[str] = field(default_factory=list)
     regions: list[LabRegion] = field(default_factory=list)
     embedding_text: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -61,6 +62,7 @@ class LabChunk:
             "block_ids": list(self.block_ids),
             "regions": [region.as_dict() for region in self.regions],
             "embedding_text": self.embedding_text,
+            "metadata": dict(self.metadata),
         }
 
 
@@ -108,6 +110,7 @@ class LabDocument:
     pipeline_spec: str = ""
     pipeline_options: dict[str, Any] = field(default_factory=dict)
     mode: str = "live"
+    archive: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -123,11 +126,66 @@ class LabDocument:
             "pipeline_spec": self.pipeline_spec,
             "pipeline_options": dict(self.pipeline_options),
             "mode": self.mode,
+            "archive": dict(self.archive),
             "page_count": len(self.pages),
             "block_count": len(self.blocks),
             "chunk_count": len(self.chunks),
             "figure_count": len(self.figures),
         }
+
+
+_HIDDEN_METADATA = {
+    "regions",
+    "text",
+    "embedding_text",
+    "page_start",
+    "page_end",
+    "heading_path",
+    "token_count",
+    "block_ids",
+    "chunk_id",
+}
+
+
+def display_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    """Keep chunk metadata the report can show, without regions or body text."""
+    if not metadata:
+        return {}
+    cleaned: dict[str, Any] = {}
+    for key, value in metadata.items():
+        if key in _HIDDEN_METADATA or str(key).startswith("_"):
+            continue
+        safe = json_safe(value)
+        if safe is None and value is not None:
+            continue
+        cleaned[str(key)] = safe
+    return cleaned
+
+
+def json_safe(value: Any, *, depth: int = 0) -> Any:
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value if len(value) <= 800 else value[:800] + "…"
+    if depth >= 3:
+        return None
+    if isinstance(value, dict):
+        nested: dict[str, Any] = {}
+        for key, item in value.items():
+            safe = json_safe(item, depth=depth + 1)
+            if safe is None and item is not None:
+                continue
+            nested[str(key)] = safe
+        return nested or None
+    if isinstance(value, (list, tuple)):
+        items: list[Any] = []
+        for item in list(value)[:40]:
+            safe = json_safe(item, depth=depth + 1)
+            if safe is None and item is not None:
+                continue
+            items.append(safe)
+        return items
+    return None
 
 
 def regions_for_chunk(
@@ -220,6 +278,7 @@ def lab_document_from_ingest_result(
             block_ids=list(chunk.block_ids),
             regions=regions_for_chunk(chunk, block_lookup, page_dimensions),
             embedding_text=chunk.embedding_text,
+            metadata=display_metadata(chunk.metadata),
         )
         for chunk in result.chunks
     ]

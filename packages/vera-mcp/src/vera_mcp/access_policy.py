@@ -37,6 +37,7 @@ BRIDGE_TOOLS = frozenset(
         "vera_figures",
         "vera_get_figure",
         "vera_get_page",
+        "vera_filter",
         "vera_get_chunk",
         "vera_get_chunk_regions",
         "vera_show_sources",

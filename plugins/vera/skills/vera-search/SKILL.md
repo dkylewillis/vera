@@ -87,9 +87,9 @@ A managed library is a folder of source documents with a hidden `.vera/`
 directory. Search it like any other directory. Hits include `source_path`.
 Use `vera library status` or MCP `vera_library_status` to see pending
 changes. Do not sync from MCP; sync can move archives to trash.
-Folders can use different ingest pipelines, for example `plans` (from the
-optional `vera-ingest-plans` plugin) for drawing sets:
-`vera library pipeline DIR --folder Plans --parser plans`, then
+Folders can use different ingest pipelines, for example `plansheet` (external
+`vera-ingest-plansheet` package, `OPENROUTER_API_KEY`) for drawing sets:
+`vera library pipeline DIR --folder Plans --parser plansheet`, then
 `vera library sync DIR`. `vera library pipeline DIR --json` lists the rules.
 A rule must name an installed pipeline; plugins installed into a folder named
 by `VERA_PLUGIN_DIRS` count, and so do pipelines from the separate Python
@@ -106,11 +106,18 @@ there).
 3. Check the process exit code. On success, parse stdout as one JSON object.
 4. Read each result's `text`, `page_start`, `page_end`, `heading_path`, and
    `source_filename`. For directory searches, also retain each result's `file`.
-5. When you need the stored chunk body or to verify a quote, reload that
+5. When the question asks for every record of a type, list them with
+   `vera filter PATH --type detail --json` instead of searching. `PATH` is one
+   `.vera` file or a folder of them. The list is complete and unranked. Each
+   row has `file`, `chunk_id`, `label`, `description`, `detail_type` when set,
+   the sheet, the page, and `regions`. Keep the rows you need, then reload a
+   `chunk_id` with `vera get`. Omit `--type` to see which types the folder
+   contains. Search cannot do this: it ranks a query and stops at `--top-k`.
+6. When you need the stored chunk body or to verify a quote, reload that
    `chunk_id` with `vera get FILE CHUNK_ID --json` instead of searching again.
-6. If the evidence does not directly answer the question, refine the query or
+7. If the evidence does not directly answer the question, refine the query or
    switch modes. Do not treat rank or score as proof.
-7. Answer only from retrieved evidence and cite each substantive claim.
+8. Answer only from retrieved evidence and cite each substantive claim.
 
 Search a directory as one corpus by passing the directory instead of a file:
 

@@ -231,7 +231,7 @@ def test_documented_cli_examples_parse():
         ],
         ["index", "update", "library", "--json"],
         ["index", "status", "library", "--json"],
-        ["library", "pipeline", "./library/Plans", "--parser", "plans", "--json"],
+        ["library", "pipeline", "./library/Plans", "--parser", "plansheet", "--json"],
         [
             "library",
             "pipeline",
@@ -239,7 +239,7 @@ def test_documented_cli_examples_parse():
             "--folder",
             "Projects/*/Plans",
             "--parser",
-            "plans",
+            "plansheet",
             "--json",
         ],
         ["library", "pipeline", "./library/Plans", "--clear", "--json"],
@@ -894,7 +894,9 @@ def test_operational_docs_cover_recent_public_interfaces():
     assert "basename only" in (DOCS / "validation-and-export.md").read_text(encoding="utf-8")
 
     assert "--store-original false" in lab
-    assert "vera-lab (dev only)" in packages_index
+    assert "Layout report" in lab
+    assert "Settings → Layout lab" in lab
+    assert "The packaged sidecar includes vera-lab." in packages_index
     assert "ocr-languages list" in agents
     assert "ocr-languages download" in skill
 
@@ -936,6 +938,9 @@ def test_release_docs_match_packaged_sidecar_and_validate_behavior():
     assert "vera-lab" in changelog
     assert "vera>=0.3.2" in intro
     assert "Open convert log" in desktop
+    assert "Layout report" in desktop
+    assert "Settings → Layout lab" in desktop
+    assert "layout_lab" in architecture
     assert "logs/sidecar.log" in desktop
     assert "Open convert log" in troubleshooting
     assert "logs/sidecar.log" in troubleshooting
@@ -1492,10 +1497,12 @@ def test_ingest_plugins_and_the_plans_plugin_are_documented():
         assert "VERA_PLUGIN_DIRS" in text
     for name in ("plugins_list", "plugin_install", "plugin_remove", "vera:request"):
         assert name in architecture
-    assert "--parser plans" in conversion
-    assert "--parser plans" in libraries
-    assert "vera-ingest-plans" in conversion
-    assert "uv build --package vera-ingest-plans" in desktop
+    assert "--parser plansheet" in conversion
+    assert "--parser plansheet" in libraries
+    assert "vera-ingest-plansheet" in conversion
+    assert "OPENROUTER_API_KEY" in conversion
+    assert "preflight_ingest_pipeline" in conversion
+    assert "credential_env" in creating
     assert "vera-ingest-plans" not in sidecar_build
     assert "vera_ingest_plans" not in sidecar_build
 

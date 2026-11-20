@@ -591,39 +591,69 @@ def test_empty_library_can_open_for_summary(tmp_path):
 
 
 def test_library_pipeline_actions_store_folder_rules(tmp_path):
-    from vera_ingest_plans import ensure_registered
-
-    ensure_registered()
-    plans = tmp_path / "Plans"
-    plans.mkdir()
-    created = handle(
-        {
-            "id": "init",
-            "action": "library_init",
-            "path": str(tmp_path),
-            "pipeline_rules": [{"folder": "", "parser": "plans"}],
-        }
+    from vera_ingest.descriptors import PipelineCapabilities, PipelineDescriptor
+    from vera_ingest.pipeline import (
+        register_ingest_pipeline,
+        register_ingest_pipeline_descriptor,
+        reset_ingest_pipeline_registry,
     )
-    assert created["ok"] is True, created
+    from vera_ingest.types import ensure_ingest_request
+    from vera_ingest_pymupdf import PyMuPDFOptions, run_pymupdf_pipeline
 
-    listed = handle({"id": "list", "action": "library_pipelines", "path": str(tmp_path)})
-    assert listed["ok"] is True, listed
-    assert listed["result"]["rules"] == [{"folder": "", "parser": "plans", "pipeline_options": {}}]
+    def pipeline(source_path, options):
+        request = ensure_ingest_request(options)
+        return run_pymupdf_pipeline(
+            source_path,
+            request,
+            PyMuPDFOptions.from_mapping(request.pipeline_options),
+            parser_name="altpdf",
+        )
 
-    set_rule = handle(
-        {"id": "set", "action": "library_set_pipeline", "path": str(plans), "parser": "pymupdf"}
-    )
-    assert set_rule["ok"] is True, set_rule
-    assert [(rule["folder"], rule["parser"]) for rule in set_rule["result"]["rules"]] == [
-        ("", "plans"),
-        ("Plans", "pymupdf"),
-    ]
+    def descriptor(variant="default"):
+        del variant
+        return PipelineDescriptor(
+            provider="altpdf",
+            variant="",
+            spec="altpdf",
+            label="altpdf",
+            capabilities=PipelineCapabilities(source_formats=("pdf",)),
+        )
 
-    cleared = handle(
-        {"id": "clear", "action": "library_set_pipeline", "path": str(plans), "parser": None}
-    )
-    assert cleared["ok"] is True, cleared
-    assert [rule["folder"] for rule in cleared["result"]["rules"]] == [""]
+    register_ingest_pipeline("altpdf", lambda variant="default": pipeline, replace=True)
+    register_ingest_pipeline_descriptor("altpdf", descriptor, replace=True)
+    try:
+        plans = tmp_path / "Plans"
+        plans.mkdir()
+        created = handle(
+            {
+                "id": "init",
+                "action": "library_init",
+                "path": str(tmp_path),
+                "pipeline_rules": [{"folder": "", "parser": "altpdf"}],
+            }
+        )
+        assert created["ok"] is True, created
+
+        listed = handle({"id": "list", "action": "library_pipelines", "path": str(tmp_path)})
+        assert listed["ok"] is True, listed
+        assert listed["result"]["rules"] == [{"folder": "", "parser": "altpdf", "pipeline_options": {}}]
+
+        set_rule = handle(
+            {"id": "set", "action": "library_set_pipeline", "path": str(plans), "parser": "pymupdf"}
+        )
+        assert set_rule["ok"] is True, set_rule
+        assert [(rule["folder"], rule["parser"]) for rule in set_rule["result"]["rules"]] == [
+            ("", "altpdf"),
+            ("Plans", "pymupdf"),
+        ]
+
+        cleared = handle(
+            {"id": "clear", "action": "library_set_pipeline", "path": str(plans), "parser": None}
+        )
+        assert cleared["ok"] is True, cleared
+        assert [rule["folder"] for rule in cleared["result"]["rules"]] == [""]
+    finally:
+        reset_ingest_pipeline_registry()
 
 
 def test_single_file_scope_still_stamps_source_path(tmp_path):

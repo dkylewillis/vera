@@ -504,8 +504,7 @@ def parse_pdf_structured(
     paragraphs as text blocks, and captures embedded images as image blocks.
 
     ``ocr_drawn_text="auto"`` also OCRs low-text drawing sheets and adds the
-    words to the text layer. It is off unless the caller asks for it; the
-    ``plans`` plugin pipeline (``vera-ingest-plans``) does.
+    words to the text layer. It is off unless the caller asks for it.
     """
     if ocr_mode not in _OCR_MODES:
         raise ValueError(f"ocr_mode must be one of {sorted(_OCR_MODES)}")

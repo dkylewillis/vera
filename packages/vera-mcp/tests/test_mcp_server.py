@@ -240,6 +240,7 @@ async def test_tools_are_registered(server):
         "vera_get_figure",
         "vera_get_page",
         "vera_get_chunk",
+        "vera_filter",
     } <= names
 
 

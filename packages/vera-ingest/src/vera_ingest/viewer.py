@@ -15,11 +15,13 @@ from __future__ import annotations
 import base64
 import json
 import os
+from collections import Counter
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
 from vera_doc import AttachmentRecord, ChunkRecord, QueryResult, VeraDocument
+from vera_doc.corpus import VeraCorpus
 from vera_doc.models import thaw_json
 
 # Top-level JSON keys owned by CLI/MCP transport, not caller chunk metadata.
@@ -250,6 +252,140 @@ def _page_label(page_start: Any, page_end: Any) -> str | None:
     if page_end is None or page_start == page_end:
         return f"p. {page_start}"
     return f"pp. {page_start}-{page_end}"
+
+
+def _metadata_text(metadata: Mapping[str, Any], key: str) -> str:
+    value = metadata.get(key)
+    if isinstance(value, str):
+        return value.strip()
+    return ""
+
+
+def _filter_row(metadata: Mapping[str, Any], chunk_id: str, archive: str) -> dict[str, Any]:
+    """Locator for one typed chunk. The body and figure bytes stay on ``vera get``."""
+    regions = metadata.get("regions")
+    row: dict[str, Any] = {
+        "file": archive,
+        "path": str(Path(archive).resolve()),
+        "source_filename": _metadata_text(metadata, "source_filename") or None,
+        "chunk_id": chunk_id,
+        "record_type": _metadata_text(metadata, "record_type"),
+        "label": _metadata_text(metadata, "record_label"),
+        "description": _metadata_text(metadata, "cd_description"),
+        "page_start": metadata.get("page_start"),
+        "page_end": metadata.get("page_end"),
+        "heading_path": _metadata_text(metadata, "heading_path") or None,
+        "regions": [dict(region) for region in regions if isinstance(region, Mapping)]
+        if isinstance(regions, list)
+        else [],
+    }
+    sheet_number = _metadata_text(metadata, "cd_sheet_number")
+    detail_number = _metadata_text(metadata, "cd_detail_number")
+    detail_type = _metadata_text(metadata, "cd_detail_type")
+    if sheet_number:
+        row["sheet_number"] = sheet_number
+    if detail_number:
+        row["detail_number"] = detail_number
+    if detail_type:
+        row["detail_type"] = detail_type
+    return row
+
+
+def _scan_record_types(
+    document: VeraDocument, archive: str
+) -> tuple[Counter[str], list[dict[str, Any]]]:
+    counts: Counter[str] = Counter()
+    rows: list[dict[str, Any]] = []
+    for item in document.iter_chunk_metadata():
+        metadata = item["metadata"]
+        record_type = _metadata_text(metadata, "record_type")
+        if not record_type:
+            continue
+        counts[record_type] += 1
+        rows.append(_filter_row(metadata, str(item["chunk_id"]), archive))
+    return counts, rows
+
+
+def _type_summary(counts: Counter[str]) -> list[dict[str, Any]]:
+    return [{"type": name, "count": counts[name]} for name in sorted(counts)]
+
+
+def filter_records(
+    requested: str,
+    record_type: str | None = None,
+    *,
+    recursive: bool | None = None,
+) -> dict[str, Any]:
+    """List chunks by ``record_type``, or the types present when the type is omitted.
+
+    A directory is discovered the same way directory search discovers archives.
+    The collection index is not used. Malformed archives are skipped and reported.
+    Each row is a locator: file, sheet, page, and highlight regions. Chunk text
+    and figure bytes are omitted.
+    """
+    wanted = record_type.strip() if isinstance(record_type, str) else ""
+    target = Path(requested)
+    counts: Counter[str] = Counter()
+    records: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
+    resolved = str(target.resolve()) if target.exists() else requested
+
+    if target.is_dir():
+        corpus = VeraCorpus.open(
+            requested,
+            recursive=recursive,
+            use_index=False,
+        )
+        try:
+            resolved = str(Path(corpus.directory).resolve())
+            for archive in corpus.paths:
+                if corpus._is_invalid(archive):
+                    continue
+                try:
+                    document = VeraDocument.open(archive)
+                except Exception as exc:
+                    corpus._record_invalid(archive, str(exc))
+                    continue
+                try:
+                    file_counts, rows = _scan_record_types(document, archive)
+                except Exception as exc:
+                    corpus._record_invalid(archive, str(exc))
+                    continue
+                finally:
+                    document.close()
+                counts.update(file_counts)
+                if wanted:
+                    records.extend(row for row in rows if row["record_type"] == wanted)
+                else:
+                    records.extend(rows)
+            skipped = [dict(entry) for entry in corpus.invalid_files]
+        finally:
+            corpus.close()
+    else:
+        document = VeraDocument.open(requested)
+        try:
+            resolved = str(Path(document.path).resolve())
+            file_counts, rows = _scan_record_types(document, requested)
+            counts.update(file_counts)
+            if wanted:
+                records = [row for row in rows if row["record_type"] == wanted]
+            else:
+                records = rows
+        finally:
+            document.close()
+
+    payload: dict[str, Any] = {
+        "ok": True,
+        "file": requested,
+        "path": resolved,
+        "types": _type_summary(counts),
+        "skipped_files": skipped,
+    }
+    if wanted:
+        payload["record_type"] = wanted
+        payload["total"] = len(records)
+        payload["records"] = records
+    return payload
 
 
 def get_chunk_json(

@@ -48,13 +48,11 @@ convert("manual.pdf", "manual.vera", parser="pymupdf")
 - Owns typed defaults: `chunk_size=500` whitespace-split words, `overlap=75`
   words, `ocr_mode=auto`, `ocr_language=eng`, `ocr_dpi=300`.
 - `pymupdf` has no variants and rejects `ocr_drawn_text`. The parser can
-  also OCR low-text drawing sheets (vector lettering, or several pasted
-  images), keeping the real text layer and adding only recognized words that
-  do not already overlap it. That pass is off here; the optional
-  `vera-ingest-plans` plugin turns it on for its `plans` pipeline through
-  `run_pymupdf_pipeline(..., ocr_drawn_text="auto", headings_in_text=True)`,
-  which also keeps detail titles in chunk text. See
-  [Construction plans](../conversion.md#construction-plans-plans-plugin).
+  also OCR low-text drawing sheets when a caller passes `ocr_drawn_text="auto"`
+  to `parse_pdf_structured` or `run_pymupdf_pipeline` (the real text layer is
+  kept and only non-overlapping recognized words are added). The default
+  pipeline leaves that pass off. See
+  [Construction plans](../conversion.md#construction-plans-plansheet-external).
 - Sliding-window chunking with heading detection produces searchable text and
   figure metadata. Size and overlap count `str.split()` words, not characters
   or LLM subword tokens. Runtime overlap is clamped to `chunk_size - 1`.

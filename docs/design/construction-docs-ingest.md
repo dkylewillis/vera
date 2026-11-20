@@ -2,15 +2,30 @@
 
 | | |
 |---|---|
-| **Status** | Proposed, ready to build |
+| **Status** | External package. Convert-time VLM is required (OpenRouter). No enricher hook. |
 | **Owner** | Kyle Willis |
-| **Target packages** | new `vera-ingest-plansheet` (pipeline + enrichment), additions to `vera` (CLI), `vera-mcp` (tools), `vera-ingest.viewer` (helpers) |
+| **Target packages** | external repo `vera-ingest-plansheet` (not a workspace member). VERA adds ingest `credential_env` and desktop OpenRouter env injection. |
 | **Format impact** | None. Everything fits VERA 0.2 (chunk `metadata_json`, attachments, `archive_metadata`) |
 | **Pilot corpus** | ISE `ISE_Assets\Construction Plans`, 502 plan sets, roughly 15,000–30,000 sheets |
 
-This document is written so a coding agent can build it phase by phase. Every
-phase ends with acceptance criteria. Section 2 records what the current code
-actually does, because several decisions depend on it.
+This document is the original design. The implementation that ships diverges
+from it in these ways:
+
+- The package lives in its own repository, `vera-ingest-plansheet`, not under
+  `packages/`.
+- The vision model runs during `vera convert`. There is no `vera enrich` stage
+  and no `vera.enrichers` entry point.
+- The vision model is required. The default backend is OpenRouter
+  (`qwen/qwen3-vl-8b-instruct`). Set `OPENROUTER_API_KEY`. The desktop app
+  copies the personal OpenRouter key (Settings → AI providers, not VERA Pro)
+  into that variable. Searchable note text still comes from the PDF, not from
+  the model.
+- Install the plugin in a separate Python environment
+  (`VERA_PIPELINE_PYTHON` / Settings → Plugins → Separate Python environment).
+
+The sections below remain the vocabulary, record, and region reference. Where
+they say "enrichment" or "rules first, VLM later", read them as convert-time
+work in the external package.
 
 ---
 

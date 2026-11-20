@@ -159,36 +159,40 @@ def _render_html(payload: dict[str, Any]) -> str:
     </div>
   </header>
   <div class="layout">
+    <nav class="page-rail" id="page-rail" aria-label="Pages"></nav>
     <main class="pages" id="pages"></main>
     <aside class="sidebar">
-      <section>
-        <h3>Compare</h3>
-        <div id="compare"></div>
-      </section>
-      <section>
-        <h3>Stats</h3>
-        <div id="stats"></div>
-      </section>
-      <section>
-        <h3>Issues</h3>
-        <div id="issues"></div>
-      </section>
-      <section>
-        <h3>Detail</h3>
+      <div class="sidebar-pin" id="archive"></div>
+      <div class="sidebar-pin selection-pin">
+        <h3>Selection</h3>
         <div class="detail" id="detail">Select a block, chunk, or figure.</div>
-      </section>
-      <section>
-        <h3>Blocks</h3>
-        <div class="list" id="block-list"></div>
-      </section>
-      <section>
-        <h3>Chunks</h3>
-        <div class="list" id="chunk-list"></div>
-      </section>
-      <section>
-        <h3>Figures</h3>
-        <div class="list" id="figure-list"></div>
-      </section>
+      </div>
+      <div class="sidebar-scroll">
+        <section data-section="compare" hidden>
+          <h3>Compare</h3>
+          <div id="compare"></div>
+        </section>
+        <section>
+          <h3>Layout</h3>
+          <div id="stats"></div>
+        </section>
+        <section>
+          <h3>Issues</h3>
+          <div id="issues"></div>
+        </section>
+        <section>
+          <h3>Blocks</h3>
+          <div class="list" id="block-list"></div>
+        </section>
+        <section>
+          <h3>Chunks</h3>
+          <div class="list" id="chunk-list"></div>
+        </section>
+        <section>
+          <h3>Figures</h3>
+          <div class="list" id="figure-list"></div>
+        </section>
+      </div>
     </aside>
   </div>
   <script>

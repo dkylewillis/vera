@@ -25,9 +25,10 @@ console entry point is `vera`; `python -m vera_cli` invokes the same parser.
   point: `pip install` them beside `vera`, or unpack a pure-Python wheel into
   a folder `<root>/<name>/` and list `<root>` in `VERA_PLUGIN_DIRS`
   (separated by the OS path separator). The desktop app installs wheels that
-  way from **Settings → Plugins**. The construction drawing pipeline `plans`
-  is the optional `vera-ingest-plans` plugin (`uv sync --extra plans` in a
-  checkout); it is not in the published CLI or the desktop installer.
+  way from **Settings → Plugins**. Construction drawing sets use the external
+  `vera-ingest-plansheet` package (`--parser plansheet`, `OPENROUTER_API_KEY`)
+  in a separate Python environment (`VERA_PIPELINE_PYTHON`), not a wheel in
+  this repository.
 - `VERA_PIPELINE_PYTHON` names a separate Python environment (a virtual
   environment folder or a Python executable) that has `vera` and a pipeline
   this one lacks. `vera convert --parser NAME`, directory convert, and
@@ -149,11 +150,10 @@ Each pipeline owns typed defaults and validation. Advertised integer
 `dimension` 8–4096). PyMuPDF defaults:
 `chunk_size=500` whitespace-split words, `overlap=75` words, `ocr_mode=auto`,
 `ocr_language=eng`, `ocr_dpi=300`, `ocr_download=false`. PyMuPDF has no
-variants; `pymupdf:plans` exits 1. `--parser plans` (construction drawing
-sets, from the optional `vera-ingest-plans` plugin; never chosen by extension) adds
-`ocr_drawn_text=auto` (`off` skips it): low-text drawing sheets are OCR'd and
-the words added to the text layer, and heading text such as a detail title is
-kept in chunk `text`. Plain `pymupdf` rejects `ocr_drawn_text`. Markdown defaults:
+variants; `pymupdf:plans` exits 1. `--parser plansheet` (construction drawing
+sets, from the external `vera-ingest-plansheet` package; requires
+`OPENROUTER_API_KEY`; never chosen by extension) sends each sheet to a vision
+model and stores PDF text inside the returned regions. Plain `pymupdf` rejects `ocr_drawn_text`. Markdown defaults:
 `chunk_size=500` words, `overlap=75` words (OCR keys are ignored so a mixed
 PDF+Markdown directory convert can reuse one `pipeline_options` bag). Docling defaults:
 `chunk_size=500` whitespace tokens, `ocr_mode=auto`, `ocr_language=en`,
@@ -311,6 +311,44 @@ Docling writes `engine`
 `pdf_backend`, `recovered_pages_backend`, `whole_document_fallback_backend`,
 and `whole_document_fallback_strategy` (`document` or `batched`). Markdown writes `ocr: {}`.
 Desktop Document Info summarizes PyMuPDF-shaped keys only.
+
+### `vera filter PATH`
+
+List every chunk whose `record_type` equals `--type`, or the types present when
+`--type` is omitted. `PATH` is one `.vera` file or a directory of them. The
+list is complete and unranked. It does not search, and it does not read the
+archive header or attachments. `--recursive` includes nested folders. A managed
+library already includes the archives under `.vera/archives`.
+
+`--json` without `--type`:
+
+```json
+{
+  "ok": true,
+  "file": "C:/Plans",
+  "path": "C:/Plans",
+  "types": [
+    {"type": "detail", "count": 42},
+    {"type": "sheet", "count": 18}
+  ],
+  "skipped_files": []
+}
+```
+
+`--json --type detail` adds `record_type`, `total`, and `records`. An unknown
+type returns `"records": []` and `"total": 0`, plus the `types` that do exist.
+Each record contains `file`, `path`, `source_filename`, `chunk_id`,
+`record_type`, `label`, `description`, `page_start`, `page_end`,
+`heading_path`, and `regions` (page, bbox, page width, and page height).
+`sheet_number`, `detail_number`, and `detail_type` are present only when the
+chunk stored them. Chunk text and figure bytes are omitted. Reload one row
+with `vera get FILE CHUNK_ID --json`. A malformed archive is reported in
+`skipped_files` and does not drop the other files.
+
+```bash
+vera filter "C:/Plans" --type detail --json
+vera filter "drainage.vera" --type detail --json
+```
 
 ### `vera get FILE CHUNK_ID`
 
@@ -937,9 +975,9 @@ Runs the long-lived stdio MCP server. It does not accept `--json`; protocol
 messages use stdout, so do not mix ordinary output into that stream.
 
 MCP provides `vera_library_info`, `vera_library_status`, `vera_search`, `vera_corpus_search`,
-`vera_inspect`, `vera_validate`, `vera_figures`, `vera_get_figure`,
+`vera_filter`, `vera_inspect`, `vera_validate`, `vera_figures`, `vera_get_figure`,
 `vera_get_page`, `vera_get_chunk`, and
-`vera_get_chunk_regions`. `vera_search` and `vera_corpus_search` default
+`vera_get_chunk_regions`. `vera_filter` matches `vera filter`. `vera_search` and `vera_corpus_search` default
 `top_k` to `10`, matching `vera search` and `VeraDocument.search`.
 Both MCP search tools accept `output: "compact" | "full"` (default `"full"`).
 Prefer compact for ordinary research: it returns text, citation fields, absolute
@@ -1058,7 +1096,7 @@ negative-result cases.
 
 ## Filesystem effects
 
-- Read-only: `search`, `inspect`, `get`, `validate`, `eval`, `ocr-languages list`,
+- Read-only: `search`, `filter`, `inspect`, `get`, `validate`, `eval`, `ocr-languages list`,
   and `figures` without `--out-dir`.
 - Writes archives: `convert`; existing single outputs can be replaced.
   `convert --ocr-allow-download` (and `ocr-languages download`) can also

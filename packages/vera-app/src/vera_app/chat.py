@@ -410,6 +410,122 @@ def _figures_available(ctx: ToolContext) -> bool:
     return bool(attachment_rows(ctx.request))
 
 
+FILTER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "filter",
+        "description": (
+            "List every record of one type in the open document or library. "
+            "Use this when the user wants a complete set, such as every detail or every sheet. "
+            "Returns each match with a citation id, label, description, sheet, page, and "
+            "highlight box. Omit record_type to see which types exist. "
+            "Use search instead when the question is a lookup."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "record_type": {
+                    "type": "string",
+                    "description": (
+                        "Exact record type, such as detail, sheet, or feature. "
+                        "Omit to list the types present and a count for each."
+                    ),
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+}
+
+
+def _filter_targets(request: Request) -> list[str]:
+    """Paths the open chat is allowed to list, matching search scope."""
+    paths = request.get("paths")
+    if isinstance(paths, list):
+        files = [str(path) for path in paths if str(path).strip()]
+        if files:
+            return files
+    path = str(request.get("path") or "").strip()
+    return [path] if path else []
+
+
+def _run_filter(arguments: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
+    """List typed chunks and register each one as a citation."""
+    if ctx.search_tool is None:
+        return {"error": "Filter is not available."}
+    from vera_ingest.viewer import filter_records
+
+    record_type = str(arguments.get("record_type") or "").strip()
+    targets = _filter_targets(ctx.request)
+    if not targets:
+        return {"error": "No document or library is open."}
+    query = record_type or "record types"
+    if ctx.write_event:
+        ctx.write_event({"event": "search_start", "query": query, "mode": "filter", "top_k": 0})
+    counts: dict[str, int] = {}
+    records: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for target in targets:
+        try:
+            payload = filter_records(target, record_type or None)
+        except (FileNotFoundError, NotADirectoryError, OSError) as exc:
+            errors.append(str(exc))
+            continue
+        for item in payload.get("types") or []:
+            name = str(item.get("type") or "")
+            if name:
+                counts[name] = counts.get(name, 0) + int(item.get("count") or 0)
+        skipped.extend(payload.get("skipped_files") or [])
+        records.extend(payload.get("records") or [])
+    passages = []
+    for row in records:
+        if not isinstance(row, dict):
+            continue
+        if ctx.search_tool._citations.seen(row):
+            continue
+        citation_id = ctx.search_tool._register(row)
+        passage: dict[str, Any] = {
+            "citation": citation_id,
+            "source": _source_name(ctx.request, row),
+            "record_type": row.get("record_type"),
+            "label": row.get("label"),
+            "description": row.get("description"),
+            "page_start": row.get("page_start"),
+            "page_end": row.get("page_end"),
+            "heading_path": row.get("heading_path"),
+            "file": row.get("file"),
+            "chunk_id": row.get("chunk_id"),
+            "regions": row.get("regions") or [],
+        }
+        for key in ("sheet_number", "detail_number", "detail_type"):
+            if row.get(key):
+                passage[key] = row[key]
+        passages.append(passage)
+    ctx.search_tool.searches.append(
+        {"query": query, "mode": "filter", "top_k": len(passages), "hits": len(passages)}
+    )
+    if ctx.write_event:
+        ctx.write_event(
+            {"event": "search_done", "query": query, "mode": "filter", "hits": len(passages)}
+        )
+    if errors and not counts and not passages:
+        return {"error": errors[0]}
+    response: dict[str, Any] = {
+        "record_type": record_type,
+        "types": [{"type": name, "count": counts[name]} for name in sorted(counts)],
+        "total": len(passages),
+        "records": passages,
+    }
+    if skipped:
+        response["skipped_files"] = skipped
+    if not record_type:
+        response["note"] = "Pass record_type to list every record of one type."
+    elif not passages:
+        response["note"] = "No records of that type. The types list shows what is present."
+    return response
+
+
 def _search_agent_tool(search_tool: SearchTool) -> AgentTool:
     return AgentTool(
         name="search",
@@ -474,6 +590,13 @@ def _builtin_tools(search_tool: SearchTool) -> list[AgentTool]:
     mode = search_tool._mode
     return [
         _search_agent_tool(search_tool),
+        AgentTool(
+            name="filter",
+            schema=FILTER_TOOL,
+            run=_run_filter,
+            max_calls=2,
+            available=lambda ctx: has_library_scope(ctx.request),
+        ),
         AgentTool(
             name="search_attachments",
             schema=SEARCH_ATTACHMENTS_TOOL,

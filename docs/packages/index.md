@@ -14,7 +14,7 @@ the package that owns the capability you need.
 | [vera](vera-cli.md) | `vera` | `vera` / `import vera_cli` | Shell workflows and retrieval evaluation |
 | [vera-mcp](vera-mcp.md) | `vera-mcp` | `vera mcp` / `import vera_mcp` | Exposing VERA retrieval to MCP clients |
 | [vera-app](vera-app.md) | `vera-app` | Desktop application | Interactive conversion, search, and grounded answers |
-| [vera-lab](vera-lab.md) | `vera-lab` (dev) | `vera-lab` / `import vera_lab` | Contributor HTML layout lab for ingest pipelines |
+| [vera-lab](vera-lab.md) | `vera-lab` | `vera-lab` / `import vera_lab` | Layout reports in the desktop app, and the contributor `vera-lab` command |
 
 ## Dependency direction
 
@@ -24,10 +24,12 @@ vera-ingest-ooxml ───> vera-ingest ─┤
 vera-ingest-docling ──> vera-ingest ─┤
 vera-embed-openai ───────────────────┤
 vera ─────────────────────────────────┼──> vera-doc
-vera-app ─────────────────────────────┤
-vera-mcp ─────────────────────────────┤
-vera-lab (dev only) ──────────────────┘
+vera-app ──> vera-lab ────────────────┤
+vera-mcp ─────────────────────────────┘
 ```
+
+The packaged sidecar includes vera-lab. The `vera-lab` command remains available
+from a development checkout.
 
 `vera-doc` is the storage and retrieval foundation. The other packages compose
 it without moving their own responsibilities into the core library.

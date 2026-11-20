@@ -188,6 +188,8 @@ function App() {
   const [selectedPdfs, setSelectedPdfs] = useState<string[]>([]);
   const [reconvertNotice, setReconvertNotice] = useState<string | null>(null);
   const [reconvertBusy, setReconvertBusy] = useState(false);
+  const [layoutLabDir, setLayoutLabDir] = useState('');
+  const [layoutLabBusy, setLayoutLabBusy] = useState(false);
   const [storeOriginal, setStoreOriginal] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [providerErrorDetail, setProviderErrorDetail] = useState<string | null>(null);
@@ -964,6 +966,33 @@ function App() {
       await window.vera.showInFolder(targetPath);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : `Unable to ${label.toLowerCase()}`);
+    }
+  }
+
+  async function runLayoutReport(entry: FolderEntry) {
+    const outputDir = layoutLabDir.trim();
+    if (!outputDir) {
+      setSettingsSection('layout-lab');
+      setSettingsOpen(true);
+      return;
+    }
+    if (layoutLabBusy) return;
+    setLayoutLabBusy(true);
+    try {
+      const result = await call<{ path: string }>(
+        { action: SIDECAR_ACTIONS.layoutLab, path: entry.path, output_dir: outputDir },
+        'Layout report',
+        undefined,
+        { timeoutMs: 15 * 60 * 1000 },
+      );
+      if (!result?.path) return;
+      try {
+        await window.vera.openPath(result.path);
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Could not open the layout report');
+      }
+    } finally {
+      setLayoutLabBusy(false);
     }
   }
 
@@ -1878,6 +1907,7 @@ function App() {
     setEmbedderConfigs(saved.embedder_configs || {});
     setHasHfToken(Boolean(saved.has_hf_token));
     setHasEnvSecrets(saved.has_env_secrets || {});
+    setLayoutLabDir(saved.layout_lab_dir || '');
     return saved;
   }
 
@@ -1893,6 +1923,7 @@ function App() {
     setEmbedderConfigs(saved.embedder_configs || {});
     setHasHfToken(Boolean(saved.has_hf_token));
     setHasEnvSecrets(saved.has_env_secrets || {});
+    setLayoutLabDir(saved.layout_lab_dir || '');
     return saved;
   }
 
@@ -1906,6 +1937,7 @@ function App() {
       ingest_pipeline: ingestPipeline,
       ingest_pipeline_configs: ingestPipelineConfigs,
       embedder_configs: embedderConfigs,
+      layout_lab_dir: layoutLabDir,
       ...overrides,
     };
   }
@@ -2170,6 +2202,7 @@ function App() {
       setEmbedderConfigs(saved.embedder_configs || {});
       setHasHfToken(Boolean(saved.has_hf_token));
       setHasEnvSecrets(saved.has_env_secrets || {});
+      setLayoutLabDir(saved.layout_lab_dir || '');
     },
     setEmbeddingProviders,
     setEmbeddingDescriptors,
@@ -2402,6 +2435,10 @@ function App() {
                   onConvertFolderWithOptions={openConvertFolder}
                   onConvertSelectedWithOptions={openConvertSelected}
                   onReconvert={(entry, folderPath) => { void openReconvert(entry, folderPath); }}
+                  layoutLabDir={layoutLabDir}
+                  layoutLabBusy={layoutLabBusy}
+                  onLayoutReport={(entry) => { void runLayoutReport(entry); }}
+                  onConfigureLayoutLab={() => { setSettingsSection('layout-lab'); setSettingsOpen(true); }}
                   onManageIndex={(folderPath) => { void manageLibraryIndex(folderPath); }}
                   onRefreshFolder={(folderPath) => { void refreshFolder(folderPath); }}
                   onRevealInFolder={(targetPath) => { void revealInFolder(targetPath); }}
@@ -2954,6 +2991,7 @@ function App() {
           hasHfToken={hasHfToken}
           hasEnvSecrets={hasEnvSecrets}
           convertLogPath={convertLogPath}
+          layoutLabDir={layoutLabDir}
           initialSection={settingsSection}
           onPersist={persistSettings}
           onRefresh={refreshSettings}

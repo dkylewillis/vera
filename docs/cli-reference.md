@@ -7,6 +7,7 @@ parser.
 vera convert
 vera inspect
 vera get
+vera filter
 vera search
 vera index build
 vera index update
@@ -45,8 +46,8 @@ Options:
 - `--parser PARSER` (omitted: choose from the file extension — PDF → `pymupdf`,
   Markdown → `markdown`, DOCX/PPTX/XLSX/HTML → `docling` when
   `vera[docling]` is installed; accepts `provider[:variant]` specs such as
-  `docling` / `docling:hybrid`, or `plans` for construction drawing sets
-  (optional `vera-ingest-plans` plugin, never chosen by extension); unknown
+  `docling` / `docling:hybrid`, or `plansheet` for construction drawing sets
+  (external `vera-ingest-plansheet` plugin, `OPENROUTER_API_KEY`, never chosen by extension); unknown
   providers exit with an error; the 0.3.x Windows installer does not include
   Docling). Set `VERA_PIPELINE_PYTHON` to a virtual environment folder or
   Python executable that has `vera` and another pipeline installed to use
@@ -78,7 +79,7 @@ Options:
 - `--json`
 
 Conversion selectively OCRs image-based low-text pages through PyMuPDF and
-Tesseract (the `plans` plugin's `--parser plans` also OCRs low-text drawing sheets), publishes a validated temporary archive atomically, and fails when
+Tesseract, publishes a validated temporary archive atomically, and fails when
 no searchable chunks are extracted. English language data is bundled for
 offline, zero-setup OCR; other selected languages either require
 `--ocr-allow-download` (or the equivalent `ocr_download` pipeline option) to
@@ -126,6 +127,34 @@ fields for the opened archive and are not taken from chunk metadata. It does
 not include `score`. `--figures` and `--regions` add the same metadata shapes
 as `vera search`. An unknown or whitespace-only id exits 1 with
 `{"ok": false, "error": "chunk not found: ..."}`.
+
+## `vera filter PATH`
+
+List every chunk of one `record_type`, or the types present when `--type` is
+omitted. `PATH` is one `.vera` file or a directory of them. This is a complete
+unranked list. It does not search, and it does not read the archive header or
+attachments.
+
+Options:
+
+- `--type TYPE` exact `record_type`, such as `detail`
+- `--recursive` include nested folders. A managed library already includes its archives.
+- `--json`
+
+Without `--type`, JSON is `types` (`type` and `count`) plus `skipped_files`.
+With `--type`, JSON adds `record_type`, `total`, and `records`. An unknown type
+returns an empty `records` list and the types that do exist. Each record is a
+locator: `file`, `path`, `source_filename`, `chunk_id`, `record_type`, `label`,
+`description`, `page_start`, `page_end`, `heading_path`, and `regions`.
+`sheet_number`, `detail_number`, and `detail_type` appear when the chunk has
+them. The chunk text and figure bytes are omitted; open one row with
+`vera get`. A malformed archive is listed in `skipped_files` and the rest of
+the folder is still returned.
+
+```bash
+vera filter C:\Plans --type detail --json
+vera filter C:\Plans\drainage.vera --type detail --json
+```
 
 ## `vera search FILE_OR_DIRECTORY QUERY`
 

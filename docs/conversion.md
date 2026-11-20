@@ -73,36 +73,36 @@ letterhead) and is still OCR'd. Genuinely blank pages and ordinary
 text pages skip OCR. Mixed PDFs can therefore use native extraction on
 ordinary pages and OCR on scanned pages in one conversion.
 
-### Construction plans (`plans` plugin)
+### Construction plans (`plansheet`, external)
 
-CAD drawing sets often store detail lettering as linework, or as several
-pasted images, so the page has almost no text to extract. The optional
-`vera-ingest-plans` plugin adds a `plans` pipeline for them. It is not part of
-the default install or the desktop app. Install it beside the CLI from a
-checkout (`uv sync --extra plans`, or `pip install ./packages/vera-ingest-plans`),
-or install its wheel from the desktop app's **Settings → Plugins**:
+CAD drawing sets are converted with the separate
+[`vera-ingest-plansheet`](https://github.com/dkylewillis/vera) package, not a
+pipeline in this repository. Install it beside `vera` (or in the desktop
+**Separate Python environment**) and pass `--parser plansheet`. It is never
+chosen from the file extension.
+
+Convert sends each sheet to a vision model (OpenRouter by default,
+`qwen/qwen3-vl-8b-instruct`). The model proposes regions; searchable text is
+the PDF text inside each box. Detail and view crops, descriptions, tags, and
+callouts such as `SEE DET 4/C-501` are stored on the archive. Drawings leave
+the machine when the default backend is used. There is no offline fallback.
+
+The pipeline advertises `capabilities.requires_api_key` and
+`credential_env` `OPENROUTER_API_KEY`. Desktop Convert calls
+`preflight_ingest_pipeline` before writing an archive and fills that variable
+from the personal OpenRouter key under **Settings → AI providers** (not the
+VERA Pro key). CLI `vera convert` does not call `preflight_ingest_pipeline`;
+set `OPENROUTER_API_KEY` in the environment. The key is never a pipeline option.
 
 ```bash
-vera convert "plans.pdf" "plans.vera" --parser plans
+set OPENROUTER_API_KEY=...
+vera convert "plans.pdf" "plans.vera" --parser plansheet
+vera library pipeline ./library --folder "Projects/*/Plans" --parser plansheet
 ```
 
-It is the default PyMuPDF pipeline with two differences:
-
-- **Drawn-text OCR.** Auto mode also OCRs low-text drawing sheets. The real
-  text layer is kept and only recognized words that do not overlap it are
-  added. Lines that look like traced linework are dropped. Turn this pass off
-  with `--pipeline-option ocr_drawn_text=off`; scanned-page OCR is unchanged.
-- **Titles in chunk text.** The first chunk under a heading includes the
-  heading, and a heading with no body text is stored as its own chunk, so a
-  detail title such as `DOGHOUSE MANHOLE DETAIL` is searchable.
-
-The plain `pymupdf` pipeline does neither and rejects `ocr_drawn_text`. The
-`plans` pipeline is never chosen from the file extension; pass `--parser
-plans` (or pick it in the desktop Convert view once the plugin is installed).
-Archives record `parser_name` `plans`. Expect a slower conversion: each OCR'd
-sheet is rasterized and read by Tesseract. Development builds called this
-pipeline `pymupdf:plans`; those archives still open and search, but library
-folder rules that name `pymupdf:plans` must be changed to `plans`.
+`pymupdf` still rejects `ocr_drawn_text`. That parser flag remains available
+to callers that pass it explicitly. Older archives with `parser_name` `plans`
+still open and search; reconvert them with `plansheet` to get regions and crops.
 
 Legacy CLI aliases (forwarded only when the selected pipeline advertises the
 matching descriptor field):

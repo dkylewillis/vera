@@ -173,6 +173,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   ingest_pipeline_configs: {},
   embedder_configs: {},
   agent_service: { enabled: false, library_roots: [], port: DEFAULT_AGENT_SERVICE_PORT, cloud_enabled: false },
+  layout_lab_dir: '',
 };
 
 function isJsonPrimitive(value: unknown): value is string | number | boolean | null {
@@ -331,6 +332,7 @@ class PythonSidecar {
   private nextId = 1;
   private stdoutBuffer = '';
   private restartWhenIdle = false;
+  private restartWaiters: Array<() => void> = [];
 
   request(
     payload: SidecarPayload,
@@ -393,16 +395,34 @@ class PythonSidecar {
 
   /** Kill the sidecar so the next request respawns with updated env (e.g. HF_TOKEN). */
   restart(): void {
+    void this.restartAndWait();
+  }
+
+  /**
+   * Resolve once the current sidecar process is gone.
+   * A follow-up request sent before this settles still reaches the process
+   * that started with the previous environment.
+   */
+  restartAndWait(): Promise<void> {
     if (this.pending.size > 0) {
       this.restartWhenIdle = true;
-      return;
+      return new Promise((resolve) => {
+        this.restartWaiters.push(resolve);
+      });
     }
     this.killChild('VERA sidecar restarted');
+    return Promise.resolve();
   }
 
   private maybeRestartWhenIdle(): void {
     if (!this.restartWhenIdle || this.pending.size > 0) return;
     this.killChild('VERA sidecar restarted');
+    this.resolveRestartWaiters();
+  }
+
+  private resolveRestartWaiters(): void {
+    const waiters = this.restartWaiters.splice(0);
+    for (const resolve of waiters) resolve();
   }
 
   private killChild(reason: string): void {
@@ -430,6 +450,7 @@ class PythonSidecar {
     const env = { ...process.env };
     applyHfTokenEnv(env);
     applyEmbedderSecretEnv(env);
+    applyChatProviderCredentialEnv(env);
     applyHfHomeEnv(env);
     env.PYTHONUNBUFFERED = (env.PYTHONUNBUFFERED || '').trim() || '1';
     env.VERA_PLUGIN_DIRS = [pluginsDir(), env.VERA_PLUGIN_DIRS || ''].filter(Boolean).join(delimiter);
@@ -821,7 +842,20 @@ function envSecretPresent(name: string): boolean {
 
 function applyEmbedderSecretEnv(env: NodeJS.ProcessEnv): void {
   for (const [name, value] of Object.entries(storedEnvSecrets())) {
+    if ((env[name] || '').trim()) continue;
     env[name] = value;
+  }
+}
+
+function applyChatProviderCredentialEnv(env: NodeJS.ProcessEnv): void {
+  const keys = readApiKeys();
+  for (const profile of readSettings().providers) {
+    if (profile.preset_key === PRO_PRESET_KEY) continue;
+    const envName = (profile.api_key_env || '').trim();
+    if (!/^[A-Z][A-Z0-9_]*$/.test(envName)) continue;
+    if ((env[envName] || '').trim()) continue;
+    const value = (keys[providerCredentialKey(profile)] || '').trim();
+    if (value) env[envName] = value;
   }
 }
 
@@ -977,6 +1011,7 @@ function readSettings(): AppSettings {
       ingest_pipeline_configs: normalizePipelineConfigs(raw.ingest_pipeline_configs),
       embedder_configs: normalizePipelineConfigs(raw.embedder_configs),
       agent_service: normalizeAgentServiceSettings(raw.agent_service),
+      layout_lab_dir: typeof raw.layout_lab_dir === 'string' ? raw.layout_lab_dir.trim() : '',
     };
     return withRuntime(merged);
   } catch {
@@ -987,15 +1022,20 @@ function readSettings(): AppSettings {
 function writeSettings(settings: AppSettings): AppSettings {
   mkdirSync(app.getPath('userData'), { recursive: true });
   let previousAgent: AgentServiceSettings = { enabled: false, library_roots: [], port: DEFAULT_AGENT_SERVICE_PORT };
+  let previousLayoutLabDir = '';
   try {
     const raw = JSON.parse(readFileSync(settingsPath(), 'utf8')) as Partial<AppSettings>;
     previousAgent = normalizeAgentServiceSettings(raw.agent_service);
+    previousLayoutLabDir = typeof raw.layout_lab_dir === 'string' ? raw.layout_lab_dir.trim() : '';
   } catch {
     /* first write */
   }
   const incomingAgent = settings.agent_service === undefined
     ? previousAgent
     : normalizeAgentServiceSettings(settings.agent_service);
+  const layoutLabDir = settings.layout_lab_dir === undefined
+    ? previousLayoutLabDir
+    : settings.layout_lab_dir.trim();
   const sanitized: AppSettings = {
     providers: (settings.providers || [])
       .map(normalizeProvider)
@@ -1008,6 +1048,7 @@ function writeSettings(settings: AppSettings): AppSettings {
     ingest_pipeline_configs: normalizePipelineConfigs(settings.ingest_pipeline_configs),
     embedder_configs: normalizePipelineConfigs(settings.embedder_configs),
     agent_service: incomingAgent,
+    layout_lab_dir: layoutLabDir,
   };
   const target = settingsPath();
   const temp = `${target}.tmp`;
@@ -1028,6 +1069,7 @@ function saveApiKey(baseUrl: string, apiKey: string): CredentialResult {
   const keys = readApiKeys();
   keys[key] = apiKey;
   writeApiKeys(keys);
+  sidecar.restart();
   return { ok: true, has_api_key: true };
 }
 
@@ -1038,6 +1080,7 @@ function clearApiKey(baseUrl: string): CredentialResult {
     delete keys[key];
     writeApiKeys(keys);
   }
+  sidecar.restart();
   return { ok: true, has_api_key: false };
 }
 
@@ -1480,13 +1523,13 @@ async function choosePipelineEnvironment(owner: BrowserWindow | null): Promise<S
     };
   }
   writePipelineEnvironment(picked.filePaths[0]);
-  sidecar.restart();
+  await sidecar.restartAndWait();
   return listPlugins();
 }
 
 async function clearPipelineEnvironment(): Promise<SidecarResponse> {
   writePipelineEnvironment('');
-  sidecar.restart();
+  await sidecar.restartAndWait();
   return listPlugins();
 }
 
@@ -1504,6 +1547,7 @@ const FOLDER_PICKER_LABELS: Record<FolderPickPurpose, { title: string; buttonLab
   folder: { title: 'Open folder', buttonLabel: 'Open Folder' },
   convert: { title: 'Choose a folder to convert', buttonLabel: 'Choose Folder' },
   'agent-library': { title: 'Choose a library agents can use', buttonLabel: 'Allow Access' },
+  'layout-lab': { title: 'Choose a folder for layout reports', buttonLabel: 'Use Folder' },
 };
 
 async function pickFolderPath(purpose: unknown = 'folder'): Promise<string | null> {
@@ -1528,6 +1572,18 @@ function isWorkspaceFile(filePath: string, folderPath: string): boolean {
     && !relativePath.startsWith('..')
     && !isAbsolute(relativePath)
     && folderEntryType(file) !== null;
+}
+
+async function openPath(targetPath: string): Promise<void> {
+  if (typeof targetPath !== 'string' || !targetPath.trim()) {
+    throw new Error('Path is required');
+  }
+  const resolved = resolve(targetPath);
+  if (!existsSync(resolved)) {
+    throw new Error('This path is no longer available.');
+  }
+  const error = await shell.openPath(resolved);
+  if (error) throw new Error(error);
 }
 
 async function showInFolder(targetPath: string): Promise<void> {
@@ -2260,6 +2316,7 @@ if (singleInstanceLock) app.whenReady().then(() => {
     typeof targetPath === 'string' && Boolean(targetPath.trim()) && existsSync(resolve(targetPath))
   ));
   ipcMain.handle(IPC_CHANNELS.showInFolder, async (_event, targetPath: string) => showInFolder(targetPath));
+  ipcMain.handle(IPC_CHANNELS.openPath, async (_event, targetPath: string) => openPath(targetPath));
   ipcMain.handle(IPC_CHANNELS.openConvertLog, async () => openConvertLog());
   ipcMain.handle(IPC_CHANNELS.showConvertLogFolder, async () => showConvertLogFolder());
   ipcMain.handle(IPC_CHANNELS.getConvertLogPath, async () => ensureSidecarLogFile());

@@ -90,6 +90,7 @@ from vera_app.chat_attachments import handle_chat_attachment_prepare
 from vera_app.inspect import inspect as _inspect
 from vera_app.inspect import page as _page
 from vera_app.inspect import validate as _validate
+from vera_app.layout_lab import layout_lab as _layout_lab
 from vera_app.llm import ProviderHttpError
 from vera_app.markdown_drafts import handle_render_markdown
 from vera_app.protocol import SIDECAR_ACTIONS
@@ -122,6 +123,7 @@ HANDLERS: dict[str, Handler] = {
     "describe_embedding_providers": convert_handlers.handle_describe_embedding_providers,
     "list_embedding_models": convert_handlers.handle_list_embedding_models,
     "preflight_embedder": convert_handlers.handle_preflight_embedder,
+    "preflight_ingest_pipeline": convert_handlers.handle_preflight_ingest_pipeline,
     "list_ingest_pipelines": convert_handlers.handle_list_ingest_pipelines,
     "describe_ingest_pipelines": convert_handlers.handle_describe_ingest_pipelines,
     "ocr_languages_list": convert_handlers.handle_ocr_languages_list,
@@ -137,6 +139,7 @@ HANDLERS: dict[str, Handler] = {
     "plugins_list": plugin_handlers.handle_plugins_list,
     "plugin_install": plugin_handlers.handle_plugin_install,
     "plugin_remove": plugin_handlers.handle_plugin_remove,
+    "layout_lab": _layout_lab,
 }
 
 _CONTROL_ACTIONS = {"cancel", "skip"}
@@ -312,6 +315,7 @@ _THREADED_ACTIONS = _CANCELLABLE_ACTIONS | {
     "library_status",
     "library_trash_list",
     "library_pipelines",
+    "layout_lab",
 }
 
 

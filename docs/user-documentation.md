@@ -42,8 +42,8 @@ figures, and citation metadata in one portable `.vera` file.
 
 - [Repository architecture](architecture.md)
 - [Desktop app architecture](desktop-app-architecture.md)
-- [Ingest layout lab (vera-lab)](packages/vera-lab.md) — contributor HTML
-  report for pipeline blocks, chunks, and figures
+- [Ingest layout lab (vera-lab)](packages/vera-lab.md) — desktop Layout report
+  and the contributor HTML report for pipeline blocks, chunks, and figures
 - [Additional source formats and visual grounding](multi-format-ingest.md) —
   Markdown ingest, plugin naming, and remaining format/viewer work
 - [Changelog](https://github.com/dkylewillis/vera/blob/main/CHANGELOG.md)

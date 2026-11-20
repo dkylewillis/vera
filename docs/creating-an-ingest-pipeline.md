@@ -434,9 +434,15 @@ folder at the end of the sidecar's `sys.path`, and restarts the sidecar, so
 discovery works exactly as for a pip install. Only import what the sidecar
 already ships (`vera-ingest`, `vera-ingest-pymupdf`, PyMuPDF, NumPy, and the
 rest of the freeze); the installer warns about any other requirement and does
-not download it. `packages/vera-ingest-plans` is a complete example: it reuses
-`vera_ingest_pymupdf.run_pymupdf_pipeline` with different options and
-registers the `plans` provider.
+not download it. A pure-Python plugin can reuse
+`vera_ingest_pymupdf.run_pymupdf_pipeline` with different options and register
+its own provider name. Pipelines that need a hosted API advertise
+`capabilities.requires_api_key` and `capabilities.credential_env` (an
+environment variable name, never a field on `Options`). Desktop Convert calls
+`preflight_ingest_pipeline` and injects saved provider keys into that
+variable. The construction plan-sheet pipeline `plansheet` is the external
+`vera-ingest-plansheet` package: it requires `OPENROUTER_API_KEY` and runs
+from a **Separate Python environment**, not from **Install from file**.
 
 The CLI reads the same layout from `VERA_PLUGIN_DIRS` (plugin roots separated
 by the OS path separator), so one plugin folder can serve both.

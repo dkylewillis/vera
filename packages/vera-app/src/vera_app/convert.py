@@ -19,6 +19,7 @@ from vera_ingest import (
     list_ingest_pipeline_descriptors,
     list_ingest_pipelines,
     prefer_external_pipelines,
+    preflight_ingest_pipeline,
 )
 from vera_ingest.convert import read_ingest_notes, read_ingest_warnings
 from vera_ingest_pymupdf import (
@@ -248,6 +249,14 @@ def handle_preflight_embedder(request: Request) -> dict[str, Any]:
     """Check credential/env readiness for a model spec without loading runtimes."""
     model = requested_embedding_model(request)
     return preflight_embedder(model).as_dict()
+
+
+def handle_preflight_ingest_pipeline(request: Request) -> dict[str, Any]:
+    """Check that the chosen ingest pipeline's credential env var is set."""
+    parser = request.get("parser")
+    if request.get("ingest_pipeline"):
+        parser = request.get("ingest_pipeline")
+    return preflight_ingest_pipeline(None if parser is None else str(parser)).as_dict()
 
 
 def handle_list_ingest_pipelines(request: Request) -> dict[str, Any]:

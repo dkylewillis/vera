@@ -47,6 +47,7 @@ from .pipeline import (
     list_ingest_pipeline_load_errors,
     list_ingest_pipelines,
     prefer_external_pipelines,
+    preflight_ingest_pipeline,
     prepare_pipeline_options,
     register_ingest_pipeline,
     register_ingest_pipeline_descriptor,
@@ -54,6 +55,7 @@ from .pipeline import (
 )
 from .pipeline_options import PipelineOptions
 from .types import (
+    IngestAttachment,
     IngestBlock,
     IngestChunk,
     IngestOptions,
@@ -81,6 +83,7 @@ from .viewer import (
 __all__ = [
     "Chunk",
     "ExternalPipelineError",
+    "IngestAttachment",
     "IngestBlock",
     "IngestChunk",
     "IngestOptions",
@@ -135,6 +138,7 @@ __all__ = [
     "pick_parser_for_suffix",
     "pipeline_source_formats",
     "prefer_external_pipelines",
+    "preflight_ingest_pipeline",
     "prepare_pipeline_options",
     "regions_for",
     "result_payload",

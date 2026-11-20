@@ -53,11 +53,9 @@ convert("manual.pdf", "manual.vera", parser="pymupdf")
   whose only native text is a header, Bates stamp, or letterhead (fewer than
   200 alphanumeric characters on a large-image page). Use `force` for
   full-page OCR or `off` to disable OCR.
-- `pymupdf` has no variants. Construction drawing sets use the `plans`
-  pipeline from the optional `vera-ingest-plans` plugin, which runs this
-  parser with drawn-text OCR on (`run_pymupdf_pipeline(...,
-  ocr_drawn_text="auto", headings_in_text=True)`). The default pipeline
-  rejects `ocr_drawn_text`.
+- `pymupdf` has no variants. Callers can pass
+  `run_pymupdf_pipeline(..., ocr_drawn_text="auto", headings_in_text=True)`
+  to OCR low-text drawing sheets. The default pipeline rejects `ocr_drawn_text`.
 
 See the [vera-ingest-pymupdf documentation](https://dkylewillis.github.io/vera/packages/vera-ingest-pymupdf/)
 and [conversion guide](https://github.com/dkylewillis/vera/blob/main/docs/conversion.md).

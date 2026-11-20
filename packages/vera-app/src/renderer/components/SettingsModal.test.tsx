@@ -58,7 +58,7 @@ describe('SettingsModal', () => {
     expect(html).toContain('id="settings-title"');
     expect(html).toContain('Search settings');
     expect(html).toContain('Search and Convert are ready.');
-    for (const label of ['Overview', 'Account', 'AI providers', 'Embeddings', 'Agent access', 'Hugging Face', 'Diagnostics']) {
+    for (const label of ['Overview', 'Account', 'AI providers', 'Embeddings', 'Agent access', 'Hugging Face', 'Layout lab', 'Diagnostics']) {
       expect(html).toContain(label);
     }
     expect(html).toContain('AI and search');
@@ -235,8 +235,16 @@ describe('matchSettingsSections', () => {
     expect(matchSettingsSections('ollama').map((entry) => entry.id)).toEqual(['providers']);
     expect(matchSettingsSections('log').map((entry) => entry.id)).toContain('diagnostics');
     expect(matchSettingsSections('HF_TOKEN').map((entry) => entry.id)).toEqual(['huggingface']);
+    expect(matchSettingsSections('layout lab').map((entry) => entry.id)).toEqual(['layout-lab']);
     expect(matchSettingsSections('subscription').map((entry) => entry.id)).toContain('account');
     expect(matchSettingsSections('mcp claude').map((entry) => entry.id)).toEqual(['agents']);
+  });
+
+  it('keeps layout reports from different folders apart', () => {
+    const html = renderSettings('layout-lab');
+    expect(html).toContain('Plans/North/manual.pdf.vera');
+    expect(html).toContain('stay apart');
+    expect(html).not.toContain('uv sync');
   });
 
   it('returns nothing when no section matches every word', () => {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -484,6 +485,58 @@ def describe_ingest_pipeline(spec: str = "pymupdf") -> PipelineDescriptor:
             return cached
         _DESCRIPTOR_CACHE[cache_key] = descriptor
         return descriptor
+
+
+@dataclass(frozen=True)
+class IngestPreflightResult:
+    """Whether a parser can start, including a required credential env var."""
+
+    ok: bool
+    parser: str
+    missing_credential_env: str = ""
+    detail: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "parser": self.parser,
+            "missing_credential_env": self.missing_credential_env,
+            "detail": self.detail,
+        }
+
+
+def preflight_ingest_pipeline(parser: str | None = None) -> IngestPreflightResult:
+    """Check that ``parser`` is installed and its credential env var is set.
+
+    Does not render a document or call a model. Desktop Convert calls this
+    before writing an archive. ``vera convert`` still fails inside the pipeline
+    when the variable is missing.
+    """
+    spec = (parser or "pymupdf").strip() or "pymupdf"
+    try:
+        descriptor = describe_ingest_pipeline(spec)
+    except UnknownIngestPipelineError as exc:
+        return IngestPreflightResult(ok=False, parser=spec, detail=str(exc))
+    capabilities = descriptor.capabilities
+    if capabilities.requires_api_key:
+        env_name = (capabilities.credential_env or "").strip()
+        if not env_name:
+            return IngestPreflightResult(
+                ok=False,
+                parser=descriptor.spec,
+                detail=(
+                    f"Pipeline {descriptor.spec!r} requires an API key but did not "
+                    "advertise capabilities.credential_env."
+                ),
+            )
+        if not os.environ.get(env_name, "").strip():
+            return IngestPreflightResult(
+                ok=False,
+                parser=descriptor.spec,
+                missing_credential_env=env_name,
+                detail=f"Set the {env_name} environment variable before converting.",
+            )
+    return IngestPreflightResult(ok=True, parser=descriptor.spec)
 
 
 def list_ingest_pipelines() -> list[str]:

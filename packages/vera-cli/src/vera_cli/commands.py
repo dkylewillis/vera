@@ -40,6 +40,7 @@ from vera_ingest.viewer import (
     export_figures,
     export_source_document,
     figures,
+    filter_records,
     format_search_context,
     get_chunk_json,
     get_source_document,
@@ -336,6 +337,36 @@ def _emit_cli_error(args, message: str, *, code: int = 1) -> int:
     else:
         print(message, file=sys.stderr)
     return code
+
+
+def cmd_filter(args) -> int:
+    record_type = str(getattr(args, "record_type", "") or "").strip() or None
+    recursive = True if getattr(args, "recursive", False) else None
+    try:
+        payload = filter_records(args.path, record_type, recursive=recursive)
+    except (FileNotFoundError, NotADirectoryError, OSError) as exc:
+        return _emit_cli_error(args, str(exc))
+    if args.json:
+        print(json.dumps(payload))
+        return 0
+    if record_type:
+        print(f"{payload['total']} {record_type}")
+        for record in payload["records"]:
+            place = record.get("sheet_number") or ""
+            page = record.get("page_start")
+            page_label = f"p. {page}" if page is not None else ""
+            label = record.get("label") or record["chunk_id"]
+            print(
+                "  ".join(part for part in (record["chunk_id"], place, page_label, label) if part)
+            )
+            print(f"  {record['file']}")
+        return 0
+    if not payload["types"]:
+        print("No record types")
+        return 0
+    for item in payload["types"]:
+        print(f"{item['type']}: {item['count']}")
+    return 0
 
 
 def cmd_search(args) -> int:

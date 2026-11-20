@@ -24,6 +24,7 @@ SIDECAR_ACTIONS = (
     "describe_embedding_providers",
     "list_embedding_models",
     "preflight_embedder",
+    "preflight_ingest_pipeline",
     "list_ingest_pipelines",
     "describe_ingest_pipelines",
     "ocr_languages_list",
@@ -39,6 +40,7 @@ SIDECAR_ACTIONS = (
     "plugins_list",
     "plugin_install",
     "plugin_remove",
+    "layout_lab",
     "cancel",
     "skip",
 )

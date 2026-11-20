@@ -664,6 +664,28 @@ export function createConversionController(getHost: () => ConversionHost) {
       );
       return 'attention';
     }
+    const pipeline = pipelineForRun(
+      host,
+      !selectedPaths.length || selectedPaths.some((entry) => entry.toLowerCase().endsWith('.pdf')),
+    );
+    const ingestPreflight = await host.call<{
+      ok: boolean;
+      detail?: string;
+      missing_credential_env?: string;
+    }>(
+      { action: SIDECAR_ACTIONS.preflightIngestPipeline, parser: pipeline.ingestPipeline },
+      'Checking parser',
+    );
+    if (!ingestPreflight) return 'attention';
+    if (!ingestPreflight.ok) {
+      const missing = ingestPreflight.missing_credential_env?.trim();
+      host.setConversionError(
+        missing
+          ? `Ingest pipeline is not ready. Set ${missing} (save OpenRouter under File > Settings → AI providers, or export the same variable for the CLI), then convert again.`
+          : (ingestPreflight.detail || 'Ingest pipeline is not ready.'),
+      );
+      return 'attention';
+    }
     const conversionRequestId = crypto.randomUUID();
     conversionRequestIdRef.current = conversionRequestId;
     host.dispatchBackgroundTask({
@@ -682,10 +704,6 @@ export function createConversionController(getHost: () => ConversionHost) {
       applyConversionProgress(conversionRequestId, event, progressMode);
     });
     conversionProgressCleanupRef.current = { requestId: conversionRequestId, off: offProgress };
-    const pipeline = pipelineForRun(
-      host,
-      !selectedPaths.length || selectedPaths.some((entry) => entry.toLowerCase().endsWith('.pdf')),
-    );
     const convertFields = {
       embeddingModel,
       ingestPipeline: pipeline.ingestPipeline,

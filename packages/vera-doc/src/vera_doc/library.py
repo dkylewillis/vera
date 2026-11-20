@@ -198,7 +198,7 @@ def default_convert_settings(
         "pipeline_options": dict(pipeline_options or {}),
         "embedder_options": dict(embedder_options or {}),
         "metadata": dict(metadata or {}),
-        # Folder overrides: {"folder": "Projects/*/Plans", "parser": "plans",
+        # Folder overrides: {"folder": "Projects/*/Plans", "parser": "plansheet",
         # "pipeline_options": {...}}. "" is the whole library.
         "pipeline_rules": [dict(rule) for rule in pipeline_rules or []],
     }

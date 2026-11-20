@@ -4,9 +4,11 @@ Contributor tool for inspecting ingest pipeline output. Run a pipeline (or open
 an existing `.vera` archive) and emit a self-contained HTML report with page
 images, typed block/chunk/figure overlays, layout lint, and stats.
 
-This package is a **dev leaf**: it depends on `vera-ingest` and PyMuPDF, and
-nothing in the release path depends on it. Install it via the workspace `dev`
-extra.
+This package depends on `vera-ingest` and PyMuPDF. `vera-app` depends on it,
+and the packaged sidecar includes it. Desktop **Layout report** writes an
+archive report under the folder from **Settings → Layout lab**, keeping the
+archive's own folders. The `vera-lab` command is still installed with the
+workspace `dev` extra.
 
 ## Install
 
@@ -30,8 +32,10 @@ vera-lab manual.pdf -o compare.html --parser pymupdf --parser docling
 vera-lab manual.vera -o archive.html
 ```
 
-Open the HTML file in a browser. Toggle Blocks / Chunks / Figures layers and
-click overlays to inspect details.
+Open the HTML file in a browser. The page and the side pane scroll separately.
+The side pane shows archive metadata, then the selected record. Clicking a
+detail, block, or figure shows that record's title, type, description, and
+the blocks inside it. Toggle Blocks / Chunks / Figures layers to hide overlays.
 
 Constraints: live mode does not write embeddings or an archive; archive mode
 needs an embedded source PDF (`--store-original` defaults to true);

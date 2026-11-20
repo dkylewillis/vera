@@ -30,6 +30,7 @@ from vera_doc.corpus import VeraCorpus
 from vera_doc.document import VeraDocument
 from vera_ingest.viewer import (
     figures,
+    filter_records,
     format_search_context,
     get_chunk_json,
     get_chunk_regions,
@@ -438,6 +439,32 @@ def build_server(policy: AccessPolicy | None = None):
                 return page
             finally:
                 doc.close()
+
+    if _maybe_tool("vera_filter"):
+
+        @server.tool()
+        @_published
+        def vera_filter(
+            file: str = "",
+            record_type: str = "",
+            recursive: bool | None = None,
+            library: LibraryName = None,
+        ) -> dict[str, Any]:
+            """List every chunk of one record_type, with its file, sheet, page, and highlight box.
+
+            Omit record_type to list the types present and a count for each. This is a
+            complete unranked list of chunks. It does not search, and it does not read
+            the archive header or attachments. Pass a .vera file or a directory of them.
+            """
+            target = file
+            if policy is not None:
+                directory = not str(file).lower().endswith(".vera")
+                target = str(policy.resolve(library, file, directory=directory))
+            return filter_records(
+                target,
+                record_type.strip() or None,
+                recursive=recursive,
+            )
 
     if _maybe_tool("vera_get_chunk"):
 

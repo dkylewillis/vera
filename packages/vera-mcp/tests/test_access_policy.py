@@ -673,6 +673,7 @@ async def test_library_parameter_is_bridge_only_and_searches_by_name(approved_li
         "vera_search",
         "vera_corpus_search",
         "vera_get_chunk",
+        "vera_filter",
         "vera_library_status",
         "vera_inspect",
         "vera_figures",

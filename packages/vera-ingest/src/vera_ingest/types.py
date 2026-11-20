@@ -170,6 +170,17 @@ class IngestPreview:
 
 
 @dataclass
+class IngestAttachment:
+    """Extra archive attachment emitted by a pipeline (for example a callout graph)."""
+
+    id: str
+    media_type: str
+    filename: str
+    data: bytes
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class IngestResult:
     """Normalized bundle consumed by VERA's shared archive writer."""
 
@@ -183,3 +194,4 @@ class IngestResult:
     viewer_preview: IngestPreview | None = None
     warnings: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    attachments: list[IngestAttachment] = field(default_factory=list)

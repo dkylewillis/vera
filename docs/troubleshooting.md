@@ -451,6 +451,11 @@ the source is a PDF. Live mode does not write embeddings or an archive.
 Success prints the HTML path; failures print `vera-lab: ...` to stderr and
 exit 1.
 
+Desktop **Layout report** uses the same archive mode. Choose the output folder
+under **Settings → Layout lab** first. The packaged app includes vera-lab.
+The report keeps the archive's own folders under that directory, so two files
+with the same name stay apart. A report covers at most 200 pages.
+
 ## JSON parsing fails on a nonzero exit
 
 Check the command:

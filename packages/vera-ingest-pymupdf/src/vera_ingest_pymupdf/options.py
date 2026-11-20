@@ -107,10 +107,7 @@ class PyMuPDFOptions(PipelineOptions):
     )
 
 
-_VARIANT_HINT = (
-    "use 'pymupdf'. Construction drawing sets use the 'plans' pipeline from the "
-    "vera-ingest-plans plugin"
-)
+_VARIANT_HINT = "use 'pymupdf'"
 
 
 def normalize_variant(variant: str | None) -> str:

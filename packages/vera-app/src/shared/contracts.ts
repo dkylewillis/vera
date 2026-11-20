@@ -241,6 +241,8 @@ export interface PipelineCapabilities {
   ocr_dpi_supported?: boolean;
   store_original_supported?: boolean;
   source_formats?: string[];
+  requires_api_key?: boolean;
+  credential_env?: string;
 }
 
 export type PipelineRuntimeSource = 'bundled' | 'external';
@@ -306,6 +308,8 @@ export interface AppSettings {
   has_env_secrets?: Record<string, boolean>;
   /** Local agent service. The bearer token stays in safeStorage, not here. */
   agent_service?: AgentServiceSettings;
+  /** Folder where right-click Layout report writes vera-lab HTML. Empty when unset. */
+  layout_lab_dir?: string;
 }
 
 export interface AgentServiceSettings {

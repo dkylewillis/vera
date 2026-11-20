@@ -27,7 +27,6 @@ packages/
   vera-ingest/            # conversion registry and archive writer
   vera-ingest-pymupdf/    # default PDF pipeline
   vera-ingest-docling/    # optional CLI Docling pipeline
-  vera-ingest-plans/      # optional plans plugin for drawing sets (not bundled)
   vera-embed-openai/      # official OpenAI embeddings plugin
   vera-cli/               # terminal interface
   vera-app/               # Electron desktop app plus Python sidecar
@@ -87,7 +86,9 @@ Initial actions:
 `.md` files there override built-in Ask/Research/Summarize modes by `id`.
 Chat's search tool applies a relative `quality` cutoff (`strict` 0.85,
 `balanced` 0.55, `permissive` 0.0) against the top hit and skips already-cited
-chunks; CLI/MCP search does not.
+chunks; CLI/MCP search does not. Chat's `filter` tool lists every chunk of one
+`record_type` and registers each row as a citation. It does not rank or apply
+the quality cutoff.
 
 `cancel` and `skip` take `target_id` and signal the in-flight request's
 cancellation token. `skip` is used by interactive batch convert; `cancel`
@@ -348,7 +349,15 @@ the folder or replace the document viewer. Double-click or right-click **View in
 viewer** / **Preview document** loads that PDF, Markdown file, or archive original in
 the source pane; right-clicking an unconverted PDF or Markdown file also offers **Convert file** /
 **Convert N files** for the current selection (one or more files) and **Convert with options…**. Right-clicking a
-converted document offers **Reconvert…**, which opens Convert immediately with a
+converted document offers **Layout report** and **Reconvert…**. **Layout report**
+asks the sidecar `layout_lab` action to write a vera-lab HTML file into the
+folder saved as `layout_lab_dir` (Settings → Layout lab) and then opens that
+file. The report keeps the archive's own folders under that directory
+(`E:/Plans/North/manual.pdf.vera` becomes
+`E/Plans/North/manual.pdf.lab.html`) and replaces an existing file of that
+name. The action rasterizes at most 200 pages. `vera-app` depends on
+`vera-lab`, and the sidecar freeze collects `vera_lab` plus `vera_lab/assets`.
+**Reconvert…** opens Convert immediately with a
 preparing status (and footer activity) while the sibling source or embedded
 original is resolved. Overwrite is enabled and the archive's current parser,
 embedding, and OCR options are prefilled so they can be changed before replacing
@@ -452,9 +461,9 @@ before they are skipped; malformed outputs are reported separately, and
 overwrite must be selected explicitly. PDF conversion uses selective
 PyMuPDF/Tesseract OCR (via `vera-ingest-pymupdf`) for image-based low-text
 pages, with English language data bundled into
-that package and the packaged sidecar. Pipelines from installed plugin wheels
-(for example `plans` from `vera-ingest-plans`, drawn-text OCR for drawing
-sets) join the list; see the plugin section below. Markdown uses the bundled `markdown`
+that package and the packaged sidecar. Pipelines from a separate Python
+environment (for example external `plansheet` for construction drawings)
+join the list when you name them; see the plugin section below. Markdown uses the bundled `markdown`
 pipeline (no OCR). Docling (`vera[docling]`) is a Convert pipeline only
 through a separate Python environment. Conversion publishes a validated
 temporary sibling atomically, preserves an existing destination after failure,

@@ -294,8 +294,19 @@ def test_archive_round_trip(tmp_path: Path):
     assert document.source_bytes.startswith(b"%PDF")
     output = tmp_path / "archive.html"
     build_report(archive, output, dpi=72, max_pages=2)
+    html = output.read_text(encoding="utf-8")
     assert output.is_file()
-    assert "archive" in output.read_text(encoding="utf-8")
+    assert 'id="archive"' in html
+    assert 'id="page-rail"' in html
+    start = html.index("window.__VERA_LAB__ = ") + len("window.__VERA_LAB__ = ")
+    end = html.index(";\n", start)
+    payload = json.loads(html[start:end])
+    document = payload["runs"][0]["document"]
+    archive_info = document["archive"]
+    assert archive_info["default_embedding_model"]
+    assert archive_info["parser_name"] == "pymupdf"
+    assert archive_info["pages"] >= 1
+    assert "metadata" in document["chunks"][0]
 
 
 def test_compare_mode_emits_multiple_runs(tmp_path: Path):

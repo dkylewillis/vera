@@ -99,6 +99,29 @@ Use full output for those details. Combining compact output with `pretty: true`,
 `include_figures: true`, or `include_regions: true` is an error; select full
 output for those options. CLI `--pretty` behavior is unchanged.
 
+### `vera_filter`
+
+List every chunk of one `record_type`, or the types present when `record_type`
+is empty. This is a complete unranked list. It does not search, and it does
+not read the archive header or attachments.
+
+Parameters:
+
+- `file: str` — one `.vera` file, or a directory of them. On the Desktop agent
+  service, pass `library` and a path relative to that folder. An empty `file`
+  with `library` set lists that library.
+- `record_type: str = ""` — exact type, such as `detail`. Empty lists the types
+  and a count for each.
+- `recursive: bool | null = null` — include nested folders. A managed library
+  already includes its archives.
+
+Returns `ok`, `file`, `path`, `types`, and `skipped_files`. With a type, also
+`record_type`, `total`, and `records`. Each record has `file`, `path`,
+`source_filename`, `chunk_id`, `label`, `description`, page, heading, and
+`regions`. `sheet_number`, `detail_number`, and `detail_type` appear when
+stored. An unknown type returns an empty `records` list and the types that
+exist. Open one row with `vera_get_chunk`.
+
 ### `vera_search`
 
 Search one archive.
@@ -349,6 +372,7 @@ Use the CLI or Python API for those operations.
 
 MCP adds `vera_get_page` and `vera_get_chunk_regions`, which have no
 standalone CLI subcommands. `vera_get_chunk` matches `vera get`.
+`vera_filter` matches `vera filter`.
 `vera_figures` listing matches `vera figures`;
 `vera_get_figure` is the MCP way to return image content (the CLI writes files
 with `vera figures --out-dir` instead).

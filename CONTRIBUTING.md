@@ -100,23 +100,20 @@ vera-ingest-docling ─┤
 vera-embed-openai ───┤
 vera-ingest ─────────┼──> vera-doc
 vera ────────────────┤
-vera-app ────────────┤
-vera-mcp ────────────┘
-vera-lab (dev only) ─┘
+vera-mcp ────────────┤
+vera-app ──> vera-lab ┘
 ```
 
 - Storage/search: `packages/vera-doc/src/vera_doc`
 - Ingest core: `packages/vera-ingest/src/vera_ingest`
 - Default PDF pipeline: `packages/vera-ingest-pymupdf/src/vera_ingest_pymupdf`
 - Optional Docling pipeline: `packages/vera-ingest-docling/src/vera_ingest_docling`
-- Optional `plans` plugin for drawing sets (`plans` extra; not bundled in the
-  app): `packages/vera-ingest-plans/src/vera_ingest_plans`
 - Ingest plugin folders (`VERA_PLUGIN_DIRS`): `packages/vera-ingest/src/vera_ingest/plugins.py`
 - Pipelines in a separate Python environment (`VERA_PIPELINE_PYTHON`): `packages/vera-ingest/src/vera_ingest/external.py`
 - Official OpenAI embedder: `packages/vera-embed-openai/src/vera_embed_openai`
 - MCP: `packages/vera-mcp/src/vera_mcp`
 - CLI (`vera` on PyPI): `packages/vera-cli/src/vera_cli`
-- Ingest layout lab (dev): `packages/vera-lab/src/vera_lab`
+- Layout lab (desktop Layout report and the `vera-lab` command): `packages/vera-lab/src/vera_lab`
 
 The current format spec is [docs/vera-spec-v0.2.md](docs/vera-spec-v0.2.md) —
 keep code and spec in sync. Details in

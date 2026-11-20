@@ -11,15 +11,14 @@ vera-ingest-docling ─┤
 vera-embed-openai ───┤
 vera-ingest ─────────┼──> vera-doc
 vera ────────────────┤
-vera-app ────────────┤
-vera-mcp ────────────┘
-vera-lab (dev only) ─┘
+vera-mcp ────────────┤
+vera-app ──> vera-lab ┘
 ```
 
 No package may make `vera-doc` depend on extraction, a user interface, MCP,
-evaluation tooling, or a source-file format. `vera-lab` is a contributor-only
-leaf (workspace `dev` extra); it is not shipped in releases or the packaged
-desktop sidecar.
+evaluation tooling, or a source-file format. `vera-app` depends on `vera-lab`,
+and the packaged sidecar includes it. The `vera-lab` command remains a
+contributor entry point.
 
 ### `vera-doc`
 
@@ -120,7 +119,9 @@ Extra ingest and embedding plugins are pip packages in that same environment.
 `vera-lab` is a contributor layout lab. It depends on `vera-ingest` and
 PyMuPDF, runs a pipeline (or reads an archive) into a normalized view model,
 and writes a self-contained HTML report with page overlays, lint, and stats.
-Nothing in the release path depends on it. See
+`vera-app` depends on it, and the packaged sidecar includes it. Desktop
+**Layout report** calls `build_report` for one archive. The `vera` command
+does not grow a lab subcommand. See
 [vera-lab](packages/vera-lab.md).
 
 ## Core Python API

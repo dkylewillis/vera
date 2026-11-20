@@ -1,5 +1,5 @@
 /** Why a folder picker opened; sets its title and confirm button. */
-export type FolderPickPurpose = 'library' | 'folder' | 'convert' | 'agent-library';
+export type FolderPickPurpose = 'library' | 'folder' | 'convert' | 'agent-library' | 'layout-lab';
 
 /** IPC invoke and event channel names shared by Electron main and preload. */
 export const IPC_CHANNELS = {
@@ -35,6 +35,7 @@ export const IPC_CHANNELS = {
   listFolder: 'vera:listFolder',
   pathExists: 'vera:pathExists',
   showInFolder: 'vera:showInFolder',
+  openPath: 'vera:openPath',
   openConvertLog: 'vera:openConvertLog',
   showConvertLogFolder: 'vera:showConvertLogFolder',
   getConvertLogPath: 'vera:getConvertLogPath',
@@ -98,6 +99,7 @@ export const SIDECAR_ACTIONS = {
   describeEmbeddingProviders: 'describe_embedding_providers',
   listEmbeddingModels: 'list_embedding_models',
   preflightEmbedder: 'preflight_embedder',
+  preflightIngestPipeline: 'preflight_ingest_pipeline',
   listIngestPipelines: 'list_ingest_pipelines',
   describeIngestPipelines: 'describe_ingest_pipelines',
   ocrLanguagesList: 'ocr_languages_list',
@@ -113,6 +115,7 @@ export const SIDECAR_ACTIONS = {
   pluginsList: 'plugins_list',
   pluginInstall: 'plugin_install',
   pluginRemove: 'plugin_remove',
+  layoutLab: 'layout_lab',
   cancel: 'cancel',
   skip: 'skip',
 } as const;

@@ -238,7 +238,7 @@ describe('createConversionController', () => {
           default_embedding_model: 'hashing',
         };
       }
-      if (payload.action === 'preflight_embedder') return { ok: true };
+      if (payload.action === 'preflight_embedder' || payload.action === 'preflight_ingest_pipeline') return { ok: true };
       return null;
     }) as ConversionHost['call'];
     const setBatchConvertResult = vi.fn();

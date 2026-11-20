@@ -8,6 +8,7 @@ from vera_app.chat import (
     _add_missing_regions,
     _answered_from,
     _builtin_tools,
+    _run_filter,
     _run_view_figure,
     has_library_scope,
 )
@@ -282,3 +283,65 @@ def test_view_figure_queues_a_session_image_and_hides_when_vision_is_off() -> No
     assert "view_figure" not in [tool.name for tool in table.offered(ctx)]
     writer = next(tool for tool in table.tools if tool.name == "write_markdown")
     assert writer.max_calls == 2
+    listed = next(tool for tool in table.tools if tool.name == "filter")
+    assert listed.max_calls == 2
+    assert "filter" in [tool.name for tool in table.offered(ctx)]
+
+
+def test_filter_lists_details_and_registers_citations(tmp_path) -> None:
+    from vera_doc import ChunkRecord, VeraDocument
+
+    archive = tmp_path / "drainage.vera"
+    with VeraDocument.create(archive) as document:
+        document.add(
+            [
+                ChunkRecord(
+                    id="chunk_0001",
+                    text="flume body",
+                    metadata={
+                        "record_type": "detail",
+                        "record_label": "CONCRETE FLUME",
+                        "cd_description": "Concrete flume carrying runoff.",
+                        "cd_detail_type": "flume",
+                        "cd_sheet_number": "C-701",
+                        "source_filename": "drainage.pdf",
+                        "page_start": 18,
+                        "heading_path": "C-701 > CONCRETE FLUME",
+                        "regions": [
+                            {
+                                "kind": "page_bbox",
+                                "page_number": 18,
+                                "bbox": [1, 2, 3, 4],
+                                "page_width": 10,
+                                "page_height": 20,
+                            }
+                        ],
+                    },
+                ),
+                ChunkRecord(
+                    id="chunk_0002",
+                    text="sheet",
+                    metadata={"record_type": "sheet", "record_label": "C-701", "page_start": 18},
+                ),
+            ]
+        )
+    mode = Mode(id="ask", label="Ask", max_searches=3, max_chunks=12)
+    request = {"path": str(archive)}
+    registry = CitationRegistry()
+    search_tool = SearchTool(request, mode, citations=registry)
+    ctx = ToolContext(
+        request=request,
+        mode=mode,
+        citations=registry,
+        search_tool=search_tool,
+    )
+    listed = _run_filter({"record_type": "detail"}, ctx)
+    assert listed["total"] == 1
+    assert listed["records"][0]["citation"] == "C1"
+    assert listed["records"][0]["label"] == "CONCRETE FLUME"
+    assert listed["records"][0]["detail_type"] == "flume"
+    assert listed["records"][0]["regions"][0]["bbox"] == [1, 2, 3, 4]
+    assert search_tool.chunk_count == 1
+    assert search_tool.citations[0]["result"]["chunk_id"] == "chunk_0001"
+    types = _run_filter({}, ctx)
+    assert {item["type"] for item in types["types"]} == {"detail", "sheet"}

@@ -9,7 +9,16 @@ from typing import Any
 from vera_doc import VeraDocument
 from vera_doc.models import thaw_json
 from vera_ingest.viewer import figures, get_blocks, get_chunk_regions, get_source_document
-from vera_lab.model import LabBlock, LabChunk, LabDocument, LabFigure, LabPage, LabRegion
+from vera_lab.model import (
+    LabBlock,
+    LabChunk,
+    LabDocument,
+    LabFigure,
+    LabPage,
+    LabRegion,
+    display_metadata,
+    json_safe,
+)
 
 
 def load_archive_document(archive_path: str | Path) -> LabDocument:
@@ -22,6 +31,7 @@ def load_archive_document(archive_path: str | Path) -> LabDocument:
         source = get_source_document(document)
         source_bytes = source.data
         archive_meta = document.metadata
+        archive_info = _archive_summary(document)
         page_rows = _viewer_pages(document)
         pages = [
             LabPage(
@@ -75,6 +85,7 @@ def load_archive_document(archive_path: str | Path) -> LabDocument:
                     token_count=int(metadata.get("token_count") or len(record.text.split())),
                     block_ids=linked,
                     regions=regions,
+                    metadata=display_metadata(metadata),
                 )
             )
         figure_rows = figures(document, include_data=True)
@@ -117,9 +128,18 @@ def load_archive_document(archive_path: str | Path) -> LabDocument:
             pipeline_spec=str(archive_meta.get("parser_name") or ""),
             pipeline_options={},
             mode="archive",
+            archive=archive_info,
         )
     finally:
         document.close()
+
+
+def _archive_summary(document: VeraDocument) -> dict[str, Any]:
+    """Inspect fields the report can draw, without the nested metadata copy."""
+    info = document.inspect()
+    info.pop("metadata", None)
+    safe = json_safe(info)
+    return safe if isinstance(safe, dict) else {}
 
 
 def _viewer_pages(document: VeraDocument) -> list[dict[str, Any]]:

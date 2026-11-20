@@ -79,37 +79,28 @@ retrieval implementation.
 
 Owns the Electron/React desktop app and Python sidecar. Depends directly on
 `vera-doc`, `vera-ingest`, `vera-ingest-pymupdf`, ONNX Runtime,
-`tokenizers`, and `vera-embed-openai`; it does not use the CLI as a backend. The packaged
+`tokenizers`, `vera-embed-openai`, and `vera-lab`; it does not use the CLI as a backend. The packaged
 Windows installer freezes PyMuPDF, OpenAI embeddings, plus a VERA-exported MiniLM ONNX graph
 (not Torch). The Docling CLI extra is
 not bundled in the installer.
 
 ## `vera-lab`
 
-Contributor layout lab (workspace `dev` extra only). Depends on `vera-ingest`
-and PyMuPDF. Writes a self-contained HTML report with block/chunk/figure
-overlays and layout lint. Not published as part of the release path and not a
-pipeline provider.
-
-## `vera-ingest-plans`
-
-Optional workspace plugin (`plans` extra; not published to PyPI and not in the
-desktop installer). Depends on `vera-ingest` and `vera-ingest-pymupdf` and
-registers the `plans` ingest pipeline for construction drawing sets
-(drawn-text OCR, detail titles in chunk text). Its wheel is pure Python, so the
-desktop app can install it from **Settings → Plugins**.
+Layout lab used by desktop **Layout report**, and by the contributor
+`vera-lab` command. Depends on `vera-ingest` and PyMuPDF. Writes a
+self-contained HTML report with block/chunk/figure overlays and layout lint.
+`vera-app` depends on it, so the packaged sidecar includes it. It is not a
+`vera` subcommand and not a pipeline provider.
 
 ## Dependency direction
 
 ```text
 vera-ingest-pymupdf ──> vera-ingest ─┐
 vera-ingest-docling ──> vera-ingest ─┤
-vera-ingest-plans ──> vera-ingest-pymupdf
 vera-embed-openai ───────────────────┤
 vera ─────────────────────────────────┼──> vera-doc
-vera-app ─────────────────────────────┤
+vera-app ──> vera-lab ────────────────┤
 vera-mcp ─────────────────────────────┘
-vera-lab (dev only) ──────────────────┘
 ```
 
 The uv workspace provides editable development links. Released packages use
