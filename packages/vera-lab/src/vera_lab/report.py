@@ -153,45 +153,45 @@ def _render_html(payload: dict[str, Any]) -> str:
     </div>
     <div class="controls">
       <div class="parser-switch" id="parser-switch"></div>
-      <label><input type="checkbox" data-layer="blocks" checked /> Blocks</label>
-      <label><input type="checkbox" data-layer="chunks" checked /> Chunks</label>
-      <label><input type="checkbox" data-layer="figures" checked /> Figures</label>
+      <label><input type="checkbox" data-layer="paragraph" checked /><i class="layer-swatch paragraph"></i>paragraph</label>
+      <label><input type="checkbox" data-layer="heading" checked /><i class="layer-swatch heading"></i>heading</label>
+      <label><input type="checkbox" data-layer="table" checked /><i class="layer-swatch table"></i>table</label>
+      <label><input type="checkbox" data-layer="caption" checked /><i class="layer-swatch caption"></i>caption</label>
+      <label><input type="checkbox" data-layer="image" checked /><i class="layer-swatch image"></i>image</label>
+      <label><input type="checkbox" data-layer="other" checked /><i class="layer-swatch other"></i>other</label>
     </div>
   </header>
   <div class="layout">
-    <nav class="page-rail" id="page-rail" aria-label="Pages"></nav>
-    <main class="pages" id="pages"></main>
+    <div class="viewer">
+      <nav class="pager" id="pager" aria-label="Pages"></nav>
+      <main class="pages" id="pages"></main>
+    </div>
     <aside class="sidebar">
-      <div class="sidebar-pin" id="archive"></div>
-      <div class="sidebar-pin selection-pin">
-        <h3>Selection</h3>
-        <div class="detail" id="detail">Select a block, chunk, or figure.</div>
+      <div class="inspector-tabs" role="tablist">
+        <button type="button" data-tab="chunk" role="tab">chunk</button>
+        <button type="button" data-tab="file" class="active" role="tab" aria-selected="true">File</button>
+        <button type="button" data-tab="map" role="tab">map</button>
+        <button type="button" data-tab="index" role="tab">Index</button>
       </div>
-      <div class="sidebar-scroll">
-        <section data-section="compare" hidden>
-          <h3>Compare</h3>
-          <div id="compare"></div>
-        </section>
-        <section>
-          <h3>Layout</h3>
-          <div id="stats"></div>
-        </section>
-        <section>
-          <h3>Issues</h3>
+      <div class="inspector-body">
+        <div class="tab-panel" data-panel="chunk" hidden>
+          <div class="detail" id="detail">Click a region on the sheet.</div>
+        </div>
+        <div class="tab-panel" data-panel="file">
+          <section data-section="compare" hidden>
+            <div id="compare"></div>
+          </section>
+          <div id="archive"></div>
+          <p id="counts" class="counts"></p>
           <div id="issues"></div>
-        </section>
-        <section>
-          <h3>Blocks</h3>
-          <div class="list" id="block-list"></div>
-        </section>
-        <section>
-          <h3>Chunks</h3>
-          <div class="list" id="chunk-list"></div>
-        </section>
-        <section>
-          <h3>Figures</h3>
-          <div class="list" id="figure-list"></div>
-        </section>
+        </div>
+        <div class="tab-panel" data-panel="map" hidden>
+          <div id="schema-map"></div>
+        </div>
+        <div class="tab-panel" data-panel="index" hidden>
+          <input id="index-filter" class="index-filter" type="search" placeholder="Filter records" />
+          <div id="chunk-index"></div>
+        </div>
       </div>
     </aside>
   </div>

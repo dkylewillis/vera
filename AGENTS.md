@@ -66,8 +66,8 @@ vera inspect manual.vera --json
 # Fetch one stored chunk by id (citation-ready text, no score)
 vera get manual.vera chunk_0042 --json
 
-# List every record of one type (complete, unranked; each row has file and bbox)
-vera filter ./plans --type detail --json
+# List every chunk matching metadata (complete, unranked; each row has file and bbox)
+vera filter ./plans --where record_type=detail --json
 
 # Is this file well-formed? (exit code 0 = valid, 1 = invalid)
 vera validate manual.vera --json
@@ -182,7 +182,7 @@ dimension-incompatible. Result order is the rank; the CLI does not emit a
 8. **Reload a known `chunk_id` with `vera get`** when you need the stored chunk body
    or to verify that a quoted span is still in `text`. Searching again is not a
    substitute: rank can change, and keyword search can miss a short quote.
-9. **List every record of a type with `vera filter`, not with search.** `vera filter PATH --type detail --json` returns every matching chunk, with `file`, `chunk_id`, label, description, page, and `regions`. Omit `--type` to see which types exist. Search ranks a query and stops at `--top_k`, so it cannot enumerate a type.
+9. **List every matching chunk with `vera filter`, not with search.** Omit `--where` to read `facets`: the filterable fields on that file and, when few distinct values exist, those values. Then `vera filter PATH --where KEY=VALUE --json` returns every match, with `file`, `chunk_id`, `metadata`, page, and `regions`. Do not assume a field such as `record_type` exists. Search ranks a query and stops at `--top_k`, so it cannot enumerate a set. `--where` on search only narrows that ranked page.
 10. **Filter search with `--where` / `--include`, not by dropping search JSON.** `--where`
    is applied before `top_k`. Convert `--metadata` tags live on the archive and
    every chunk. Convert-owned archive headers (for example `source_file_name`)
@@ -212,7 +212,7 @@ VERA ships an MCP server (stdio) exposing the same capabilities as tools:
 | `vera_library_info` | Approved `library_roots` and `libraries` (name and path; `library_root` when there is one) and whether the server is unrestricted local MCP or the Desktop agent service |
 | `vera_library_status` | Read-only pending-change report for a managed library (no sync, no deletes) |
 | `vera_search` | Hybrid/semantic/keyword search with optional figure metadata, highlight regions, and pretty context |
-| `vera_filter` | List every chunk of one `record_type`, with file, sheet, page, and highlight box |
+| `vera_filter` | List every chunk matching metadata, with file, page, and highlight box |
 | `vera_corpus_search` | Search every .vera file in a directory as one corpus; results attributed per file, with optional pretty context |
 | `vera_inspect` | Document metadata, page/chunk counts, embedding model, pipeline `ocr` diagnostics |
 | `vera_validate` | Integrity check |

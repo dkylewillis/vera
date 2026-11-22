@@ -123,7 +123,7 @@ export interface VeraApi {
   pluginsChooseEnvironment(): Promise<VeraResponse<PluginsListResult> | null>;
   pluginsClearEnvironment(): Promise<VeraResponse<PluginsListResult>>;
   pickArchive(): Promise<string | null>;
-  pickFolder(purpose?: FolderPickPurpose): Promise<string | null>;
+  pickFolder(purpose?: FolderPickPurpose, defaultPath?: string): Promise<string | null>;
   listFolder(dir: string): Promise<WorkspaceFolderResult | null>;
   pathExists(targetPath: string): Promise<boolean>;
   showInFolder(targetPath: string): Promise<void>;

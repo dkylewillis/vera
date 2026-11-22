@@ -1,6 +1,7 @@
 import { SIDECAR_ACTIONS } from '../../shared/protocol';
 import type { LibrarySyncReport, LibraryTrashEntry, StreamEvent, VeraResponse } from '../types';
 import type { BackgroundTask } from './backgroundTasks';
+import type { LibraryPdfSetup } from './libraryPipelines';
 
 /** Archive written for this source during the sync that just finished. */
 export function convertedArchivePath(
@@ -68,8 +69,11 @@ export async function prepareManagedLibrary(
   options: {
     model?: string;
     askAdopt?: (count: number) => Promise<boolean>;
-    /** Pipeline for the library's PDFs, for example a plugin's `plans`; `null` keeps the default. */
-    askPdfPipeline?: () => Promise<string | null>;
+    /**
+     * Pipeline for the library's PDFs, plus any folder rules chosen before
+     * conversion. `null` keeps pymupdf for every PDF.
+     */
+    askPdfPipeline?: () => Promise<LibraryPdfSetup | null>;
   } = {},
 ): Promise<LibrarySyncReport | null> {
   const status = await request<LibrarySyncReport>({
@@ -78,7 +82,13 @@ export async function prepareManagedLibrary(
   });
   const report = status.ok ? status.result ?? null : null;
   if (!report || report.managed || report.inside_library) return report;
-  const pdfPipeline = options.askPdfPipeline ? await options.askPdfPipeline() : null;
+  const setup = options.askPdfPipeline ? await options.askPdfPipeline() : null;
+  const pipelineRules = setup
+    ? [
+      ...(setup.parser ? [{ folder: '', parser: setup.parser }] : []),
+      ...setup.rules.filter((rule) => rule.folder && rule.parser),
+    ]
+    : [];
   let adopt = false;
   const adoptable = report.adoptable?.length ?? 0;
   if (adoptable > 0 && options.askAdopt) adopt = await options.askAdopt(adoptable);
@@ -87,7 +97,7 @@ export async function prepareManagedLibrary(
     path: folderPath,
     adopt,
     model: options.model,
-    ...(pdfPipeline ? { pipeline_rules: [{ folder: '', parser: pdfPipeline }] } : {}),
+    ...(pipelineRules.length ? { pipeline_rules: pipelineRules } : {}),
   });
   if (!created.ok) return null;
   return report;

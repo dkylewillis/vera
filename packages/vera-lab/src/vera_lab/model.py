@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from vera_ingest.types import IngestBlock, IngestChunk, IngestResult
+from vera_lab.schema import build_key_schema
 
 
 @dataclass
@@ -111,6 +112,7 @@ class LabDocument:
     pipeline_options: dict[str, Any] = field(default_factory=dict)
     mode: str = "live"
     archive: dict[str, Any] = field(default_factory=dict)
+    schema: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -127,6 +129,7 @@ class LabDocument:
             "pipeline_options": dict(self.pipeline_options),
             "mode": self.mode,
             "archive": dict(self.archive),
+            "schema": dict(self.schema),
             "page_count": len(self.pages),
             "block_count": len(self.blocks),
             "chunk_count": len(self.chunks),
@@ -138,10 +141,6 @@ _HIDDEN_METADATA = {
     "regions",
     "text",
     "embedding_text",
-    "page_start",
-    "page_end",
-    "heading_path",
-    "token_count",
     "block_ids",
     "chunk_id",
 }
@@ -317,6 +316,20 @@ def lab_document_from_ingest_result(
         pipeline_spec=pipeline_spec,
         pipeline_options=dict(pipeline_options or {}),
         mode="live",
+        schema=build_key_schema(
+            chunk_metadata=[
+                {
+                    **dict(chunk.metadata),
+                    "page_start": chunk.page_start,
+                    "page_end": chunk.page_end,
+                    "heading_path": chunk.heading_path,
+                    "token_count": chunk.token_count,
+                }
+                for chunk in result.chunks
+            ],
+            parser_name=result.parser_name,
+            parser_version=result.parser_version,
+        ),
     )
 
 

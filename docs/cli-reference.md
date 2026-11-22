@@ -130,30 +130,31 @@ as `vera search`. An unknown or whitespace-only id exits 1 with
 
 ## `vera filter PATH`
 
-List every chunk of one `record_type`, or the types present when `--type` is
-omitted. `PATH` is one `.vera` file or a directory of them. This is a complete
-unranked list. It does not search, and it does not read the archive header or
-attachments.
+List every chunk whose metadata matches `--where`, or the filter facets when
+`--where` is omitted. `PATH` is one `.vera` file or a directory of them.
+This is a complete unranked list. It does not search, and it does not read the
+archive header or attachments. Locator fields such as `page_start` and
+`heading_path` are not facets.
 
 Options:
 
-- `--type TYPE` exact `record_type`, such as `detail`
+- `--where KEY=VALUE` exact metadata match (repeatable). Distinct keys are AND; comma-separated values are IN.
 - `--recursive` include nested folders. A managed library already includes its archives.
 - `--json`
 
-Without `--type`, JSON is `types` (`type` and `count`) plus `skipped_files`.
-With `--type`, JSON adds `record_type`, `total`, and `records`. An unknown type
-returns an empty `records` list and the types that do exist. Each record is a
-locator: `file`, `path`, `source_filename`, `chunk_id`, `record_type`, `label`,
-`description`, `page_start`, `page_end`, `heading_path`, and `regions`.
-`sheet_number`, `detail_number`, and `detail_type` appear when the chunk has
-them. The chunk text and figure bytes are omitted; open one row with
-`vera get`. A malformed archive is listed in `skipped_files` and the rest of
-the folder is still returned.
+Without `--where`, JSON is `facets` plus `skipped_files`. Each facet has `key`,
+`count`, and `distinct`. `values` (`value` and `count`) is included when few
+distinct values exist. With `--where`, JSON adds `where`, `total`, and
+`records`, and still includes `facets`. A miss returns an empty `records` list.
+Each record is a locator: `file`, `path`, `source_filename`, `chunk_id`,
+`page_start`, `page_end`, `heading_path`, `regions`, and `metadata`. Scalar
+chunk metadata keeps its stored names inside `metadata`. The chunk text and
+figure bytes are omitted; open one row with `vera get`. A malformed archive is
+listed in `skipped_files` and the rest of the folder is still returned.
 
 ```bash
-vera filter C:\Plans --type detail --json
-vera filter C:\Plans\drainage.vera --type detail --json
+vera filter C:\Plans --json
+vera filter C:\Plans --where record_type=detail --where cd_sheet_number=C-501 --json
 ```
 
 ## `vera search FILE_OR_DIRECTORY QUERY`

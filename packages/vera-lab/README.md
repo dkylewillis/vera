@@ -33,9 +33,16 @@ vera-lab manual.vera -o archive.html
 ```
 
 Open the HTML file in a browser. The page and the side pane scroll separately.
-The side pane shows archive metadata, then the selected record. Clicking a
-detail, block, or figure shows that record's title, type, description, and
-the blocks inside it. Toggle Blocks / Chunks / Figures layers to hide overlays.
+The map tab draws the tables, the links between them, and the keys added
+by the ingest pipeline. Open a box to list every key stored on that object.
+The side pane follows the file: `vera_metadata`, `archive_metadata`,
+`chunks` / `metadata_json`, then the other tables. Default keys are blue
+and keys added by the ingest pipeline are amber. Scalar fields stay in
+a key/value table. Nested objects stay nested, and a long list sits full
+width under its key.
+Clicking a detail, block, or figure shows that chunk's `metadata_json`
+and the `viewer_blocks` object linked by `regions.block_id`. The sheet
+boxes follow `block_type`: paragraph, heading, table, caption, image, or other.
 
 Constraints: live mode does not write embeddings or an archive; archive mode
 needs an embedded source PDF (`--store-original` defaults to true);

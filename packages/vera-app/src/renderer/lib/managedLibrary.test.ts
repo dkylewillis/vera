@@ -77,9 +77,26 @@ describe('prepareManagedLibrary', () => {
       inits.push(payload);
       return { ok: true, result: { library_id: 'abc' } as T };
     };
-    await prepareManagedLibrary('C:\\plans', request, { askPdfPipeline: async () => 'plans' });
+    await prepareManagedLibrary('C:\\plans', request, { askPdfPipeline: async () => ({ parser: 'plans', rules: [] }) });
     await prepareManagedLibrary('C:\\docs', request, { askPdfPipeline: async () => null });
+    await prepareManagedLibrary('C:\\jobs', request, {
+      askPdfPipeline: async () => ({
+        parser: null,
+        rules: [{ folder: 'Projects/*/Plans', parser: 'plans' }],
+      }),
+    });
+    await prepareManagedLibrary('C:\\mixed', request, {
+      askPdfPipeline: async () => ({
+        parser: 'plans',
+        rules: [{ folder: 'Specs', parser: 'pymupdf' }],
+      }),
+    });
     expect(inits[0].pipeline_rules).toEqual([{ folder: '', parser: 'plans' }]);
     expect(inits[1]).not.toHaveProperty('pipeline_rules');
+    expect(inits[2].pipeline_rules).toEqual([{ folder: 'Projects/*/Plans', parser: 'plans' }]);
+    expect(inits[3].pipeline_rules).toEqual([
+      { folder: '', parser: 'plans' },
+      { folder: 'Specs', parser: 'pymupdf' },
+    ]);
   });
 });

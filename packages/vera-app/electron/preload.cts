@@ -123,7 +123,7 @@ contextBridge.exposeInMainWorld('vera', {
   pluginsChooseEnvironment: () => ipcRenderer.invoke(IPC_CHANNELS.pluginsChooseEnvironment),
   pluginsClearEnvironment: () => ipcRenderer.invoke(IPC_CHANNELS.pluginsClearEnvironment),
   pickArchive: () => ipcRenderer.invoke(IPC_CHANNELS.pickArchive),
-  pickFolder: (purpose?: FolderPickPurpose) => ipcRenderer.invoke(IPC_CHANNELS.pickFolder, purpose),
+  pickFolder: (purpose?: FolderPickPurpose, defaultPath?: string) => ipcRenderer.invoke(IPC_CHANNELS.pickFolder, purpose, defaultPath),
   listFolder: (dir: string) => ipcRenderer.invoke(IPC_CHANNELS.listFolder, dir),
   pathExists: (targetPath: string) => ipcRenderer.invoke(IPC_CHANNELS.pathExists, targetPath),
   showInFolder: (targetPath: string) => ipcRenderer.invoke(IPC_CHANNELS.showInFolder, targetPath),

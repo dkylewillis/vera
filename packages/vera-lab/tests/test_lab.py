@@ -16,6 +16,7 @@ from vera_lab.lint import lint_document, lint_ingest_result
 from vera_lab.model import LabBlock, LabChunk, LabDocument, LabPage, lab_document_from_ingest_result
 from vera_lab.report import build_report
 from vera_lab.run import load_live_document, validate_pipeline_options
+from vera_lab.schema import build_key_schema
 from vera_lab.stats import compute_stats
 
 
@@ -297,7 +298,7 @@ def test_archive_round_trip(tmp_path: Path):
     html = output.read_text(encoding="utf-8")
     assert output.is_file()
     assert 'id="archive"' in html
-    assert 'id="page-rail"' in html
+    assert 'id="pager"' in html
     start = html.index("window.__VERA_LAB__ = ") + len("window.__VERA_LAB__ = ")
     end = html.index(";\n", start)
     payload = json.loads(html[start:end])
@@ -307,6 +308,56 @@ def test_archive_round_trip(tmp_path: Path):
     assert archive_info["parser_name"] == "pymupdf"
     assert archive_info["pages"] >= 1
     assert "metadata" in document["chunks"][0]
+    schema = document["schema"]
+    assert schema["format_keys"]["format_version"]
+    assert schema["convert_keys"]["parser_name"] == "pymupdf"
+    assert "page_start" in schema["base_chunk_keys"]
+    assert "chunks" in schema["tables"]
+
+
+def test_key_schema_splits_format_convert_and_pipeline():
+    schema = build_key_schema(
+        header={
+            "format_version": "0.2",
+            "default_embedding_model": "hashing",
+            "archive_metadata": "{}",
+        },
+        archive_metadata={
+            "parser_name": "plansheet",
+            "parser_version": "0.2.0",
+            "source_file_name": "site.pdf",
+            "company": "GRID",
+            "ocr": {"ocr_engine": "tesseract"},
+        },
+        chunk_metadata=[
+            {
+                "page_start": 1,
+                "page_end": 1,
+                "record_type": "detail",
+                "cd_sheet_number": "C100",
+                "cd_description": "A long description that should not be tallied as a value.",
+                "regions": [{"kind": "page_bbox", "page_number": 1, "bbox": [0, 0, 1, 1]}],
+            },
+            {
+                "page_start": 2,
+                "record_type": "sheet",
+                "cd_sheet_number": "C000",
+            },
+        ],
+    )
+    assert "archive_metadata" not in schema["format_keys"]
+    assert schema["format_keys"]["format_version"] == "0.2"
+    assert schema["convert_keys"]["parser_name"] == "plansheet"
+    assert schema["convert_keys"]["ocr"]["ocr_engine"] == "tesseract"
+    assert schema["caller_keys"] == {"company": "GRID"}
+    assert schema["pipeline"]["name"] == "plansheet"
+    assert schema["base_chunk_keys"] == ["page_end", "page_start", "regions"]
+    assert "kind" in schema["region_keys"]
+    by_key = {item["key"]: item for item in schema["pipeline"]["keys"]}
+    assert by_key["record_type"]["values"] == {"detail": 1, "sheet": 1}
+    assert by_key["cd_sheet_number"]["values"]["C100"] == 1
+    assert "values" not in by_key["cd_description"]
+    assert by_key["cd_description"]["record_types"] == ["detail"]
 
 
 def test_compare_mode_emits_multiple_runs(tmp_path: Path):

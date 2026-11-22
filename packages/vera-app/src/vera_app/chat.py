@@ -236,7 +236,8 @@ SEARCH_TOOL = {
             "Search the open VERA document or corpus for passages relevant to a query. "
             "Call this as many times as needed (refining the query, mode, or breadth) "
             "to gather evidence before answering. Returns ranked passages, each with a "
-            "citation id you must reuse when citing."
+            "citation id you must reuse when citing. Pass where only with a key and value "
+            "you already saw in filter facets. Search does not list every match."
         ),
         "parameters": {
             "type": "object",
@@ -275,6 +276,22 @@ SEARCH_TOOL = {
                         "permissive = keep almost everything. If a search returns too few "
                         "passages, retry with a more permissive quality."
                     ),
+                },
+                "where": {
+                    "type": "object",
+                    "description": (
+                        "Optional metadata filter applied before ranking. Keys are AND. "
+                        "A string or number is exact equality. An array is IN. Use a key "
+                        "and value from filter facets. Do not guess field names."
+                    ),
+                    "additionalProperties": {
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "number"},
+                            {"type": "boolean"},
+                            {"type": "array", "items": {"type": "string"}},
+                        ]
+                    },
                 },
             },
             "required": ["query"],
@@ -415,21 +432,30 @@ FILTER_TOOL = {
     "function": {
         "name": "filter",
         "description": (
-            "List every record of one type in the open document or library. "
-            "Use this when the user wants a complete set, such as every detail or every sheet. "
-            "Returns each match with a citation id, label, description, sheet, page, and "
-            "highlight box. Omit record_type to see which types exist. "
-            "Use search instead when the question is a lookup."
+            "List every chunk whose metadata matches where, with no ranking and no result cap. "
+            "Use this when the user wants a complete set. Omit where first: the response is "
+            "facets for this file, not a fixed schema. A facet lists its values when few "
+            "distinct values exist. Then call filter again with where using one of those "
+            "keys and values. Use search instead when the question is a lookup."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "record_type": {
-                    "type": "string",
+                "where": {
+                    "type": "object",
                     "description": (
-                        "Exact record type, such as detail, sheet, or feature. "
-                        "Omit to list the types present and a count for each."
+                        "Metadata filter. Keys are AND. A string or number is exact equality. "
+                        "An array is IN. Use a key and value from the facets. "
+                        "Omit where to read the facets."
                     ),
+                    "additionalProperties": {
+                        "anyOf": [
+                            {"type": "string"},
+                            {"type": "number"},
+                            {"type": "boolean"},
+                            {"type": "array", "items": {"type": "string"}},
+                        ]
+                    },
                 },
             },
             "additionalProperties": False,
@@ -450,34 +476,33 @@ def _filter_targets(request: Request) -> list[str]:
 
 
 def _run_filter(arguments: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
-    """List typed chunks and register each one as a citation."""
+    """List chunks matching metadata and register each one as a citation."""
     if ctx.search_tool is None:
         return {"error": "Filter is not available."}
-    from vera_ingest.viewer import filter_records
+    from vera_ingest.viewer import combine_facets, filter_records
 
-    record_type = str(arguments.get("record_type") or "").strip()
+    raw_where = arguments.get("where")
+    where = raw_where if isinstance(raw_where, dict) and raw_where else None
     targets = _filter_targets(ctx.request)
     if not targets:
         return {"error": "No document or library is open."}
-    query = record_type or "record types"
+    query = json.dumps(where, sort_keys=True) if where else "facets"
     if ctx.write_event:
         ctx.write_event({"event": "search_start", "query": query, "mode": "filter", "top_k": 0})
-    counts: dict[str, int] = {}
+    facet_groups: list[list[dict[str, Any]]] = []
     records: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     errors: list[str] = []
     for target in targets:
         try:
-            payload = filter_records(target, record_type or None)
+            payload = filter_records(target, where)
         except (FileNotFoundError, NotADirectoryError, OSError) as exc:
             errors.append(str(exc))
             continue
-        for item in payload.get("types") or []:
-            name = str(item.get("type") or "")
-            if name:
-                counts[name] = counts.get(name, 0) + int(item.get("count") or 0)
+        facet_groups.append(list(payload.get("facets") or []))
         skipped.extend(payload.get("skipped_files") or [])
-        records.extend(payload.get("records") or [])
+        if where:
+            records.extend(payload.get("records") or [])
     passages = []
     for row in records:
         if not isinstance(row, dict):
@@ -485,23 +510,19 @@ def _run_filter(arguments: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
         if ctx.search_tool._citations.seen(row):
             continue
         citation_id = ctx.search_tool._register(row)
-        passage: dict[str, Any] = {
-            "citation": citation_id,
-            "source": _source_name(ctx.request, row),
-            "record_type": row.get("record_type"),
-            "label": row.get("label"),
-            "description": row.get("description"),
-            "page_start": row.get("page_start"),
-            "page_end": row.get("page_end"),
-            "heading_path": row.get("heading_path"),
-            "file": row.get("file"),
-            "chunk_id": row.get("chunk_id"),
-            "regions": row.get("regions") or [],
-        }
-        for key in ("sheet_number", "detail_number", "detail_type"):
-            if row.get(key):
-                passage[key] = row[key]
-        passages.append(passage)
+        passages.append(
+            {
+                "citation": citation_id,
+                "source": _source_name(ctx.request, row),
+                "page_start": row.get("page_start"),
+                "page_end": row.get("page_end"),
+                "heading_path": row.get("heading_path"),
+                "file": row.get("file"),
+                "chunk_id": row.get("chunk_id"),
+                "regions": row.get("regions") or [],
+                "metadata": row.get("metadata") or {},
+            }
+        )
     ctx.search_tool.searches.append(
         {"query": query, "mode": "filter", "top_k": len(passages), "hits": len(passages)}
     )
@@ -509,20 +530,23 @@ def _run_filter(arguments: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
         ctx.write_event(
             {"event": "search_done", "query": query, "mode": "filter", "hits": len(passages)}
         )
-    if errors and not counts and not passages:
+    if errors and not facet_groups and not passages:
         return {"error": errors[0]}
     response: dict[str, Any] = {
-        "record_type": record_type,
-        "types": [{"type": name, "count": counts[name]} for name in sorted(counts)],
+        "where": where or {},
+        "facets": combine_facets(facet_groups),
         "total": len(passages),
         "records": passages,
     }
     if skipped:
         response["skipped_files"] = skipped
-    if not record_type:
-        response["note"] = "Pass record_type to list every record of one type."
+    if not where:
+        response["note"] = (
+            "These facets are the filterable fields on this file. "
+            "Pass where with one of these keys and values to list every matching chunk."
+        )
     elif not passages:
-        response["note"] = "No records of that type. The types list shows what is present."
+        response["note"] = "No chunks matched where. facets shows the fields and values present."
     return response
 
 
@@ -737,6 +761,8 @@ class SearchTool:
         if active_override is not None:
             search_request["paths"] = list(active_override)
             search_request.pop("path", None)
+        raw_where = arguments.get("where")
+        where = raw_where if isinstance(raw_where, dict) and raw_where else None
         results = search(
             {
                 **search_request,
@@ -749,6 +775,7 @@ class SearchTool:
                 # Fetch actual image bytes (not just captions) so citations carry a
                 # `data_url` the UI can render and so we can offer images to the LLM.
                 "include_figure_data": include_figures,
+                **({"where": where} if where else {}),
             },
             cancel=self._cancel,
         )

@@ -314,40 +314,49 @@ Desktop Document Info summarizes PyMuPDF-shaped keys only.
 
 ### `vera filter PATH`
 
-List every chunk whose `record_type` equals `--type`, or the types present when
-`--type` is omitted. `PATH` is one `.vera` file or a directory of them. The
-list is complete and unranked. It does not search, and it does not read the
+List every chunk whose metadata matches `--where`, or the filter facets when
+`--where` is omitted. `PATH` is one `.vera` file or a directory of them.
+The list is complete and unranked. It does not search, and it does not read the
 archive header or attachments. `--recursive` includes nested folders. A managed
-library already includes the archives under `.vera/archives`.
+library already includes the archives under `.vera/archives`. Distinct `--where`
+keys are AND. A comma-separated value is IN. Locator fields such as `page_start`
+and `heading_path` are not facets.
 
-`--json` without `--type`:
+`--json` without `--where`:
 
 ```json
 {
   "ok": true,
   "file": "C:/Plans",
   "path": "C:/Plans",
-  "types": [
-    {"type": "detail", "count": 42},
-    {"type": "sheet", "count": 18}
+  "facets": [
+    {
+      "key": "record_type",
+      "count": 60,
+      "distinct": 2,
+      "values": [
+        {"value": "detail", "count": 42},
+        {"value": "sheet", "count": 18}
+      ]
+    }
   ],
   "skipped_files": []
 }
 ```
 
-`--json --type detail` adds `record_type`, `total`, and `records`. An unknown
-type returns `"records": []` and `"total": 0`, plus the `types` that do exist.
-Each record contains `file`, `path`, `source_filename`, `chunk_id`,
-`record_type`, `label`, `description`, `page_start`, `page_end`,
-`heading_path`, and `regions` (page, bbox, page width, and page height).
-`sheet_number`, `detail_number`, and `detail_type` are present only when the
-chunk stored them. Chunk text and figure bytes are omitted. Reload one row
-with `vera get FILE CHUNK_ID --json`. A malformed archive is reported in
+`--json --where record_type=detail` adds `where`, `total`, and `records`, and
+still includes `facets`. A miss returns `"records": []` and `"total": 0`. A
+facet with many distinct values has `distinct` and no `values`. Each record
+contains `file`, `path`, `source_filename`, `chunk_id`, `page_start`,
+`page_end`, `heading_path`, `regions` (page, bbox, page width, and page
+height), and `metadata`. Scalar chunk metadata keeps its stored names inside
+`metadata`. Chunk text and figure bytes are omitted. Reload one row with
+`vera get FILE CHUNK_ID --json`. A malformed archive is reported in
 `skipped_files` and does not drop the other files.
 
 ```bash
-vera filter "C:/Plans" --type detail --json
-vera filter "drainage.vera" --type detail --json
+vera filter "C:/Plans" --json
+vera filter "drainage.vera" --where cd_detail_type=flume,headwall --json
 ```
 
 ### `vera get FILE CHUNK_ID`

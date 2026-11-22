@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from vera_doc import AttachmentRecord, ChunkRecord, QueryResult, VeraDocument
+from vera_doc._where import metadata_matches
 from vera_doc.corpus import VeraCorpus
 from vera_doc.models import thaw_json
 
@@ -261,71 +262,144 @@ def _metadata_text(metadata: Mapping[str, Any], key: str) -> str:
     return ""
 
 
+def _scalar_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
+    """Top-level scalar metadata, under the keys stored on the chunk."""
+    scalars: dict[str, Any] = {}
+    for key, value in metadata.items():
+        if key == "regions" or isinstance(value, (Mapping, list, tuple)):
+            continue
+        if isinstance(value, str):
+            if not value.strip():
+                continue
+            scalars[key] = value
+            continue
+        if isinstance(value, (bool, int, float)):
+            scalars[key] = value
+    return scalars
+
+
 def _filter_row(metadata: Mapping[str, Any], chunk_id: str, archive: str) -> dict[str, Any]:
-    """Locator for one typed chunk. The body and figure bytes stay on ``vera get``."""
+    """Locator for one matching chunk. The body and figure bytes stay on ``vera get``."""
     regions = metadata.get("regions")
-    row: dict[str, Any] = {
+    return {
         "file": archive,
         "path": str(Path(archive).resolve()),
         "source_filename": _metadata_text(metadata, "source_filename") or None,
         "chunk_id": chunk_id,
-        "record_type": _metadata_text(metadata, "record_type"),
-        "label": _metadata_text(metadata, "record_label"),
-        "description": _metadata_text(metadata, "cd_description"),
         "page_start": metadata.get("page_start"),
         "page_end": metadata.get("page_end"),
         "heading_path": _metadata_text(metadata, "heading_path") or None,
         "regions": [dict(region) for region in regions if isinstance(region, Mapping)]
         if isinstance(regions, list)
         else [],
+        "metadata": _scalar_metadata(metadata),
     }
-    sheet_number = _metadata_text(metadata, "cd_sheet_number")
-    detail_number = _metadata_text(metadata, "cd_detail_number")
-    detail_type = _metadata_text(metadata, "cd_detail_type")
-    if sheet_number:
-        row["sheet_number"] = sheet_number
-    if detail_number:
-        row["detail_number"] = detail_number
-    if detail_type:
-        row["detail_type"] = detail_type
-    return row
 
 
-def _scan_record_types(
-    document: VeraDocument, archive: str
-) -> tuple[Counter[str], list[dict[str, Any]]]:
+# Locator fields written for every chunk. They are not useful filter facets.
+_LOCATOR_KEYS = frozenset(
+    {
+        "document_id",
+        "source_filename",
+        "page_start",
+        "page_end",
+        "heading_path",
+        "token_count",
+        "regions",
+    }
+)
+# Distinct values at or below this count are listed. Larger sets name the key only.
+_FACET_VALUE_LIMIT = 32
+
+
+def _facet(key: str, count: int, bucket: Counter[Any]) -> dict[str, Any]:
+    facet: dict[str, Any] = {"key": key, "count": count, "distinct": len(bucket)}
+    if len(bucket) <= _FACET_VALUE_LIMIT:
+        facet["values"] = [
+            {"value": value, "count": value_count}
+            for value, value_count in sorted(
+                bucket.items(), key=lambda item: (-item[1], str(item[0]))
+            )
+        ]
+    return facet
+
+
+def _facets_from(counts: Counter[str], buckets: dict[str, Counter[Any]]) -> list[dict[str, Any]]:
+    return [_facet(key, counts[key], buckets.get(key, Counter())) for key in sorted(counts)]
+
+
+def combine_facets(groups: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """Merge facet lists from several archives. A truncated key stays truncated."""
     counts: Counter[str] = Counter()
+    buckets: dict[str, Counter[Any]] = {}
+    omitted: set[str] = set()
+    for group in groups:
+        for facet in group:
+            key = str(facet.get("key") or "")
+            if not key:
+                continue
+            counts[key] += int(facet.get("count") or 0)
+            listed = facet.get("values")
+            if not isinstance(listed, list):
+                omitted.add(key)
+                continue
+            bucket = buckets.setdefault(key, Counter())
+            for item in listed:
+                if isinstance(item, dict) and "value" in item:
+                    bucket[item["value"]] += int(item.get("count") or 0)
+    facets: list[dict[str, Any]] = []
+    for key in sorted(counts):
+        if key in omitted:
+            facets.append({"key": key, "count": counts[key]})
+            continue
+        facets.append(_facet(key, counts[key], buckets.get(key, Counter())))
+    return facets
+
+
+def _scan_chunks(
+    document: VeraDocument,
+    archive: str,
+    where: Mapping[str, Any] | None,
+) -> tuple[Counter[str], dict[str, Counter[Any]], list[dict[str, Any]]]:
+    counts: Counter[str] = Counter()
+    buckets: dict[str, Counter[Any]] = {}
     rows: list[dict[str, Any]] = []
     for item in document.iter_chunk_metadata():
         metadata = item["metadata"]
-        record_type = _metadata_text(metadata, "record_type")
-        if not record_type:
+        if not isinstance(metadata, Mapping):
             continue
-        counts[record_type] += 1
-        rows.append(_filter_row(metadata, str(item["chunk_id"]), archive))
-    return counts, rows
-
-
-def _type_summary(counts: Counter[str]) -> list[dict[str, Any]]:
-    return [{"type": name, "count": counts[name]} for name in sorted(counts)]
+        for key, value in _scalar_metadata(metadata).items():
+            if key in _LOCATOR_KEYS:
+                continue
+            counts[key] += 1
+            buckets.setdefault(key, Counter())[value] += 1
+        if where and metadata_matches(metadata, where):
+            rows.append(_filter_row(metadata, str(item["chunk_id"]), archive))
+    return counts, buckets, rows
 
 
 def filter_records(
     requested: str,
-    record_type: str | None = None,
+    where: Mapping[str, Any] | None = None,
     *,
     recursive: bool | None = None,
 ) -> dict[str, Any]:
-    """List chunks by ``record_type``, or the types present when the type is omitted.
+    """List every chunk matching ``where``, or the filter facets when it is omitted.
+
+    ``where`` is the same predicate as search: distinct keys are AND, a scalar is
+    exact equality, and a list value is IN. An omitted or empty filter does not
+    return the corpus. It returns ``facets``: metadata keys other than the
+    locator fields, with their values when few distinct values exist.
 
     A directory is discovered the same way directory search discovers archives.
     The collection index is not used. Malformed archives are skipped and reported.
-    Each row is a locator: file, sheet, page, and highlight regions. Chunk text
-    and figure bytes are omitted.
+    Each row is a locator plus the chunk's scalar metadata. Chunk text and figure
+    bytes are omitted.
     """
-    wanted = record_type.strip() if isinstance(record_type, str) else ""
+    active = dict(where) if where else None
     target = Path(requested)
     counts: Counter[str] = Counter()
+    buckets: dict[str, Counter[Any]] = {}
     records: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
     resolved = str(target.resolve()) if target.exists() else requested
@@ -347,17 +421,16 @@ def filter_records(
                     corpus._record_invalid(archive, str(exc))
                     continue
                 try:
-                    file_counts, rows = _scan_record_types(document, archive)
+                    file_counts, file_buckets, rows = _scan_chunks(document, archive, active)
                 except Exception as exc:
                     corpus._record_invalid(archive, str(exc))
                     continue
                 finally:
                     document.close()
                 counts.update(file_counts)
-                if wanted:
-                    records.extend(row for row in rows if row["record_type"] == wanted)
-                else:
-                    records.extend(rows)
+                for key, bucket in file_buckets.items():
+                    buckets.setdefault(key, Counter()).update(bucket)
+                records.extend(rows)
             skipped = [dict(entry) for entry in corpus.invalid_files]
         finally:
             corpus.close()
@@ -365,12 +438,10 @@ def filter_records(
         document = VeraDocument.open(requested)
         try:
             resolved = str(Path(document.path).resolve())
-            file_counts, rows = _scan_record_types(document, requested)
+            file_counts, file_buckets, rows = _scan_chunks(document, requested, active)
             counts.update(file_counts)
-            if wanted:
-                records = [row for row in rows if row["record_type"] == wanted]
-            else:
-                records = rows
+            buckets.update(file_buckets)
+            records.extend(rows)
         finally:
             document.close()
 
@@ -378,11 +449,11 @@ def filter_records(
         "ok": True,
         "file": requested,
         "path": resolved,
-        "types": _type_summary(counts),
+        "facets": _facets_from(counts, buckets),
         "skipped_files": skipped,
     }
-    if wanted:
-        payload["record_type"] = wanted
+    if active:
+        payload["where"] = active
         payload["total"] = len(records)
         payload["records"] = records
     return payload

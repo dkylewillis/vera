@@ -62,11 +62,16 @@ that match their sources can be moved into `.vera/archives/` when the library
 is created.
 PDFs convert with the default `pymupdf` pipeline. When a plugin adds another
 PDF pipeline (see [Plugins](#plugins)), making a folder a library first asks
-which one its PDFs should use. For example, the optional `plans` plugin reads
-lettering drawn as linework and keeps detail titles searchable in drawing
-sets. A library can mix pipelines. Right-click the library or one of its subfolders
-and choose **PDF pipeline…**. Hover the item to see which pipeline the folder
-uses now and where that was set. The dialog offers **Same as parent folder**
+which one its PDFs should use, before conversion starts. The same dialog has
+**Different folders use a different pipeline**. Open it to add folders that
+should use another pipeline, as a path or a pattern such as
+`Projects/*/Plans` (`*` matches one folder name). Folders left off that list
+keep the library choice. **Use default** starts with `pymupdf` and no folder
+rules. For example, the optional `plans` plugin reads lettering drawn as
+linework and keeps detail titles searchable in drawing sets. A library can
+mix pipelines. Right-click the library or one of its subfolders and choose
+**PDF pipeline…**. Hover the item to see which pipeline the folder uses now
+and where that was set. The dialog offers **Same as parent folder**
 (**Library default** on the library itself) and each installed pipeline. A
 pipeline that also reads other formats, such as Docling with Word files,
 says so. Subfolders follow the choice unless they set their own. **Save and
@@ -403,9 +408,11 @@ question of a chat that has no earlier evidence. `always` requires a search
 on every turn while the search budget remains. `tools` limits which tools
 that mode may call. Omit it, or leave it empty, to allow `search`, `filter`,
 `search_attachments`, `view_figure`, and `write_markdown`.
-`filter` lists every record of one type, such as `detail`, with a citation,
-the sheet, the page, and the highlight box. Use it when the question asks for
-a complete set. `search` stays the ranked lookup.
+`filter` with no `where` returns facets: the fields on the open file and,
+when few distinct values exist, those values. Call it again with `where`
+using one of those keys to list every matching chunk, with a citation, the
+page, and the highlight box. `search` stays the ranked lookup. Pass `where`
+to search only with a key and value already seen in the facets.
 
 Chat's LLM `search` tool also accepts `quality`: `strict` (keep hits at least
 0.85 of the top score), `balanced` (0.55, default), or `permissive` (keep

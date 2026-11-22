@@ -106,13 +106,15 @@ there).
 3. Check the process exit code. On success, parse stdout as one JSON object.
 4. Read each result's `text`, `page_start`, `page_end`, `heading_path`, and
    `source_filename`. For directory searches, also retain each result's `file`.
-5. When the question asks for every record of a type, list them with
-   `vera filter PATH --type detail --json` instead of searching. `PATH` is one
+5. When the question asks for every chunk that matches metadata, call
+   `vera filter PATH --json` with no `--where` and read `facets`. A facet lists
+   `values` when few distinct values exist. Then filter with
+   `vera filter PATH --where KEY=VALUE --json` using a key and value from those
+   facets. Do not assume a field such as `record_type` exists. `PATH` is one
    `.vera` file or a folder of them. The list is complete and unranked. Each
-   row has `file`, `chunk_id`, `label`, `description`, `detail_type` when set,
-   the sheet, the page, and `regions`. Keep the rows you need, then reload a
-   `chunk_id` with `vera get`. Omit `--type` to see which types the folder
-   contains. Search cannot do this: it ranks a query and stops at `--top-k`.
+   row has `file`, `chunk_id`, `metadata`, the page, and `regions`. Reload a
+   `chunk_id` with `vera get`. Search cannot do this: it ranks a query and stops
+   at `--top-k`. Pass `--where` to search only to narrow that ranked page.
 6. When you need the stored chunk body or to verify a quote, reload that
    `chunk_id` with `vera get FILE CHUNK_ID --json` instead of searching again.
 7. If the evidence does not directly answer the question, refine the query or

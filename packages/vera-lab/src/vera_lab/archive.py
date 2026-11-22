@@ -19,6 +19,7 @@ from vera_lab.model import (
     display_metadata,
     json_safe,
 )
+from vera_lab.schema import build_key_schema
 
 
 def load_archive_document(archive_path: str | Path) -> LabDocument:
@@ -58,8 +59,10 @@ def load_archive_document(archive_path: str | Path) -> LabDocument:
         ]
         block_ids_by_chunk = _block_ids_from_regions_and_attachments(document)
         chunks: list[LabChunk] = []
+        stored_metadata: list[dict[str, Any]] = []
         for record in document.get():
             metadata = thaw_json(record.metadata)
+            stored_metadata.append(metadata)
             regions_raw = get_chunk_regions(document, record.id)
             regions = [
                 LabRegion(
@@ -129,6 +132,11 @@ def load_archive_document(archive_path: str | Path) -> LabDocument:
             pipeline_options={},
             mode="archive",
             archive=archive_info,
+            schema=build_key_schema(
+                header=document.format_metadata(),
+                archive_metadata=dict(archive_meta),
+                chunk_metadata=stored_metadata,
+            ),
         )
     finally:
         document.close()

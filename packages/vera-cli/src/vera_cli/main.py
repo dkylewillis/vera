@@ -226,14 +226,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     filter_p = sub.add_parser(
         "filter",
-        help="List every chunk of one record type, with its file and highlight location",
+        help="List every chunk matching metadata, with its file and highlight location",
     )
     filter_p.add_argument("path", help="Path to a .vera file or a directory of .vera files")
     filter_p.add_argument(
-        "--type",
-        dest="record_type",
-        default="",
-        help="Exact record_type to keep, such as detail. Omit to list the types present.",
+        "--where",
+        dest="where",
+        action="append",
+        type=pipeline_option,
+        default=[],
+        metavar="KEY=VALUE",
+        help=(
+            "Filter stored metadata (repeatable). Distinct keys are AND; "
+            "comma-separated values are IN. Omit to list filter facets."
+        ),
     )
     filter_p.add_argument(
         "--recursive",

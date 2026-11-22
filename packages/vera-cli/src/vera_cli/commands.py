@@ -340,32 +340,41 @@ def _emit_cli_error(args, message: str, *, code: int = 1) -> int:
 
 
 def cmd_filter(args) -> int:
-    record_type = str(getattr(args, "record_type", "") or "").strip() or None
+    try:
+        where = _where_from_args(getattr(args, "where", None) or [])
+    except ValueError as exc:
+        return _emit_cli_error(args, str(exc))
     recursive = True if getattr(args, "recursive", False) else None
     try:
-        payload = filter_records(args.path, record_type, recursive=recursive)
+        payload = filter_records(args.path, where, recursive=recursive)
     except (FileNotFoundError, NotADirectoryError, OSError) as exc:
         return _emit_cli_error(args, str(exc))
     if args.json:
         print(json.dumps(payload))
         return 0
-    if record_type:
-        print(f"{payload['total']} {record_type}")
+    if where:
+        print(f"{payload['total']} chunks")
         for record in payload["records"]:
-            place = record.get("sheet_number") or ""
+            metadata = record.get("metadata") or {}
+            place = str(metadata.get("cd_sheet_number") or "")
             page = record.get("page_start")
             page_label = f"p. {page}" if page is not None else ""
-            label = record.get("label") or record["chunk_id"]
-            print(
-                "  ".join(part for part in (record["chunk_id"], place, page_label, label) if part)
-            )
+            label = str(metadata.get("record_label") or record["chunk_id"])
+            parts = (record["chunk_id"], place, page_label, label)
+            print("  ".join(part for part in parts if part))
             print(f"  {record['file']}")
         return 0
-    if not payload["types"]:
-        print("No record types")
+    if not payload["facets"]:
+        print("No filter facets")
         return 0
-    for item in payload["types"]:
-        print(f"{item['type']}: {item['count']}")
+    for facet in payload["facets"]:
+        distinct = facet.get("distinct")
+        label = f"{facet['key']}: {facet['count']} chunks"
+        if distinct is not None:
+            label = f"{label}, {distinct} values"
+        print(label)
+        for item in facet.get("values") or []:
+            print(f"  {item['value']}: {item['count']}")
     return 0
 
 

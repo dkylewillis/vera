@@ -392,6 +392,15 @@ look shifted, you are probably previewing a different file than the stored
 original, or the archive was converted from generated Markdown rather than
 the file on disk.
 
+## Scanned PDF pages are blank
+
+Plan sheets and other scans are often one JBIG2, JPEG2000, or CCITT image per
+page. The desktop viewer loads those PDF.js decoders from `vera-pdfjs://wasm/`
+(`jbig2.wasm` and `openjpeg.wasm`). Text PDFs and ordinary JPEG images do not
+use them. A blank page with no error banner means the decoder did not load:
+confirm the running app is this build, and that a packaged app contains
+`dist/pdfjs/wasm` next to `index.html` inside the app archive.
+
 ## A malicious PDF should not run scripts in the desktop viewer
 
 The renderer opens PDFs through PDF.js with `enableScripting: false`

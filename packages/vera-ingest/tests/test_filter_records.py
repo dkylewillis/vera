@@ -1,4 +1,4 @@
-"""List chunks by record_type without ranking or loading embeddings."""
+"""List chunks by metadata without ranking or loading embeddings."""
 
 from __future__ import annotations
 
@@ -75,26 +75,63 @@ def test_filter_lists_every_detail_in_a_folder(tmp_path):
     _archive(notes, [ChunkRecord(id="chunk_0001", text="prose without a type")])
     (tmp_path / "bad.vera").write_text("not a database", encoding="utf-8")
 
-    listed = filter_records(str(tmp_path), "detail")
-    assert listed["record_type"] == "detail"
-    assert listed["total"] == 2
-    assert {row["label"] for row in listed["records"]} == {"CONCRETE FLUME", "CURB"}
-    flume = next(row for row in listed["records"] if row["label"] == "CONCRETE FLUME")
+    listed = filter_records(str(tmp_path), {"record_type": "detail", "cd_sheet_number": "C-701"})
+    assert listed["where"] == {"record_type": "detail", "cd_sheet_number": "C-701"}
+    assert listed["total"] == 1
+    flume = listed["records"][0]
+    assert flume["metadata"]["record_label"] == "CONCRETE FLUME"
     assert flume["file"].endswith("drainage.vera")
     assert flume["page_start"] == 18
-    assert flume["description"] == "Concrete flume carrying runoff."
-    assert flume["sheet_number"] == "C-701"
-    assert flume["detail_number"] == "4"
-    assert flume["detail_type"] == "flume"
+    assert flume["metadata"]["cd_description"] == "Concrete flume carrying runoff."
+    assert flume["metadata"]["cd_sheet_number"] == "C-701"
+    assert flume["metadata"]["cd_detail_number"] == "4"
+    assert flume["metadata"]["cd_detail_type"] == "flume"
     assert flume["regions"][0]["bbox"] == [120.0, 340.0, 980.0, 860.0]
     assert "text" not in flume
     assert "flume body" not in str(flume)
     assert any(item["file"].endswith("bad.vera") for item in listed["skipped_files"])
 
-    types = {item["type"]: item["count"] for item in filter_records(str(tmp_path))["types"]}
-    assert types == {"detail": 2, "sheet": 1}
+    both = filter_records(str(tmp_path), {"cd_detail_type": ["flume", "curb"]})
+    assert both["total"] == 1
+    assert both["records"][0]["metadata"]["record_label"] == "CONCRETE FLUME"
 
-    missing = filter_records(str(drainage), "profile")
+    details = filter_records(str(tmp_path), {"record_type": "detail"})
+    assert details["total"] == 2
+    assert {row["metadata"]["record_label"] for row in details["records"]} == {
+        "CONCRETE FLUME",
+        "CURB",
+    }
+
+    keys = {item["key"]: item for item in filter_records(str(tmp_path))["facets"]}
+    assert keys["record_type"]["count"] == 3
+    assert keys["record_type"]["values"] == [
+        {"value": "detail", "count": 2},
+        {"value": "sheet", "count": 1},
+    ]
+    assert keys["cd_detail_type"]["count"] == 1
+    assert "page_start" not in keys
+    assert "records" not in filter_records(str(tmp_path))
+
+    missing = filter_records(str(drainage), {"record_type": "profile"})
     assert missing["records"] == []
     assert missing["total"] == 0
-    assert {item["type"] for item in missing["types"]} == {"detail", "sheet"}
+    assert {item["key"] for item in missing["facets"]} >= {"record_type", "record_label"}
+
+
+def test_filter_omits_values_when_a_facet_is_large(tmp_path):
+    from vera_ingest.viewer import _FACET_VALUE_LIMIT
+
+    path = tmp_path / "many.vera"
+    records = [
+        ChunkRecord(
+            id=f"chunk_{index:04d}",
+            text=f"label {index}",
+            metadata={"record_type": "detail", "record_label": f"LABEL {index}"},
+        )
+        for index in range(_FACET_VALUE_LIMIT + 1)
+    ]
+    _archive(path, records)
+    facets = {item["key"]: item for item in filter_records(str(path))["facets"]}
+    assert facets["record_type"]["values"] == [{"value": "detail", "count": _FACET_VALUE_LIMIT + 1}]
+    assert facets["record_label"]["distinct"] == _FACET_VALUE_LIMIT + 1
+    assert "values" not in facets["record_label"]

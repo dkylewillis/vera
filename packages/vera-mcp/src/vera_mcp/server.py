@@ -446,15 +446,18 @@ def build_server(policy: AccessPolicy | None = None):
         @_published
         def vera_filter(
             file: str = "",
-            record_type: str = "",
+            where: dict[str, str | list[str]] | None = None,
             recursive: bool | None = None,
             library: LibraryName = None,
         ) -> dict[str, Any]:
-            """List every chunk of one record_type, with its file, sheet, page, and highlight box.
+            """List every chunk matching metadata, with its file, page, and highlight box.
 
-            Omit record_type to list the types present and a count for each. This is a
-            complete unranked list of chunks. It does not search, and it does not read
-            the archive header or attachments. Pass a .vera file or a directory of them.
+            ``where`` uses the same predicate as search: keys are AND, a value is
+            exact equality, and a list is IN. Omit ``where`` to read ``facets``:
+            filterable fields and, when few distinct values exist, those values.
+            Locator fields are omitted. This is a complete unranked list. It does
+            not search, and it does not read the archive header or attachments.
+            Pass a .vera file or a directory of them.
             """
             target = file
             if policy is not None:
@@ -462,7 +465,7 @@ def build_server(policy: AccessPolicy | None = None):
                 target = str(policy.resolve(library, file, directory=directory))
             return filter_records(
                 target,
-                record_type.strip() or None,
+                where or None,
                 recursive=recursive,
             )
 

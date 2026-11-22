@@ -10,6 +10,11 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Added
 
+- Desktop library setup can assign PDF pipelines to folders before the first
+  conversion. When more than one PDF pipeline is installed, **Different
+  folders use a different pipeline** adds paths or patterns such as
+  `Projects/*/Plans`. Folders left off the list keep the library choice, and
+  **Use default** still starts with PyMuPDF.
 - Desktop **Layout report**. Right-click a converted document to write a
   vera-lab HTML file into the folder from **Settings → Layout lab** and open
   it. The packaged app includes vera-lab. Reports keep the archive's own
@@ -96,6 +101,7 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Fixed
 
+- Desktop PDF viewer paints scanned pages encoded as JBIG2, JPEG2000, or CCITT. PDF.js 6 drops those images when `wasmUrl` is unset, so plan sheets opened as a blank page.
 - **Save as Markdown** keeps going when an answer contains a character UTF-8 cannot store. The character is replaced, and the file is written.
 - Desktop **Context tokens** values are kept when settings are saved.
 - Desktop model listing for **VERA Pro** uses the Pro key instead of a

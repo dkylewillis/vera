@@ -84,6 +84,7 @@ import {
   DEFAULT_PDF_PIPELINE,
   folderPipelineState,
   libraryRelativeFolder,
+  type LibraryPdfSetup,
   loadLibraryPipelines,
   pdfPipelineChoices,
   pipelineDisplayName,
@@ -222,7 +223,7 @@ function App() {
   const [nestedLibraryPrompt, setNestedLibraryPrompt] = useState<NestedLibraryConflict | null>(null);
   const [adoptPrompt, setAdoptPrompt] = useState<{ path: string; count: number; resolve: (adopt: boolean) => void } | null>(null);
   const [folderPipelineDialog, setFolderPipelineDialog] = useState<
-    | { kind: 'setup'; path: string; resolve: (parser: string | null) => void }
+    | { kind: 'setup'; path: string; resolve: (setup: LibraryPdfSetup | null) => void }
     | { kind: 'folder'; rootPath: string; folderPath: string }
     | null
   >(null);
@@ -1016,7 +1017,7 @@ function App() {
       .then(() => refreshFolder(folderPath));
   }
 
-  function askPdfPipeline(folderPath: string): Promise<string | null> {
+  function askPdfPipeline(folderPath: string): Promise<LibraryPdfSetup | null> {
     if (!shouldAskPdfPipeline(ingestPipelineDescriptors)) return Promise.resolve(null);
     return new Promise((resolve) => {
       setFolderPipelineDialog({ kind: 'setup', path: folderPath, resolve });
@@ -1041,12 +1042,15 @@ function App() {
     setFolderPipelineDialog(null);
   }
 
-  async function saveFolderPipelineDialog(parser: string | null) {
+  async function saveFolderPipelineDialog(parser: string | null, folderRules?: { folder: string; parser: string }[]) {
     const dialog = folderPipelineDialog;
     if (!dialog) return;
     if (dialog.kind === 'setup') {
       setFolderPipelineDialog(null);
-      dialog.resolve(parser && parser !== DEFAULT_PDF_PIPELINE ? parser : null);
+      dialog.resolve({
+        parser: parser && parser !== DEFAULT_PDF_PIPELINE ? parser : null,
+        rules: folderRules ?? [],
+      });
       return;
     }
     const current = libraryPipelines[dialog.rootPath];
@@ -1080,11 +1084,14 @@ function App() {
     if (folderPipelineDialog.kind === 'setup') {
       return {
         title: 'How should this library convert PDFs?',
-        subtitle: `${folderPipelineDialog.path}. You can give any folder its own pipeline later from its right-click menu.`,
+        subtitle: folderPipelineDialog.path,
         choices,
         selected: DEFAULT_PDF_PIPELINE,
         saveLabel: 'Continue',
         cancelLabel: 'Use default',
+        collectFolderRules: true,
+        rootPath: folderPipelineDialog.path,
+        note: 'Folders you leave out keep this choice. You can change a folder later from its right-click menu.',
       };
     }
     const pipelines = libraryPipelines[folderPipelineDialog.rootPath];
@@ -3021,8 +3028,12 @@ function App() {
       <FolderPipelineModal
         prompt={folderPipelinePrompt}
         busy={folderPipelineSaving}
-        onSave={(parser) => { void saveFolderPipelineDialog(parser); }}
+        onSave={(parser, folderRules) => { void saveFolderPipelineDialog(parser, folderRules); }}
         onCancel={closeFolderPipelineDialog}
+        onBrowseFolder={folderPipelineDialog?.kind === 'setup' ? async () => {
+          const picked = await window.vera.pickFolder('pipeline-folder', folderPipelineDialog.path);
+          return picked;
+        } : undefined}
       />
       <AdoptLibraryModal
         prompt={adoptPrompt}

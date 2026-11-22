@@ -86,9 +86,10 @@ Initial actions:
 `.md` files there override built-in Ask/Research/Summarize modes by `id`.
 Chat's search tool applies a relative `quality` cutoff (`strict` 0.85,
 `balanced` 0.55, `permissive` 0.0) against the top hit and skips already-cited
-chunks; CLI/MCP search does not. Chat's `filter` tool lists every chunk of one
-`record_type` and registers each row as a citation. It does not rank or apply
-the quality cutoff.
+chunks; CLI/MCP search does not. Chat's `filter` tool lists every chunk matching
+a metadata `where` and registers each row as a citation. With no `where` it
+returns facets for the open file. It does not rank or apply the quality cutoff.
+Chat's `search` tool accepts the same `where` and applies it before ranking.
 
 `cancel` and `skip` take `target_id` and signal the in-flight request's
 cancellation token. `skip` is used by interactive batch convert; `cancel`
@@ -274,7 +275,10 @@ Saving sends `library_set_pipeline` with `source_format: "pdf"`; a `null`
 parser removes only the folder's PDF rule. The renderer then syncs the
 library. `prepareManagedLibrary` shows the same dialog before
 `library_init`. Choosing anything but `pymupdf` there becomes a whole-library
-rule (`pipeline_rules: [{folder: "", parser: ...}]`). Inside a library, selecting
+rule (`pipeline_rules: [{folder: "", parser: ...}]`). The dialog can also
+collect extra folder rules, including a pattern such as `Projects/*/Plans`,
+and `library_init` receives them before the first sync. **Use default**
+passes no rules. Inside a library, selecting
 a subfolder (`onSearchFolder`) limits Search and Chat to that folder and its
 subfolders; the disclosure arrow only expands or collapses the row. Clicking
 the library name clears that scope. The nested-library prompt still offers
@@ -608,9 +612,16 @@ rewrites that path to a privileged `vera-source://cache/...` URL and serves
 the bytes with `protocol.handle`, so PDF.js can fetch the document without
 shipping multi‑MB base64 through the JSON-Lines IPC channel (which previously
 froze the UI on large PDFs). `pdfDocumentSource()` always sets
-`enableScripting: false`. Keep that flag off: PDF.js 6.0.x defaulted scripting
-on, which is CVE-2026-16633 (arbitrary JavaScript from a malicious PDF in
-the hosting page). The app pins `pdfjs-dist` 6.2.108.
+`enableScripting: false` and `wasmUrl` to `vera-pdfjs://wasm/`. Keep scripting
+off: PDF.js 6.0.x defaulted it on, which is CVE-2026-16633 (arbitrary
+JavaScript from a malicious PDF in the hosting page). PDF.js 6 decodes JBIG2, JPEG2000, and CCITT images with
+`jbig2.wasm` and `openjpeg.wasm`. Without that URL it drops those images and
+a scanned sheet renders blank.
+`useWorkerFetch` stays false so the renderer, not the worker, loads both the
+`vera-source` PDF and the wasm bytes. Electron serves `vera-pdfjs://wasm/<file>`
+from `node_modules/pdfjs-dist/wasm` in development and from `dist/pdfjs/wasm`
+in a packaged build (`vite build` copies the directory). The app pins
+`pdfjs-dist` 6.2.108.
 
 The renderer PDF viewer (PDF.js) uses Mozilla-style dark chrome: a compact
 toolbar with group dividers, a toggleable page-thumbnail rail, and a dark page

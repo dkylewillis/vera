@@ -131,6 +131,72 @@ export function shouldAskPdfPipeline(descriptors: PipelineDescriptor[]): boolean
   return pdfPipelineChoices(descriptors).length > 1;
 }
 
+/** What the new-library dialog returns. `null` from the caller means "use pymupdf and start". */
+export type LibraryPdfSetup = {
+  /** Whole-library PDF pipeline, or `null` to keep pymupdf with no root rule. */
+  parser: string | null;
+  /** Extra folder rules. Each `folder` is library-relative and may use `*` or `?`. */
+  rules: { folder: string; parser: string }[];
+};
+
+export type SetupFolderDraft = { folder: string; parser: string };
+
+/**
+ * Turn one typed or picked folder into a library-relative rule path.
+ * `folder: ''` means the path is the library root, which the dialog's main
+ * choice already covers.
+ */
+export function normalizeLibraryRuleFolder(
+  root: string,
+  folder: string,
+): { folder: string } | { error: string } {
+  const text = folder.trim();
+  if (!text || text === '.') return { folder: '' };
+  const absolute = /^[A-Za-z]:[\\/]/.test(text) || text.startsWith('\\\\') || text.startsWith('/');
+  let relative = text.replace(/\\/g, '/');
+  if (absolute) {
+    const inside = libraryRelativeFolder(root, text);
+    if (inside === null) return { error: 'That folder is outside this library.' };
+    relative = inside;
+  }
+  const parts = relative.split('/').filter((part) => part && part !== '.');
+  if (parts.some((part) => part === '..')) return { error: 'Folder must stay inside the library.' };
+  if (parts[0]?.toLowerCase() === '.vera') {
+    return { error: '.vera is managed by VERA and cannot have a pipeline rule.' };
+  }
+  return { folder: parts.join('/') };
+}
+
+/**
+ * Folder rules to store before the first sync. Blank rows are skipped.
+ * Two rows for the same folder keep the later pipeline.
+ */
+export function librarySetupPipelineRules(
+  root: string,
+  drafts: SetupFolderDraft[],
+): { rules: { folder: string; parser: string }[]; error: string | null } {
+  const rules: { folder: string; parser: string }[] = [];
+  const seen = new Map<string, number>();
+  for (const draft of drafts) {
+    if (!draft.folder.trim()) continue;
+    const normalized = normalizeLibraryRuleFolder(root, draft.folder);
+    if ('error' in normalized) return { rules: [], error: normalized.error };
+    if (!normalized.folder) return { rules: [], error: 'The whole library uses the choice above.' };
+    const parser = draft.parser.trim();
+    if (!parser) return { rules: [], error: 'Choose a pipeline for each folder.' };
+    const key = normalized.folder.toLowerCase();
+    const rule = { folder: normalized.folder, parser };
+    const existing = seen.get(key);
+    if (existing === undefined) {
+      seen.set(key, rules.length);
+      rules.push(rule);
+    } else {
+      rules[existing] = rule;
+    }
+  }
+  return { rules, error: null };
+}
+
 /** Short name for a pipeline spec, for example `plans` from its descriptor label. */
 export function pipelineDisplayName(spec: string, descriptors?: PipelineDescriptor[]): string {
   const label = findDescriptor(spec, descriptors)?.label;

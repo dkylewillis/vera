@@ -58,13 +58,22 @@ Useful flags:
 | `--max-pages N` | Cap rasterized pages (default 25) |
 
 Open the HTML file in a browser. The page images scroll on their own; the
-archive facts, the selection, and the block, chunk, and figure lists stay in
-the side pane and scroll separately. The facts include format, source,
-embedding model, parser, chunking, OCR, and any record types stored on the
-chunks. Use the Blocks / Chunks / Figures checkboxes and click an overlay or
-list row. The selection shows that record's metadata — title, type,
-description, sheet — and the blocks that sit inside it. Success prints the output path; failures
-print `vera-lab: ...` to stderr and exit 1.
+file structure and the selection stay in the side pane and scroll separately. File, chunk, map, and Index are separate
+views. Index is one list grouped by `record_type`. The chunk view is one
+row of `chunks`. The map is a separate view of the tables and the links
+between them: `regions` is stored on the chunk, and `regions.block_id`
+points at one object in the `viewer_blocks` attachment. Keys added by the
+ingest pipeline are listed on that map in amber. Open a box to list every key stored on that object. The file structure uses the stored
+names: `vera_metadata`, the `archive_metadata` object inside it, `chunks`
+with `metadata_json` and `regions`, then `embeddings`, `attachments`,
+`chunk_attachments`, and `chunks_fts`. Default keys are blue. Keys added
+by the ingest pipeline are amber. Scalar fields stay in a key/value
+table. Nested objects stay nested. A long list, such as `ingest_warnings`
+or `title_mismatches`, sits full width under its key. The sheet boxes are `viewer_blocks`, filtered by `block_type`: paragraph,
+heading, table, caption, image, or other. Click a box or an Index row. The selection shows that
+chunk's `chunk_id`, its `metadata_json`, and the `viewer_blocks` object
+linked by `regions.block_id`. Success prints the output path; failures print `vera-lab: ...`
+to stderr and exit 1.
 
 ## Constraints
 

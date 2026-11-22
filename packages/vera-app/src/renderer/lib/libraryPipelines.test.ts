@@ -3,6 +3,8 @@ import type { PipelineDescriptor } from '../../shared/contracts';
 import {
   folderPipelineState,
   libraryRelativeFolder,
+  librarySetupPipelineRules,
+  normalizeLibraryRuleFolder,
   pdfPipelineChoices,
   pdfPipelineFor,
   saveFolderPipeline,
@@ -96,6 +98,36 @@ describe('pdfPipelineChoices', () => {
     expect(shouldAskPdfPipeline([])).toBe(false);
     expect(shouldAskPdfPipeline([descriptor('pymupdf', ['pdf']), descriptor('markdown', ['md'])])).toBe(false);
     expect(shouldAskPdfPipeline([descriptor('pymupdf', ['pdf']), descriptor(PLANS, ['pdf'])])).toBe(true);
+  });
+});
+
+describe('librarySetupPipelineRules', () => {
+  it('keeps folder patterns and drops a blank row', () => {
+    expect(librarySetupPipelineRules('C:\\Jobs', [
+      { folder: 'Projects/*/Plans', parser: PLANS },
+      { folder: '  ', parser: 'pymupdf' },
+    ])).toEqual({
+      rules: [{ folder: 'Projects/*/Plans', parser: PLANS }],
+      error: null,
+    });
+  });
+
+  it('turns a picked folder into a library-relative path and rejects one outside it', () => {
+    expect(normalizeLibraryRuleFolder('C:\\Jobs', 'C:\\Jobs\\Tower\\Plans')).toEqual({ folder: 'Tower/Plans' });
+    expect(normalizeLibraryRuleFolder('C:\\Jobs', 'C:\\Other\\Plans')).toEqual({
+      error: 'That folder is outside this library.',
+    });
+    expect(librarySetupPipelineRules('C:\\Jobs', [{ folder: '..\\Elsewhere', parser: PLANS }]).error)
+      .toBe('Folder must stay inside the library.');
+    expect(librarySetupPipelineRules('C:\\Jobs', [{ folder: '.vera/archives', parser: PLANS }]).error)
+      .toMatch(/managed by VERA/);
+  });
+
+  it('keeps the later pipeline when two rows name the same folder', () => {
+    expect(librarySetupPipelineRules('C:\\Jobs', [
+      { folder: 'Plans', parser: 'pymupdf' },
+      { folder: 'plans', parser: PLANS },
+    ]).rules).toEqual([{ folder: 'plans', parser: PLANS }]);
   });
 });
 

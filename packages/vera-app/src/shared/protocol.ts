@@ -1,5 +1,5 @@
 /** Why a folder picker opened; sets its title and confirm button. */
-export type FolderPickPurpose = 'library' | 'folder' | 'convert' | 'agent-library' | 'layout-lab';
+export type FolderPickPurpose = 'library' | 'folder' | 'convert' | 'agent-library' | 'layout-lab' | 'pipeline-folder';
 
 /** IPC invoke and event channel names shared by Electron main and preload. */
 export const IPC_CHANNELS = {

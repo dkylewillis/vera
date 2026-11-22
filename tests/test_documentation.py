@@ -1312,10 +1312,14 @@ def test_desktop_security_and_markdown_locator_docs():
 
     assert "enableScripting: false" in architecture
     assert "CVE-2026-16633" in architecture
+    assert "vera-pdfjs://wasm/" in architecture
+    assert "jbig2.wasm" in architecture
     assert "pdfjs-dist` 6.2.108" in architecture
     assert "`.md`, or `.markdown` file" in architecture
     assert "enableScripting: false" in troubleshooting
     assert "CVE-2026-16633" in troubleshooting
+    assert "vera-pdfjs://wasm/" in troubleshooting
+    assert "jbig2.wasm" in troubleshooting
     assert "markdownDisplayLines()" in architecture
     assert "UTF-8 BOM" in architecture
     assert "UTF-8 BOM" in troubleshooting

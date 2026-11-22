@@ -40,11 +40,13 @@ computer and does not fall back while it is offline. The cloud connector
 requires the user to sign in and VERA Desktop to be open with **Allow cloud agents**
 enabled.
 
-Call `vera_filter(file, record_type)` to list every chunk of one type, such as
-`detail`, from one archive or a directory. Omit `record_type` to see the types
-and their counts. Each row names its `file`, `chunk_id`, label, description,
-page, and highlight `regions`. This list is complete and unranked. Use
-`vera_search` when the question is a ranked lookup, not a complete type list.
+Call `vera_filter(file)` with no `where` to read `facets`, the filterable fields
+on that archive and their values when few distinct values exist. Then call
+`vera_filter(file, where)` with a key and value from those facets. Do not assume
+a field such as `record_type` exists. Each row names its `file`, `chunk_id`,
+`metadata`, page, and highlight `regions`. This list is complete and unranked.
+Use `vera_search` when the question is a ranked lookup. Pass `where` to search
+only with a key and value you already saw in the facets.
 
 Call `vera_search` for one archive or `vera_corpus_search` for a directory.
 Start with `mode: "hybrid"`, `top_k: 5`, and the question as `query`.

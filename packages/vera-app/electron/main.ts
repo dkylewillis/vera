@@ -25,6 +25,7 @@ import { DEFAULT_AGENT_SERVICE_PORT } from '../src/shared/agent-snippets.js';
 import { namesForRoots } from '../src/shared/library-names.js';
 import { DESKTOP_DEFAULT_EMBEDDING_MODEL } from '../src/shared/desktop-defaults.js';
 import { helpLinkUrl } from '../src/shared/help-links.js';
+import { pdfjsWasmFilename } from '../src/shared/pdfjs.js';
 import {
   PRO_KEY_SECRET,
   PRO_PKCE_SECRET,
@@ -211,22 +212,35 @@ function normalizePipelineConfigs(raw: unknown): Record<string, PipelineOptions>
 
 // Serve materialized source PDFs without shipping base64 through JSON IPC.
 // Must be registered before app.ready so fetch()/PDF.js can use the scheme.
+const PRIVILEGED_SCHEME = {
+  standard: true,
+  secure: true,
+  supportFetchAPI: true,
+  stream: true,
+  bypassCSP: true,
+  corsEnabled: true,
+} as const;
+
 protocol.registerSchemesAsPrivileged([
-  {
-    scheme: 'vera-source',
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      stream: true,
-      bypassCSP: true,
-      corsEnabled: true,
-    },
-  },
+  { scheme: 'vera-source', privileges: { ...PRIVILEGED_SCHEME } },
+  // PDF.js wasm decoders (JBIG2, JPEG2000, CCITT). Registered with vera-source
+  // because a second registerSchemesAsPrivileged call replaces the first.
+  { scheme: 'vera-pdfjs', privileges: { ...PRIVILEGED_SCHEME } },
 ]);
 
 function sourceCacheDir(): string {
   return join(app.getPath('userData'), 'source-cache');
+}
+
+function pdfjsWasmDir(): string {
+  if (app.isPackaged) return join(app.getAppPath(), 'dist', 'pdfjs', 'wasm');
+  return join(app.getAppPath(), 'node_modules', 'pdfjs-dist', 'wasm');
+}
+
+function pdfjsWasmMediaType(name: string): string {
+  if (name.endsWith('.wasm')) return 'application/wasm';
+  if (name.endsWith('.js')) return 'text/javascript';
+  return 'application/octet-stream';
 }
 
 function chatAttachmentsDir(): string {
@@ -1548,12 +1562,15 @@ const FOLDER_PICKER_LABELS: Record<FolderPickPurpose, { title: string; buttonLab
   convert: { title: 'Choose a folder to convert', buttonLabel: 'Choose Folder' },
   'agent-library': { title: 'Choose a library agents can use', buttonLabel: 'Allow Access' },
   'layout-lab': { title: 'Choose a folder for layout reports', buttonLabel: 'Use Folder' },
+  'pipeline-folder': { title: 'Choose a folder in the library', buttonLabel: 'Use Folder' },
 };
 
-async function pickFolderPath(purpose: unknown = 'folder'): Promise<string | null> {
+async function pickFolderPath(purpose: unknown = 'folder', defaultPath?: unknown): Promise<string | null> {
   const labels = FOLDER_PICKER_LABELS[purpose as FolderPickPurpose] ?? FOLDER_PICKER_LABELS.folder;
+  const start = typeof defaultPath === 'string' && defaultPath.trim() ? defaultPath : undefined;
   const result = await dialog.showOpenDialog({
     ...labels,
+    defaultPath: start,
     properties: ['openDirectory'],
   });
   return result.canceled ? null : result.filePaths[0];
@@ -2100,6 +2117,22 @@ if (singleInstanceLock) app.whenReady().then(() => {
       return new Response('Not found', { status: 404 });
     }
   });
+  protocol.handle('vera-pdfjs', (request) => {
+    try {
+      const name = pdfjsWasmFilename(request.url);
+      if (!name) return new Response('Not found', { status: 404 });
+      const root = resolve(pdfjsWasmDir());
+      const filePath = resolve(root, name);
+      if (!isPathInsideDir(filePath, root) || !existsSync(filePath) || !statSync(filePath).isFile()) {
+        return new Response('Not found', { status: 404 });
+      }
+      const body = readFileSync(filePath);
+      return new Response(body, { headers: { 'Content-Type': pdfjsWasmMediaType(name) } });
+    } catch (error) {
+      console.error('[vera-pdfjs] Failed to serve PDF.js wasm', error);
+      return new Response('Not found', { status: 404 });
+    }
+  });
   ipcMain.handle(IPC_CHANNELS.showMenu, (event, menuId: string, x: number, y: number) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const item = Menu.getApplicationMenu()?.getMenuItemById(menuId);
@@ -2310,7 +2343,7 @@ if (singleInstanceLock) app.whenReady().then(() => {
     return publishDirectory(directory);
   });
   ipcMain.handle(IPC_CHANNELS.pickArchive, async () => pickArchivePath());
-  ipcMain.handle(IPC_CHANNELS.pickFolder, async (_event, purpose: unknown) => pickFolderPath(purpose));
+  ipcMain.handle(IPC_CHANNELS.pickFolder, async (_event, purpose: unknown, defaultPath?: unknown) => pickFolderPath(purpose, defaultPath));
   ipcMain.handle(IPC_CHANNELS.listFolder, async (_event, dir: string) => listFolder(dir));
   ipcMain.handle(IPC_CHANNELS.pathExists, async (_event, targetPath: string) => (
     typeof targetPath === 'string' && Boolean(targetPath.trim()) && existsSync(resolve(targetPath))

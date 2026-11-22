@@ -335,13 +335,15 @@ def test_filter_lists_details_and_registers_citations(tmp_path) -> None:
         citations=registry,
         search_tool=search_tool,
     )
-    listed = _run_filter({"record_type": "detail"}, ctx)
+    listed = _run_filter({"where": {"record_type": "detail"}}, ctx)
     assert listed["total"] == 1
     assert listed["records"][0]["citation"] == "C1"
-    assert listed["records"][0]["label"] == "CONCRETE FLUME"
-    assert listed["records"][0]["detail_type"] == "flume"
+    assert listed["records"][0]["metadata"]["record_label"] == "CONCRETE FLUME"
+    assert listed["records"][0]["metadata"]["cd_detail_type"] == "flume"
     assert listed["records"][0]["regions"][0]["bbox"] == [1, 2, 3, 4]
     assert search_tool.chunk_count == 1
     assert search_tool.citations[0]["result"]["chunk_id"] == "chunk_0001"
-    types = _run_filter({}, ctx)
-    assert {item["type"] for item in types["types"]} == {"detail", "sheet"}
+    keys = _run_filter({}, ctx)
+    assert {item["key"] for item in keys["facets"]} >= {"record_type", "record_label"}
+    record_types = next(item for item in keys["facets"] if item["key"] == "record_type")
+    assert {item["value"] for item in record_types["values"]} == {"detail", "sheet"}

@@ -222,7 +222,8 @@ citations and surrounding context:
 vera search manual.vera "stormwater detention" --top-k 5 --json
 vera search manual.vera "stormwater detention" --context-chunks 1 --pretty
 vera get manual.vera chunk_0042 --json
-vera filter ./plans --type detail --json
+vera filter ./plans --json
+vera filter ./plans --where KEY=VALUE --json
 ```
 
 Results carry source filename, page range, and heading path. Add `--figures`

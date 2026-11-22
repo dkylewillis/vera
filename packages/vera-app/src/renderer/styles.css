@@ -6721,6 +6721,50 @@ div.settingRow {
   line-height: 1.45;
 }
 
+.folderPipelineModal {
+  width: min(640px, 100%);
+}
+
+.folderPipelineExtras {
+  display: grid;
+  gap: 8px;
+}
+
+.folderPipelineExtrasToggle {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-muted);
+}
+
+.folderPipelineExtrasToggle:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.folderPipelineRuleList {
+  display: grid;
+  gap: 8px;
+}
+
+.folderPipelineRule {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.folderPipelineError {
+  margin: 0;
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .indexReasons {
   display: grid;
   gap: 5px;
