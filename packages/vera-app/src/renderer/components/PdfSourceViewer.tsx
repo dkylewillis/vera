@@ -383,6 +383,9 @@ function PdfSourceViewerImpl({
   const highlightRegionsRef = useRef(highlightRegions);
   const highlightFiguresRef = useRef(highlightFigures);
   const targetPageRef = useRef(targetPage);
+  // The citation page often arrives while the PDF is still loading, before any
+  // page shell exists. Hold it until a layout pass can scroll to it.
+  const pendingCitationJumpRef = useRef<{ url: string; page: number } | null>(null);
   highlightRegionsRef.current = highlightRegions;
   highlightFiguresRef.current = highlightFigures;
   targetPageRef.current = targetPage;
@@ -604,6 +607,8 @@ function PdfSourceViewerImpl({
   // Citation changes only need the overlay boxes updated — do not rebuild pages.
   // Jump directly to the highlight. Smooth-scrolling across a long document can
   // render intermediate virtualized pages and make citation navigation feel slow.
+  // If this document's pages are not in the DOM yet, remember the page so the
+  // layout pass scrolls there instead of opening on page 1.
   useEffect(() => {
     const container = pagesRef.current;
     if (!container) return;
@@ -614,8 +619,19 @@ function PdfSourceViewerImpl({
       if (!pageNum || !surface) continue;
       paintHighlights(surface, pageNum);
     }
-    if (!targetPage) return undefined;
-    goToHighlight(targetPage, 'auto');
+    if (!targetPage) {
+      if (pendingCitationJumpRef.current?.url === source.url) pendingCitationJumpRef.current = null;
+      return undefined;
+    }
+    const page = Math.max(1, Math.round(targetPage));
+    const ready = renderedSourceRef.current === source.url
+      && container.querySelector(`[data-page-number="${page}"]`);
+    if (!ready) {
+      pendingCitationJumpRef.current = { url: source.url, page };
+      return undefined;
+    }
+    goToHighlight(page, 'auto');
+    pendingCitationJumpRef.current = null;
     return undefined;
   }, [goToHighlight, highlightKey, jumpVersion, pageCount, paintHighlights, source.url, targetPage]);
 
@@ -629,7 +645,16 @@ function PdfSourceViewerImpl({
     const container = pagesRef.current;
     const shouldCenterFittedPage = zoomModeRef.current === 'fit-page';
     const fittedPage = fitWidthPageRef.current;
-    const anchor = sourceChanged || shouldCenterFittedPage
+    const citationJump = () => {
+      const pending = pendingCitationJumpRef.current;
+      if (pending?.url === source.url) return pending.page;
+      if (!sourceChanged) return null;
+      const page = targetPageRef.current;
+      return page ? Math.max(1, Math.round(page)) : null;
+    };
+    // A citation opened this file before its pages existed. Do not restore
+    // whatever scroll position the fit-width pass captured at the top.
+    const anchor = sourceChanged || shouldCenterFittedPage || citationJump()
       ? null
       : (scrollAnchorRef.current ?? captureScrollAnchor(container));
 
@@ -714,8 +739,10 @@ function PdfSourceViewerImpl({
         // Swap the complete layout in one operation and restore its position
         // before the browser can paint an intermediate scroll location.
         container.replaceChildren(fragment);
-        if (shouldCenterFittedPage) centerPageInViewport(container, fittedPage);
-        else if (anchor) restoreScrollAnchor(container, anchor);
+        const openingPage = citationJump();
+        if (openingPage) fitWidthPageRef.current = openingPage;
+        if (!openingPage && shouldCenterFittedPage) centerPageInViewport(container, fittedPage);
+        else if (!openingPage && anchor) restoreScrollAnchor(container, anchor);
 
         const outputScale = window.devicePixelRatio || 1;
 
@@ -796,13 +823,29 @@ function PdfSourceViewerImpl({
           }
         };
 
-        const priority = shouldCenterFittedPage
-          ? fittedPage
-          : (anchor?.page ?? targetPage ?? 1);
+        const jumpedPage = citationJump();
+        const priority = jumpedPage
+          ?? (shouldCenterFittedPage ? fittedPage : (anchor?.page ?? targetPageRef.current ?? 1));
         await renderPage(priority);
         if (canceled) return;
 
-        if (shouldCenterFittedPage) {
+        if (jumpedPage) {
+          fitWidthPageRef.current = jumpedPage;
+          scrollToHighlight(
+            container,
+            jumpedPage,
+            highlightRegionsRef.current,
+            highlightFiguresRef.current,
+            'auto',
+            rotationRef.current,
+          );
+          if (container.querySelector(`[data-page-number="${jumpedPage}"]`)) {
+            pendingCitationJumpRef.current = null;
+          }
+          scrollAnchorRef.current = null;
+          setCurrentPage(jumpedPage);
+          setPageInput(String(jumpedPage));
+        } else if (shouldCenterFittedPage) {
           centerPageInViewport(container, fittedPage);
           scrollAnchorRef.current = null;
           setCurrentPage(fittedPage);
@@ -811,7 +854,7 @@ function PdfSourceViewerImpl({
           scrollAnchorRef.current = null;
           setCurrentPage(anchor.page);
         } else {
-          const jump = targetPage ?? 1;
+          const jump = targetPageRef.current ?? 1;
           scrollToHighlight(
             container,
             jump,

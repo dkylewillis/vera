@@ -856,18 +856,28 @@ def _apply_plan(
     steps = [*plan["moves"], *plan["converts"]]
     if not hold_trash:
         steps.extend(plan["trashes"])
-    total = len(steps)
-    for index, step in enumerate(steps):
+    # Each phase has its own total, fixed before that work starts. Convert
+    # counts documents this run will convert, not renames, trash, or files
+    # that only needed a hash check.
+    phase_total = {
+        "move": len(plan["moves"]),
+        "convert": len(plan["converts"]),
+        "trash": 0 if hold_trash else len(plan["trashes"]),
+    }
+    phase_seen = {"move": 0, "convert": 0, "trash": 0}
+    for step in steps:
         raise_if_cancelled(cancel)
-        if progress:
+        action = str(step["action"])
+        if progress and action in phase_total:
             progress(
                 {
-                    "phase": step["action"],
-                    "completed": index,
-                    "total": total,
+                    "phase": action,
+                    "completed": phase_seen[action],
+                    "total": phase_total[action],
                     "input": step.get("source") or "",
                 }
             )
+            phase_seen[action] += 1
         source_rel = str(step["source"])
         try:
             if step["action"] == "move" and not dry_run:
@@ -949,7 +959,14 @@ def _trash_archive(root: Path, source_rel: str) -> None:
 
 
 def _refresh_index(root: Path, progress: Progress | None) -> dict[str, Any]:
+    """Rebuild the library index only when it is missing or out of date.
+
+    The check compares archive paths, sizes, and modification times. A fresh
+    index is already the cache those archives would produce.
+    """
     status = library_index_status(str(root), verify_hashes=False)
+    if status.get("fresh"):
+        return status
     if status.get("exists"):
         try:
             return update_library_index(str(root), progress=progress)

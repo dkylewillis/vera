@@ -638,6 +638,21 @@ def test_library_pipeline_actions_store_folder_rules(tmp_path):
         assert listed["ok"] is True, listed
         assert listed["result"]["rules"] == [{"folder": "", "parser": "altpdf", "pipeline_options": {}}]
 
+        updated = handle(
+            {
+                "id": "options",
+                "action": "library_set_pipeline",
+                "path": str(tmp_path),
+                "folder": "",
+                "parser": "altpdf",
+                "pipeline_options": {"chunk_size": 800},
+            }
+        )
+        assert updated["ok"] is True, updated
+        assert updated["result"]["rules"] == [
+            {"folder": "", "parser": "altpdf", "pipeline_options": {"chunk_size": 800}},
+        ]
+
         set_rule = handle(
             {"id": "set", "action": "library_set_pipeline", "path": str(plans), "parser": "pymupdf"}
         )
@@ -1185,6 +1200,37 @@ def test_source_action_reuses_cache_without_extracting_blob(tmp_path, monkeypatc
     )
     assert again["ok"] is True
     assert again["result"]["cache_path"] == first["result"]["cache_path"]
+
+
+def test_source_action_opens_source_when_cited_archive_path_moved(tmp_path):
+    library = tmp_path / "Plans"
+    project = library / "Pump"
+    project.mkdir(parents=True)
+    vera_dir = library / ".vera"
+    vera_dir.mkdir()
+    (vera_dir / "library.json").write_text("{}", encoding="utf-8")
+    pdf = project / "Sheet.PDF"
+    make_pdf(pdf)
+    stale = project / "Sheet.PDF.vera"
+    archive_dir = vera_dir / "archives" / "Pump"
+    archive_dir.mkdir(parents=True)
+    (archive_dir / "Sheet.PDF.vera").write_bytes(b"not-opened")
+    cache_dir = tmp_path / "source-cache"
+
+    response = handle(
+        {
+            "id": "1",
+            "action": "source",
+            "path": str(stale),
+            "cache_dir": str(cache_dir),
+        }
+    )
+
+    assert response["ok"] is True
+    result = response["result"]
+    assert result["filename"] == "Sheet.PDF"
+    assert result["mime_type"] == "application/pdf"
+    assert Path(result["cache_path"]).read_bytes() == pdf.read_bytes()
 
 
 def test_sibling_source_file_reads_the_name_before_vera(tmp_path):

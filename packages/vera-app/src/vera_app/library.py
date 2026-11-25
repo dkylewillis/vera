@@ -89,8 +89,10 @@ def library_set_pipeline(request: Request) -> dict[str, Any]:
     """
     parser = request.get("parser")
     source_format = request.get("source_format")
+    folder = request.get("folder") if "folder" in request else None
     return set_folder_pipeline(
         str(request["path"]),
+        folder=str(folder) if isinstance(folder, str) else None,
         parser=str(parser) if parser else None,
         pipeline_options=_mapping(request.get("pipeline_options")),
         clear=not parser,

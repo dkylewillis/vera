@@ -54,7 +54,7 @@ export function conversionProgressTaskUpdate(
       message: mode === 'batch' ? `Converted ${completed} of ${total}` : 'Converted',
     };
   }
-  return { ...base, message: `${completed + 1} of ${total}` };
+  return { ...base, message: `Converting ${completed + 1} of ${total}` };
 }
 
 function convertSharedFields(options: {

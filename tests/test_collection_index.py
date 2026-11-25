@@ -24,6 +24,18 @@ from vera_ingest import convert
 from vera_ingest.viewer import regions_for
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows extended-length paths")
+def test_index_relative_path_accepts_extended_prefix():
+    from vera_doc._index_layout import _relative
+
+    root = Path(r"E:\vera libraries\Work Authorizations\.vera\archives")
+    archive = Path(
+        r"\\?\E:\vera libraries\Work Authorizations\.vera\archives"
+        r"\Austell GA\2023-2024 Employee Training WA.pdf.vera"
+    )
+    assert _relative(archive, root) == "Austell GA/2023-2024 Employee Training WA.pdf.vera"
+
+
 def _sequence_library(tmp_path, n_pages: int = 12, target_index: int = 5):
     """Build a library whose middle page is uniquely searchable with neighbors."""
     import fitz

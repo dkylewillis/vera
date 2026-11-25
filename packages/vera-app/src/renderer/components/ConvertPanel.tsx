@@ -137,6 +137,9 @@ export function ConvertPanel({
   );
   // A non-default model is otherwise hidden inside the collapsed Advanced section.
   const customizedModel = !embeddingModelsMatch(embeddingModel, DEFAULT_EMBEDDING_MODEL);
+  const visionModel = ingestPipeline === 'plansheet'
+    ? String(pipelineOptions.vlm_model || '').split('/').pop()
+    : '';
   const hasTarget = convertMode === 'selected' ? selectedPdfs.length > 0 : Boolean(batchDirectory.trim());
   const listedFiles = selectedPdfs.slice(0, MAX_LISTED_FILES);
   const unlistedFiles = selectedPdfs.length - listedFiles.length;
@@ -287,6 +290,7 @@ export function ConvertPanel({
         <summary>
           Advanced
           {customizedModel ? <span className="convertAdvancedHint"> · {embeddingModelLabel(embeddingModel) || 'custom model'}</span> : null}
+          {visionModel ? <span className="convertAdvancedHint"> · {visionModel}</span> : null}
         </summary>
         <label className="miniCheck">
           <input type="checkbox" checked={batchOverwrite} onChange={(event) => onBatchOverwriteChange(event.target.checked)} />

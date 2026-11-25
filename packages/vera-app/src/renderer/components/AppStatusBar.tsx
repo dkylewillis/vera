@@ -117,7 +117,9 @@ export function AppStatusBar({
                 className="appStatusAction"
                 onClick={onStopConversion}
                 disabled={task.message === 'Stopping…'}
-                title="Stop conversion"
+                title={task.path
+                  ? 'Stop. This library stays paused until you convert or check for changes.'
+                  : 'Stop conversion'}
                 aria-label="Stop conversion"
               >
                 <Square size={9} fill="currentColor" aria-hidden="true" />
@@ -129,7 +131,7 @@ export function AppStatusBar({
                 className="appStatusAction"
                 onClick={() => onStopLibrarySync(task.id)}
                 disabled={task.message === 'Stopping…'}
-                title="Stop library sync"
+                title="Stop. This library stays paused until you convert or check for changes."
                 aria-label="Stop library sync"
               >
                 <Square size={9} fill="currentColor" aria-hidden="true" />

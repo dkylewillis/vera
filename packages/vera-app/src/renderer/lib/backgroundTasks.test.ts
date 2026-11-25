@@ -59,6 +59,27 @@ describe('background task status', () => {
       .toBe('Finalizing index · 842 chunks · 1 skipped');
   });
 
+  it('shows a library sync phase without repeating the task label', () => {
+    expect(formatBackgroundTask({
+      id: 'sync-1',
+      kind: 'conversion',
+      label: 'Converting new files',
+      phase: 'scanning',
+      message: 'Checking library 320 of 360',
+      currentItem: 'C:\\library\\manual.pdf',
+    })).toBe('Checking library 320 of 360 · manual.pdf');
+    expect(formatBackgroundTask({
+      id: 'sync-1',
+      kind: 'conversion',
+      label: 'Converting new files',
+      phase: 'convert',
+      message: 'Converting 1 of 118',
+      completed: 0,
+      total: 118,
+      currentItem: 'C:\\library\\changed.pdf',
+    })).toBe('Converting 1 of 118 · changed.pdf');
+  });
+
   it('formats library inspection as its own determinate task', () => {
     expect(formatBackgroundTask({
       id: 'inspection-1',

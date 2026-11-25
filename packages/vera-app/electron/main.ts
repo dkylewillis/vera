@@ -19,6 +19,9 @@ import {
   claimLibrarySync,
   isManagedLibraryEvent,
   librarySyncDecision,
+  librarySyncIsPaused,
+  pauseLibrarySync,
+  resumeLibrarySync,
   type LibrarySyncAbort,
 } from './folder-watch.js';
 import { DEFAULT_AGENT_SERVICE_PORT } from '../src/shared/agent-snippets.js';
@@ -41,6 +44,7 @@ import {
 } from '../src/shared/pro.js';
 import { ServiceManager, type ServiceStatus } from './service-manager.js';
 import { listFolderEntries } from './folder-listing.js';
+import { plansheetRulesToUpdate, type LibraryPipelineRule } from './library-model-settings.js';
 import { folderEntryType, sourceOpenDialogExtensions } from '../src/shared/source-types.js';
 import { veraArchivePathFromArgs } from './file-open.js';
 import { type JsonLineEvent } from './json-line-process.js';
@@ -1724,8 +1728,18 @@ type LibrarySyncOptions = { onEvent?: (event: JsonLineEvent) => void; requestId?
  * asked for (it has a `requestId`) waits for that library's running sync, then
  * runs its own pass so it reports what is still pending.
  */
+function holdLibrarySync(folderPath: string): void {
+  const key = folderWatcherKey(folderPath);
+  pauseLibrarySync(key);
+  const pending = librarySyncTimers.get(key);
+  if (!pending) return;
+  clearTimeout(pending);
+  librarySyncTimers.delete(key);
+}
+
 async function runLibrarySync(folderPath: string, options: LibrarySyncOptions = {}): Promise<LibrarySyncReport | null> {
   const key = folderWatcherKey(folderPath);
+  if (!options.requestId && librarySyncIsPaused(key)) return null;
   return claimLibrarySync(
     librarySyncing,
     key,
@@ -1747,10 +1761,43 @@ function abortLibrarySync(requestId: string): boolean {
     const waiters = librarySyncWaiters.get(run.requestId);
     if (run.requestId !== requestId && !waiters?.has(requestId)) continue;
     found = true;
+    holdLibrarySync(run.folderPath);
     librarySyncAbort.aborted.add(requestId);
     if (run.requestId !== requestId) void sidecar.cancelAnswer(run.requestId);
   }
   return found;
+}
+
+async function applySavedPlansheetOptions(folderPath: string): Promise<void> {
+  const config = readSettings().ingest_pipeline_configs.plansheet;
+  if (!config || !Object.keys(config).length) return;
+  try {
+    const listed = await sidecar.request({
+      action: SIDECAR_ACTIONS.libraryPipelines,
+      path: folderPath,
+    });
+    const result = listed.ok && listed.result && typeof listed.result === 'object'
+      ? listed.result as { rules?: LibraryPipelineRule[] }
+      : null;
+    for (const update of plansheetRulesToUpdate(result?.rules || [], config)) {
+      const saved = await sidecar.request({
+        action: SIDECAR_ACTIONS.librarySetPipeline,
+        path: folderPath,
+        folder: update.folder,
+        parser: 'plansheet',
+        pipeline_options: update.pipeline_options,
+      });
+      if (!saved.ok) {
+        logSidecarMessage(
+          'vera',
+          `Could not save plansheet model settings for ${folderPath}: ${saved.error || 'library update failed'}`,
+        );
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'library update failed';
+    logSidecarMessage('vera', `Could not save plansheet model settings for ${folderPath}: ${message}`);
+  }
 }
 
 async function syncLibraryOnce(
@@ -1759,6 +1806,7 @@ async function syncLibraryOnce(
 ): Promise<LibrarySyncReport | null> {
   const requestId = options.requestId;
   try {
+    await applySavedPlansheetOptions(folderPath);
     let confirmed = false;
     let report: LibrarySyncReport | null = null;
     for (;;) {
@@ -1801,6 +1849,7 @@ async function syncLibraryOnce(
 
 function scheduleLibrarySync(folderPath: string, delayMs = 1000): void {
   const key = folderWatcherKey(folderPath);
+  if (librarySyncIsPaused(key)) return;
   const existing = librarySyncTimers.get(key);
   if (existing) clearTimeout(existing);
   librarySyncTimers.set(key, setTimeout(() => {
@@ -1812,7 +1861,10 @@ function scheduleLibrarySync(folderPath: string, delayMs = 1000): void {
 function ensureLibrarySyncTimer(): void {
   if (librarySyncTimer) return;
   librarySyncTimer = setInterval(() => {
-    for (const entry of folderWatchers.values()) void runLibrarySync(entry.path);
+    for (const entry of folderWatchers.values()) {
+      if (librarySyncIsPaused(folderWatcherKey(entry.path))) continue;
+      void runLibrarySync(entry.path);
+    }
   }, LIBRARY_SYNC_INTERVAL_MS);
 }
 
@@ -2359,6 +2411,7 @@ if (singleInstanceLock) app.whenReady().then(() => {
   });
   ipcMain.handle(IPC_CHANNELS.syncLibrary, async (event, folderPath: string, requestId?: string) => {
     if (typeof folderPath !== 'string' || !folderPath.trim()) return null;
+    resumeLibrarySync(folderWatcherKey(folderPath));
     const sender = event.sender;
     return runLibrarySync(folderPath, {
       requestId: typeof requestId === 'string' && requestId ? requestId : undefined,

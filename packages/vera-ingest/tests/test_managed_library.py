@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from vera_doc import library_index_status
 from vera_doc.corpus import VeraCorpus
 from vera_doc.library import (
     LIBRARY_DIRECTORY,
@@ -160,6 +161,67 @@ def test_sync_skips_office_owner_files(tmp_path: Path):
     assert (archives / "notes.md.vera").is_file()
     assert not (archives / "~$notes.md.vera").exists()
     assert not (archives / "~$DKSalaries.xlsx.vera").exists()
+
+
+def test_sync_leaves_a_fresh_index_unchanged(tmp_path: Path):
+    init_library(str(tmp_path), model="hashing")
+    _write(tmp_path / "notes.md", NOTE)
+    first_events: list[dict] = []
+    assert sync_library(str(tmp_path), progress=first_events.append)["converted"] == 1
+    built = library_index_status(str(tmp_path), verify_hashes=False)
+    assert built["fresh"] is True
+    generation = built["generation_id"]
+    assert generation
+
+    quiet: list[dict] = []
+    again = sync_library(str(tmp_path), progress=quiet.append)
+    assert again["converted"] == 0
+    assert again["index"]["fresh"] is True
+    assert again["index"]["generation_id"] == generation
+    assert [event["phase"] for event in quiet if event["phase"] in {"discovering", "indexing", "finalizing"}] == []
+
+    _write(tmp_path / "notes.md", OTHER)
+    changed: list[dict] = []
+    assert sync_library(str(tmp_path), progress=changed.append)["converted"] == 1
+    updated = library_index_status(str(tmp_path), verify_hashes=False)
+    assert updated["fresh"] is True
+    assert updated["generation_id"] != generation
+    assert "indexing" in {event["phase"] for event in changed}
+
+
+def test_convert_progress_counts_only_documents_this_run_will_convert(tmp_path: Path):
+    init_library(str(tmp_path), model="hashing")
+    _write(tmp_path / "a.md", NOTE)
+    _write(tmp_path / "b.md", OTHER)
+    events: list[dict] = []
+    first = sync_library(str(tmp_path), progress=events.append)
+    assert first["converted"] == 2
+    converts = [event for event in events if event["phase"] == "convert"]
+    assert [(event["completed"], event["total"], event["input"]) for event in converts] == [
+        (0, 2, "a.md"),
+        (1, 2, "b.md"),
+    ]
+
+    events.clear()
+    (tmp_path / "a.md").rename(tmp_path / "a-renamed.md")
+    (tmp_path / "b.md").unlink()
+    _write(tmp_path / "c.md", NOTE)
+    second = sync_library(str(tmp_path), progress=events.append)
+    assert second["moved"] == 1
+    assert second["converted"] == 1
+    assert second["trashed"] == 1
+    moves = [event for event in events if event["phase"] == "move"]
+    converts = [event for event in events if event["phase"] == "convert"]
+    trashes = [event for event in events if event["phase"] == "trash"]
+    assert [(event["completed"], event["total"], event["input"]) for event in moves] == [
+        (0, 1, "a-renamed.md"),
+    ]
+    assert [(event["completed"], event["total"], event["input"]) for event in converts] == [
+        (0, 1, "c.md"),
+    ]
+    assert [(event["completed"], event["total"], event["input"]) for event in trashes] == [
+        (0, 1, "b.md"),
+    ]
 
 
 def test_rename_move_delete_restore_and_purge(tmp_path: Path):

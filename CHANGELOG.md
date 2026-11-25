@@ -101,6 +101,8 @@ reconvert files created with 0.2 tooling in order to search or inspect them.
 
 ### Fixed
 
+- Citations saved before a library moved its archives under `.vera/archives` open the document. Those citations still name `Sheet.pdf.vera` beside the source, which is no longer there, so the viewer was switching to the chunk tab. It now opens the source file that stayed in place.
+- The first click on a citation opens that page. The viewer used to finish loading the PDF on page 1, so a second click was required to scroll.
 - Desktop PDF viewer paints scanned pages encoded as JBIG2, JPEG2000, or CCITT. PDF.js 6 drops those images when `wasmUrl` is unset, so plan sheets opened as a blank page.
 - **Save as Markdown** keeps going when an answer contains a character UTF-8 cannot store. The character is replaced, and the file is written.
 - Desktop **Context tokens** values are kept when settings are saved.

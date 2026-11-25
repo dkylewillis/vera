@@ -14,6 +14,12 @@ from vera_app.documents import open_document
 from vera_app.markdown_html import ensure_markdown_html
 from vera_app.types import Request
 from vera_doc import VeraDocument
+from vera_doc.library import (
+    ARCHIVE_SUFFIX,
+    LIBRARY_ARCHIVES,
+    LIBRARY_DIRECTORY,
+    find_library_root,
+)
 from vera_ingest.formats import source_mime_type
 from vera_ingest.viewer import export_source_document, get_source_document, get_viewer_preview
 
@@ -111,6 +117,39 @@ def copy_file_to_cache(
         if tmp_path.exists():
             tmp_path.unlink(missing_ok=True)
     return cache_path
+
+
+def resolve_viewer_path(path: Path) -> Path:
+    """Find the document for a citation path whose archive has moved.
+
+    A managed library used to be cited as ``Plans/Sheet.pdf.vera`` beside the
+    source. The source stays there and the archive moves under
+    ``.vera/archives``. Those saved citations no longer name a file, so the
+    viewer would give up and show the chunk tab. Prefer the source file that
+    is still in place, then the relocated archive.
+    """
+    if path.exists():
+        return path
+    name = path.name
+    if not name.lower().endswith(ARCHIVE_SUFFIX):
+        return path
+    remainder = name[: -len(ARCHIVE_SUFFIX)]
+    if "." in remainder:
+        sibling = path.with_name(remainder)
+        if sibling.is_file():
+            return sibling
+    parent = path.parent if path.parent.exists() else path
+    root = find_library_root(parent)
+    if root is None:
+        return path
+    try:
+        relative = path.resolve().relative_to(root)
+    except ValueError:
+        return path
+    archive = root / LIBRARY_DIRECTORY / LIBRARY_ARCHIVES / relative
+    if archive.is_file():
+        return archive
+    return path
 
 
 def sibling_source_file(path: Path) -> tuple[Path, str] | None:
@@ -320,7 +359,7 @@ def _materialize_source(
     """
     if cancel:
         cancel.raise_if_cancelled()
-    path = Path(str(request["path"]))
+    path = resolve_viewer_path(Path(str(request["path"])))
     cache_dir = source_cache_dir(request)
     if path.suffix.lower() == ".pdf":
         return source_from_pdf(path, cache_dir, cancel)

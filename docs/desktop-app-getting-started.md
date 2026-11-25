@@ -53,8 +53,14 @@ Adding or converting a library creates a managed library: a hidden `.vera/`
 folder holds mirrored archives, the collection index, and trash. VERA syncs
 it when the library is added, when files change, and about every 10 minutes.
 A sync that has files to check or convert shows in the footer status bar,
-where Stop cancels it. **Checking library N of M** means VERA is hashing
-files to see what changed.
+where Stop cancels it and holds the library. File changes and the periodic
+check do not start it again until you choose Convert or Check for changes now. **Checking library N of M** means VERA is hashing
+files to see what changed. **Converting N of M** starts after that check:
+M is the number of documents this sync will convert, and it stays M until
+those documents are finished. Renames (**Moving archives**) and trash
+(**Moving to library trash**) use their own counts. The sync rebuilds the
+library index only when that index is missing or out of date. An index that
+still matches its archives is left as it is.
 A large disappearance asks before archives are moved to trash. Right-click a
 library for **Library trash…**, and a converted document for **Share
 archive…**, which copies that one `.vera` file out. Sibling `.vera` files

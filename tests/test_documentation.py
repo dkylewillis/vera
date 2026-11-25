@@ -1320,6 +1320,7 @@ def test_desktop_security_and_markdown_locator_docs():
     assert "CVE-2026-16633" in troubleshooting
     assert "vera-pdfjs://wasm/" in troubleshooting
     assert "jbig2.wasm" in troubleshooting
+    assert "A citation opens the chunk tab" in troubleshooting
     assert "markdownDisplayLines()" in architecture
     assert "UTF-8 BOM" in architecture
     assert "UTF-8 BOM" in troubleshooting

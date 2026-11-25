@@ -60,6 +60,10 @@ export function formatBackgroundTask(task: BackgroundTask): string {
   } else if (task.kind === 'inspection') {
     const count = taskIsDeterminate(task) ? ` ${task.completed} of ${task.total}` : '';
     details.push(`Inspecting library${count}`);
+  } else if (task.kind === 'conversion' || task.kind === 'librarySync') {
+    // The phase message is the whole status ("Checking library 2 of 5",
+    // "Converting 1 of 3"). The task label would repeat it.
+    details.push(task.message?.trim() || task.label);
   } else {
     details.push(task.label);
     if (task.message) details.push(task.message);

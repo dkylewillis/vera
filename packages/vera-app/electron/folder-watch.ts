@@ -18,6 +18,21 @@ export function librarySyncDecision(
   return 'done';
 }
 
+const pausedLibraryKeys = new Set<string>();
+
+/** Stop holds this library. Watcher and timer syncs skip it until an explicit sync. */
+export function pauseLibrarySync(key: string): void {
+  pausedLibraryKeys.add(key);
+}
+
+export function resumeLibrarySync(key: string): void {
+  pausedLibraryKeys.delete(key);
+}
+
+export function librarySyncIsPaused(key: string): boolean {
+  return pausedLibraryKeys.has(key);
+}
+
 export function librarySyncWasCancelled(report: unknown): boolean {
   if (!report || typeof report !== 'object') return false;
   const record = report as { cancelled?: boolean; error?: string };

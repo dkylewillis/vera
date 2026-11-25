@@ -19,6 +19,7 @@ from .library import (
     LIBRARY_DIRECTORY,
     LIBRARY_INDEX,
     is_managed_library,
+    strip_extended_path,
 )
 
 INDEX_DIRECTORY = ".vera-index"
@@ -89,7 +90,12 @@ def _path_size(path: Path) -> int:
 
 
 def _relative(path: Path, root: Path) -> str:
-    return path.relative_to(root).as_posix()
+    """Return ``path`` relative to ``root``.
+
+    Windows extended-length paths (``\\\\?\\``) are not a subpath of the same
+    location without that prefix, so ``Path.relative_to`` rejects them.
+    """
+    return Path(strip_extended_path(path)).relative_to(Path(strip_extended_path(root))).as_posix()
 
 
 def _exclusive_lock(handle: Any) -> None:

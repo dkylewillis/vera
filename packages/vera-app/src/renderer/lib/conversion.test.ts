@@ -45,7 +45,7 @@ describe('conversionProgressTaskUpdate', () => {
     });
     expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 0, total: 0 }, 'batch').message).toBe('No source files found to convert.');
     expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 0, total: 0 }, 'single').message).toBe('Converting…');
-    expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 1, total: 4 }, 'batch').message).toBe('2 of 4');
+    expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 1, total: 4 }, 'batch').message).toBe('Converting 2 of 4');
     expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 4, total: 4 }, 'batch').message).toBe('Converted 4 of 4');
     expect(conversionProgressTaskUpdate({ phase: 'converting', completed: 1, total: 1 }, 'single').message).toBe('Converted');
     expect(conversionProgressTaskUpdate({ phase: 'preparing', completed: 0, total: 1, input: 'a.pdf' }, 'single').message)

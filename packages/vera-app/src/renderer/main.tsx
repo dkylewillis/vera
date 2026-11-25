@@ -1007,6 +1007,7 @@ function App() {
     selectExplorerFolder(folderPath);
     void prepareManagedLibrary(folderPath, (payload) => window.vera.request(payload), {
       model: embeddingModel,
+      pipelineConfigs: ingestPipelineConfigs,
       askPdfPipeline: () => askPdfPipeline(folderPath),
       askAdopt: (count) => new Promise((resolve) => {
         setAdoptPrompt({ path: folderPath, count, resolve });

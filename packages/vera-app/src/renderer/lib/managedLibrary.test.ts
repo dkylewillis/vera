@@ -99,4 +99,25 @@ describe('prepareManagedLibrary', () => {
       { folder: 'Specs', parser: 'pymupdf' },
     ]);
   });
+
+  it('writes the saved pipeline settings onto each new rule', async () => {
+    const inits: Record<string, unknown>[] = [];
+    const request = async <T>(payload: Record<string, unknown>): Promise<VeraResponse<T>> => {
+      if (payload.action === 'library_status') return { ok: true, result: { managed: false } as T };
+      inits.push(payload);
+      return { ok: true, result: { library_id: 'abc' } as T };
+    };
+    const plansheet = { vlm_model: 'google/gemini-3-flash-preview', vlm_fallback_model: 'qwen/qwen2.5-vl-72b-instruct' };
+    await prepareManagedLibrary('C:\\plans', request, {
+      pipelineConfigs: { plansheet },
+      askPdfPipeline: async () => ({
+        parser: 'plansheet',
+        rules: [{ folder: 'Old', parser: 'pymupdf' }],
+      }),
+    });
+    expect(inits[0].pipeline_rules).toEqual([
+      { folder: '', parser: 'plansheet', pipeline_options: plansheet },
+      { folder: 'Old', parser: 'pymupdf' },
+    ]);
+  });
 });

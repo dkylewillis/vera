@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { claimLibrarySync, isManagedLibraryEvent, librarySyncDecision, type LibrarySyncClaim } from './folder-watch.js';
+import {
+  claimLibrarySync,
+  isManagedLibraryEvent,
+  librarySyncDecision,
+  librarySyncIsPaused,
+  pauseLibrarySync,
+  resumeLibrarySync,
+  type LibrarySyncClaim,
+} from './folder-watch.js';
 
 describe('isManagedLibraryEvent', () => {
   it('ignores writes inside the managed library folder', () => {
@@ -23,6 +31,16 @@ describe('librarySyncDecision', () => {
     expect(librarySyncDecision({ managed: true, needs_confirmation: true }, false)).toBe('confirm');
     expect(librarySyncDecision({ managed: true, needs_confirmation: true }, true)).toBe('done');
     expect(librarySyncDecision({ managed: true, needs_confirmation: false }, false)).toBe('done');
+  });
+});
+
+describe('library sync pause', () => {
+  it('holds a library after Stop until an explicit sync resumes it', () => {
+    pauseLibrarySync('lib-a');
+    expect(librarySyncIsPaused('lib-a')).toBe(true);
+    expect(librarySyncIsPaused('lib-b')).toBe(false);
+    resumeLibrarySync('lib-a');
+    expect(librarySyncIsPaused('lib-a')).toBe(false);
   });
 });
 

@@ -392,6 +392,16 @@ look shifted, you are probably previewing a different file than the stored
 original, or the archive was converted from generated Markdown rather than
 the file on disk.
 
+## A citation opens the chunk tab
+
+The chunk tab is the fallback when the cited archive cannot be opened. In a
+saved chat, the first answer's citations can still name `Sheet.pdf.vera`
+beside the source from before the library moved archives into
+`.vera/archives`. Later answers name the archive under `.vera/archives`, so
+those citations open. The viewer now follows a missing `Sheet.pdf.vera` to
+the source file that stayed in the folder, then to `.vera/archives`. Restart
+the desktop app after updating so that lookup is in the sidecar.
+
 ## Scanned PDF pages are blank
 
 Plan sheets and other scans are often one JBIG2, JPEG2000, or CCITT image per

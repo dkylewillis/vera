@@ -68,6 +68,8 @@ export async function prepareManagedLibrary(
   request: Request,
   options: {
     model?: string;
+    /** Saved Convert settings, keyed by pipeline spec, written onto each new rule. */
+    pipelineConfigs?: Record<string, Record<string, unknown>>;
     askAdopt?: (count: number) => Promise<boolean>;
     /**
      * Pipeline for the library's PDFs, plus any folder rules chosen before
@@ -83,10 +85,15 @@ export async function prepareManagedLibrary(
   const report = status.ok ? status.result ?? null : null;
   if (!report || report.managed || report.inside_library) return report;
   const setup = options.askPdfPipeline ? await options.askPdfPipeline() : null;
+  const withConfig = (rule: { folder: string; parser: string }) => {
+    const config = options.pipelineConfigs?.[rule.parser];
+    if (!config || !Object.keys(config).length) return rule;
+    return { ...rule, pipeline_options: config };
+  };
   const pipelineRules = setup
     ? [
-      ...(setup.parser ? [{ folder: '', parser: setup.parser }] : []),
-      ...setup.rules.filter((rule) => rule.folder && rule.parser),
+      ...(setup.parser ? [withConfig({ folder: '', parser: setup.parser })] : []),
+      ...setup.rules.filter((rule) => rule.folder && rule.parser).map(withConfig),
     ]
     : [];
   let adopt = false;
